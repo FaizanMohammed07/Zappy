@@ -1,0 +1,35 @@
+const express = require('express');
+const Joi = require('joi');
+const ctrl = require('./payout.controller');
+const payoutService = require('./payout.service');
+const { authenticate, requireRole } = require('../../middlewares/auth');
+const { validate } = require('../../middlewares/validate');
+
+const router = express.Router();
+
+router.post(
+  '/request',
+  authenticate,
+  requireRole('worker'),
+  validate(Joi.object({
+    amountPaise: Joi.number().integer().min(payoutService.MIN_PAYOUT_PAISE).max(payoutService.MAX_PAYOUT_PAISE).required(),
+    method: Joi.string().valid('upi', 'bank', 'manual').required(),
+    upiId: Joi.string().when('method', { is: 'upi', then: Joi.required() }),
+    bankAccount: Joi.string().when('method', { is: 'bank', then: Joi.required() }),
+    bankIfsc: Joi.string().when('method', { is: 'bank', then: Joi.required() }),
+    accountName: Joi.string().max(100).optional(),
+  })),
+  ctrl.requestPayout
+);
+
+router.get('/mine', authenticate, requireRole('worker'), ctrl.listMine);
+
+const adminRouter = express.Router();
+adminRouter.use(authenticate, requireRole('admin'));
+adminRouter.get('/', ctrl.adminList);
+adminRouter.post('/:id/approve', ctrl.adminApprove);
+adminRouter.post('/:id/reject', validate(Joi.object({ reason: Joi.string().min(3).max(500).required() })), ctrl.adminReject);
+adminRouter.post('/:id/process', ctrl.adminProcess);
+
+module.exports = router;
+module.exports.adminRouter = adminRouter;

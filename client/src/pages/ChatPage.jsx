@@ -1,0 +1,204 @@
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { ArrowLeft, Phone, Send, Check, CheckCheck } from 'lucide-react';
+import { selectAuth } from '../modules/auth/authSlice';
+import { useOrderSocket } from '../hooks/useSocket';
+import toast from 'react-hot-toast';
+
+const CANNED = [
+  { code: 'im_here',  text: "I'm here, please come up" },
+  { code: 'share_loc', text: 'Share your location' },
+  { code: 'running',  text: 'Running a few minutes late' },
+  { code: 'thanks',   text: 'Thank you!' },
+];
+
+export default function ChatPage() {
+  const { id: orderId } = useParams();
+  const nav = useNavigate();
+  const { role } = useSelector(selectAuth);
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState('');
+  const [order, setOrder] = useState(null);
+  const [sending, setSending] = useState(false);
+  const scrollerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const token = useMemo(() => localStorage.getItem('token'), []);
+
+  useOrderSocket(orderId, {
+    onChatMessage: (msg) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === msg._id)) return prev;
+        return [...prev, msg];
+      });
+    },
+  });
+
+  async function fetchJSON(url, opts = {}) {
+    const res = await fetch(url, {
+      ...opts,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(opts.headers || {}),
+      },
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Request failed');
+    return res.json();
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [orderResp, chatResp] = await Promise.all([
+          fetchJSON(`/api/orders/${orderId}`),
+          fetchJSON(`/api/orders/${orderId}/chat`),
+        ]);
+        if (cancelled) return;
+        setOrder(orderResp.order);
+        setMessages(chatResp.messages || []);
+      } catch (err) {
+        toast.error(err.message || 'Could not load chat');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orderId]); // eslint-disable-line
+
+  useEffect(() => {
+    if (scrollerRef.current) {
+      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+    }
+  }, [messages.length]);
+
+  async function send(body, cannedCode) {
+    const trimmed = body.trim();
+    if (!trimmed || sending) return;
+    setSending(true);
+    try {
+      const r = await fetchJSON(`/api/orders/${orderId}/chat`, {
+        method: 'POST',
+        body: JSON.stringify({ text: trimmed, cannedCode }),
+      });
+      setMessages((prev) => [...prev, r.message]);
+      setText('');
+      inputRef.current?.focus();
+    } catch (err) {
+      toast.error(err.message || 'Could not send');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const otherParty = order
+    ? role === 'user'
+      ? { name: order.workerName || 'Worker' }
+      : { name: order.userName || 'Customer' }
+    : null;
+
+  async function startCall() {
+    try {
+      const r = await fetchJSON(`/api/orders/${orderId}/call`, { method: 'POST' });
+      if (r.proxyNumber) window.location.href = `tel:${r.proxyNumber}`;
+    } catch (err) {
+      toast.error(err.message || 'Could not start call');
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
+      {/* Header */}
+      <header className="bg-white border-b border-slate-100 shrink-0">
+        <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-3">
+          <button onClick={() => nav(-1)} className="back-btn">
+            <ArrowLeft size={18} strokeWidth={2.5} />
+          </button>
+          <div className="w-9 h-9 rounded-xl bg-zappy-gradient flex items-center justify-center text-white font-bold text-xs shrink-0">
+            {(otherParty?.name || 'W').slice(0, 2).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-[#0F172A] text-sm truncate">{otherParty?.name || '…'}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-success-500" />
+              <span className="text-[10px] text-success-600 font-semibold">Online</span>
+            </div>
+          </div>
+          <button
+            onClick={startCall}
+            className="w-9 h-9 rounded-xl bg-success-50 flex items-center justify-center"
+            aria-label="Call"
+          >
+            <Phone size={16} strokeWidth={2} className="text-success-600" />
+          </button>
+        </div>
+      </header>
+
+      {/* Messages */}
+      <div ref={scrollerRef} className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="max-w-lg mx-auto space-y-3">
+          {messages.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-sm text-slate-400 font-medium">No messages yet</p>
+              <p className="text-xs text-slate-300 mt-1">Start the conversation below</p>
+            </div>
+          )}
+
+          {messages.map((m) => {
+            const mine = m.from?.kind === role;
+            return (
+              <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div className="max-w-[80%]">
+                  <div className={mine ? 'bubble-out' : 'bubble-in'}>{m.text}</div>
+                  <div className={`flex items-center gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {mine && <CheckCheck size={11} className="text-zappy-400" />}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Canned replies */}
+          {messages.length >= 0 && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 pb-0.5">
+              {CANNED.map((c) => (
+                <button
+                  key={c.code}
+                  onClick={() => send(c.text, c.code)}
+                  className="shrink-0 px-3 py-1.5 bg-white ring-1 ring-slate-200 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-transform"
+                >
+                  {c.text}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Composer */}
+      <div className="bg-white border-t border-slate-100 shrink-0 safe-pb">
+        <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-2">
+          <input
+            ref={inputRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(text); } }}
+            className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-4 py-2.5 text-sm font-medium text-[#111827] outline-none focus:border-zappy-600 focus:ring-2 focus:ring-zappy-600/10 placeholder:text-slate-400 transition-all"
+            placeholder="Type a message…"
+          />
+          <button
+            onClick={() => send(text)}
+            disabled={sending || !text.trim()}
+            className="w-10 h-10 rounded-full bg-zappy-600 flex items-center justify-center disabled:opacity-40 transition-all active:scale-95 shadow-soft"
+            aria-label="Send"
+          >
+            <Send size={15} strokeWidth={2.5} className="text-white" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
