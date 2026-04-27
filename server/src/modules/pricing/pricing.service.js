@@ -74,13 +74,15 @@ function envFallback() {
     minFarePaise: config.pricing.minFare * 100,
     surgeEnabled: true,
     surgeMaxCap: 2.5,
-    commissionRate: 0.20,
+    commissionRate: 0.30,
     serviceOverrides: [
       { service: 'helper', multiplier: 0.9 },
       { service: 'plumbing', multiplier: 1.2 },
       { service: 'electrical', multiplier: 1.2 },
       { service: 'carpenter', multiplier: 1.3 },
       { service: 'ac_repair', multiplier: 1.5 },
+      { service: 'cleaning', multiplier: 1.0 },
+      { service: 'painting', multiplier: 1.4 },
     ],
   };
 }

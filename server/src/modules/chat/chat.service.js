@@ -69,8 +69,8 @@ async function sendMessage({ orderId, fromKind, fromId, text, cannedCode }) {
   // If recipient isn't actively on this screen, a notification wakes them up
   notificationService.notify({
     recipient,
-    type: 'order_placed', // nearest existing type; a 'chat_message' type could be added
-    title: `New message on your order`,
+    type: 'chat_message',
+    title: fromKind === 'user' ? 'Customer sent a message' : 'Worker sent a message',
     body: text.slice(0, 120),
     deepLink: `/orders/${orderId}`,
     data: { orderId: String(orderId), chatMessageId: String(msg._id) },

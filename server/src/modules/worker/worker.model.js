@@ -50,6 +50,17 @@ const workerSchema = new mongoose.Schema(
       totalEarnings: { type: Number, default: 0 },
     },
 
+    // Persistent penalty stats — source of truth for dispatch score degradation.
+    // Redis sliding window in abuse.service is the short-term signal;
+    // this is the lifetime ledger used for scoring and admin reports.
+    penalties: {
+      totalOffers:    { type: Number, default: 0 },  // offers received
+      totalRejects:   { type: Number, default: 0 },  // rejected/timed-out offers
+      totalCancels:   { type: Number, default: 0 },  // worker-initiated cancellations
+      totalNoShows:   { type: Number, default: 0 },  // no-show on completed disputes
+      lastPenaltyAt:  { type: Date },
+    },
+
     // Ops
     deviceTokens: [String], // FCM
     isBlocked: { type: Boolean, default: false },

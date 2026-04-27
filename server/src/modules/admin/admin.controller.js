@@ -165,6 +165,62 @@ async function getHeatmap(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ── Wallet adjustment (admin direct credit/debit) ─────────────────────────
+
+async function adjustWallet(req, res, next) {
+  try {
+    const walletService = require('../wallet/wallet.service');
+    const Transaction = require('../payment/transaction.model');
+    const { kind, id, type, amountPaise, description } = req.body;
+
+    if (!['user', 'worker'].includes(kind)) {
+      return res.status(400).json({ error: 'kind must be user or worker' });
+    }
+    if (!['credit', 'debit'].includes(type)) {
+      return res.status(400).json({ error: 'type must be credit or debit' });
+    }
+    if (!Number.isInteger(amountPaise) || amountPaise <= 0) {
+      return res.status(400).json({ error: 'amountPaise must be a positive integer' });
+    }
+
+    const reason = type === 'credit'
+      ? Transaction.REASONS.ADMIN_ADJUSTMENT_CREDIT
+      : Transaction.REASONS.ADMIN_ADJUSTMENT_DEBIT;
+
+    const idempotencyKey = `admin:adj:${req.auth.sub}:${kind}:${id}:${Date.now()}`;
+
+    const result = await walletService.apply({
+      kind, id, type, amountPaise, reason, idempotencyKey,
+      description: description || `Admin ${type} by ${req.auth.sub}`,
+      metadata: { adminId: req.auth.sub },
+    });
+
+    await auditService.fromRequest(
+      req,
+      `admin.wallet_${type}`,
+      { kind, id },
+      null,
+      { amountPaise, description }
+    );
+
+    res.json({
+      transaction: result.transaction,
+      newBalancePaise: result.wallet.balancePaise,
+      newBalanceRupees: Math.round(result.wallet.balancePaise / 100),
+    });
+  } catch (err) { next(err); }
+}
+
+async function reconcileWallet(req, res, next) {
+  try {
+    const walletService = require('../wallet/wallet.service');
+    const { kind, id } = req.params;
+    const result = await walletService.reconcile({ kind, id });
+    await auditService.fromRequest(req, 'admin.wallet_reconcile', { kind, id }, null, result);
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
 // ── User management ────────────────────────────────────────────────────────
 
 async function listUsers(req, res, next) {
@@ -303,6 +359,67 @@ async function runRatingBonusSweep(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ── Cancellation config ────────────────────────────────────────────────────
+
+async function getCancellationConfig(req, res, next) {
+  try {
+    const cancellationService = require('../order/cancellation.service');
+    const cfg = await cancellationService.getConfig();
+    res.json({ config: cfg });
+  } catch (err) { next(err); }
+}
+
+async function updateCancellationConfig(req, res, next) {
+  try {
+    const cancellationService = require('../order/cancellation.service');
+    const before = await cancellationService.getConfig();
+    const updated = await cancellationService.updateConfig(req.body, req.auth.sub);
+    await auditService.fromRequest(req, 'admin.cancellation_config_update', { kind: 'system', id: null }, before, req.body);
+    res.json({ config: updated });
+  } catch (err) { next(err); }
+}
+
+// ── Worker penalty stats ───────────────────────────────────────────────────
+
+async function getWorkerPenaltyStats(req, res, next) {
+  try {
+    const worker = await Worker.findById(req.params.id)
+      .select('name phone penalties rating completedJobs totalJobs isBlocked isAvailable')
+      .lean();
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+    const { redis: redisClient } = require('../../config/redis');
+    const rejectWindowRaw = await redisClient.lrange(`worker:offers:${req.params.id}`, 0, -1);
+    const cancelStrikesRaw = await redisClient.get(`cancel:strikes:${req.params.id}`);
+
+    const recentRejectRate = rejectWindowRaw.length > 0
+      ? rejectWindowRaw.filter((i) => i === 'reject' || i === 'timeout').length / rejectWindowRaw.length
+      : 0;
+
+    const lifetimeRejectRate = (worker.penalties?.totalOffers || 0) > 0
+      ? (worker.penalties.totalRejects || 0) / worker.penalties.totalOffers
+      : 0;
+    const lifetimeCancelRate = (worker.completedJobs || 0) > 0
+      ? (worker.penalties?.totalCancels || 0) / worker.completedJobs
+      : 0;
+
+    res.json({
+      worker: { _id: worker._id, name: worker.name, phone: worker.phone, isBlocked: worker.isBlocked, isAvailable: worker.isAvailable },
+      penalties: worker.penalties || {},
+      recentWindow: {
+        size: rejectWindowRaw.length,
+        rejectRate: Math.round(recentRejectRate * 100) / 100,
+        outcomes: rejectWindowRaw,
+      },
+      cancelStrikes: { active: parseInt(cancelStrikesRaw || '0', 10) },
+      lifetimeRates: {
+        rejectRate: Math.round(lifetimeRejectRate * 100) / 100,
+        cancelRate: Math.round(lifetimeCancelRate * 100) / 100,
+      },
+    });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   getRevenue, updateToggles, getMetrics,
   listOrders, listWorkers, blockWorker,
@@ -311,4 +428,7 @@ module.exports = {
   getPricingConfig, setPricingConfig,
   getHeatmap, getAnalytics,
   getIncentiveConfig, setIncentiveMilestones, runRatingBonusSweep,
+  adjustWallet, reconcileWallet,
+  getCancellationConfig, updateCancellationConfig,
+  getWorkerPenaltyStats,
 };

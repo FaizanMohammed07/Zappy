@@ -37,7 +37,7 @@ const pricingConfigSchema = new mongoose.Schema(
     surgeMaxCap: { type: Number, default: 2.5, min: 1.0, max: 5.0 },
 
     // Commission (workers' platform cut)
-    commissionRate: { type: Number, default: 0.20, min: 0, max: 0.5 }, // 20%
+    commissionRate: { type: Number, default: 0.30, min: 0, max: 0.5 }, // 30%
 
     isActive: { type: Boolean, default: false, index: true }, // exactly one active
 

@@ -1,6 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { Mutex } from 'async-mutex';
 import { setAuth, logout } from '../modules/auth/authSlice';
+import { adminApiPath } from '../config/admin';
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: '/api',
@@ -65,7 +66,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -164,35 +165,35 @@ export const api = createApi({
     }),
 
     // --- Admin ---
-    adminMetrics: b.query({ query: () => '/admin/metrics', providesTags: ['AdminMetrics'] }),
+    adminMetrics: b.query({ query: () => adminApiPath('/metrics'), providesTags: ['AdminMetrics'] }),
     adminOrders: b.query({
-      query: ({ status, page = 1 } = {}) => ({ url: '/admin/orders', params: { status, page } }),
+      query: ({ status, page = 1 } = {}) => ({ url: adminApiPath('/orders'), params: { status, page } }),
     }),
     adminWorkers: b.query({
       query: ({ q, skill, online, page = 1 } = {}) => ({
-        url: '/admin/workers',
+        url: adminApiPath('/workers'),
         params: { q, skill, online, page },
       }),
     }),
     adminBlockWorker: b.mutation({
       query: ({ id, blocked }) => ({
-        url: `/admin/workers/${id}/block`,
+        url: adminApiPath(`/workers/${id}/block`),
         method: 'POST',
         body: { blocked },
       }),
       invalidatesTags: ['Worker'],
     }),
     adminKycPending: b.query({
-      query: () => '/admin/kyc/pending',
+      query: () => adminApiPath('/kyc/pending'),
       providesTags: ['Kyc'],
     }),
     adminKycApprove: b.mutation({
-      query: (id) => ({ url: `/admin/workers/${id}/kyc/approve`, method: 'POST' }),
+      query: (id) => ({ url: adminApiPath(`/workers/${id}/kyc/approve`), method: 'POST' }),
       invalidatesTags: ['Kyc'],
     }),
     adminKycReject: b.mutation({
       query: ({ id, reason }) => ({
-        url: `/admin/workers/${id}/kyc/reject`,
+        url: adminApiPath(`/workers/${id}/kyc/reject`),
         method: 'POST',
         body: { reason },
       }),
@@ -258,13 +259,90 @@ export const api = createApi({
     // --- Pricing (public) ---
     getPricingConfig: b.query({ query: () => '/pricing' }),
     adminUpdatePricing: b.mutation({
-      query: (body) => ({ url: '/admin/pricing', method: 'PATCH', body }),
+      query: (body) => ({ url: adminApiPath('/pricing'), method: 'PATCH', body }),
     }),
     adminToggles: b.mutation({
-      query: (body) => ({ url: '/admin/toggles', method: 'PATCH', body }),
+      query: (body) => ({ url: adminApiPath('/toggles'), method: 'PATCH', body }),
     }),
     adminRevenue: b.query({
-      query: (days = 7) => `/admin/revenue?days=${days}`,
+      query: (days = 7) => adminApiPath(`/revenue?days=${days}`),
+    }),
+
+    // --- Admin: Extended ---
+    adminAnalytics: b.query({
+      query: (days = 30) => adminApiPath(`/analytics?days=${days}`),
+    }),
+    adminListUsers: b.query({
+      query: ({ q, blocked, page = 1 } = {}) => ({ url: adminApiPath('/users'), params: { q, blocked, page } }),
+      providesTags: ['AdminUsers'],
+    }),
+    adminBlockUser: b.mutation({
+      query: ({ id, blocked }) => ({ url: adminApiPath(`/users/${id}/block`), method: 'POST', body: { blocked } }),
+      invalidatesTags: ['AdminUsers'],
+    }),
+    adminGetPricingConfig: b.query({
+      query: () => adminApiPath('/pricing-config'),
+      providesTags: ['PricingCfg'],
+    }),
+    adminSetPricingConfig: b.mutation({
+      query: (body) => ({ url: adminApiPath('/pricing-config'), method: 'PUT', body }),
+      invalidatesTags: ['PricingCfg'],
+    }),
+    adminWalletAdjust: b.mutation({
+      query: (body) => ({ url: adminApiPath('/wallet/adjust'), method: 'POST', body }),
+    }),
+    adminWalletReconcile: b.mutation({
+      query: ({ kind, id }) => ({ url: adminApiPath(`/wallet/reconcile/${kind}/${id}`), method: 'POST' }),
+    }),
+    adminAuditLogs: b.query({
+      query: ({ action, actorId, page = 1 } = {}) => ({ url: adminApiPath('/audit-logs'), params: { action, actorId, page } }),
+      providesTags: ['AuditLogs'],
+    }),
+    adminDisputes: b.query({
+      query: ({ status = 'open', page = 1 } = {}) => ({ url: adminApiPath('/disputes'), params: { status, page } }),
+      providesTags: ['Disputes'],
+    }),
+    adminResolveDispute: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/disputes/${id}/resolve`), method: 'POST', body }),
+      invalidatesTags: ['Disputes'],
+    }),
+    adminPayouts: b.query({
+      query: ({ status, page = 1 } = {}) => ({ url: adminApiPath('/payouts'), params: { status, page } }),
+      providesTags: ['Payouts'],
+    }),
+    adminApprovePayout: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/payouts/${id}/approve`), method: 'POST' }),
+      invalidatesTags: ['Payouts'],
+    }),
+    adminRejectPayout: b.mutation({
+      query: ({ id, reason }) => ({ url: adminApiPath(`/payouts/${id}/reject`), method: 'POST', body: { reason } }),
+      invalidatesTags: ['Payouts'],
+    }),
+    adminProcessPayout: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/payouts/${id}/process`), method: 'POST' }),
+      invalidatesTags: ['Payouts'],
+    }),
+    adminGetIncentives: b.query({
+      query: () => adminApiPath('/incentives'),
+      providesTags: ['Incentives'],
+    }),
+    adminSetMilestones: b.mutation({
+      query: (milestones) => ({ url: adminApiPath('/incentives/milestones'), method: 'PUT', body: { milestones } }),
+      invalidatesTags: ['Incentives'],
+    }),
+    adminRatingSweep: b.mutation({
+      query: () => ({ url: adminApiPath('/incentives/rating-sweep'), method: 'POST' }),
+    }),
+    adminGetCancellationConfig: b.query({
+      query: () => adminApiPath('/cancellation-config'),
+      providesTags: ['CancellationConfig'],
+    }),
+    adminUpdateCancellationConfig: b.mutation({
+      query: (body) => ({ url: adminApiPath('/cancellation-config'), method: 'PATCH', body }),
+      invalidatesTags: ['CancellationConfig'],
+    }),
+    adminWorkerPenalties: b.query({
+      query: (id) => adminApiPath(`/workers/${id}/penalties`),
     }),
   }),
 });
@@ -315,6 +393,26 @@ export const {
   useAdminUpdatePricingMutation,
   useAdminTogglesMutation,
   useAdminRevenueQuery,
+  useAdminAnalyticsQuery,
+  useAdminListUsersQuery,
+  useAdminBlockUserMutation,
+  useAdminGetPricingConfigQuery,
+  useAdminSetPricingConfigMutation,
+  useAdminWalletAdjustMutation,
+  useAdminWalletReconcileMutation,
+  useAdminAuditLogsQuery,
+  useAdminDisputesQuery,
+  useAdminResolveDisputeMutation,
+  useAdminPayoutsQuery,
+  useAdminApprovePayoutMutation,
+  useAdminRejectPayoutMutation,
+  useAdminProcessPayoutMutation,
+  useAdminGetIncentivesQuery,
+  useAdminSetMilestonesMutation,
+  useAdminRatingSweepMutation,
+  useAdminGetCancellationConfigQuery,
+  useAdminUpdateCancellationConfigMutation,
+  useAdminWorkerPenaltiesQuery,
   useListNotificationsQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,

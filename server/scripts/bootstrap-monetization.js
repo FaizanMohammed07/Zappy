@@ -60,7 +60,7 @@ const PLANS = [
       minFarePaise: 6000,
       surgeEnabled: true,
       surgeMaxCap: 2.5,
-      commissionRate: 0.20,
+      commissionRate: 0.30,
       serviceOverrides: [
         { service: 'helper', multiplier: 0.9 },
         { service: 'plumbing', multiplier: 1.2 },

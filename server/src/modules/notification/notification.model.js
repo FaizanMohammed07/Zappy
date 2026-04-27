@@ -29,6 +29,7 @@ const TYPES = [
   'kyc_approved',
   'kyc_rejected',
   'dispute_response',
+  'chat_message',
   'promotional',
 ];
 

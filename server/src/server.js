@@ -4,9 +4,11 @@ const config = require('./config');
 const logger = require('./utils/logger');
 const { connectMongo } = require('./config/mongo');
 const { initSockets } = require('./sockets');
+const { ensureAdminSeeded } = require('./modules/admin/admin.seed');
 
 async function start() {
   await connectMongo();
+  await ensureAdminSeeded();
 
   const app = buildApp();
   const server = http.createServer(app);

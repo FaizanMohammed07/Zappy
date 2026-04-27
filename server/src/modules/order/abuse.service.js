@@ -57,10 +57,17 @@ async function recordCancelAfterAssignment(userId) {
   return count;
 }
 
-// ---- 3. Worker reject rate (sliding window via Redis list) ----
+// ---- 3. Worker reject rate (sliding window via Redis + Mongo persistence) ----
 async function recordWorkerOutcome(workerId, outcome /* 'accept' | 'reject' | 'timeout' */) {
   const key = `worker:offers:${workerId}`;
   await redis.multi().lpush(key, outcome).ltrim(key, 0, REJECT_WINDOW_SIZE - 1).exec();
+
+  // Persist lifetime counters to Mongo (non-blocking)
+  const Worker = require('../worker/worker.model');
+  const inc = { 'penalties.totalOffers': 1 };
+  if (outcome === 'reject' || outcome === 'timeout') inc['penalties.totalRejects'] = 1;
+  Worker.updateOne({ _id: workerId }, { $inc: inc }).catch(() => {});
+
   // Check reject rate after any rejection/timeout
   if (outcome === 'reject' || outcome === 'timeout') {
     const items = await redis.lrange(key, 0, -1);
@@ -68,8 +75,6 @@ async function recordWorkerOutcome(workerId, outcome /* 'accept' | 'reject' | 't
       const rejects = items.filter((i) => i === 'reject' || i === 'timeout').length;
       const rate = rejects / items.length;
       if (rate >= REJECT_THRESHOLD) {
-        // Auto-unavailable
-        const Worker = require('./worker.model');
         const geoService = require('../worker/geo.service');
         await Worker.updateOne(
           { _id: workerId, isAvailable: true },
@@ -77,7 +82,6 @@ async function recordWorkerOutcome(workerId, outcome /* 'accept' | 'reject' | 't
         );
         await geoService.setAvailability(workerId, false);
         logger.warn({ workerId, rate }, 'Worker auto-marked unavailable: high reject rate');
-        // Reset the window so they can be re-evaluated cleanly
         await redis.del(key);
         return { autoUnavailable: true };
       }

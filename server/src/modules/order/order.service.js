@@ -143,7 +143,14 @@ async function rejectOffer({ orderId, workerId }) {
  * Each transition is guarded by the current status to prevent races.
  */
 async function workerStartTrip({ orderId, workerId }) {
-  return guardedTransition(orderId, workerId, ['assigned'], 'on_the_way');
+  const order = await guardedTransition(orderId, workerId, ['assigned'], 'on_the_way');
+  // Cache pickup coords so ETA service can compute without a Mongo hit
+  if (order?.pickupLocation?.coordinates) {
+    const [lng, lat] = order.pickupLocation.coordinates;
+    const etaService = require('../worker/eta.service');
+    etaService.cacheOrderPickup(String(order._id), lat, lng).catch(() => {});
+  }
+  return order;
 }
 
 async function workerArrive({ orderId, workerId }) {
@@ -256,6 +263,24 @@ async function workerComplete({ orderId, workerId }) {
         throw err;
       }
     }
+
+    // Soft-limit warning — if balance just crossed -₹200, notify the worker.
+    const duesService = require('../worker/worker-dues.service');
+    duesService.getDuesStatus(workerId).then((dues) => {
+      if (dues.status === 'warning' || dues.status === 'blocked') {
+        const notificationService = require('../notification/notification.service');
+        notificationService.notify({
+          recipient: { kind: 'worker', id: workerId },
+          type: 'wallet_credited',
+          title: dues.status === 'blocked' ? '🚫 Wallet blocked — add funds now' : '⚠️ Low wallet balance',
+          body: dues.status === 'blocked'
+            ? `Your dues (₹${dues.duesPaise / 100}) exceed the limit. Top up to continue working.`
+            : `Your wallet balance is ₹${dues.balancePaise / 100}. Add funds to avoid being blocked.`,
+          deepLink: '/wallet',
+          data: { duesPaise: dues.duesPaise, status: dues.status },
+        }).catch(() => {});
+      }
+    }).catch(() => {});
     // Mark the order payment status appropriately
     order.payment.status = 'paid';
     order.payment.paidAt = new Date();
@@ -412,7 +437,7 @@ async function cancelByUser({ orderId, userId, reason }) {
 
   // Cancellation fee policy
   const cancellationService = require('./cancellation.service');
-  const { feePaise, reason: feeReason } = cancellationService.calculateCancellationFee(order);
+  const { feePaise, reason: feeReason } = await cancellationService.calculateUserCancelFee(order);
 
   if (feePaise > 0) {
     // Try to debit user wallet — may fail if insufficient. Either way, the
@@ -498,6 +523,117 @@ async function cancelByUser({ orderId, userId, reason }) {
   return updated;
 }
 
+/**
+ * Worker-initiated cancellation.
+ * Allowed from: assigned, on_the_way, arrived.
+ * Penalty: base or late (on_the_way/arrived = base × multiplier), debited from worker wallet.
+ * Re-dispatches if the order was still assignable, otherwise marks it failed.
+ */
+async function workerCancel({ orderId, workerId, reason }) {
+  const order = await orderRepo.findById(orderId);
+  if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
+  if (String(order.workerId) !== String(workerId)) {
+    throw Object.assign(new Error('Not your order'), { status: 403 });
+  }
+  if (!['assigned', 'on_the_way', 'arrived'].includes(order.status)) {
+    throw Object.assign(new Error(`Cannot cancel from status: ${order.status}`), { status: 409 });
+  }
+
+  const cancellationService = require('./cancellation.service');
+  const { penaltyPaise, reason: penaltyReason, isLate } = await cancellationService.calculateWorkerCancelPenalty(order);
+
+  const walletService = require('../wallet/wallet.service');
+  const Transaction = require('../payment/transaction.model');
+
+  // Debit penalty from worker wallet (best-effort — cancellation proceeds regardless)
+  if (penaltyPaise > 0) {
+    try {
+      await walletService.apply({
+        kind: 'worker',
+        id: workerId,
+        type: 'debit',
+        amountPaise: penaltyPaise,
+        reason: Transaction.REASONS.ADMIN_ADJUSTMENT_DEBIT,
+        idempotencyKey: `workercancel:${orderId}`,
+        refs: { orderId },
+        description: `Worker cancellation penalty — ${penaltyReason}`,
+      });
+    } catch (err) {
+      if (err.code !== 'WALLET_HARD_LIMIT') throw err;
+      logger.error({ workerId, orderId }, 'Worker cancel penalty blocked by hard limit — proceeding anyway');
+    }
+  }
+
+  // Increment persistent cancel counter
+  await Worker.updateOne(
+    { _id: workerId },
+    {
+      $set: { isAvailable: true, currentOrderId: null, 'penalties.lastPenaltyAt': new Date() },
+      $inc: { 'penalties.totalCancels': 1 },
+    }
+  );
+  await geoService.setAvailability(workerId, true);
+
+  // Transition order to cancelled
+  const updated = await orderRepo.transitionStatus(
+    orderId,
+    ['assigned', 'on_the_way', 'arrived'],
+    'cancelled',
+    {
+      cancelledAt: new Date(),
+      cancellationReason: reason || 'worker_cancelled',
+    }
+  );
+
+  // Broadcast cancellation event
+  await redis.publish(
+    'order:event',
+    JSON.stringify({
+      orderId: String(orderId),
+      event: 'order.cancelled',
+      payload: { reason: reason || 'worker_cancelled', cancelledBy: 'worker', isLate },
+    })
+  );
+
+  // Notify user
+  const notificationService = require('../notification/notification.service');
+  notificationService.notify({
+    recipient: { kind: 'user', id: order.userId },
+    type: 'order_cancelled',
+    title: '😔 Worker cancelled',
+    body: isLate
+      ? 'Your worker cancelled after being on the way. We are finding another.'
+      : 'Your assigned worker cancelled. We are finding another.',
+    deepLink: `/orders/${order._id}`,
+    data: { orderId: String(order._id) },
+  }).catch(() => {});
+
+  // Re-dispatch — add cancelled worker to attempted list so they are skipped.
+  const existingAttempted = (order.dispatch?.attemptedWorkerIds || []).map(String);
+  if (!existingAttempted.includes(String(workerId))) {
+    existingAttempted.push(String(workerId));
+  }
+
+  await orderRepo.model().findByIdAndUpdate(orderId, {
+    $set: {
+      status: 'searching',
+      workerId: null,
+      'dispatch.currentOfferWorkerId': null,
+      'dispatch.offerExpiresAt': null,
+      'dispatch.attemptedWorkerIds': existingAttempted,
+    },
+    $push: { statusHistory: { status: 'searching', at: new Date(), meta: { requeued: true } } },
+  });
+
+  await dispatchQueue.add(
+    'dispatch',
+    { orderId: String(orderId), attempt: existingAttempted.length },
+    { jobId: `order:${orderId}:redispatch:${Date.now()}` }
+  );
+
+  return { ok: true, penaltyPaise, penaltyReason };
+}
+
 async function rateOrder({ orderId, userId, rating, review }) {
   const order = await orderRepo.findById(orderId);
   if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
@@ -577,6 +713,7 @@ module.exports = {
   workerStartService,
   workerComplete,
   cancelByUser,
+  workerCancel,
   rateOrder,
   workerRateUser,
   getOrder: (id) => orderRepo.findByIdLean(id),

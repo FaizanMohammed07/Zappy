@@ -18,6 +18,8 @@ const { Server } = require('socket.io');
 const { createAdapter } = require('@socket.io/redis-adapter');
 const { createPubSubPair, redis } = require('../config/redis');
 const { verifyToken } = require('../modules/auth/auth.service');
+const etaService = require('../modules/worker/eta.service');
+const Order = require('../modules/order/order.model');
 const logger = require('../utils/logger');
 
 let io = null;
@@ -79,11 +81,19 @@ function initSockets(httpServer) {
       await redis.geoadd('workers:online', lng, lat, String(id));
 
       if (orderId) {
-        io.to(`order:${orderId}`).emit('worker.location', {
-          lat,
-          lng,
-          at: Date.now(),
-        });
+        io.to(`order:${orderId}`).emit('worker.location', { lat, lng, at: Date.now() });
+
+        // ETA + arriving-soon notification — non-blocking, only during on_the_way
+        Order.findById(orderId).select('userId status').lean().then((o) => {
+          if (!o || o.status !== 'on_the_way') return;
+          return etaService.computeAndBroadcast({
+            orderId: String(orderId),
+            workerId: String(id),
+            workerLat: lat,
+            workerLng: lng,
+            orderUserId: o.userId,
+          });
+        }).catch(() => {});
       }
     });
 

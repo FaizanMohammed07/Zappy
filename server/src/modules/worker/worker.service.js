@@ -84,7 +84,7 @@ async function updateLocation({ workerId, lng, lat, orderId }) {
     );
   }
 
-  // If worker is on a trip, broadcast to the order room.
+  // If worker is on a trip, broadcast location + ETA to the order room.
   if (orderId) {
     await redis.publish(
       'order:event',
@@ -94,6 +94,19 @@ async function updateLocation({ workerId, lng, lat, orderId }) {
         payload: { lng, lat, at: Date.now() },
       })
     );
+
+    // ETA + arriving-soon trigger (non-blocking; needs order's userId)
+    const etaService = require('./eta.service');
+    Order.findById(orderId).select('userId status').lean().then((o) => {
+      if (!o || o.status !== 'on_the_way') return;
+      return etaService.computeAndBroadcast({
+        orderId: String(orderId),
+        workerId: String(workerId),
+        workerLat: lat,
+        workerLng: lng,
+        orderUserId: o.userId,
+      });
+    }).catch(() => {});
   }
   return { ok: true };
 }
@@ -105,24 +118,54 @@ async function getEarnings({ workerId, range = 'today' }) {
   else if (range === 'week') since = new Date(Date.now() - 7 * 86400 * 1000);
   else since = new Date(Date.now() - 30 * 86400 * 1000);
 
-  const agg = await Order.aggregate([
-    {
-      $match: {
-        workerId: require('mongoose').Types.ObjectId.createFromHexString(String(workerId)),
-        status: 'completed',
-        completedAt: { $gte: since },
+  const mongoose = require('mongoose');
+  const wid = mongoose.Types.ObjectId.createFromHexString(String(workerId));
+
+  const [agg, daily] = await Promise.all([
+    Order.aggregate([
+      { $match: { workerId: wid, status: 'completed', completedAt: { $gte: since } } },
+      {
+        $group: {
+          _id: null,
+          jobs: { $sum: 1 },
+          // earnings.workerPaise is set on completion (post-commission).
+          // Fall back to pricing.total*100*(1-commissionRate) for legacy rows.
+          earningsPaise: { $sum: { $ifNull: ['$earnings.workerPaise', { $multiply: ['$pricing.total', 80] }] } },
+          commissionPaise: { $sum: { $ifNull: ['$earnings.platformPaise', { $multiply: ['$pricing.total', 20] }] } },
+          avgFarePaise: { $avg: { $ifNull: ['$earnings.workerPaise', { $multiply: ['$pricing.total', 80] }] } },
+          cashJobs: { $sum: { $cond: [{ $eq: ['$payment.method', 'cash'] }, 1, 0] } },
+          onlineJobs: { $sum: { $cond: [{ $ne: ['$payment.method', 'cash'] }, 1, 0] } },
+        },
       },
-    },
-    {
-      $group: {
-        _id: null,
-        totalEarnings: { $sum: '$pricing.total' },
-        jobs: { $sum: 1 },
-        avgFare: { $avg: '$pricing.total' },
+    ]),
+
+    // Daily breakdown for chart (always last 30 days regardless of range)
+    Order.aggregate([
+      { $match: { workerId: wid, status: 'completed', completedAt: { $gte: new Date(Date.now() - 30 * 86400 * 1000) } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$completedAt' } },
+          jobs: { $sum: 1 },
+          earningsPaise: { $sum: { $ifNull: ['$earnings.workerPaise', { $multiply: ['$pricing.total', 80] }] } },
+        },
       },
-    },
+      { $sort: { _id: 1 } },
+    ]),
   ]);
-  return agg[0] || { totalEarnings: 0, jobs: 0, avgFare: 0 };
+
+  const summary = agg[0] || { jobs: 0, earningsPaise: 0, commissionPaise: 0, avgFarePaise: 0, cashJobs: 0, onlineJobs: 0 };
+  return {
+    range,
+    since,
+    jobs: summary.jobs,
+    earningsPaise: Math.round(summary.earningsPaise),
+    earningsRupees: Math.round(summary.earningsPaise / 100),
+    commissionPaidPaise: Math.round(summary.commissionPaise),
+    avgEarningPerJobRupees: summary.jobs > 0 ? Math.round(summary.avgFarePaise / 100) : 0,
+    cashJobs: summary.cashJobs,
+    onlineJobs: summary.onlineJobs,
+    dailyBreakdown: daily.map((d) => ({ date: d._id, jobs: d.jobs, earningsPaise: Math.round(d.earningsPaise) })),
+  };
 }
 
 module.exports = { goOnline, goOffline, updateLocation, getEarnings };

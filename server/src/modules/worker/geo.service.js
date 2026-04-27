@@ -90,12 +90,15 @@ async function findCandidates({ lng, lat, skill, excludeIds = [] }) {
     return mongoFallback({ lng, lat, skill, excludeIds });
   }
 
-  // Rating boost — fetch ratings from Mongo (cached per request could be added).
+  // Rating + penalty — fetch from Mongo in one query.
   const ids = filtered.map((f) => f.workerId);
-  const ratings = await Worker.find(
-    { _id: { $in: ids }, isBlocked: false },
-    { _id: 1, rating: 1, completedJobs: 1 }
-  ).lean();
+  const [ratings, cancellationCfg] = await Promise.all([
+    Worker.find(
+      { _id: { $in: ids }, isBlocked: false },
+      { _id: 1, rating: 1, completedJobs: 1, penalties: 1 }
+    ).lean(),
+    require('../order/cancellation.service').getConfig(),
+  ]);
 
   // WORKER_PRO subscription effects — Pro workers get a score boost so they
   // surface higher on equal-distance ties. Reads cached subscription data,
@@ -115,12 +118,25 @@ async function findCandidates({ lng, lat, skill, excludeIds = [] }) {
     .map((f) => {
       const w = ratingMap.get(f.workerId);
       const proBoost = boostMap.get(f.workerId) || 0;
+
+      // Penalty degradation — higher reject/cancel rates push the score up
+      // (worse rank). Guards against re-dispatching chronic cancellers.
+      const rejectRate = (w.penalties?.totalOffers || 0) > 0
+        ? (w.penalties.totalRejects || 0) / w.penalties.totalOffers
+        : 0;
+      const cancelRate = (w.completedJobs || 0) > 0
+        ? (w.penalties?.totalCancels || 0) / w.completedJobs
+        : 0;
+      const penaltyScore = rejectRate * (cancellationCfg.rejectRatePenaltyWeight || 3.0)
+        + cancelRate * (cancellationCfg.cancelRatePenaltyWeight || 5.0);
+
       // Score: lower is better. Distance dominates, rating tie-breaks, Pro boost
-      // subtracts from score to surface the worker earlier.
+      // subtracts, penalty history adds (degrades rank).
       const score = f.distanceKm * 10
         - (w.rating || 0) * 0.5
         - Math.log1p(w.completedJobs) * 0.1
-        - proBoost;
+        - proBoost
+        + penaltyScore;
       return { ...f, score };
     })
     .sort((a, b) => a.score - b.score);

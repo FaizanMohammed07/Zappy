@@ -123,4 +123,11 @@ async function completeOrder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getQuote, createOrder, listMine, getOne, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder };
+async function workerCancelOrder(req, res, next) {
+  try {
+    const result = await orderService.workerCancel({ orderId: req.params.id, workerId: req.auth.sub, reason: req.body.reason });
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
+module.exports = { getQuote, createOrder, listMine, getOne, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder };

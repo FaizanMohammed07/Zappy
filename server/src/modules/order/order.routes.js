@@ -23,7 +23,7 @@ const locationSchema = Joi.object({
 });
 
 const createOrderSchema = Joi.object({
-  service: Joi.string().valid('puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair').required(),
+  service: Joi.string().valid('puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair', 'cleaning', 'painting').required(),
   description: Joi.string().max(500).allow(''),
   pickupLocation: pickupLocationSchema.required(),
   dropLocation: locationSchema.optional(),
@@ -32,7 +32,7 @@ const createOrderSchema = Joi.object({
 });
 
 const quoteSchema = Joi.object({
-  service: Joi.string().valid('puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair').required(),
+  service: Joi.string().valid('puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair', 'cleaning', 'painting').required(),
   pickupLat: Joi.number().required(),
   pickupLng: Joi.number().required(),
   dropLat: Joi.number().optional(),
@@ -58,5 +58,6 @@ router.post('/:id/start-trip', authenticate, requireRole('worker'), ctrl.startTr
 router.post('/:id/arrived', authenticate, requireRole('worker'), ctrl.arrive);
 router.post('/:id/start-service', authenticate, requireRole('worker'), validate(Joi.object({ otp: Joi.string().length(4).required() })), ctrl.startService);
 router.post('/:id/complete', authenticate, requireRole('worker'), ctrl.completeOrder);
+router.post('/:id/worker-cancel', authenticate, requireRole('worker'), validate(Joi.object({ reason: Joi.string().max(300).allow('', null) })), ctrl.workerCancelOrder);
 
 module.exports = router;

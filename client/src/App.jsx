@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { selectAuth } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
 
+import { adminPath } from './config/admin';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import BookingPage from './pages/BookingPage';
@@ -18,6 +19,7 @@ import WorkerDashboard from './pages/WorkerDashboard';
 import WorkerJobPage from './pages/WorkerJobPage';
 import WorkerKycPage from './pages/WorkerKycPage';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminLoginPage from './pages/AdminLoginPage';
 import PlansPage from './pages/PlansPage';
 import WalletPage from './pages/WalletPage';
 import { RequireAuth } from './components/common/RequireAuth';
@@ -37,8 +39,8 @@ export default function App() {
         element={token ? <RedirectByRole role={role} /> : <LoginPage role="worker" />}
       />
       <Route
-        path="/admin/login"
-        element={token ? <RedirectByRole role={role} /> : <LoginPage role="admin" />}
+        path={adminPath('/login')}
+        element={token ? <RedirectByRole role={role} /> : <AdminLoginPage />}
       />
 
       {/* User app */}
@@ -170,7 +172,7 @@ export default function App() {
 
       {/* Admin */}
       <Route
-        path="/admin"
+        path={adminPath('/dashboard')}
         element={
           <RequireAuth role="admin">
             <AdminDashboard />
@@ -185,6 +187,6 @@ export default function App() {
 }
 
 function RedirectByRole({ role }) {
-  const dest = role === 'worker' ? '/worker' : role === 'admin' ? '/admin' : '/';
+  const dest = role === 'worker' ? '/worker' : role === 'admin' ? adminPath('/dashboard') : '/';
   return <Navigate to={dest} replace />;
 }

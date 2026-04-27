@@ -1,335 +1,172 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, ClipboardList, Users, FileCheck,
-  LogOut, TrendingUp, Activity, IndianRupee, UserCheck,
-  ChevronLeft, ChevronRight, Search, ShieldOff, ShieldCheck,
-  Loader2,
+  LayoutDashboard, ShoppingBag, Users, Briefcase, Tag,
+  Wallet, Scale, CreditCard, BarChart2, Gift, XCircle,
+  FileText, LogOut, Menu, X, ChevronRight, FileCheck,
 } from 'lucide-react';
-import {
-  useAdminMetricsQuery, useAdminOrdersQuery, useAdminWorkersQuery,
-  useAdminBlockWorkerMutation,
-} from '../services/api';
 import { logout } from '../modules/auth/authSlice';
-import { ZappyLogo } from '../components/common/ZappyLogo';
-import AdminKycReview from './AdminKycReview';
-import toast from 'react-hot-toast';
+import { adminPath } from '../config/admin';
 
-const TABS = [
-  { key: 'overview', label: 'Overview',  Icon: LayoutDashboard },
-  { key: 'orders',   label: 'Orders',    Icon: ClipboardList },
-  { key: 'workers',  label: 'Workers',   Icon: Users },
-  { key: 'kyc',      label: 'KYC',       Icon: FileCheck },
+import Overview from './admin/Overview';
+import Orders from './admin/Orders';
+import AdminUsers from './admin/Users';
+import Workers from './admin/Workers';
+import Pricing from './admin/Pricing';
+import AdminWallet from './admin/Wallet';
+import Disputes from './admin/Disputes';
+import Payouts from './admin/Payouts';
+import Analytics from './admin/Analytics';
+import Incentives from './admin/Incentives';
+import Cancellation from './admin/Cancellation';
+import Audit from './admin/Audit';
+import AdminKycReview from './AdminKycReview';
+
+const NAV = [
+  { id: 'overview',     label: 'Overview',        icon: LayoutDashboard },
+  { id: 'orders',       label: 'Orders',           icon: ShoppingBag },
+  { id: 'users',        label: 'Users',            icon: Users },
+  { id: 'workers',      label: 'Workers',          icon: Briefcase },
+  { id: 'kyc',          label: 'KYC',              icon: FileCheck },
+  { id: 'pricing',      label: 'Pricing',          icon: Tag },
+  { id: 'wallet',       label: 'Wallet',           icon: Wallet },
+  { id: 'disputes',     label: 'Disputes',         icon: Scale },
+  { id: 'payouts',      label: 'Payouts',          icon: CreditCard },
+  { id: 'analytics',    label: 'Analytics',        icon: BarChart2 },
+  { id: 'incentives',   label: 'Incentives',       icon: Gift },
+  { id: 'cancellation', label: 'Cancellation',     icon: XCircle },
+  { id: 'audit',        label: 'Audit Logs',       icon: FileText },
 ];
 
-export default function AdminDashboard() {
-  const [tab, setTab] = useState('overview');
-  const dispatch = useDispatch();
-  const nav = useNavigate();
-
-  return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Top nav */}
-      <header className="bg-[#0F172A] sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 lg:px-6 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <ZappyLogo size={26} />
-            <div>
-              <span className="text-white font-bold text-sm">Zappy</span>
-              <span className="text-slate-400 text-sm"> · Admin</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-            {TABS.map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
-                  tab === key ? 'bg-white/15 text-white' : 'text-slate-400 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <Icon size={13} strokeWidth={2} />
-                {label}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => { dispatch(logout()); nav('/admin/login'); }}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition shrink-0"
-          >
-            <LogOut size={13} strokeWidth={2} />
-            Logout
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
-        {tab === 'overview' && <Overview />}
-        {tab === 'orders'   && <OrdersTable />}
-        {tab === 'workers'  && <WorkersTable />}
-        {tab === 'kyc'      && <AdminKycReview />}
-      </main>
-    </div>
-  );
-}
-
-function Overview() {
-  const { data, isLoading } = useAdminMetricsQuery();
-
-  if (isLoading) return (
-    <div className="flex items-center justify-center h-48">
-      <Loader2 size={24} className="text-zappy-600 animate-spin" />
-    </div>
-  );
-  if (!data) return null;
-
-  const cards = [
-    { label: 'Orders Today',    value: data.ordersToday,   Icon: ClipboardList, color: 'text-blue-600',   bg: 'bg-blue-50' },
-    { label: 'Active Now',      value: data.active,        Icon: Activity,      color: 'text-green-600',  bg: 'bg-green-50' },
-    { label: 'Completed Today', value: data.completedToday,Icon: UserCheck,     color: 'text-success-600',bg: 'bg-success-50' },
-    { label: 'Revenue Today',   value: `₹${data.revenueToday}`, Icon: IndianRupee,color: 'text-zappy-600',bg: 'bg-zappy-50' },
-    { label: 'Avg Fare',        value: `₹${data.avgFare}`, Icon: TrendingUp,    color: 'text-amber-600',  bg: 'bg-amber-50' },
-    { label: 'Online Workers',  value: `${data.onlineWorkers}/${data.totalWorkers}`, Icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Total Users',     value: data.totalUsers,    Icon: Users,         color: 'text-slate-600',  bg: 'bg-slate-100' },
-  ];
-
-  return (
-    <div>
-      <h2 className="text-lg font-bold text-[#0F172A] mb-4">Platform Overview</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {cards.map(({ label, value, Icon, color, bg }) => (
-          <div key={label} className="bg-white rounded-card shadow-card ring-1 ring-slate-100 p-4">
-            <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center mb-3`}>
-              <Icon size={16} strokeWidth={2} className={color} />
-            </div>
-            <p className="text-2xl font-extrabold text-[#0F172A]">{value}</p>
-            <p className="text-xs text-slate-400 font-semibold mt-1">{label}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const ORDER_STATUSES = ['', 'searching', 'assigned', 'on_the_way', 'in_progress', 'completed', 'cancelled', 'failed'];
-const STATUS_CHIP_MAP = {
-  searching: 'chip-blue', assigned: 'chip-blue', on_the_way: 'chip-blue',
-  in_progress: 'chip-success', completed: 'chip-success',
-  cancelled: 'chip-red', failed: 'chip-red',
+const SECTION_MAP = {
+  overview:     Overview,
+  orders:       Orders,
+  users:        AdminUsers,
+  workers:      Workers,
+  kyc:          AdminKycReview,
+  pricing:      Pricing,
+  wallet:       AdminWallet,
+  disputes:     Disputes,
+  payouts:      Payouts,
+  analytics:    Analytics,
+  incentives:   Incentives,
+  cancellation: Cancellation,
+  audit:        Audit,
 };
 
-function OrdersTable() {
-  const [status, setStatus] = useState('');
-  const [page, setPage] = useState(1);
-  const { data, isFetching } = useAdminOrdersQuery({ status: status || undefined, page });
+export default function AdminDashboard() {
+  const [active, setActive] = useState('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-[#0F172A]">Orders</h2>
-        {data?.total != null && <span className="chip-neutral">{data.total} total</span>}
-      </div>
+  const Section = SECTION_MAP[active] || Overview;
 
-      <div className="flex gap-2 flex-wrap">
-        {ORDER_STATUSES.map((s) => (
-          <button
-            key={s || 'all'}
-            onClick={() => { setStatus(s); setPage(1); }}
-            className={`chip cursor-pointer transition-all ${
-              status === s ? 'bg-[#0F172A] text-white' : 'chip-neutral hover:bg-slate-200'
-            }`}
-          >
-            {s || 'All'}
-          </button>
-        ))}
-      </div>
+  const handleNav = useCallback((id) => {
+    setActive(id);
+    setSidebarOpen(false);
+  }, []);
 
-      <div className="bg-white rounded-card shadow-card ring-1 ring-slate-100 overflow-hidden">
-        {isFetching && (
-          <div className="flex items-center justify-center h-16 gap-2 text-slate-400">
-            <Loader2 size={14} className="animate-spin" />
-            <span className="text-xs font-medium">Loading…</span>
-          </div>
-        )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Order ID</th>
-                <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Service</th>
-                <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Customer</th>
-                <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Worker</th>
-                <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Status</th>
-                <th className="text-right px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Amount</th>
-                <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {data?.orders?.map((o) => (
-                <tr key={o._id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">#{o._id.slice(-8)}</td>
-                  <td className="px-4 py-3 font-medium capitalize">{o.service?.replace(/_/g, ' ')}</td>
-                  <td className="px-4 py-3 text-slate-600">{o.userId?.name || o.userId?.phone || '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{o.workerId?.name || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`chip ${STATUS_CHIP_MAP[o.status] || 'chip-neutral'}`}>{o.status}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-[#0F172A]">
-                    {o.pricing?.total ? `₹${o.pricing.total}` : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-slate-400">
-                    {new Date(o.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                  </td>
-                </tr>
-              ))}
-              {!data?.orders?.length && !isFetching && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400 font-medium">
-                    No orders found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <Pagination page={page} total={data?.total} onPrev={() => setPage((p) => p - 1)} onNext={() => setPage((p) => p + 1)} />
-    </div>
-  );
-}
-
-function WorkersTable() {
-  const [q, setQ] = useState('');
-  const [skill, setSkill] = useState('');
-  const [page, setPage] = useState(1);
-  const { data, refetch, isFetching } = useAdminWorkersQuery({ q: q || undefined, skill: skill || undefined, page });
-  const [block] = useAdminBlockWorkerMutation();
-
-  async function toggleBlock(w) {
-    try {
-      await block({ id: w._id, blocked: !w.isBlocked }).unwrap();
-      toast.success(w.isBlocked ? 'Worker unblocked' : 'Worker blocked');
-      refetch();
-    } catch (err) {
-      toast.error(err.data?.error || 'Action failed');
-    }
+  function logout() {
+    dispatch(logout());
+    navigate(adminPath('/login'), { replace: true });
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-[#0F172A]">Workers</h2>
-        {data?.total != null && <span className="chip-neutral">{data.total} total</span>}
-      </div>
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            className="input pl-9 text-sm"
-            placeholder="Search name or phone…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-        <select
-          className="input w-44 text-sm"
-          value={skill}
-          onChange={(e) => setSkill(e.target.value)}
-        >
-          <option value="">All skills</option>
-          {['puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair'].map((s) => (
-            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="bg-white rounded-card shadow-card ring-1 ring-slate-100 overflow-hidden">
-        {isFetching && (
-          <div className="flex items-center justify-center h-12 gap-2 text-slate-400">
-            <Loader2 size={14} className="animate-spin" />
+      {/* Sidebar */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-30 w-60 bg-slate-900 flex flex-col
+        transform transition-transform duration-200 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0
+      `}>
+        {/* Logo */}
+        <div className="flex items-center justify-between h-14 px-5 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+              <span className="text-white font-black text-sm">Z</span>
+            </div>
+            <span className="text-white font-bold text-base tracking-tight">Zappy Admin</span>
           </div>
-        )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                {['Name', 'Phone', 'Skills', 'Rating', 'Jobs', 'Status', 'Actions'].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {data?.workers?.map((w) => (
-                <tr key={w._id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-semibold text-[#0F172A]">{w.name}</td>
-                  <td className="px-4 py-3 text-slate-500">{w.phone}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {w.skills?.map((s) => (
-                        <span key={s} className="chip-neutral text-[10px]">{s.replace(/_/g, ' ')}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-[#0F172A]">{w.rating}</td>
-                  <td className="px-4 py-3 text-slate-600">{w.completedJobs}</td>
-                  <td className="px-4 py-3">
-                    {w.isBlocked ? (
-                      <span className="chip-red">Blocked</span>
-                    ) : w.isOnline ? (
-                      <span className="chip-success">Online</span>
-                    ) : (
-                      <span className="chip-neutral">Offline</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => toggleBlock(w)}
-                      className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition ${
-                        w.isBlocked
-                          ? 'bg-zappy-50 text-zappy-700 hover:bg-zappy-100'
-                          : 'bg-red-50 text-red-600 hover:bg-red-100'
-                      }`}
-                    >
-                      {w.isBlocked
-                        ? <><ShieldCheck size={12} strokeWidth={2} /> Unblock</>
-                        : <><ShieldOff size={12} strokeWidth={2} /> Block</>
-                      }
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!data?.workers?.length && !isFetching && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400 font-medium">
-                    No workers found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden p-1 text-slate-400 hover:text-white transition">
+            <X size={16} />
+          </button>
         </div>
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-3 px-2">
+          {NAV.map(({ id, label, icon: Icon }) => {
+            const isActive = active === id;
+            return (
+              <button
+                key={id}
+                onClick={() => handleNav(id)}
+                className={`
+                  w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium
+                  transition-all mb-0.5 text-left group
+                  ${isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }
+                `}>
+                <Icon size={15} className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
+                <span className="flex-1">{label}</span>
+                {isActive && <ChevronRight size={12} className="text-blue-300" />}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Logout */}
+        <div className="p-3 border-t border-slate-800">
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <LogOut size={15} />
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Topbar */}
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center px-4 lg:px-6 gap-4 flex-shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-600">
+            <Menu size={18} />
+          </button>
+          <h1 className="text-sm font-bold text-slate-800">
+            {NAV.find(n => n.id === active)?.label || 'Dashboard'}
+          </h1>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              {new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+            </span>
+            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+              <span className="text-blue-700 font-bold text-xs">A</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <Section />
+        </main>
       </div>
-
-      <Pagination page={page} total={data?.total} onPrev={() => setPage((p) => p - 1)} onNext={() => setPage((p) => p + 1)} />
-    </div>
-  );
-}
-
-function Pagination({ page, total, onPrev, onNext }) {
-  return (
-    <div className="flex items-center justify-between">
-      <button disabled={page <= 1} onClick={onPrev} className="btn-secondary py-2 px-4 text-xs gap-1.5">
-        <ChevronLeft size={13} strokeWidth={2.5} /> Prev
-      </button>
-      <span className="text-xs font-semibold text-slate-400">
-        Page {page}{total != null ? ` · ${total} total` : ''}
-      </span>
-      <button onClick={onNext} className="btn-secondary py-2 px-4 text-xs gap-1.5">
-        Next <ChevronRight size={13} strokeWidth={2.5} />
-      </button>
     </div>
   );
 }
