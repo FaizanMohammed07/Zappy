@@ -66,7 +66,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -87,6 +87,24 @@ export const api = createApi({
 
     // --- User ---
     getMe: b.query({ query: () => '/users/me', providesTags: ['Me'] }),
+    getAddresses: b.query({
+      query: () => '/users/addresses',
+      providesTags: ['Addresses'],
+    }),
+    addAddress: b.mutation({
+      query: (body) => ({ url: '/users/addresses', method: 'POST', body }),
+      invalidatesTags: ['Addresses'],
+    }),
+    deleteAddress: b.mutation({
+      query: (addrId) => ({ url: `/users/addresses/${addrId}`, method: 'DELETE' }),
+      invalidatesTags: ['Addresses'],
+    }),
+    saveRecentLocation: b.mutation({
+      query: (body) => ({ url: '/users/recent-location', method: 'POST', body }),
+    }),
+    registerDeviceToken: b.mutation({
+      query: (body) => ({ url: '/users/device-token', method: 'POST', body }),
+    }),
 
     // --- Pricing quote ---
     getQuote: b.query({ query: (params) => ({ url: '/orders/quote', params }) }),
@@ -115,6 +133,9 @@ export const api = createApi({
         body: { rating, review },
       }),
       invalidatesTags: (r, e, a) => [{ type: 'Order', id: a.id }],
+    }),
+    getOrderInvoiceUrl: b.query({
+      query: (id) => `/orders/${id}/invoice`,
     }),
 
     // --- Worker ---
@@ -152,6 +173,13 @@ export const api = createApi({
     workerComplete: b.mutation({
       query: (id) => ({ url: `/orders/${id}/complete`, method: 'POST' }),
       invalidatesTags: (r, e, id) => ['Order', 'Earnings', { type: 'Order', id }],
+    }),
+    getWorkerOrders: b.query({
+      query: (page = 1) => `/workers/orders?page=${page}`,
+      providesTags: ['Order'],
+    }),
+    getNearbyWorkers: b.query({
+      query: ({ lat, lng }) => `/workers/nearby?lat=${lat}&lng=${lng}`,
     }),
 
     // --- KYC ---
@@ -416,4 +444,13 @@ export const {
   useListNotificationsQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
+  useGetAddressesQuery,
+  useAddAddressMutation,
+  useDeleteAddressMutation,
+  useSaveRecentLocationMutation,
+  useRegisterDeviceTokenMutation,
+  useGetOrderInvoiceUrlQuery,
+  useGetWorkerOrdersQuery,
+  useGetNearbyWorkersQuery,
+  useLazyGetNearbyWorkersQuery,
 } = api;

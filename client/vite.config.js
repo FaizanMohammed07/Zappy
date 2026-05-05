@@ -10,4 +10,7 @@ export default defineConfig({
       '/socket.io': { target: 'http://localhost:4000', ws: true },
     },
   },
+  optimizeDeps: {
+    include: ['mapbox-gl'],
+  },
 });

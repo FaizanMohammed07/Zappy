@@ -4,30 +4,42 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardList, Wallet, Bell, Star, MapPin, HelpCircle,
-  LogOut, ChevronRight, ShieldCheck,
+  LogOut, ChevronRight, ShieldCheck, Home, Briefcase, Plus,
+  Trash2, X, Loader2,
 } from 'lucide-react';
 import { selectAuth, logout } from '../modules/auth/authSlice';
-import { useGetMeQuery } from '../services/api';
+import {
+  useGetMeQuery, useGetAddressesQuery, useAddAddressMutation, useDeleteAddressMutation,
+} from '../services/api';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import { SkeletonProfileHeader, SkeletonList, SkeletonCard } from '../components/common/Skeleton';
 import { staggerContainer, fadeInUp } from '../lib/animations';
 import toast from 'react-hot-toast';
 
+const TAG_META = {
+  home:  { icon: Home,      bg: 'bg-blue-50',   text: 'text-blue-600',   label: 'Home' },
+  work:  { icon: Briefcase, bg: 'bg-purple-50',  text: 'text-purple-600', label: 'Work' },
+  other: { icon: MapPin,    bg: 'bg-slate-50',   text: 'text-slate-500',  label: 'Other' },
+};
+
+const EMPTY_ADDR = { label: '', address: '', lat: '', lng: '', tag: 'other' };
+
 export default function ProfilePage() {
   const nav = useNavigate();
   const dispatch = useDispatch();
   const { profile, role } = useSelector(selectAuth);
   const { data, isLoading } = useGetMeQuery();
-  const [showLogout, setShowLogout] = useState(false);
+  const { data: addrData } = useGetAddressesQuery();
+  const [addAddress, { isLoading: addingAddr }] = useAddAddressMutation();
+  const [deleteAddress] = useDeleteAddressMutation();
+  const [showLogout,    setShowLogout]    = useState(false);
+  const [showAddrForm,  setShowAddrForm]  = useState(false);
+  const [newAddr,       setNewAddr]       = useState(EMPTY_ADDR);
+  const [addrGeoErr,    setAddrGeoErr]    = useState('');
 
-  const user = data?.user || profile;
-
-  function handleLogout() {
-    dispatch(logout());
-    nav('/login', { replace: true });
-    toast.success('Logged out successfully');
-  }
+  const user      = data?.user || profile;
+  const addresses = addrData?.addresses || [];
 
   const initials = (user?.name || 'U')
     .split(' ')
@@ -35,6 +47,50 @@ export default function ProfilePage() {
     .slice(0, 2)
     .join('')
     .toUpperCase();
+
+  function handleLogout() {
+    dispatch(logout());
+    nav('/login', { replace: true });
+    toast.success('Logged out successfully');
+  }
+
+  function detectLocation() {
+    setAddrGeoErr('');
+    if (!navigator.geolocation) { setAddrGeoErr('Geolocation not supported'); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNewAddr(prev => ({ ...prev, lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) }));
+      },
+      () => setAddrGeoErr('Could not detect location')
+    );
+  }
+
+  async function submitAddress(e) {
+    e.preventDefault();
+    if (!newAddr.label.trim() || !newAddr.address.trim() || !newAddr.lat || !newAddr.lng) {
+      toast.error('Fill in all fields');
+      return;
+    }
+    try {
+      await addAddress({
+        label: newAddr.label,
+        address: newAddr.address,
+        lat: parseFloat(newAddr.lat),
+        lng: parseFloat(newAddr.lng),
+        tag: newAddr.tag,
+      }).unwrap();
+      toast.success('Address saved');
+      setNewAddr(EMPTY_ADDR);
+      setShowAddrForm(false);
+    } catch { toast.error('Could not save address'); }
+  }
+
+  async function handleDeleteAddr(addrId, label) {
+    try {
+      await deleteAddress(addrId).unwrap();
+      toast.success(`Removed ${label}`);
+    } catch { toast.error('Could not delete address'); }
+  }
 
   return (
     <PageTransition>
@@ -60,7 +116,6 @@ export default function ProfilePage() {
             initial="initial"
             animate="animate"
           >
-
             {/* Avatar section */}
             <motion.div
               className="bg-white border-b border-slate-100 lg:border lg:rounded-card lg:shadow-card lg:h-fit px-4 py-6"
@@ -97,17 +152,136 @@ export default function ProfilePage() {
                 </MenuSection>
               </motion.div>
 
+              {/* ── Saved Addresses ── */}
+              <motion.div variants={fadeInUp}>
+                <div className="flex items-center justify-between px-1 mb-2">
+                  <p className="section-title">Saved Addresses</p>
+                  <button
+                    onClick={() => setShowAddrForm(v => !v)}
+                    className="flex items-center gap-1 text-xs font-bold text-blue-600"
+                  >
+                    <Plus size={12} strokeWidth={2.5} />
+                    Add
+                  </button>
+                </div>
+
+                {/* Add address form */}
+                <AnimatePresence>
+                  {showAddrForm && (
+                    <motion.form
+                      onSubmit={submitAddress}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden mb-2"
+                    >
+                      <div className="card space-y-2.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-bold text-[#0F172A]">New Address</p>
+                          <button type="button" onClick={() => setShowAddrForm(false)}>
+                            <X size={15} className="text-slate-400" />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          {['home', 'work', 'other'].map(tag => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setNewAddr(p => ({ ...p, tag }))}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+                                newAddr.tag === tag ? 'bg-[#0F172A] text-white' : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                        <input
+                          className="input text-sm"
+                          placeholder="Label (e.g. Mom's House)"
+                          value={newAddr.label}
+                          onChange={e => setNewAddr(p => ({ ...p, label: e.target.value }))}
+                        />
+                        <input
+                          className="input text-sm"
+                          placeholder="Full address"
+                          value={newAddr.address}
+                          onChange={e => setNewAddr(p => ({ ...p, address: e.target.value }))}
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            className="input text-sm flex-1"
+                            placeholder="Latitude"
+                            type="number"
+                            step="any"
+                            value={newAddr.lat}
+                            onChange={e => setNewAddr(p => ({ ...p, lat: e.target.value }))}
+                          />
+                          <input
+                            className="input text-sm flex-1"
+                            placeholder="Longitude"
+                            type="number"
+                            step="any"
+                            value={newAddr.lng}
+                            onChange={e => setNewAddr(p => ({ ...p, lng: e.target.value }))}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={detectLocation}
+                          className="text-xs font-semibold text-blue-600 flex items-center gap-1"
+                        >
+                          <MapPin size={11} strokeWidth={2} />
+                          Detect my location
+                        </button>
+                        {addrGeoErr && <p className="text-xs text-red-500">{addrGeoErr}</p>}
+                        <button type="submit" disabled={addingAddr} className="btn-primary w-full text-sm">
+                          {addingAddr ? <Loader2 size={14} className="animate-spin" /> : 'Save Address'}
+                        </button>
+                      </div>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
+
+                {addresses.length > 0 ? (
+                  <div className="card divide-y divide-slate-100 p-0 overflow-hidden">
+                    {addresses.map((a) => {
+                      const m = TAG_META[a.tag] || TAG_META.other;
+                      const Icon = m.icon;
+                      return (
+                        <div key={a._id} className="flex items-center gap-3 px-4 py-3">
+                          <div className={`w-8 h-8 rounded-lg ${m.bg} flex items-center justify-center shrink-0`}>
+                            <Icon size={13} strokeWidth={2} className={m.text} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{a.label}</p>
+                            <p className="text-sm font-medium text-[#0F172A] truncate">{a.address}</p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteAddr(a._id, a.label)}
+                            className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center shrink-0 hover:bg-red-100 transition"
+                          >
+                            <Trash2 size={12} strokeWidth={2} className="text-red-500" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : !showAddrForm && (
+                  <div className="card text-center py-4">
+                    <MapPin size={18} strokeWidth={1.5} className="text-slate-300 mx-auto mb-2" />
+                    <p className="text-sm text-slate-400">No saved addresses yet</p>
+                    <button onClick={() => setShowAddrForm(true)} className="text-xs font-bold text-blue-600 mt-1">
+                      Add Home or Work
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+
               <motion.div variants={fadeInUp}>
                 <MenuSection title="Account">
                   <MenuItem Icon={Star} label="Plans & Subscriptions" sublabel="Premium & Pro benefits" onClick={() => nav('/plans')} />
-                  {user?.addresses?.length > 0 && (
-                    <MenuItem
-                      Icon={MapPin}
-                      label="Saved Addresses"
-                      sublabel={user.addresses[0]?.label || user.addresses[0]?.address}
-                      onClick={() => {}}
-                    />
-                  )}
                 </MenuSection>
               </motion.div>
 
@@ -155,9 +329,7 @@ export default function ProfilePage() {
                 </AnimatePresence>
               </motion.div>
 
-              <p className="text-center text-xs text-slate-300 pb-4">
-                Zappy Platform · v1.0
-              </p>
+              <p className="text-center text-xs text-slate-300 pb-4">Zappy Platform · v1.0</p>
             </div>
           </motion.div>
         )}

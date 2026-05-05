@@ -16,6 +16,8 @@ router.patch(
   ctrl.updateMe
 );
 
+router.get('/addresses', authenticate, requireRole('user'), ctrl.getAddresses);
+
 router.post(
   '/addresses',
   authenticate,
@@ -34,5 +36,24 @@ router.post(
 );
 
 router.delete('/addresses/:addrId', authenticate, requireRole('user'), ctrl.deleteAddress);
+
+router.post(
+  '/recent-location',
+  authenticate,
+  requireRole('user'),
+  validate(Joi.object({
+    address: Joi.string().max(500).required(),
+    lat: Joi.number().required(),
+    lng: Joi.number().required(),
+  })),
+  ctrl.saveRecentLocation
+);
+
+router.post(
+  '/device-token',
+  authenticate,
+  validate(Joi.object({ token: Joi.string().max(1000).required() })),
+  ctrl.registerDeviceToken
+);
 
 module.exports = router;

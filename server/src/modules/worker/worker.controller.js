@@ -45,4 +45,17 @@ async function getOrders(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getMe, goOnline, goOffline, updateLocation, getEarnings, getOrders };
+async function getNearbyWorkers(req, res, next) {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.status(400).json({ error: 'lat and lng required' });
+    }
+    const geoService = require('./geo.service');
+    const workers = await geoService.findNearbyWorkers({ lat, lng, radiusKm: 5, limit: 25 });
+    res.json({ workers, count: workers.length });
+  } catch (err) { next(err); }
+}
+
+module.exports = { getMe, goOnline, goOffline, updateLocation, getEarnings, getOrders, getNearbyWorkers };

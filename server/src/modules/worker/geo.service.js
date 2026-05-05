@@ -46,9 +46,9 @@ async function setAvailability(workerId, isAvailable) {
  *
  * Returns workerIds in order of preference (nearest + rating-boosted).
  */
-async function findCandidates({ lng, lat, skill, excludeIds = [] }) {
+async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radiusKmOverride } = {}) {
   const excludeSet = new Set(excludeIds.map(String));
-  const radiusKm = config.dispatch.radiusKm;
+  const radiusKm = radiusKmOverride ?? config.dispatch.radiusKm;
   const maxCandidates = config.dispatch.maxCandidates;
 
   // Tier 1: Redis GEO
@@ -64,7 +64,7 @@ async function findCandidates({ lng, lat, skill, excludeIds = [] }) {
   const nearbyIds = geoResult.map((r) => r[0]).filter((id) => !excludeSet.has(id));
 
   if (nearbyIds.length === 0) {
-    return mongoFallback({ lng, lat, skill, excludeIds });
+    return mongoFallback({ lng, lat, skill, excludeIds, radiusKm });
   }
 
   // Filter by availability + skill in one pipelined batch
@@ -87,7 +87,7 @@ async function findCandidates({ lng, lat, skill, excludeIds = [] }) {
   }
 
   if (filtered.length === 0) {
-    return mongoFallback({ lng, lat, skill, excludeIds });
+    return mongoFallback({ lng, lat, skill, excludeIds, radiusKm });
   }
 
   // Rating + penalty — fetch from Mongo in one query.
@@ -149,8 +149,9 @@ async function findCandidates({ lng, lat, skill, excludeIds = [] }) {
   return scored.map((s) => s.workerId).filter((id) => workingIds.has(String(id)));
 }
 
-async function mongoFallback({ lng, lat, skill, excludeIds }) {
-  logger.info({ lng, lat, skill }, 'Falling back to Mongo $near query');
+async function mongoFallback({ lng, lat, skill, excludeIds, radiusKm }) {
+  const effectiveRadius = radiusKm ?? config.dispatch.radiusKm;
+  logger.info({ lng, lat, skill, radiusKm: effectiveRadius }, 'Falling back to Mongo $near query');
   const docs = await Worker.find({
     isOnline: true,
     isAvailable: true,
@@ -160,7 +161,7 @@ async function mongoFallback({ lng, lat, skill, excludeIds }) {
     currentLocation: {
       $near: {
         $geometry: { type: 'Point', coordinates: [lng, lat] },
-        $maxDistance: config.dispatch.radiusKm * 1000,
+        $maxDistance: effectiveRadius * 1000,
       },
     },
   })
@@ -171,10 +172,35 @@ async function mongoFallback({ lng, lat, skill, excludeIds }) {
   return docs.map((d) => String(d._id));
 }
 
+/**
+ * Returns anonymised positions of all online workers within radiusKm.
+ * No worker IDs are exposed — used only for ambient map display.
+ */
+async function findNearbyWorkers({ lat, lng, radiusKm = 5, limit = 25 }) {
+  try {
+    const geoResult = await redis.geosearch(
+      ONLINE_GEO_KEY,
+      'FROMLONLAT', lng, lat,
+      'BYRADIUS', radiusKm, 'km',
+      'ASC',
+      'COUNT', limit,
+      'WITHCOORD', 'WITHDIST',
+    );
+    return geoResult.map((r) => ({
+      distanceKm: parseFloat(r[1]),
+      lng: parseFloat(r[2][0]),
+      lat: parseFloat(r[2][1]),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 module.exports = {
   markOnline,
   markOffline,
   updateLocation,
   setAvailability,
   findCandidates,
+  findNearbyWorkers,
 };

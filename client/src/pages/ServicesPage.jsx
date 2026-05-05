@@ -1,12 +1,35 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Search, Clock, ChevronRight, Wrench } from 'lucide-react';
+import {
+  ArrowLeft, Search, Clock, ChevronRight,
+  Wrench, Droplets, Bolt, Wind, Hammer, Users,
+  Car, Sparkles, Paintbrush2, ShoppingBag, Scissors,
+  Truck, Leaf, Shield, Tv, Wifi,
+} from 'lucide-react';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import { SkeletonServiceCard } from '../components/common/Skeleton';
 import { staggerContainer, fadeInUp } from '../lib/animations';
 import toast from 'react-hot-toast';
+
+const SERVICE_ICONS = {
+  electrical: { Icon: Bolt,         bg: 'bg-amber-50',   text: 'text-amber-600',  ring: 'ring-amber-100'  },
+  plumbing:   { Icon: Droplets,     bg: 'bg-blue-50',    text: 'text-blue-600',   ring: 'ring-blue-100'   },
+  ac_repair:  { Icon: Wind,         bg: 'bg-cyan-50',    text: 'text-cyan-600',   ring: 'ring-cyan-100'   },
+  carpenter:  { Icon: Hammer,       bg: 'bg-orange-50',  text: 'text-orange-600', ring: 'ring-orange-100' },
+  helper:     { Icon: Users,        bg: 'bg-green-50',   text: 'text-green-600',  ring: 'ring-green-100'  },
+  puncture:   { Icon: Car,          bg: 'bg-slate-50',   text: 'text-slate-600',  ring: 'ring-slate-200'  },
+  cleaning:   { Icon: Sparkles,     bg: 'bg-purple-50',  text: 'text-purple-600', ring: 'ring-purple-100' },
+  painting:   { Icon: Paintbrush2,  bg: 'bg-pink-50',    text: 'text-pink-600',   ring: 'ring-pink-100'   },
+  delivery:   { Icon: Truck,        bg: 'bg-indigo-50',  text: 'text-indigo-600', ring: 'ring-indigo-100' },
+  laundry:    { Icon: ShoppingBag,  bg: 'bg-rose-50',    text: 'text-rose-600',   ring: 'ring-rose-100'   },
+  beauty:     { Icon: Scissors,     bg: 'bg-fuchsia-50', text: 'text-fuchsia-600',ring: 'ring-fuchsia-100'},
+  gardening:  { Icon: Leaf,         bg: 'bg-emerald-50', text: 'text-emerald-600',ring: 'ring-emerald-100'},
+  security:   { Icon: Shield,       bg: 'bg-red-50',     text: 'text-red-600',    ring: 'ring-red-100'    },
+  appliance:  { Icon: Tv,           bg: 'bg-sky-50',     text: 'text-sky-600',    ring: 'ring-sky-100'    },
+  internet:   { Icon: Wifi,         bg: 'bg-violet-50',  text: 'text-violet-600', ring: 'ring-violet-100' },
+};
 
 const CATEGORIES = [
   { key: 'all',     label: 'All' },
@@ -16,13 +39,6 @@ const CATEGORIES = [
   { key: 'beauty',  label: 'Beauty' },
 ];
 
-const CATEGORY_STYLES = {
-  vehicle: { bg: 'bg-slate-50',   text: 'text-slate-600',   ring: 'ring-slate-200' },
-  home:    { bg: 'bg-zappy-50',   text: 'text-zappy-600',   ring: 'ring-zappy-100' },
-  helper:  { bg: 'bg-success-50', text: 'text-success-600', ring: 'ring-success-100' },
-  beauty:  { bg: 'bg-accent-50',  text: 'text-accent-600',  ring: 'ring-accent-100' },
-  other:   { bg: 'bg-slate-50',   text: 'text-slate-600',   ring: 'ring-slate-200' },
-};
 
 export default function ServicesPage() {
   const nav = useNavigate();
@@ -139,34 +155,34 @@ export default function ServicesPage() {
                 animate="animate"
               >
                 {filtered.map((s) => {
-                  const style = CATEGORY_STYLES[s.category] || CATEGORY_STYLES.other;
+                  const svc = SERVICE_ICONS[s.code] || SERVICE_ICONS[s.category] || {
+                    Icon: Wrench, bg: 'bg-slate-50', text: 'text-slate-600', ring: 'ring-slate-200',
+                  };
+                  const { Icon } = svc;
                   return (
                     <motion.button
                       key={s.code}
                       onClick={() => nav(`/book/${s.code}`)}
-                      className="card text-left group"
+                      className="card text-left group hover:shadow-lg transition-shadow"
                       variants={fadeInUp}
-                      whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(15,23,42,0.10)' }}
+                      whileHover={{ y: -3 }}
                       whileTap={{ scale: 0.97 }}
                     >
-                      <div className={`w-11 h-11 rounded-xl ${style.bg} ring-1 ${style.ring} flex items-center justify-center mb-3`}>
-                        <Wrench size={18} strokeWidth={1.75} className={style.text} />
+                      <div className={`w-12 h-12 rounded-2xl ${svc.bg} ring-1 ${svc.ring} flex items-center justify-center mb-3`}>
+                        <Icon size={20} strokeWidth={1.75} className={svc.text} />
                       </div>
-                      <p className="font-semibold text-[#0F172A] text-sm leading-tight">{s.name}</p>
+                      <p className="font-bold text-[#0F172A] text-sm leading-tight">{s.name}</p>
                       <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed min-h-[32px]">
                         {s.description || 'Professional service at your doorstep'}
                       </p>
-                      <div className="mt-3 flex items-center justify-between">
-                        <span className="text-[12px] font-bold text-zappy-600">
-                          ₹{s.priceRangeMinPaise / 100}–{s.priceRangeMaxPaise / 100}
+                      <div className="mt-3 pt-2.5 border-t border-slate-50 flex items-center justify-between">
+                        <span className={`text-[12px] font-extrabold ${svc.text}`}>
+                          ₹{s.priceRangeMinPaise / 100}+
                         </span>
                         <span className="flex items-center gap-1 text-[11px] text-slate-400 font-medium">
                           <Clock size={10} strokeWidth={2} />
                           ~{s.estimatedDurationMinutes}m
                         </span>
-                      </div>
-                      <div className="mt-3 flex items-center gap-1 text-[11px] font-semibold text-zappy-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                        Book now <ChevronRight size={11} strokeWidth={2.5} />
                       </div>
                     </motion.button>
                   );

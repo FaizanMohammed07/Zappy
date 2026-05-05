@@ -2,8 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import {
-  Bell, Search, ChevronRight, Zap, Star, TrendingUp,
-  Wrench, Droplets, Bolt, Wind, Hammer, Users, MoreHorizontal,
+  Bell, Search, ChevronRight, Zap, Star, TrendingUp, Wrench,
+  Droplets, Bolt, Wind, Hammer, Users, Car, Sparkles, Paintbrush2,
 } from 'lucide-react';
 import { selectAuth } from '../modules/auth/authSlice';
 import { useListOrdersQuery } from '../services/api';
@@ -15,12 +15,22 @@ import {
 } from '../lib/animations';
 
 const SERVICES = [
-  { key: 'electrical', name: 'Electrical',  Icon: Bolt,     bg: 'bg-amber-50',   color: 'text-amber-600' },
-  { key: 'plumbing',   name: 'Plumbing',    Icon: Droplets, bg: 'bg-blue-50',    color: 'text-blue-600' },
-  { key: 'ac_repair',  name: 'AC Repair',   Icon: Wind,     bg: 'bg-cyan-50',    color: 'text-cyan-600' },
-  { key: 'carpenter',  name: 'Carpenter',   Icon: Hammer,   bg: 'bg-orange-50',  color: 'text-orange-600' },
-  { key: 'helper',     name: 'Helper',      Icon: Users,    bg: 'bg-green-50',   color: 'text-green-600' },
+  { key: 'electrical', name: 'Electrical', Icon: Bolt,         bg: 'bg-amber-50',   color: 'text-amber-600'  },
+  { key: 'plumbing',   name: 'Plumbing',   Icon: Droplets,     bg: 'bg-blue-50',    color: 'text-blue-600'   },
+  { key: 'ac_repair',  name: 'AC Repair',  Icon: Wind,         bg: 'bg-cyan-50',    color: 'text-cyan-600'   },
+  { key: 'carpenter',  name: 'Carpenter',  Icon: Hammer,       bg: 'bg-orange-50',  color: 'text-orange-600' },
+  { key: 'helper',     name: 'Helper',     Icon: Users,        bg: 'bg-green-50',   color: 'text-green-600'  },
+  { key: 'puncture',   name: 'Puncture',   Icon: Car,          bg: 'bg-slate-50',   color: 'text-slate-600'  },
+  { key: 'cleaning',   name: 'Cleaning',   Icon: Sparkles,     bg: 'bg-purple-50',  color: 'text-purple-600' },
+  { key: 'painting',   name: 'Painting',   Icon: Paintbrush2,  bg: 'bg-pink-50',    color: 'text-pink-600'   },
 ];
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
 const ACTIVE_STATUSES = ['created', 'searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'];
 
@@ -40,6 +50,7 @@ export default function HomePage() {
 
   const activeOrder = data?.orders?.find((o) => ACTIVE_STATUSES.includes(o.status));
   const firstName = profile?.name?.split(' ')[0] || 'there';
+  const greeting = getGreeting();
 
   return (
     <PageTransition>
@@ -52,8 +63,8 @@ export default function HomePage() {
               <div className="flex items-center gap-2.5">
                 <ZappyLogo size={32} />
                 <div>
-                  <p className="text-[11px] text-slate-400 font-medium leading-none">Good day,</p>
-                  <p className="text-[15px] font-bold text-[#0F172A] leading-tight">{firstName}</p>
+                  <p className="text-[11px] text-slate-400 font-medium leading-none">{greeting},</p>
+                  <p className="text-[15px] font-bold text-[#0F172A] leading-tight">{firstName} 👋</p>
                 </div>
               </div>
               <motion.button
@@ -173,7 +184,7 @@ export default function HomePage() {
           {/* Services grid */}
           <div className="mt-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-[#0F172A] text-[15px]">Popular Services</h3>
+              <h3 className="font-bold text-[#0F172A] text-[15px]">Our Services</h3>
               <motion.button
                 onClick={() => nav('/services')}
                 className="text-xs font-semibold text-zappy-600 flex items-center gap-1"
@@ -183,7 +194,7 @@ export default function HomePage() {
               </motion.button>
             </div>
             <motion.div
-              className="grid grid-cols-5 sm:grid-cols-5 gap-2 lg:gap-4"
+              className="grid grid-cols-4 gap-3"
               variants={staggerContainer}
               initial="initial"
               animate="animate"
@@ -192,37 +203,18 @@ export default function HomePage() {
                 <motion.button
                   key={key}
                   onClick={() => nav(`/book/${key}`)}
-                  className="flex flex-col items-center gap-2"
+                  className="flex flex-col items-center gap-2 py-1"
                   variants={fadeInUp}
                   whileHover={{ y: -3 }}
                   whileTap={{ scale: 0.93 }}
                 >
-                  <div className={`w-12 h-12 lg:w-14 lg:h-14 rounded-[16px] ${bg} flex items-center justify-center shadow-soft`}>
-                    <Icon size={22} strokeWidth={1.75} className={color} />
+                  <div className={`w-14 h-14 rounded-2xl ${bg} flex items-center justify-center shadow-sm`}>
+                    <Icon size={24} strokeWidth={1.75} className={color} />
                   </div>
-                  <span className="text-[10px] font-semibold text-slate-600 text-center leading-tight">{name}</span>
+                  <span className="text-[11px] font-semibold text-slate-600 text-center leading-tight">{name}</span>
                 </motion.button>
               ))}
             </motion.div>
-          </div>
-
-          {/* More services */}
-          <div className="mt-3">
-            <motion.button
-              onClick={() => nav('/services')}
-              className="w-full card flex items-center gap-4 text-left"
-              whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(15,23,42,0.08)' }}
-              whileTap={{ scale: 0.99 }}
-            >
-              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                <MoreHorizontal size={18} className="text-slate-500" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-[#0F172A]">Browse all services</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Plumbing, cleaning, repairs & more</p>
-              </div>
-              <ChevronRight size={16} className="text-slate-300" />
-            </motion.button>
           </div>
         </div>
 

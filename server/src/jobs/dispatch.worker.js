@@ -1,18 +1,18 @@
 /**
- * Dispatch Worker Process
+ * Dispatch Worker — Progressive Radius Broadcast Engine
  * ----------------------------------------------------------------------------
- * Runs independently from the API process. Consumes jobs from the `dispatch`
- * queue and implements the sequential-offer matching algorithm:
+ * Flow:
+ *   1. Transition order to 'searching'.
+ *   2. Walk RADIUS_STEPS: 0.1 → 0.3 → 0.7 → 1.5 → 3 → 5 km.
+ *   3. At each step, find ALL available workers in that radius (excluding
+ *      already-notified ones) and broadcast 'new_job_request' to all of them
+ *      simultaneously.
+ *   4. Wait STEP_WINDOW_MS for any accept signal.
+ *   5. First accept wins — lock with atomic Mongo transaction.
+ *   6. If no accept: record all batch workers as attempted, expand radius.
+ *   7. Only fail the order after all radius steps are exhausted.
  *
- *   1. Load order + find ranked candidates via geo.service.
- *   2. Offer to candidate #1 for OFFER_TIMEOUT_MS.
- *   3. Wait for a Redis pub/sub signal: `dispatch:accepted:<orderId>`.
- *   4. If accepted → lock worker to order, emit `order.assigned`, done.
- *   5. If timeout/rejected → mark candidate as attempted, re-enqueue.
- *   6. Cap at N attempts; if exhausted → emit `order.failed` (no workers).
- *
- * Why sequential (not broadcast)? Avoids accept races, gives the nearest
- * worker priority, and makes cancellations/retries deterministic.
+ * Never rejects an order early — keeps searching until max radius reached.
  * ----------------------------------------------------------------------------
  */
 
@@ -27,26 +27,23 @@ const config = require('../config');
 const logger = require('../utils/logger');
 const { QUEUES, notificationsQueue } = require('./index');
 
-const MAX_ATTEMPTS = 8;
+const MAX_BATCH_SIZE = 10; // max workers notified per radius step
 
 async function processDispatchJob(job) {
-  const { orderId, attempt = 0 } = job.data;
-  logger.info({ orderId, attempt }, 'Dispatch job picked up');
+  const { orderId } = job.data;
+  logger.info({ orderId }, '[DISPATCH] Job picked up');
 
   const order = await Order.findById(orderId);
   if (!order) {
-    logger.warn({ orderId }, 'Order not found, dropping dispatch');
+    logger.warn({ orderId }, '[DISPATCH] Order not found, dropping');
     return { ok: false, reason: 'order_not_found' };
   }
   if (!['created', 'searching'].includes(order.status)) {
-    logger.info({ orderId, status: order.status }, 'Order no longer dispatchable');
+    logger.info({ orderId, status: order.status }, '[DISPATCH] Order not dispatchable');
     return { ok: false, reason: 'bad_status' };
   }
-  if (attempt >= MAX_ATTEMPTS) {
-    await markOrderFailed(order, 'no_workers_available');
-    return { ok: false, reason: 'max_attempts' };
-  }
 
+  /* ── Transition to searching ── */
   if (order.status === 'created') {
     order.status = 'searching';
     order.statusHistory.push({ status: 'searching' });
@@ -55,153 +52,235 @@ async function processDispatchJob(job) {
   }
 
   const [lng, lat] = order.pickupLocation.coordinates;
-  const candidates = await geoService.findCandidates({
-    lng,
-    lat,
-    skill: order.service,
-    excludeIds: order.dispatch.attemptedWorkerIds,
-  });
+  const radiusSteps = config.dispatch.radiusSteps;
+  const stepWindowMs = config.dispatch.stepWindowMs;
 
-  if (candidates.length === 0) {
-    if (attempt < 3) {
-      logger.info({ orderId, attempt }, 'No candidates, retrying with delay');
-      await job.queue.add(
-        'dispatch',
-        { orderId, attempt: attempt + 1 },
-        { delay: 3000 }
-      );
-      return { ok: false, reason: 'no_candidates_retry' };
-    }
-    await markOrderFailed(order, 'no_workers_in_area');
-    return { ok: false, reason: 'no_candidates_final' };
-  }
-
-  const workerId = candidates[0];
-  const offerExpiresAt = new Date(Date.now() + config.dispatch.offerTimeoutMs);
-
-  order.dispatch.currentOfferWorkerId = workerId;
-  order.dispatch.offerExpiresAt = offerExpiresAt;
-  order.dispatch.attempts = (order.dispatch.attempts || 0) + 1;
-  await order.save();
-
-  await redis.publish(
-    'worker:offer',
-    JSON.stringify({
-      workerId,
-      order: {
-        _id: String(order._id),
-        service: order.service,
-        pickupAddress: order.pickupLocation.address,
-        pickupCoords: order.pickupLocation.coordinates,
-        price: order.pricing.total,
-        expiresAt: offerExpiresAt.toISOString(),
-      },
-    })
+  /* Workers already notified across all steps — never re-notify */
+  const alreadyNotified = new Set(
+    (order.dispatch?.attemptedWorkerIds || []).map(String)
   );
 
-  await notificationsQueue.add('worker_offer', {
-    workerId,
-    orderId: String(order._id),
-  });
+  /* ── Walk radius steps ── */
+  for (let stepIdx = 0; stepIdx < radiusSteps.length; stepIdx++) {
+    const radiusKm = radiusSteps[stepIdx];
 
-  const outcome = await waitForAcceptance(String(order._id), workerId, config.dispatch.offerTimeoutMs);
-  // outcome is 'accept' | 'reject' | 'timeout'
+    /* Re-check order status — may have been accepted by a concurrent step
+       or cancelled externally */
+    const fresh = await Order.findById(orderId).select('status').lean();
+    if (!fresh || fresh.status !== 'searching') {
+      logger.info({ orderId, status: fresh?.status }, '[DISPATCH] Order no longer searching, stopping');
+      return { ok: false, reason: 'status_changed' };
+    }
 
-  const abuseService = require('../modules/order/abuse.service');
-  abuseService.recordWorkerOutcome(workerId, outcome).catch(() => {});
+    logger.info(
+      { orderId, stepIdx: stepIdx + 1, totalSteps: radiusSteps.length, radiusKm },
+      `[DISPATCH] Step ${stepIdx + 1}/${radiusSteps.length} — searching ${radiusKm}km`
+    );
 
-  if (outcome === 'accept') {
-    const locked = await lockOrderToWorker(order._id, workerId);
-    if (locked) {
-      logger.info({ orderId, workerId }, 'Order assigned');
-      await emitToOrderRoom(order._id, 'order.assigned', {
+    const candidates = await geoService.findCandidates({
+      lng, lat,
+      skill: order.service,
+      excludeIds: [...alreadyNotified],
+      radiusKm,
+    });
+
+    logger.info(
+      { orderId, radiusKm, found: candidates.length, alreadyNotified: alreadyNotified.size },
+      `[DISPATCH] Workers found: ${candidates.length}`
+    );
+
+    if (candidates.length === 0) {
+      logger.info({ orderId, radiusKm }, '[DISPATCH] No new workers at this radius, expanding…');
+      if (stepIdx > 0) {
+        await emitToOrderRoom(order._id, 'order.dispatch_update', {
+          message: `Expanding search area to ${radiusKm > 1 ? `${radiusKm}km` : `${radiusKm * 1000}m`}…`,
+          radiusKm,
+        });
+      }
+      continue;
+    }
+
+    const batchWorkers = candidates.slice(0, MAX_BATCH_SIZE).map(String);
+    const expiresAt = new Date(Date.now() + stepWindowMs);
+
+    /* ── User status message ── */
+    const userMsg = stepIdx === 0
+      ? 'Searching nearby helpers…'
+      : `Expanding search area to ${radiusKm > 1 ? `${radiusKm}km` : `${radiusKm * 1000}m`}…`;
+    await emitToOrderRoom(order._id, 'order.dispatch_update', {
+      message: userMsg,
+      radiusKm,
+    });
+
+    /* ── Broadcast to all workers in batch ── */
+    logger.info(
+      { orderId, radiusKm, notifying: batchWorkers.length, workers: batchWorkers },
+      `[DISPATCH] Notifying ${batchWorkers.length} workers`
+    );
+
+    for (const workerId of batchWorkers) {
+      alreadyNotified.add(workerId);
+      redis.publish('worker:offer', JSON.stringify({
+        workerId,
+        order: {
+          _id:           String(order._id),
+          service:       order.service,
+          pickupAddress: order.pickupLocation.address,
+          pickupCoords:  order.pickupLocation.coordinates,
+          price:         order.pricing.total,
+          distanceKm:    order.pricing?.distanceKm
+            ? parseFloat(order.pricing.distanceKm).toFixed(1)
+            : null,
+          etaMinutes:    order.pricing?.etaMinutes || null,
+          expiresAt:     expiresAt.toISOString(),
+        },
+      })).catch(() => {});
+
+      notificationsQueue.add('worker_offer', {
         workerId,
         orderId: String(order._id),
-      });
-      try {
-        const notificationService = require('../modules/notification/notification.service');
-        const worker = await WorkerModel.findById(workerId).select('name rating').lean();
-        await notificationService.notify({
-          recipient: { kind: 'user', id: order.userId },
-          type: 'worker_assigned',
-          title: '✅ Worker assigned!',
-          body: worker
-            ? `${worker.name} (⭐ ${worker.rating}) will be with you shortly`
-            : 'A worker is on the way',
-          deepLink: `/orders/${order._id}`,
-          data: { orderId: String(order._id), workerId: String(workerId) },
-        });
-      } catch (err) {
-        logger.warn({ err: err.message }, 'Assignment notification failed');
-      }
-      return { ok: true, workerId };
+      }).catch(() => {});
     }
+
+    /* ── Wait for any accept in this window ── */
+    const result = await waitForBatchWindow(String(order._id), batchWorkers, stepWindowMs);
+
+    logger.info(
+      {
+        orderId, radiusKm,
+        acceptedBy:  result.acceptedBy,
+        rejected:    result.rejected.length,
+        ignored:     result.ignored.length,
+      },
+      '[DISPATCH] Step window closed'
+    );
+
+    /* ── Handle accept ── */
+    if (result.acceptedBy) {
+      const locked = await lockOrderToWorker(order._id, result.acceptedBy);
+      if (locked) {
+        logger.info({ orderId, workerId: result.acceptedBy }, '[DISPATCH] ✅ Order assigned');
+        await emitToOrderRoom(order._id, 'order.assigned', {
+          workerId: result.acceptedBy,
+          orderId:  String(order._id),
+        });
+
+        /* Notify user */
+        try {
+          const notificationService = require('../modules/notification/notification.service');
+          const worker = await WorkerModel.findById(result.acceptedBy).select('name rating').lean();
+          await notificationService.notify({
+            recipient: { kind: 'user', id: order.userId },
+            type:      'worker_assigned',
+            title:     '✅ Worker assigned!',
+            body:      worker
+              ? `${worker.name} (⭐ ${worker.rating}) will be with you shortly`
+              : 'A worker is on the way',
+            deepLink: `/orders/${order._id}`,
+            data:     { orderId: String(order._id), workerId: result.acceptedBy },
+          });
+        } catch (err) {
+          logger.warn({ err: err.message }, '[DISPATCH] Assignment notification failed');
+        }
+
+        /* Cancel offer for all other workers in the batch */
+        const losers = [...result.rejected, ...result.ignored];
+        for (const wId of losers) {
+          redis.publish('worker:offer_cancel', JSON.stringify({
+            workerId: wId,
+            orderId:  String(order._id),
+          })).catch(() => {});
+        }
+        if (losers.length) {
+          logger.info({ orderId, losers: losers.length }, '[DISPATCH] Cancelled offer for non-winning workers');
+        }
+
+        /* Record outcomes */
+        recordOutcomes(result.acceptedBy, 'accept', result.rejected, result.ignored);
+        return { ok: true, workerId: result.acceptedBy };
+      }
+
+      /* Lock failed (race) — fall through and continue to next step */
+      logger.warn({ orderId, workerId: result.acceptedBy }, '[DISPATCH] Lock failed after accept, continuing');
+    }
+
+    /* Record outcomes for this batch */
+    recordOutcomes(null, null, result.rejected, result.ignored);
+
+    /* Mark entire batch as attempted so they're skipped in future steps */
+    await Order.updateOne(
+      { _id: order._id },
+      { $addToSet: { 'dispatch.attemptedWorkerIds': { $each: batchWorkers } } }
+    );
   }
 
-  logger.info({ orderId, workerId, outcome }, 'Offer not taken, trying next');
-  await Order.updateOne(
-    { _id: order._id },
-    {
-      $addToSet: { 'dispatch.attemptedWorkerIds': workerId },
-      $set: { 'dispatch.currentOfferWorkerId': null, 'dispatch.offerExpiresAt': null },
-    }
-  );
-
-  await job.queue.add('dispatch', { orderId, attempt: attempt + 1 });
-  return { ok: false, reason: outcome };
+  /* ── All radius steps exhausted ── */
+  logger.info({ orderId }, '[DISPATCH] All radius steps exhausted — no workers found');
+  const finalOrder = await Order.findById(orderId);
+  if (finalOrder && finalOrder.status === 'searching') {
+    await markOrderFailed(finalOrder, 'no_workers_available');
+  }
+  return { ok: false, reason: 'all_radii_exhausted' };
 }
 
-function waitForAcceptance(orderId, expectedWorkerId, timeoutMs) {
+/* ─── Wait for any worker in the batch to accept within the window ─ */
+function waitForBatchWindow(orderId, workerIds, windowMs) {
   return new Promise((resolve) => {
-    const channel = `dispatch:accepted:${orderId}`;
-    const rejectChannel = `dispatch:rejected:${orderId}`;
+    const acceptCh = `dispatch:accepted:${orderId}`;
+    const rejectCh = `dispatch:rejected:${orderId}`;
     const sub = createBullConnection();
+
+    const remaining = new Set(workerIds.map(String));
+    const rejected  = [];
 
     const cleanup = () => {
       clearTimeout(timer);
-      sub.unsubscribe().catch(() => {});
+      sub.unsubscribe(acceptCh, rejectCh).catch(() => {});
       sub.quit().catch(() => {});
     };
 
     const timer = setTimeout(() => {
       cleanup();
-      resolve('timeout');
-    }, timeoutMs);
+      resolve({ acceptedBy: null, rejected, ignored: [...remaining] });
+    }, windowMs);
 
-    sub.on('message', (ch, message) => {
+    sub.on('message', (ch, raw) => {
       try {
-        const data = JSON.parse(message);
-        if (ch === channel && String(data.workerId) === String(expectedWorkerId)) {
+        const data = JSON.parse(raw);
+        const wId  = String(data.workerId);
+        if (!remaining.has(wId)) return;  // not our batch
+
+        if (ch === acceptCh) {
           cleanup();
-          resolve('accept');
-        } else if (ch === rejectChannel && String(data.workerId) === String(expectedWorkerId)) {
-          cleanup();
-          resolve('reject');
+          remaining.delete(wId);
+          resolve({ acceptedBy: wId, rejected, ignored: [...remaining] });
+        } else if (ch === rejectCh) {
+          remaining.delete(wId);
+          rejected.push(wId);
+          if (remaining.size === 0) {
+            cleanup();
+            resolve({ acceptedBy: null, rejected, ignored: [] });
+          }
         }
-      } catch {
-        /* ignore malformed */
-      }
+      } catch { /* ignore */ }
     });
 
-    sub.subscribe(channel, rejectChannel).catch(() => {
+    sub.subscribe(acceptCh, rejectCh).catch(() => {
       cleanup();
-      resolve('timeout');
+      resolve({ acceptedBy: null, rejected: [], ignored: [...workerIds] });
     });
   });
 }
 
+/* ─── Atomic order + worker lock ───────────────────────────────── */
 async function lockOrderToWorker(orderId, workerId) {
   const mongoose = require('mongoose');
-  const session = await mongoose.startSession();
+  const session  = await mongoose.startSession();
   try {
     let updated = null;
     await session.withTransaction(async () => {
       updated = await Order.findOneAndUpdate(
-        {
-          _id: orderId,
-          status: { $in: ['searching', 'created'] },
-          workerId: null,
-        },
+        { _id: orderId, status: { $in: ['searching', 'created'] }, workerId: null },
         {
           $set: {
             workerId,
@@ -213,27 +292,22 @@ async function lockOrderToWorker(orderId, workerId) {
         },
         { new: true, session }
       );
-      if (!updated) {
-        throw Object.assign(new Error('ORDER_NOT_LOCKABLE'), { abort: true });
-      }
+      if (!updated) throw Object.assign(new Error('ORDER_NOT_LOCKABLE'), { abort: true });
 
-      const workerUpd = await WorkerModel.updateOne(
+      const upd = await WorkerModel.updateOne(
         { _id: workerId, isAvailable: true, isBlocked: false },
         { $set: { isAvailable: false, currentOrderId: orderId } },
         { session }
       );
-      if (workerUpd.matchedCount === 0) {
-        throw Object.assign(new Error('WORKER_NOT_AVAILABLE'), { abort: true });
-      }
+      if (upd.matchedCount === 0) throw Object.assign(new Error('WORKER_NOT_AVAILABLE'), { abort: true });
     });
 
     if (!updated) return false;
-
     await geoService.setAvailability(workerId, false);
     return true;
   } catch (err) {
     if (err.abort) {
-      logger.info({ orderId, workerId, reason: err.message }, 'Lock transaction aborted');
+      logger.info({ orderId, workerId, reason: err.message }, '[DISPATCH] Lock aborted');
       return false;
     }
     throw err;
@@ -242,21 +316,35 @@ async function lockOrderToWorker(orderId, workerId) {
   }
 }
 
+/* ─── Record abuse-service outcomes (fire-and-forget) ──────────── */
+function recordOutcomes(acceptedBy, acceptOutcome, rejected, ignored) {
+  const abuseService = require('../modules/order/abuse.service');
+  if (acceptedBy && acceptOutcome) {
+    abuseService.recordWorkerOutcome(acceptedBy, acceptOutcome).catch(() => {});
+  }
+  for (const wId of rejected) {
+    abuseService.recordWorkerOutcome(wId, 'reject').catch(() => {});
+  }
+  for (const wId of ignored) {
+    abuseService.recordWorkerOutcome(wId, 'timeout').catch(() => {});
+  }
+}
+
+/* ─── Helpers ───────────────────────────────────────────────────── */
 async function markOrderFailed(order, reason) {
   order.status = 'failed';
   order.cancellationReason = reason;
   order.statusHistory.push({ status: 'failed', meta: { reason } });
   await order.save();
   await emitToOrderRoom(order._id, 'order.failed', { reason });
+  logger.info({ orderId: order._id, reason }, '[DISPATCH] Order marked failed');
 }
 
 async function emitToOrderRoom(orderId, event, payload) {
-  await redis.publish(
-    'order:event',
-    JSON.stringify({ orderId: String(orderId), event, payload })
-  );
+  await redis.publish('order:event', JSON.stringify({ orderId: String(orderId), event, payload }));
 }
 
+/* ─── BullMQ worker bootstrap ───────────────────────────────────── */
 async function main() {
   await connectMongo();
 
@@ -264,25 +352,25 @@ async function main() {
     QUEUES.DISPATCH,
     processDispatchJob,
     {
-      connection: createBullConnection(),
-      concurrency: 50,
-      lockDuration: 60000,
+      connection:   createBullConnection(),
+      concurrency:  50,
+      lockDuration: 120000, // raised: each job now runs up to ~72s (6 steps × 12s)
     }
   );
 
   bullWorker.on('completed', (job, result) =>
-    logger.info({ jobId: job.id, result }, 'Dispatch completed')
+    logger.info({ jobId: job.id, result }, '[DISPATCH] Job completed')
   );
   bullWorker.on('failed', (job, err) =>
-    logger.error({ jobId: job?.id, err: err.message }, 'Dispatch failed')
+    logger.error({ jobId: job?.id, err: err.message }, '[DISPATCH] Job failed')
   );
 
-  logger.info('Dispatch worker started');
+  logger.info('[DISPATCH] Progressive radius worker started');
 }
 
 if (require.main === module) {
   main().catch((err) => {
-    logger.error({ err }, 'Dispatch worker crashed');
+    logger.error({ err }, '[DISPATCH] Worker crashed');
     process.exit(1);
   });
 }

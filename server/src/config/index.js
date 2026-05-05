@@ -16,6 +16,7 @@ const schema = Joi.object({
   DISPATCH_RADIUS_KM: Joi.number().default(5),
   DISPATCH_MAX_CANDIDATES: Joi.number().default(20),
   DISPATCH_OFFER_TIMEOUT_MS: Joi.number().default(15000),
+  DISPATCH_STEP_WINDOW_MS: Joi.number().default(12000),
   BASE_FEE: Joi.number().default(40),
   PER_KM_FEE: Joi.number().default(12),
   PER_MIN_FEE: Joi.number().default(2),
@@ -48,9 +49,11 @@ module.exports = {
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
   },
   dispatch: {
-    radiusKm: env.DISPATCH_RADIUS_KM,
+    radiusKm:      env.DISPATCH_RADIUS_KM,
     maxCandidates: env.DISPATCH_MAX_CANDIDATES,
     offerTimeoutMs: env.DISPATCH_OFFER_TIMEOUT_MS,
+    stepWindowMs:  env.DISPATCH_STEP_WINDOW_MS,
+    radiusSteps:   [0.1, 0.3, 0.7, 1.5, 3.0, 5.0],
   },
   pricing: {
     baseFee: env.BASE_FEE,

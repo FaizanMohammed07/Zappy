@@ -130,4 +130,20 @@ async function workerCancelOrder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getQuote, createOrder, listMine, getOne, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder };
+async function getInvoice(req, res, next) {
+  try {
+    const order = await orderService.getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (String(order.userId) !== String(req.auth.sub)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const invoiceService = require('../service/invoice.service');
+    const data = await invoiceService.getInvoiceData(req.params.id);
+    const html = invoiceService.renderHtml(data);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="invoice-${data.invoiceNumber}.html"`);
+    res.send(html);
+  } catch (err) { next(err); }
+}
+
+module.exports = { getQuote, createOrder, listMine, getOne, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, getInvoice };

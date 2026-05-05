@@ -22,7 +22,10 @@ const orderSchema = new mongoose.Schema(
       required: true,
       enum: ['puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair', 'cleaning', 'painting'],
     },
+    subCategory: { type: String, maxlength: 100 },
     description: { type: String, maxlength: 500 },
+    images: [{ type: String }], // S3 URLs, max 5
+    scheduledAt: { type: Date, default: null, index: true }, // null = book now
 
     // Priority — emergency mode surfaces the order first + applies a surcharge
     priority: {

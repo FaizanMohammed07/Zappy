@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useSelector } from 'react-redux';
 import { selectAuth } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
+import { useFCM } from './hooks/useFCM';
 
 import { adminPath } from './config/admin';
 import LoginPage from './pages/LoginPage';
@@ -26,6 +27,7 @@ import { RequireAuth } from './components/common/RequireAuth';
 
 export default function App() {
   useDisconnectOnLogout();
+  useFCM();
   const { accessToken: token, role } = useSelector(selectAuth);
   const location = useLocation();
 

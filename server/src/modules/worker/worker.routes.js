@@ -18,5 +18,6 @@ router.post('/offline', authenticate, requireRole('worker'), ctrl.goOffline);
 router.post('/location', authenticate, requireRole('worker'), validate(locationSchema), ctrl.updateLocation);
 router.get('/earnings', authenticate, requireRole('worker'), ctrl.getEarnings);
 router.get('/orders', authenticate, requireRole('worker'), ctrl.getOrders);
+router.get('/nearby', authenticate, ctrl.getNearbyWorkers);
 
 module.exports = router;

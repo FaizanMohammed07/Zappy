@@ -106,7 +106,7 @@ function initSockets(httpServer) {
   // Dispatch worker publishes events; we relay them to the right rooms.
   const subscriber = subClient.duplicate();
 
-  subscriber.subscribe('order:event', 'worker:offer', (err) => {
+  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', (err) => {
     if (err) logger.error({ err }, 'Pub/sub subscribe failed');
   });
   // Notifications are per-recipient — `notification:<kind>:<id>`. Use pattern sub.
@@ -136,8 +136,14 @@ function initSockets(httpServer) {
       }
 
       if (channel === 'worker:offer') {
-        // { workerId, order }
-        io.to(`worker:${data.workerId}`).emit('offer.new', data.order);
+        // { workerId, order }  — broadcast model, any notified worker can accept first
+        io.to(`worker:${data.workerId}`).emit('new_job_request', data.order);
+        return;
+      }
+
+      if (channel === 'worker:offer_cancel') {
+        // { workerId, orderId }  — order taken by another worker, dismiss the popup
+        io.to(`worker:${data.workerId}`).emit('offer.cancelled', { orderId: data.orderId });
         return;
       }
     } catch (err) {

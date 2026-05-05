@@ -24,7 +24,10 @@ const locationSchema = Joi.object({
 
 const createOrderSchema = Joi.object({
   service: Joi.string().valid('puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair', 'cleaning', 'painting').required(),
+  subCategory: Joi.string().max(100).allow('', null),
   description: Joi.string().max(500).allow(''),
+  images: Joi.array().items(Joi.string().uri()).max(5).default([]),
+  scheduledAt: Joi.date().iso().greater('now').optional().allow(null),
   pickupLocation: pickupLocationSchema.required(),
   dropLocation: locationSchema.optional(),
   paymentMethod: Joi.string().valid('cash', 'upi', 'card').default('upi'),
@@ -48,6 +51,7 @@ router.get('/quote', authenticate, requireRole('user'), validate(quoteSchema, 'q
 router.post('/', authenticate, requireRole('user'), orderLimiter, validate(createOrderSchema), ctrl.createOrder);
 router.get('/mine', authenticate, requireRole('user'), ctrl.listMine);
 router.get('/:id', authenticate, ctrl.getOne);
+router.get('/:id/invoice', authenticate, requireRole('user'), ctrl.getInvoice);
 router.post('/:id/cancel', authenticate, requireRole('user'), ctrl.cancelOrder);
 router.post('/:id/rate', authenticate, requireRole('user'), validate(rateSchema), ctrl.rateOrder);
 router.post('/:id/rate-user', authenticate, requireRole('worker'), validate(rateSchema), ctrl.workerRateUser);

@@ -1,26 +1,31 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ClipboardList, ChevronRight, Circle, ChevronLeft } from 'lucide-react';
+import { ClipboardList, ChevronRight, Circle, ChevronLeft, FileDown, Star, Calendar } from 'lucide-react';
 import { useListOrdersQuery } from '../services/api';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import { SkeletonList, SkeletonOrderCard } from '../components/common/Skeleton';
 import { staggerContainer, fadeInUp } from '../lib/animations';
+import toast from 'react-hot-toast';
 
 const STATUS_MAP = {
   created:     { label: 'Placed',       cls: 'chip-neutral' },
-  searching:   { label: 'Searching',    cls: 'chip-blue' },
-  assigned:    { label: 'Assigned',     cls: 'chip-blue' },
-  on_the_way:  { label: 'On the Way',   cls: 'chip-blue' },
-  arrived:     { label: 'Arrived',      cls: 'chip-blue' },
+  searching:   { label: 'Searching',    cls: 'chip-blue'    },
+  assigned:    { label: 'Assigned',     cls: 'chip-blue'    },
+  on_the_way:  { label: 'On the Way',   cls: 'chip-blue'    },
+  arrived:     { label: 'Arrived',      cls: 'chip-blue'    },
   in_progress: { label: 'In Progress',  cls: 'chip-success' },
   completed:   { label: 'Completed',    cls: 'chip-success' },
-  cancelled:   { label: 'Cancelled',    cls: 'chip-red' },
-  failed:      { label: 'Failed',       cls: 'chip-red' },
+  cancelled:   { label: 'Cancelled',    cls: 'chip-red'     },
+  failed:      { label: 'Failed',       cls: 'chip-red'     },
 };
 
 const ACTIVE = new Set(['created', 'searching', 'assigned', 'on_the_way', 'arrived', 'in_progress']);
+
+function openInvoice(orderId) {
+  window.open(`/api/orders/${orderId}/invoice`, '_blank', 'noopener,noreferrer');
+}
 
 export default function OrdersListPage() {
   const nav = useNavigate();
@@ -86,48 +91,88 @@ export default function OrdersListPage() {
             animate="animate"
           >
             {orders.map((order) => {
-              const chip = STATUS_MAP[order.status] || STATUS_MAP.created;
+              const chip     = STATUS_MAP[order.status] || STATUS_MAP.created;
               const isActive = ACTIVE.has(order.status);
+              const isCompleted = order.status === 'completed';
+              const isScheduled = !!order.scheduledAt && new Date(order.scheduledAt) > new Date(order.createdAt);
 
               return (
-                <motion.button
+                <motion.div
                   key={order._id}
-                  onClick={() => nav(`/orders/${order._id}`)}
-                  className={`w-full card text-left flex items-start gap-3 ${isActive ? 'ring-zappy-200' : ''}`}
+                  className={`card p-0 overflow-hidden ${isActive ? 'ring-zappy-200' : ''}`}
                   variants={fadeInUp}
-                  whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(15,23,42,0.10)' }}
-                  whileTap={{ scale: 0.99 }}
+                  whileHover={{ y: -1, boxShadow: '0 8px 24px rgba(15,23,42,0.10)' }}
                 >
+                  {/* Active indicator strip */}
                   {isActive && (
-                    <div className="mt-1 shrink-0">
-                      <Circle size={8} className="text-zappy-500 fill-zappy-500 animate-pulse-slow" />
+                    <div className="h-0.5 bg-gradient-to-r from-blue-500 to-zappy-500" />
+                  )}
+
+                  <button
+                    onClick={() => nav(`/orders/${order._id}`)}
+                    className="w-full flex items-start gap-3 p-4 text-left"
+                  >
+                    {isActive && (
+                      <div className="mt-1 shrink-0">
+                        <Circle size={8} className="text-zappy-500 fill-zappy-500 animate-pulse-slow" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-[#0F172A] capitalize text-sm">
+                            {order.service.replace(/_/g, ' ')}
+                            {order.subCategory && (
+                              <span className="ml-1.5 text-[10px] font-bold text-slate-400 normal-case">
+                                · {order.subCategory.replace(/_/g, ' ')}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-0.5 truncate">
+                            {order.pickupLocation?.address}
+                          </p>
+                          {isScheduled && (
+                            <p className="text-[10px] font-semibold text-blue-600 mt-0.5 flex items-center gap-1">
+                              <Calendar size={9} />
+                              {new Date(order.scheduledAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                            </p>
+                          )}
+                        </div>
+                        <span className={`chip ${chip.cls} shrink-0`}>{chip.label}</span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <p className="text-xs text-slate-400">
+                          {new Date(order.createdAt).toLocaleDateString('en-IN', {
+                            day: 'numeric', month: 'short', year: 'numeric',
+                          })}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {order.userRating && (
+                            <span className="flex items-center gap-0.5 text-[10px] font-semibold text-amber-600">
+                              <Star size={9} className="fill-amber-400 text-amber-400" />
+                              {order.userRating}
+                            </span>
+                          )}
+                          <p className="font-bold text-[#0F172A] text-sm">₹{order.pricing?.total ?? '—'}</p>
+                          <ChevronRight size={14} className="text-slate-300" />
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Invoice download — only for completed orders */}
+                  {isCompleted && (
+                    <div className="px-4 pb-3">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openInvoice(order._id); }}
+                        className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition"
+                      >
+                        <FileDown size={11} strokeWidth={2.5} />
+                        Download Invoice
+                      </button>
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-[#0F172A] capitalize text-sm">
-                          {order.service.replace(/_/g, ' ')}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5 truncate">
-                          {order.pickupLocation?.address}
-                        </p>
-                      </div>
-                      <span className={`chip ${chip.cls} shrink-0`}>{chip.label}</span>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <p className="text-xs text-slate-400">
-                        {new Date(order.createdAt).toLocaleDateString('en-IN', {
-                          day: 'numeric', month: 'short', year: 'numeric',
-                        })}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-[#0F172A] text-sm">₹{order.pricing?.total ?? '—'}</p>
-                        <ChevronRight size={14} className="text-slate-300" />
-                      </div>
-                    </div>
-                  </div>
-                </motion.button>
+                </motion.div>
               );
             })}
 

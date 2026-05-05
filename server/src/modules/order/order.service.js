@@ -17,7 +17,7 @@ const logger = require('../../utils/logger');
  * 4. Generate 4-digit OTP for on-site worker verification.
  * 5. Enqueue dispatch — the dispatcher takes it from here.
  */
-async function createOrder({ userId, service, pickupLocation, dropLocation, description, paymentMethod, priority }) {
+async function createOrder({ userId, service, subCategory, pickupLocation, dropLocation, description, images, scheduledAt, paymentMethod, priority }) {
   // Abuse gate FIRST — cheap Redis checks before any Mongo writes.
   await abuseService.assertCanBook(userId);
 
@@ -50,7 +50,10 @@ async function createOrder({ userId, service, pickupLocation, dropLocation, desc
   const order = await orderRepo.create({
     userId,
     service,
+    subCategory: subCategory || undefined,
     description,
+    images: images || [],
+    scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
     priority: isEmergency ? 'emergency' : 'normal',
     pickupLocation: {
       type: 'Point',
@@ -74,14 +77,15 @@ async function createOrder({ userId, service, pickupLocation, dropLocation, desc
     otp,
   });
 
-  // Enqueue dispatch — non-blocking. Emergency orders get priority:10 so they
-  // jump ahead of normal jobs in the BullMQ queue.
+  // Enqueue dispatch with optional delay for scheduled orders.
+  const schedDelay = scheduledAt ? Math.max(0, new Date(scheduledAt).getTime() - Date.now()) : 0;
   await dispatchQueue.add(
     'dispatch',
     { orderId: String(order._id), attempt: 0 },
     {
       jobId: `order:${order._id}`,
-      priority: isEmergency ? 1 : 10, // BullMQ: lower number = higher priority
+      priority: isEmergency ? 1 : 10,
+      delay: schedDelay,
     }
   );
 
@@ -89,11 +93,14 @@ async function createOrder({ userId, service, pickupLocation, dropLocation, desc
 
   // Notify user: order placed
   const notificationService = require('../notification/notification.service');
+  const notifyBody = scheduledAt
+    ? `Your ${service.replace('_', ' ')} is scheduled for ${new Date(scheduledAt).toLocaleString('en-IN')}`
+    : `Your ${service.replace('_', ' ')} request is being matched`;
   notificationService.notify({
     recipient: { kind: 'user', id: userId },
     type: 'order_placed',
-    title: '🔍 Finding a nearby worker',
-    body: `Your ${service.replace('_', ' ')} request is being matched`,
+    title: scheduledAt ? 'Booking scheduled' : 'Finding a nearby worker',
+    body: notifyBody,
     deepLink: `/orders/${order._id}`,
     data: { orderId: String(order._id) },
   }).catch(() => {});
@@ -102,8 +109,10 @@ async function createOrder({ userId, service, pickupLocation, dropLocation, desc
 }
 
 /**
- * Worker accepts an offer. This is called from the worker's HTTP route.
- * Validates the offer is still valid, signals the dispatcher, dispatcher locks.
+ * Worker accepts a broadcast offer.
+ * Broadcast model: all workers in the current radius batch receive the offer
+ * simultaneously. Any of them can signal accept — dispatch process locks the
+ * first one atomically. No per-worker offer address check needed here.
  */
 async function acceptOffer({ orderId, workerId }) {
   const order = await orderRepo.findById(orderId);
@@ -111,26 +120,18 @@ async function acceptOffer({ orderId, workerId }) {
   if (order.status !== 'searching') {
     throw Object.assign(new Error('Offer no longer available'), { status: 410 });
   }
-  if (String(order.dispatch.currentOfferWorkerId) !== String(workerId)) {
-    throw Object.assign(new Error('Offer not addressed to you'), { status: 403 });
-  }
-  if (order.dispatch.offerExpiresAt && order.dispatch.offerExpiresAt < new Date()) {
-    throw Object.assign(new Error('Offer expired'), { status: 410 });
-  }
-
-  // Signal the dispatch worker via pub/sub — it owns the state transition.
+  // Signal the dispatch worker — it owns the atomic lock (first accept wins).
   await redis.publish(
     `dispatch:accepted:${orderId}`,
     JSON.stringify({ workerId, at: new Date().toISOString() })
   );
-
   return { ok: true };
 }
 
 async function rejectOffer({ orderId, workerId }) {
   const order = await orderRepo.findById(orderId);
   if (!order) return { ok: true };
-  if (String(order.dispatch.currentOfferWorkerId) !== String(workerId)) return { ok: true };
+  if (order.status !== 'searching') return { ok: true };
   await redis.publish(
     `dispatch:rejected:${orderId}`,
     JSON.stringify({ workerId })
