@@ -102,6 +102,9 @@ const orderSchema = new mongoose.Schema(
     userRating: { type: Number, min: 1, max: 5 },
     workerRating: { type: Number, min: 1, max: 5 },
 
+    // Proof-of-work photos uploaded by worker at job completion
+    completionPhotos: [{ type: String }],
+
     // OTP for verifying worker at site (prevents impersonation)
     otp: { type: String, select: false },
 
@@ -115,6 +118,8 @@ const orderSchema = new mongoose.Schema(
 orderSchema.index({ pickupLocation: '2dsphere' });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ userId: 1, status: 1 });
+orderSchema.index({ workerId: 1, status: 1 });
+orderSchema.index({ 'dispatch.currentOfferWorkerId': 1 }, { sparse: true });
 
 orderSchema.statics.STATUSES = ORDER_STATUSES;
 

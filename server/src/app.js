@@ -16,7 +16,8 @@ function buildApp() {
   app.set("trust proxy", 1);
   app.use(requestIdMiddleware);
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-  app.use(cors({ origin: true, credentials: true }));
+  const allowedOrigin = process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? false : true);
+  app.use(cors({ origin: allowedOrigin, credentials: true }));
 
   // CRITICAL ORDERING:
   // The Razorpay webhook needs the raw request body for HMAC verification.

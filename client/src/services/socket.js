@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 let socket = null;
 
 export function getSocket(token) {
-  if (socket && socket.connected) return socket;
+  if (socket && socket.active) return socket;
   if (socket) socket.disconnect();
 
   socket = io('/', {

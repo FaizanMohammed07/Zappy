@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { ArrowLeft, Phone, Send, Check, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Phone, Send, CheckCheck } from 'lucide-react';
 import { selectAuth } from '../modules/auth/authSlice';
 import { useOrderSocket } from '../hooks/useSocket';
+import { useGetOrderQuery, useGetChatMessagesQuery, useSendChatMessageMutation } from '../services/api';
 import toast from 'react-hot-toast';
 
 const CANNED = [
@@ -16,55 +17,36 @@ const CANNED = [
 export default function ChatPage() {
   const { id: orderId } = useParams();
   const nav = useNavigate();
-  const { role } = useSelector(selectAuth);
-  const [messages, setMessages] = useState([]);
+  const { role, accessToken: token } = useSelector(selectAuth);
   const [text, setText] = useState('');
-  const [order, setOrder] = useState(null);
-  const [sending, setSending] = useState(false);
+  // Local messages layer: history from RTK Query + real-time from socket
+  const [localMessages, setLocalMessages] = useState(null); // null = not yet seeded
   const scrollerRef = useRef(null);
   const inputRef = useRef(null);
 
-  const token = useMemo(() => localStorage.getItem('token'), []);
+  const { data: orderData } = useGetOrderQuery(orderId);
+  const { data: chatData } = useGetChatMessagesQuery({ orderId, limit: 50 });
+  const [sendMsg, { isLoading: sending }] = useSendChatMessageMutation();
 
+  // Seed local messages once the RTK Query result arrives
+  useEffect(() => {
+    if (chatData?.messages) {
+      setLocalMessages(chatData.messages);
+    }
+  }, [chatData]);
+
+  // Layer real-time socket messages on top of the seeded history
   useOrderSocket(orderId, {
     onChatMessage: (msg) => {
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === msg._id)) return prev;
+      setLocalMessages((prev) => {
+        if (!prev) return [msg];
+        if (prev.some((m) => String(m._id) === String(msg._id))) return prev;
         return [...prev, msg];
       });
     },
   });
 
-  async function fetchJSON(url, opts = {}) {
-    const res = await fetch(url, {
-      ...opts,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...(opts.headers || {}),
-      },
-    });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Request failed');
-    return res.json();
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [orderResp, chatResp] = await Promise.all([
-          fetchJSON(`/api/orders/${orderId}`),
-          fetchJSON(`/api/orders/${orderId}/chat`),
-        ]);
-        if (cancelled) return;
-        setOrder(orderResp.order);
-        setMessages(chatResp.messages || []);
-      } catch (err) {
-        toast.error(err.message || 'Could not load chat');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [orderId]); // eslint-disable-line
+  const messages = localMessages ?? [];
 
   useEffect(() => {
     if (scrollerRef.current) {
@@ -75,22 +57,21 @@ export default function ChatPage() {
   async function send(body, cannedCode) {
     const trimmed = body.trim();
     if (!trimmed || sending) return;
-    setSending(true);
     try {
-      const r = await fetchJSON(`/api/orders/${orderId}/chat`, {
-        method: 'POST',
-        body: JSON.stringify({ text: trimmed, cannedCode }),
+      const r = await sendMsg({ orderId, text: trimmed, cannedCode }).unwrap();
+      setLocalMessages((prev) => {
+        const list = prev ?? [];
+        if (list.some((m) => String(m._id) === String(r.message._id))) return list;
+        return [...list, r.message];
       });
-      setMessages((prev) => [...prev, r.message]);
       setText('');
       inputRef.current?.focus();
     } catch (err) {
-      toast.error(err.message || 'Could not send');
-    } finally {
-      setSending(false);
+      toast.error(err?.data?.error || 'Could not send');
     }
   }
 
+  const order = orderData?.order;
   const otherParty = order
     ? role === 'user'
       ? { name: order.workerName || 'Worker' }
@@ -99,10 +80,15 @@ export default function ChatPage() {
 
   async function startCall() {
     try {
-      const r = await fetchJSON(`/api/orders/${orderId}/call`, { method: 'POST' });
+      const res = await fetch(`/api/orders/${orderId}/call`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const r = await res.json();
       if (r.proxyNumber) window.location.href = `tel:${r.proxyNumber}`;
-    } catch (err) {
-      toast.error(err.message || 'Could not start call');
+      else toast.error('Call service unavailable');
+    } catch {
+      toast.error('Could not start call');
     }
   }
 
@@ -147,7 +133,7 @@ export default function ChatPage() {
           {messages.map((m) => {
             const mine = m.from?.kind === role;
             return (
-              <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div key={String(m._id)} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div className="max-w-[80%]">
                   <div className={mine ? 'bubble-out' : 'bubble-in'}>{m.text}</div>
                   <div className={`flex items-center gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -162,19 +148,18 @@ export default function ChatPage() {
           })}
 
           {/* Canned replies */}
-          {messages.length >= 0 && (
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 pb-0.5">
-              {CANNED.map((c) => (
-                <button
-                  key={c.code}
-                  onClick={() => send(c.text, c.code)}
-                  className="shrink-0 px-3 py-1.5 bg-white ring-1 ring-slate-200 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-transform"
-                >
-                  {c.text}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 pb-0.5">
+            {CANNED.map((c) => (
+              <button
+                key={c.code}
+                onClick={() => send(c.text, c.code)}
+                disabled={sending}
+                className="shrink-0 px-3 py-1.5 bg-white ring-1 ring-slate-200 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {c.text}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -4,7 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, MapPin, FileText, CreditCard, ChevronRight,
   Loader2, Zap, TrendingUp, Users, CheckCircle, Calendar,
-  Clock, Image as ImageIcon, X, Plus, AlertCircle,
+  Clock, Image as ImageIcon, X, Plus, Sparkles, Wrench,
+  Droplets, Bolt, Wind, Hammer, Car, HelpCircle, Star,
+  Paintbrush, Layers,
 } from 'lucide-react';
 import LocationPicker from '../modules/booking/LocationPicker';
 import SmartPricingPanel from '../components/booking/SmartPricingPanel';
@@ -16,75 +18,80 @@ import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp } from '../lib/animations';
 import toast from 'react-hot-toast';
 
-const SERVICE_LABELS = {
-  puncture: 'Puncture Repair', plumbing: 'Plumbing', electrical: 'Electrical',
-  ac_repair: 'AC Repair', carpenter: 'Carpenter', helper: 'Helper',
-  cleaning: 'Cleaning', painting: 'Painting',
+const SERVICE_META = {
+  plumbing:   { label: 'Plumbing',       icon: Droplets,   gradient: 'from-cyan-500 to-blue-600',     accent: '#0ea5e9' },
+  electrical: { label: 'Electrical',     icon: Bolt,       gradient: 'from-amber-400 to-orange-500',  accent: '#f59e0b' },
+  ac_repair:  { label: 'AC Repair',      icon: Wind,       gradient: 'from-sky-400 to-cyan-600',      accent: '#38bdf8' },
+  carpenter:  { label: 'Carpenter',      icon: Hammer,     gradient: 'from-amber-600 to-yellow-700',  accent: '#d97706' },
+  puncture:   { label: 'Puncture Repair',icon: Car,        gradient: 'from-slate-500 to-slate-700',   accent: '#64748b' },
+  helper:     { label: 'Helper',         icon: HelpCircle, gradient: 'from-violet-500 to-purple-600', accent: '#8b5cf6' },
+  cleaning:   { label: 'Cleaning',       icon: Sparkles,   gradient: 'from-teal-400 to-emerald-500',  accent: '#14b8a6' },
+  painting:   { label: 'Painting',       icon: Paintbrush, gradient: 'from-pink-500 to-rose-500',     accent: '#ec4899' },
 };
 
 const SERVICE_SUBCATEGORIES = {
   electrical: [
-    { key: 'switch_socket', label: 'Switch / Socket' },
-    { key: 'wiring',        label: 'Wiring Issue'    },
-    { key: 'fan_light',     label: 'Fan / Light'     },
-    { key: 'mcb_fuse',      label: 'MCB / Fuse'      },
-    { key: 'new_fitting',   label: 'New Fitting'     },
+    { key: 'switch_socket', label: 'Switch / Socket', icon: '🔌' },
+    { key: 'wiring',        label: 'Wiring Issue',    icon: '🔧' },
+    { key: 'fan_light',     label: 'Fan / Light',     icon: '💡' },
+    { key: 'mcb_fuse',      label: 'MCB / Fuse',      icon: '⚡' },
+    { key: 'new_fitting',   label: 'New Fitting',     icon: '🪛' },
   ],
   plumbing: [
-    { key: 'pipe_leak',    label: 'Pipe Leak'      },
-    { key: 'tap_faucet',   label: 'Tap / Faucet'   },
-    { key: 'drain',        label: 'Drain Blocked'  },
-    { key: 'toilet',       label: 'Toilet Issue'   },
-    { key: 'water_tank',   label: 'Water Tank'     },
+    { key: 'pipe_leak',  label: 'Pipe Leak',    icon: '💧' },
+    { key: 'tap_faucet', label: 'Tap / Faucet', icon: '🚿' },
+    { key: 'drain',      label: 'Drain Blocked',icon: '🕳️' },
+    { key: 'toilet',     label: 'Toilet Issue', icon: '🚽' },
+    { key: 'water_tank', label: 'Water Tank',   icon: '🪣' },
   ],
   ac_repair: [
-    { key: 'not_cooling',  label: 'Not Cooling'     },
-    { key: 'water_leak',   label: 'Water Leaking'   },
-    { key: 'noisy',        label: 'Noisy'           },
-    { key: 'not_turning_on', label: 'Not Turning On' },
-    { key: 'service',      label: 'Service / Clean' },
+    { key: 'not_cooling',   label: 'Not Cooling',    icon: '🥵' },
+    { key: 'water_leak',    label: 'Water Leaking',  icon: '💦' },
+    { key: 'noisy',         label: 'Noisy',          icon: '📢' },
+    { key: 'not_turning_on',label: 'Not Turning On', icon: '❌' },
+    { key: 'service',       label: 'Service / Clean',icon: '🧹' },
   ],
   carpenter: [
-    { key: 'door_window',  label: 'Door / Window'   },
-    { key: 'furniture',    label: 'Furniture Repair' },
-    { key: 'lock',         label: 'Lock Issue'      },
-    { key: 'installation', label: 'New Installation' },
+    { key: 'door_window',  label: 'Door / Window',    icon: '🚪' },
+    { key: 'furniture',    label: 'Furniture Repair', icon: '🪑' },
+    { key: 'lock',         label: 'Lock Issue',       icon: '🔐' },
+    { key: 'installation', label: 'New Installation', icon: '🔨' },
   ],
   puncture: [
-    { key: 'two_wheeler',  label: 'Two Wheeler'  },
-    { key: 'four_wheeler', label: 'Four Wheeler' },
-    { key: 'tyre_change',  label: 'Tyre Change'  },
+    { key: 'two_wheeler',  label: 'Two Wheeler',  icon: '🛵' },
+    { key: 'four_wheeler', label: 'Four Wheeler', icon: '🚗' },
+    { key: 'tyre_change',  label: 'Tyre Change',  icon: '🔄' },
   ],
   helper: [
-    { key: 'shifting',      label: 'Home Shifting' },
-    { key: 'heavy_lifting', label: 'Heavy Lifting' },
-    { key: 'cleaning_help', label: 'Cleaning'      },
-    { key: 'other',         label: 'Other Task'    },
+    { key: 'shifting',      label: 'Home Shifting', icon: '📦' },
+    { key: 'heavy_lifting', label: 'Heavy Lifting', icon: '💪' },
+    { key: 'cleaning_help', label: 'Cleaning',      icon: '🧽' },
+    { key: 'other',         label: 'Other Task',    icon: '📋' },
   ],
   cleaning: [
-    { key: 'full_home',  label: 'Full Home'  },
-    { key: 'kitchen',    label: 'Kitchen'    },
-    { key: 'bathroom',   label: 'Bathroom'   },
-    { key: 'deep_clean', label: 'Deep Clean' },
+    { key: 'full_home',  label: 'Full Home',  icon: '🏠' },
+    { key: 'kitchen',    label: 'Kitchen',    icon: '🍳' },
+    { key: 'bathroom',   label: 'Bathroom',   icon: '🚿' },
+    { key: 'deep_clean', label: 'Deep Clean', icon: '✨' },
   ],
   painting: [
-    { key: 'walls',     label: 'Walls'     },
-    { key: 'exterior',  label: 'Exterior'  },
-    { key: 'touch_up',  label: 'Touch Up'  },
-    { key: 'full_home', label: 'Full Home' },
+    { key: 'walls',     label: 'Walls',     icon: '🖌️' },
+    { key: 'exterior',  label: 'Exterior',  icon: '🏡' },
+    { key: 'touch_up',  label: 'Touch Up',  icon: '🎨' },
+    { key: 'full_home', label: 'Full Home', icon: '🏠' },
   ],
 };
 
 const PAYMENT_OPTIONS = [
-  { key: 'upi',  label: 'UPI'  },
-  { key: 'cash', label: 'Cash' },
-  { key: 'card', label: 'Card' },
+  { key: 'upi',  label: 'UPI',  icon: '📱', desc: 'Google Pay, PhonePe…'  },
+  { key: 'cash', label: 'Cash', icon: '💵', desc: 'Pay on arrival'         },
+  { key: 'card', label: 'Card', icon: '💳', desc: 'Credit / Debit'         },
 ];
 
 const NUDGE_POOL = [
-  { icon: TrendingUp, text: 'High demand right now — workers are going fast' },
-  { icon: Users,      text: 'Multiple users booking the same service nearby'  },
-  { icon: CheckCircle,text: '95% of bookings matched within 60 seconds'       },
+  { icon: TrendingUp, text: 'High demand right now — workers going fast', color: 'text-orange-600', bg: 'bg-orange-50', ring: 'ring-orange-100' },
+  { icon: Users,      text: 'Multiple users booking this service nearby',  color: 'text-blue-600',   bg: 'bg-blue-50',   ring: 'ring-blue-100'   },
+  { icon: Star,       text: '95% of bookings matched within 60 seconds',   color: 'text-amber-600',  bg: 'bg-amber-50',  ring: 'ring-amber-100'  },
 ];
 
 function todayMin() {
@@ -100,8 +107,8 @@ export default function BookingPage() {
   const [location,      setLocation]      = useState(null);
   const [subCategory,   setSubCategory]   = useState('');
   const [description,   setDescription]   = useState('');
-  const [images,        setImages]        = useState([]); // [{url, uploading, id}]
-  const [schedMode,     setSchedMode]     = useState('now'); // 'now' | 'later'
+  const [images,        setImages]        = useState([]);
+  const [schedMode,     setSchedMode]     = useState('now');
   const [scheduledAt,   setScheduledAt]   = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [pricingMode,   setPricingMode]   = useState('now');
@@ -115,7 +122,8 @@ export default function BookingPage() {
   const [presignUpload]                                          = usePresignUploadMutation();
   const [fetchNearby, { data: nearbyData }]                     = useLazyGetNearbyWorkersQuery();
 
-  const serviceLabel  = SERVICE_LABELS[service] || service?.replace(/_/g, ' ') || 'Service';
+  const meta         = SERVICE_META[service] || { label: service?.replace(/_/g, ' ') || 'Service', icon: Wrench, gradient: 'from-slate-500 to-slate-700', accent: '#64748b' };
+  const ServiceIcon  = meta.icon;
   const subCategories = SERVICE_SUBCATEGORIES[service] || [];
   const q = quoteData?.quote;
   const hasSurge = q?.surgeMultiplier > 1;
@@ -199,19 +207,36 @@ export default function BookingPage() {
   if (stage === 'location') {
     return (
       <div className="h-screen flex flex-col">
-        <header className="bg-white border-b border-slate-100 shrink-0">
-          <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-3">
-            <button onClick={() => nav(-1)} className="back-btn">
-              <ArrowLeft size={18} strokeWidth={2.5} />
-            </button>
+        {/* Premium header with gradient */}
+        <header className="shrink-0 relative overflow-hidden" style={{ background: `linear-gradient(135deg, #0F172A 0%, #1e293b 100%)` }}>
+          <div className="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
+            <motion.button
+              onClick={() => nav(-1)}
+              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 backdrop-blur-sm"
+              whileTap={{ scale: 0.92 }}
+            >
+              <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
+            </motion.button>
             <div className="flex-1 min-w-0">
-              <p className="t-label">Where do you need help?</p>
-              <p className="font-semibold text-[#0F172A] capitalize leading-tight">{serviceLabel}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Where do you need help?</p>
+              <p className="font-bold text-white capitalize leading-tight flex items-center gap-2">
+                <span className={`inline-flex w-5 h-5 rounded-lg bg-gradient-to-br ${meta.gradient} items-center justify-center`}>
+                  <ServiceIcon size={11} strokeWidth={2.5} className="text-white" />
+                </span>
+                {meta.label}
+              </p>
+            </div>
+            {/* Step indicator */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="w-6 h-1.5 rounded-full bg-white" />
+              <div className="w-6 h-1.5 rounded-full bg-white/30" />
             </div>
           </div>
+          {/* Subtle gradient line */}
+          <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
         </header>
         <div className="flex-1 min-h-0">
-          <LocationPicker onConfirm={onLocationConfirmed} onCancel={() => nav(-1)} />
+          <LocationPicker onConfirm={onLocationConfirmed} onCancel={() => nav(-1)} serviceLabel={meta.label} />
         </div>
       </div>
     );
@@ -223,29 +248,40 @@ export default function BookingPage() {
 
   return (
     <PageTransition>
-    <div className="min-h-screen bg-[#F9FAFB] pb-32">
+    <div className="min-h-screen pb-32" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
 
-      {/* Header */}
-      <header className="page-header">
-        <div className="page-header-inner">
+      {/* Premium header */}
+      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+        <div className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
           <motion.button
             onClick={() => { setStage('location'); setPricingMode('now'); }}
-            className="back-btn"
+            className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0"
             whileTap={{ scale: 0.92 }}
           >
-            <ArrowLeft size={18} strokeWidth={2.5} />
+            <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
           </motion.button>
           <div className="flex-1 min-w-0">
-            <p className="t-label">Confirm booking</p>
-            <p className="font-semibold text-[#0F172A] capitalize leading-tight">{serviceLabel}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Step 2 — Confirm booking</p>
+            <p className="font-bold text-white capitalize leading-tight flex items-center gap-2">
+              <span className={`inline-flex w-5 h-5 rounded-lg bg-gradient-to-br ${meta.gradient} items-center justify-center`}>
+                <ServiceIcon size={11} strokeWidth={2.5} className="text-white" />
+              </span>
+              {meta.label}
+            </p>
+          </div>
+          {/* Step dots */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="w-6 h-1.5 rounded-full bg-white/40" />
+            <div className="w-6 h-1.5 rounded-full bg-white" />
           </div>
           {hasSurge && (
-            <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-700 ring-1 ring-amber-200 px-2 py-0.5 rounded-full">
+            <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/30 px-2 py-0.5 rounded-full ml-1">
               <TrendingUp size={9} />
               {q.surgeMultiplier}×
             </span>
           )}
         </div>
+        <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       </header>
 
       {/* Nudge banner */}
@@ -257,14 +293,14 @@ export default function BookingPage() {
             animate={{ opacity: 1, y: 0  }}
             exit={{    opacity: 0, y: -8 }}
             transition={{ duration: 0.25 }}
-            className="max-w-lg mx-auto px-4 pt-3"
+            className="max-w-2xl lg:max-w-4xl mx-auto px-4 sm:px-6 pt-3"
           >
             {(() => {
-              const { icon: Icon, text } = NUDGE_POOL[nudgeIdx];
+              const { icon: Icon, text, color, bg, ring } = NUDGE_POOL[nudgeIdx];
               return (
-                <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-xl shadow-soft ring-1 ring-slate-100">
-                  <Icon size={13} className="text-blue-600 shrink-0" />
-                  <p className="text-xs font-semibold text-slate-700">{text}</p>
+                <div className={`flex items-center gap-2.5 px-4 py-2.5 ${bg} rounded-xl ring-1 ${ring}`}>
+                  <Icon size={13} className={`${color} shrink-0`} />
+                  <p className={`text-xs font-semibold ${color}`}>{text}</p>
                 </div>
               );
             })()}
@@ -273,17 +309,20 @@ export default function BookingPage() {
       </AnimatePresence>
 
       <motion.div
-        className="page-container pt-3 space-y-3"
+        className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 pt-4 space-y-3"
         variants={staggerContainer}
         initial="initial"
         animate="animate"
       >
 
-        {/* Location card */}
-        <motion.div className="card overflow-hidden !p-0" variants={fadeInUp}>
-          {/* Static map preview */}
+        {/* Location card — with map preview */}
+        <motion.div
+          className="rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100"
+          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          variants={fadeInUp}
+        >
           {location && import.meta.env.VITE_MAPBOX_TOKEN && (
-            <div className="relative w-full h-28 overflow-hidden">
+            <div className="relative w-full h-32 overflow-hidden">
               <img
                 src={
                   `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/` +
@@ -294,9 +333,10 @@ export default function BookingPage() {
                 alt="Service location map"
                 className="w-full h-full object-cover"
               />
-              {/* Workers nearby chip over map */}
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
               {nearbyData?.count > 0 && (
-                <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-white rounded-full px-2.5 py-1 shadow-md ring-1 ring-slate-100">
+                <div className="absolute bottom-2.5 left-3 flex items-center gap-1.5 bg-white rounded-full px-3 py-1 shadow-md">
                   <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
                   <span className="text-[11px] font-bold text-[#0F172A]">
                     {nearbyData.count} worker{nearbyData.count === 1 ? '' : 's'} nearby
@@ -305,46 +345,62 @@ export default function BookingPage() {
               )}
             </div>
           )}
-          {/* Address row */}
-          <div className="flex items-start gap-3 px-4 py-3.5">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
-              <MapPin size={15} strokeWidth={2} className="text-blue-600" />
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-sm`}>
+              <MapPin size={15} strokeWidth={2} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="t-label mb-1">Service Location</p>
-              <p className="text-sm font-medium text-[#0F172A] leading-relaxed">{location?.address}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Service Location</p>
+              <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">{location?.address}</p>
             </div>
-            <button
+            <motion.button
               onClick={() => { setStage('location'); setPricingMode('now'); }}
-              className="text-xs font-semibold text-blue-600 flex items-center gap-0.5 shrink-0 mt-0.5"
+              className="text-xs font-bold text-blue-600 flex items-center gap-0.5 shrink-0 bg-blue-50 px-2.5 py-1.5 rounded-lg ring-1 ring-blue-100"
+              whileTap={{ scale: 0.95 }}
             >
               Change <ChevronRight size={11} strokeWidth={2.5} />
-            </button>
+            </motion.button>
           </div>
         </motion.div>
 
         {/* Sub-categories */}
         {subCategories.length > 0 && (
-          <motion.div className="card" variants={fadeInUp}>
-            <p className="font-semibold text-[#0F172A] text-sm mb-3">What's the issue?</p>
+          <motion.div
+            className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+            style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+            variants={fadeInUp}
+          >
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
+                <ServiceIcon size={14} strokeWidth={2.5} className="text-white" />
+              </div>
+              <p className="font-bold text-[#0F172A] text-sm">What's the issue?</p>
+            </div>
             <div className="flex flex-wrap gap-2">
-              {subCategories.map(({ key, label }) => (
-                <button
+              {subCategories.map(({ key, label, icon }) => (
+                <motion.button
                   key={key}
                   onClick={() => setSubCategory(prev => prev === key ? '' : key)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
                     subCategory === key
-                      ? 'bg-[#0F172A] text-white border-[#0F172A]'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                      ? 'text-white border-transparent shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-150 hover:border-slate-300 bg-slate-50'
                   }`}
+                  style={subCategory === key ? {
+                    background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})`,
+                    borderColor: 'transparent',
+                  } : {}}
+                  whileTap={{ scale: 0.95 }}
                 >
+                  <span>{icon}</span>
                   {label}
-                </button>
+                </motion.button>
               ))}
             </div>
             {subCategory && (
-              <p className="text-xs text-slate-400 mt-2">
-                Selected: <span className="font-semibold text-slate-600">{subCategories.find(s => s.key === subCategory)?.label}</span>
+              <p className="text-xs text-slate-400 mt-2.5 flex items-center gap-1.5">
+                <CheckCircle size={11} className="text-green-500" />
+                <span>Selected: <span className="font-bold text-slate-600">{subCategories.find(s => s.key === subCategory)?.label}</span></span>
               </p>
             )}
           </motion.div>
@@ -353,11 +409,13 @@ export default function BookingPage() {
         {/* Smart pricing panel */}
         <motion.div variants={fadeInUp}>
           {quoting ? (
-            <div className="card flex items-center gap-2.5">
-              <Loader2 size={15} className="animate-spin text-blue-600" />
+            <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-5 flex items-center gap-3" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                <Loader2 size={18} className="animate-spin text-blue-600" />
+              </div>
               <div>
-                <p className="text-sm font-semibold text-[#0F172A]">Calculating fare…</p>
-                <p className="text-xs text-slate-400 mt-0.5">Checking demand, distance and worker availability</p>
+                <p className="text-sm font-bold text-[#0F172A]">Calculating fare…</p>
+                <p className="text-xs text-slate-400 mt-0.5">Checking demand, distance &amp; worker availability</p>
               </div>
             </div>
           ) : q ? (
@@ -366,9 +424,10 @@ export default function BookingPage() {
               mode={pricingMode}
               onModeChange={setPricingMode}
               onRefetch={() => fetchQuote({ service, pickupLat: location.lat, pickupLng: location.lng })}
+              accentGradient={meta.gradient}
             />
           ) : (
-            <div className="card">
+            <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
               <p className="text-sm text-slate-400 font-medium text-center py-2">
                 Could not load fare estimate
               </p>
@@ -377,12 +436,19 @@ export default function BookingPage() {
         </motion.div>
 
         {/* Description + images */}
-        <motion.div className="card" variants={fadeInUp}>
+        <motion.div
+          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          variants={fadeInUp}
+        >
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center">
-              <FileText size={15} strokeWidth={2} className="text-slate-500" />
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+              <FileText size={15} strokeWidth={2} className="text-slate-600" />
             </div>
-            <p className="font-semibold text-[#0F172A] text-sm">Describe the Issue</p>
+            <div>
+              <p className="font-bold text-[#0F172A] text-sm">Describe the Issue</p>
+              <p className="text-[10px] text-slate-400">Optional but helps the worker prepare</p>
+            </div>
           </div>
           <textarea
             rows={3}
@@ -393,38 +459,45 @@ export default function BookingPage() {
           />
 
           {/* Image upload */}
-          <div className="mt-3">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="mt-3.5">
+            <div className="flex items-center gap-2 mb-2.5">
               <ImageIcon size={13} strokeWidth={2} className="text-slate-400" />
-              <p className="text-xs font-semibold text-slate-500">Add photos (optional, up to 5)</p>
+              <p className="text-xs font-bold text-slate-500">Add photos <span className="text-slate-300 font-normal">(optional · up to 5)</span></p>
             </div>
             <div className="flex flex-wrap gap-2">
               {images.map((img) => (
-                <div key={img.id} className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-100 ring-1 ring-slate-200">
+                <motion.div
+                  key={img.id}
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-100 ring-2 ring-slate-200"
+                >
                   {img.uploading ? (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Loader2 size={16} className="animate-spin text-slate-400" />
+                    <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                      <Loader2 size={16} className="animate-spin text-blue-400" />
                     </div>
                   ) : (
                     <>
                       <img src={img.url} alt="" className="w-full h-full object-cover" />
                       <button
                         onClick={() => setImages(prev => prev.filter(i => i.id !== img.id))}
-                        className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center"
+                        className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm"
                       >
                         <X size={10} className="text-white" />
                       </button>
                     </>
                   )}
-                </div>
+                </motion.div>
               ))}
               {images.filter(i => !i.uploading).length < 5 && (
-                <button
+                <motion.button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center hover:border-slate-400 transition"
+                  className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center hover:border-blue-300 hover:bg-blue-50/50 transition-all gap-0.5"
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <Plus size={18} strokeWidth={2} className="text-slate-400" />
-                </button>
+                  <Plus size={16} strokeWidth={2.5} className="text-slate-400" />
+                  <span className="text-[9px] text-slate-400 font-medium">Add</span>
+                </motion.button>
               )}
             </div>
             <input
@@ -439,30 +512,37 @@ export default function BookingPage() {
         </motion.div>
 
         {/* Schedule booking */}
-        <motion.div className="card" variants={fadeInUp}>
+        <motion.div
+          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          variants={fadeInUp}
+        >
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center">
-              <Calendar size={15} strokeWidth={2} className="text-slate-500" />
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+              <Calendar size={15} strokeWidth={2} className="text-slate-600" />
             </div>
-            <p className="font-semibold text-[#0F172A] text-sm">When do you need it?</p>
+            <p className="font-bold text-[#0F172A] text-sm">When do you need it?</p>
           </div>
-          <div className="flex gap-2 mb-3">
+          <div className="grid grid-cols-2 gap-2 mb-3">
             {[
-              { key: 'now',   label: 'Book Now',          icon: Zap     },
-              { key: 'later', label: 'Schedule for Later', icon: Clock   },
-            ].map(({ key, label, icon: Icon }) => (
-              <button
+              { key: 'now',   label: 'Book Now',           icon: Zap,   sub: 'Worker dispatched instantly' },
+              { key: 'later', label: 'Schedule for Later', icon: Clock, sub: 'Pick a convenient time'      },
+            ].map(({ key, label, icon: Icon, sub }) => (
+              <motion.button
                 key={key}
                 onClick={() => setSchedMode(key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-btn text-xs font-bold transition-all ${
+                className={`flex flex-col items-start p-3.5 rounded-xl border-2 transition-all text-left ${
                   schedMode === key
-                    ? 'bg-[#0F172A] text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'border-transparent text-white'
+                    : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'
                 }`}
+                style={schedMode === key ? { background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)', borderColor: 'transparent' } : {}}
+                whileTap={{ scale: 0.97 }}
               >
-                <Icon size={12} strokeWidth={2.5} />
-                {label}
-              </button>
+                <Icon size={16} strokeWidth={2.5} className={schedMode === key ? 'text-white mb-2' : 'text-slate-500 mb-2'} />
+                <p className={`text-xs font-bold ${schedMode === key ? 'text-white' : 'text-[#0F172A]'}`}>{label}</p>
+                <p className={`text-[10px] mt-0.5 ${schedMode === key ? 'text-white/60' : 'text-slate-400'}`}>{sub}</p>
+              </motion.button>
             ))}
           </div>
           <AnimatePresence>
@@ -471,11 +551,11 @@ export default function BookingPage() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.22 }}
                 className="overflow-hidden"
               >
                 <div className="pt-1">
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                  <label className="text-xs font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">
                     Select date &amp; time
                   </label>
                   <input
@@ -486,48 +566,70 @@ export default function BookingPage() {
                     className="input text-sm w-full"
                   />
                   {scheduledAt && (
-                    <p className="text-xs text-blue-600 font-semibold mt-1.5 flex items-center gap-1">
-                      <CheckCircle size={11} />
+                    <p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1.5">
+                      <CheckCircle size={12} />
                       Scheduled for {new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
                     </p>
                   )}
-                  <p className="text-xs text-slate-400 mt-1">Dispatch starts 5 min before scheduled time</p>
+                  <p className="text-xs text-slate-400 mt-1.5">Dispatch starts 5 min before scheduled time</p>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
 
-        {/* Payment */}
-        <motion.div className="card" variants={fadeInUp}>
+        {/* Payment method */}
+        <motion.div
+          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          variants={fadeInUp}
+        >
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center">
-              <CreditCard size={15} strokeWidth={2} className="text-slate-500" />
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+              <CreditCard size={15} strokeWidth={2} className="text-slate-600" />
             </div>
-            <p className="font-semibold text-[#0F172A] text-sm">Payment Method</p>
+            <p className="font-bold text-[#0F172A] text-sm">Payment Method</p>
           </div>
-          <div className="flex gap-2">
-            {PAYMENT_OPTIONS.map(({ key, label }) => (
-              <button
+          <div className="grid grid-cols-3 gap-2">
+            {PAYMENT_OPTIONS.map(({ key, label, icon, desc }) => (
+              <motion.button
                 key={key}
                 onClick={() => setPaymentMethod(key)}
-                className={`flex-1 py-2.5 rounded-btn text-xs font-bold transition-all ${
+                className={`flex flex-col items-center py-3 px-2 rounded-xl border-2 transition-all ${
                   paymentMethod === key
-                    ? 'bg-[#0F172A] text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'border-transparent text-white'
+                    : 'border-slate-100 bg-slate-50 hover:border-slate-200'
                 }`}
+                style={paymentMethod === key ? { background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)' } : {}}
+                whileTap={{ scale: 0.95 }}
               >
-                {label}
-              </button>
+                <span className="text-xl mb-1">{icon}</span>
+                <span className={`text-xs font-bold ${paymentMethod === key ? 'text-white' : 'text-[#0F172A]'}`}>{label}</span>
+                <span className={`text-[9px] mt-0.5 text-center ${paymentMethod === key ? 'text-white/50' : 'text-slate-400'}`}>{desc}</span>
+              </motion.button>
             ))}
           </div>
+        </motion.div>
+
+        {/* Assurance strip */}
+        <motion.div variants={fadeInUp} className="flex items-center justify-center gap-6 py-2">
+          {[
+            { label: 'Insured Work', emoji: '🛡️' },
+            { label: 'No Hidden Fee', emoji: '✅' },
+            { label: 'Verified Pro', emoji: '⭐' },
+          ].map(({ label, emoji }) => (
+            <div key={label} className="flex flex-col items-center gap-1">
+              <span className="text-xl">{emoji}</span>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
+            </div>
+          ))}
         </motion.div>
 
       </motion.div>
 
       {/* Fixed confirm bar */}
-      <div className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 safe-pb">
-        <div className="page-container pt-3 pb-2">
+      <div className="fixed bottom-0 inset-x-0 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.97)', boxShadow: '0 -8px 32px rgba(0,0,0,0.08)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+        <div className="w-full max-w-2xl lg:max-w-4xl mx-auto px-4 sm:px-6 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {hasUploadingImages && (
             <p className="text-xs text-slate-400 text-center mb-2 flex items-center justify-center gap-1.5">
               <Loader2 size={11} className="animate-spin" />
@@ -549,15 +651,32 @@ export default function BookingPage() {
             <motion.button
               disabled={!canBook}
               onClick={placeOrder}
-              className="btn-success w-full text-base"
+              className="w-full relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-bold text-base disabled:opacity-50 disabled:pointer-events-none"
+              style={{
+                background: canBook
+                  ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+                  : '#94a3b8',
+                boxShadow: canBook ? '0 8px 24px rgba(34,197,94,0.35)' : 'none',
+              }}
               whileTap={canBook ? { scale: 0.98 } : {}}
             >
+              {/* Animated shimmer */}
+              {canBook && (
+                <div
+                  className="absolute inset-0 opacity-30 pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, white 50%, transparent 100%)',
+                    backgroundSize: '200% 100%',
+                    animation: 'shimmer 2.5s ease-in-out infinite',
+                  }}
+                />
+              )}
               {creating ? (
-                <><Loader2 size={16} className="animate-spin" /> Placing order…</>
+                <><Loader2 size={18} className="animate-spin" /> Placing order…</>
               ) : schedMode === 'later' ? (
-                <><Calendar size={16} strokeWidth={2.5} /> Schedule Booking · ₹{q?.total || '—'}</>
+                <><Calendar size={18} strokeWidth={2.5} /> Schedule Booking · ₹{q?.total || '—'}</>
               ) : (
-                <><Zap size={16} strokeWidth={2.5} /> Confirm Booking · ₹{q?.total || '—'}</>
+                <><Zap size={18} strokeWidth={2.5} /> Confirm Booking · ₹{q?.total || '—'}</>
               )}
             </motion.button>
           )}

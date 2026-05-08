@@ -9,7 +9,7 @@ const router = express.Router();
 const locationSchema = Joi.object({
   lat: Joi.number().min(-90).max(90).required(),
   lng: Joi.number().min(-180).max(180).required(),
-  orderId: Joi.string().hex().length(24).optional(),
+  orderId: Joi.string().hex().length(24).optional().allow(null, ''),
 });
 
 router.get('/me', authenticate, requireRole('worker'), ctrl.getMe);
@@ -19,5 +19,6 @@ router.post('/location', authenticate, requireRole('worker'), validate(locationS
 router.get('/earnings', authenticate, requireRole('worker'), ctrl.getEarnings);
 router.get('/orders', authenticate, requireRole('worker'), ctrl.getOrders);
 router.get('/nearby', authenticate, ctrl.getNearbyWorkers);
+router.get('/demand-zones', authenticate, requireRole('worker'), ctrl.getDemandZones);
 
 module.exports = router;

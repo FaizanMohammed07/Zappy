@@ -15,13 +15,15 @@ const schema = Joi.object({
   AWS_SECRET_ACCESS_KEY: Joi.string().required(),
   DISPATCH_RADIUS_KM: Joi.number().default(5),
   DISPATCH_MAX_CANDIDATES: Joi.number().default(20),
-  DISPATCH_OFFER_TIMEOUT_MS: Joi.number().default(15000),
-  DISPATCH_STEP_WINDOW_MS: Joi.number().default(12000),
+  DISPATCH_OFFER_TIMEOUT_MS: Joi.number().default(30000),
+  DISPATCH_STEP_WINDOW_MS: Joi.number().default(30000),
   BASE_FEE: Joi.number().default(40),
   PER_KM_FEE: Joi.number().default(12),
   PER_MIN_FEE: Joi.number().default(2),
   PLATFORM_FEE: Joi.number().default(10),
   MIN_FARE: Joi.number().default(60),
+  // Frontend origin — used for CORS. Must be set in production.
+  CLIENT_URL: Joi.string().uri().optional(),
   // Razorpay
   RAZORPAY_KEY_ID: Joi.string().default(''),
   RAZORPAY_KEY_SECRET: Joi.string().default(''),
@@ -53,7 +55,7 @@ module.exports = {
     maxCandidates: env.DISPATCH_MAX_CANDIDATES,
     offerTimeoutMs: env.DISPATCH_OFFER_TIMEOUT_MS,
     stepWindowMs:  env.DISPATCH_STEP_WINDOW_MS,
-    radiusSteps:   [0.1, 0.3, 0.7, 1.5, 3.0, 5.0],
+    radiusSteps:   [1.0, 2.0, 3.0, 5.0, 8.0, 12.0],
   },
   pricing: {
     baseFee: env.BASE_FEE,

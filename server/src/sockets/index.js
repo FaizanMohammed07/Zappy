@@ -19,6 +19,7 @@ const { createAdapter } = require('@socket.io/redis-adapter');
 const { createPubSubPair, redis } = require('../config/redis');
 const { verifyToken } = require('../modules/auth/auth.service');
 const etaService = require('../modules/worker/eta.service');
+const geoService = require('../modules/worker/geo.service');
 const Order = require('../modules/order/order.model');
 const logger = require('../utils/logger');
 
@@ -78,7 +79,8 @@ function initSockets(httpServer) {
       const canEmit = await redis.set(throttleKey, '1', 'EX', 1, 'NX');
       if (canEmit !== 'OK') return;
 
-      await redis.geoadd('workers:online', lng, lat, String(id));
+      // Update geo + alive heartbeat so freshness filter stays current
+      await geoService.updateLocation(id, lng, lat);
 
       if (orderId) {
         io.to(`order:${orderId}`).emit('worker.location', { lat, lng, at: Date.now() });
@@ -106,7 +108,7 @@ function initSockets(httpServer) {
   // Dispatch worker publishes events; we relay them to the right rooms.
   const subscriber = subClient.duplicate();
 
-  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', (err) => {
+  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', (err) => {
     if (err) logger.error({ err }, 'Pub/sub subscribe failed');
   });
   // Notifications are per-recipient — `notification:<kind>:<id>`. Use pattern sub.
@@ -144,6 +146,12 @@ function initSockets(httpServer) {
       if (channel === 'worker:offer_cancel') {
         // { workerId, orderId }  — order taken by another worker, dismiss the popup
         io.to(`worker:${data.workerId}`).emit('offer.cancelled', { orderId: data.orderId });
+        return;
+      }
+
+      if (channel === 'worker:assigned') {
+        // { workerId, orderId, service, pickupAddress, price }  — force-assigned, no accept needed
+        io.to(`worker:${data.workerId}`).emit('job.assigned', data);
         return;
       }
     } catch (err) {

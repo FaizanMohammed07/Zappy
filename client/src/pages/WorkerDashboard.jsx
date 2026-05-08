@@ -16,7 +16,7 @@ import {
 import {
   useGetWorkerMeQuery, useGoOnlineMutation, useGoOfflineMutation,
   useGetEarningsQuery, useWorkerAcceptMutation, useWorkerRejectMutation,
-  useGetKycStatusQuery, useGetWorkerOrdersQuery,
+  useGetKycStatusQuery, useGetWorkerOrdersQuery, useGetDemandZonesQuery,
 } from '../services/api';
 import { useWorkerOfferSocket } from '../hooks/useSocket';
 import { setOffer, clearOffer, setOnline, selectWorker } from '../modules/worker/workerSlice';
@@ -108,7 +108,7 @@ export default function WorkerDashboard() {
   const worker   = useSelector(selectWorker);
   const { accessToken: token } = useSelector(selectAuth);
 
-  const { data: meData, refetch: refetchMe } = useGetWorkerMeQuery();
+  const { data: meData, refetch: refetchMe } = useGetWorkerMeQuery(undefined, { pollingInterval: 15000 });
   const { data: todayData }   = useGetEarningsQuery('today');
   const { data: weekData }    = useGetEarningsQuery('week');
   const { data: kycData }     = useGetKycStatusQuery();
@@ -131,17 +131,25 @@ export default function WorkerDashboard() {
   const isBusy      = isOnline && !!me?.currentOrderId;
   const kycApproved = kycData?.kyc?.status === 'approved';
   const kycStatus   = kycData?.kyc?.status;
+  // In dev mode, bypass KYC gate so testing is possible without admin approval
+  const canGoOnline = kycApproved || import.meta.env.DEV;
 
   const completedJobs = me?.completedJobs ?? 0;
-  const rating        = me?.rating ?? 5;
+  const rating        = me?.rating ?? null; // null until first real rating
   const penalties     = me?.penalties ?? {};
   const totalOffers   = penalties.totalOffers ?? 0;
   const totalRejects  = penalties.totalRejects ?? 0;
   const totalCancels  = penalties.totalCancels ?? 0;
 
-  const acceptRate  = totalOffers > 0 ? Math.round(((totalOffers - totalRejects) / totalOffers) * 100) : 100;
-  const cancelRate  = completedJobs > 0 ? Math.round((totalCancels / completedJobs) * 100) : 0;
-  const trustScore  = computeTrustScore(acceptRate, rating, completedJobs);
+  const hasOfferData  = totalOffers > 0;
+  const hasJobData    = completedJobs > 0;
+  const hasRatingData = hasJobData && rating !== null;
+
+  const acceptRate  = hasOfferData ? Math.round(((totalOffers - totalRejects) / totalOffers) * 100) : null;
+  const cancelRate  = hasJobData   ? Math.round((totalCancels / completedJobs) * 100)               : null;
+  const trustScore  = (hasOfferData || hasJobData)
+    ? computeTrustScore(acceptRate ?? 100, rating ?? 5, completedJobs)
+    : null;
 
   const chart7d  = getLast7Days(weekData?.dailyBreakdown);
   const chartMax = Math.max(...chart7d.map((d) => d.earningsPaise), 1);
@@ -198,20 +206,47 @@ export default function WorkerDashboard() {
     }
   }, [dispatch, worker.currentOffer]);
 
-  useWorkerOfferSocket(handleOffer, handleOfferCancelled);
+  // system auto-assigned a job to this worker (force-assign flow)
+  const handleForceAssigned = useCallback((data) => {
+    dispatch(clearOffer());
+    refetchMe();
+    playOfferAlert();
+    try { navigator.vibrate?.([300, 100, 300, 100, 300]); } catch {}
+    toast.success(`Job assigned to you! ₹${data.price ?? ''}`, { duration: 6000 });
+    setTimeout(() => nav(`/worker/jobs/${data.orderId}`), 1500);
+  }, [dispatch, nav, refetchMe]);
 
-  // continuous location broadcast
+  useWorkerOfferSocket(handleOffer, handleOfferCancelled, handleForceAssigned);
+
+  // Continuous location broadcast — socket (fast) + REST fallback (reliable)
+  const lastRestRef = useRef(0);
   useEffect(() => {
     if (!isOnline || !token) { watchRef.current?.(); watchRef.current = null; return; }
     const socket = getSocket(token);
-    let last = 0;
+    let lastSocket = 0;
+
     watchRef.current = watch(
       (pos) => {
         setGpsOn(true);
         const now = Date.now();
-        if (now - last < 4000) return;
-        last = now;
-        socket.emit('worker:location', { lat: pos.lat, lng: pos.lng, orderId: me?.currentOrderId });
+
+        // Socket: every 4s (fast path — keeps geo + alive zset hot)
+        if (now - lastSocket >= 4000) {
+          lastSocket = now;
+          socket.emit('worker:location', { lat: pos.lat, lng: pos.lng, orderId: me?.currentOrderId });
+        }
+
+        // REST backup: every 30s (survives socket reconnects, updates Mongo)
+        if (now - lastRestRef.current >= 30000) {
+          lastRestRef.current = now;
+          const locBody = { lat: pos.lat, lng: pos.lng };
+          if (me?.currentOrderId) locBody.orderId = me.currentOrderId;
+          fetch('/api/workers/location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(locBody),
+          }).catch(() => {});
+        }
       },
       () => setGpsOn(false),
     );
@@ -219,7 +254,7 @@ export default function WorkerDashboard() {
   }, [isOnline, token, watch, me?.currentOrderId]);
 
   async function toggleOnline() {
-    if (!kycApproved) { toast.error('KYC required'); nav('/worker/kyc'); return; }
+    if (!canGoOnline) { toast.error('KYC required'); nav('/worker/kyc'); return; }
     if (isBusy) { toast('Finish your active job first'); return; }
     setToggling(true);
     try {
@@ -293,7 +328,7 @@ export default function WorkerDashboard() {
               <div className="flex items-center gap-2 mt-1">
                 <span className="flex items-center gap-1 text-amber-300 text-xs font-bold">
                   <Star size={10} className="fill-amber-300" />
-                  {rating.toFixed(1)}
+                  {hasRatingData ? rating.toFixed(1) : 'New'}
                 </span>
                 <span className="text-white/30">·</span>
                 <span className="text-white/60 text-xs">{completedJobs} jobs</span>
@@ -337,8 +372,8 @@ export default function WorkerDashboard() {
       {/* ── Scrollable content ───────────────────────────────── */}
       <div className="max-w-lg mx-auto px-4 -mt-4 space-y-3 pb-10">
 
-        {/* ── KYC Banner ──────────────────────────────────────── */}
-        {!kycApproved && (
+        {/* ── KYC Banner — hidden in dev to unblock testing ──── */}
+        {!kycApproved && !import.meta.env.DEV && (
           <motion.button
             onClick={() => nav('/worker/kyc')}
             initial={{ opacity: 0, y: -4 }}
@@ -420,7 +455,7 @@ export default function WorkerDashboard() {
             {!isBusy && (
               <button
                 onClick={toggleOnline}
-                disabled={toggling || !kycApproved}
+                disabled={toggling || !canGoOnline}
                 className={`relative w-14 h-7 rounded-full transition-all duration-300 shrink-0 disabled:opacity-50 ${
                   isOnline ? 'bg-green-500' : 'bg-slate-200'
                 }`}
@@ -496,7 +531,11 @@ export default function WorkerDashboard() {
             <TrustScoreRing score={trustScore} />
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Trust Score</p>
             <p className="text-[10px] text-slate-400 text-center leading-tight">
-              {trustScore >= 80 ? 'Excellent — top partner' : trustScore >= 60 ? 'Good standing' : 'Needs improvement'}
+              {trustScore === null
+                ? 'Complete jobs to earn score'
+                : trustScore >= 80 ? 'Excellent — top partner'
+                : trustScore >= 60 ? 'Good standing'
+                : 'Needs improvement'}
             </p>
           </motion.div>
 
@@ -591,42 +630,67 @@ export default function WorkerDashboard() {
               label="Acceptance Rate"
               value={acceptRate}
               max={100}
-              display={`${acceptRate}%`}
-              good={acceptRate >= 80}
-              warn={acceptRate < 60}
-              trackColor={acceptRate >= 80 ? 'bg-green-500' : acceptRate >= 60 ? 'bg-amber-400' : 'bg-red-500'}
+              display={acceptRate !== null ? `${acceptRate}%` : null}
+              noDataLabel="No offers yet"
+              good={acceptRate !== null && acceptRate >= 80}
+              warn={acceptRate !== null && acceptRate < 60}
+              trackColor={
+                acceptRate === null ? 'bg-slate-200'
+                : acceptRate >= 80 ? 'bg-green-500'
+                : acceptRate >= 60 ? 'bg-amber-400'
+                : 'bg-red-500'
+              }
             />
             <PerformanceRow
               label="Cancellation Rate"
-              value={100 - Math.min(cancelRate, 100)}
+              value={cancelRate !== null ? cancelRate : null}
               max={100}
-              display={`${cancelRate}%`}
-              good={cancelRate <= 5}
-              warn={cancelRate > 15}
-              trackColor={cancelRate <= 5 ? 'bg-green-500' : cancelRate <= 15 ? 'bg-amber-400' : 'bg-red-500'}
+              display={cancelRate !== null ? `${cancelRate}%` : null}
+              noDataLabel="No jobs yet"
+              good={cancelRate !== null && cancelRate <= 5}
+              warn={cancelRate !== null && cancelRate > 15}
+              trackColor={
+                cancelRate === null ? 'bg-slate-200'
+                : cancelRate <= 5 ? 'bg-green-500'
+                : cancelRate <= 15 ? 'bg-amber-400'
+                : 'bg-red-500'
+              }
               invert
             />
             <PerformanceRow
               label="Customer Rating"
-              value={rating}
+              value={hasRatingData ? rating : null}
               max={5}
-              display={`${rating.toFixed(1)} / 5.0`}
-              good={rating >= 4.5}
-              warn={rating < 3.5}
-              trackColor={rating >= 4.5 ? 'bg-amber-400' : rating >= 4 ? 'bg-blue-500' : 'bg-red-500'}
+              display={hasRatingData ? `${rating.toFixed(1)} / 5.0` : null}
+              noDataLabel="Not rated yet"
+              good={hasRatingData && rating >= 4.5}
+              warn={hasRatingData && rating < 3.5}
+              trackColor={
+                !hasRatingData ? 'bg-slate-200'
+                : rating >= 4.5 ? 'bg-amber-400'
+                : rating >= 4 ? 'bg-blue-500'
+                : 'bg-red-500'
+              }
             />
           </div>
 
-          {(acceptRate < 70 || cancelRate > 20) && (
+          {(acceptRate !== null && acceptRate < 70) || (cancelRate !== null && cancelRate > 20) ? (
             <div className="mt-3 flex items-start gap-2 bg-red-50 rounded-xl px-3 py-2.5 ring-1 ring-red-100">
               <AlertTriangle size={13} strokeWidth={2} className="text-red-500 mt-0.5 shrink-0" />
               <p className="text-xs text-red-700 font-medium leading-snug">
-                {acceptRate < 70
+                {acceptRate !== null && acceptRate < 70
                   ? 'Low acceptance rate reduces job visibility. Try to accept more offers.'
                   : 'High cancellation rate may result in account penalties.'}
               </p>
             </div>
-          )}
+          ) : !hasOfferData && !hasJobData ? (
+            <div className="mt-3 flex items-start gap-2 bg-blue-50 rounded-xl px-3 py-2.5 ring-1 ring-blue-100">
+              <ShieldCheck size={13} strokeWidth={2} className="text-blue-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-700 font-medium leading-snug">
+                Your performance stats will appear here after your first job.
+              </p>
+            </div>
+          ) : null}
         </motion.div>
 
         {/* ── Recent Jobs ──────────────────────────────────────── */}
@@ -683,10 +747,12 @@ export default function WorkerDashboard() {
 /* ─── Trust Score Ring ───────────────────────────────────────── */
 
 function TrustScoreRing({ score }) {
-  const r = 30;
+  const r    = 30;
   const circ = 2 * Math.PI * r;
-  const offset = circ * (1 - score / 100);
-  const color = score >= 80 ? '#22C55E' : score >= 60 ? '#F59E0B' : '#EF4444';
+  const isNew = score === null;
+  const displayScore = isNew ? 0 : score;
+  const offset = circ * (1 - displayScore / 100);
+  const color  = isNew ? '#CBD5E1' : score >= 80 ? '#22C55E' : score >= 60 ? '#F59E0B' : '#EF4444';
 
   return (
     <div className="relative w-20 h-20 flex items-center justify-center">
@@ -698,13 +764,22 @@ function TrustScoreRing({ score }) {
           strokeDasharray={circ}
           strokeLinecap="round"
           initial={{ strokeDashoffset: circ }}
-          animate={{ strokeDashoffset: offset }}
+          animate={{ strokeDashoffset: isNew ? circ : offset }}
           transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
         />
       </svg>
       <div className="text-center relative z-10">
-        <p className="text-2xl font-extrabold text-[#0F172A] leading-none">{score}</p>
-        <p className="text-[8px] font-bold text-slate-400 tracking-widest">TRUST</p>
+        {isNew ? (
+          <>
+            <p className="text-[11px] font-extrabold text-slate-400 leading-tight">NEW</p>
+            <p className="text-[8px] font-bold text-slate-300 tracking-widest">WORKER</p>
+          </>
+        ) : (
+          <>
+            <p className="text-2xl font-extrabold text-[#0F172A] leading-none">{score}</p>
+            <p className="text-[8px] font-bold text-slate-400 tracking-widest">TRUST</p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -712,29 +787,41 @@ function TrustScoreRing({ score }) {
 
 /* ─── Performance Row ────────────────────────────────────────── */
 
-function PerformanceRow({ label, value, max, display, good, warn, trackColor, invert }) {
-  const pct = Math.min((value / max) * 100, 100);
+function PerformanceRow({ label, value, max, display, noDataLabel, good, warn, trackColor, invert }) {
+  const noData = value === null || value === undefined;
+  // For inverted metrics (cancellation rate): lower value → fuller bar
+  const pct = noData ? 0 : Math.min((value / max) * 100, 100);
+  const barPct = noData ? 0 : invert ? Math.max(0, 100 - pct) : pct;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <p className="text-xs font-semibold text-slate-500">{label}</p>
         <div className="flex items-center gap-1">
-          {good
-            ? <ArrowUpRight size={11} strokeWidth={2.5} className="text-green-500" />
-            : warn
-              ? <ArrowDownRight size={11} strokeWidth={2.5} className="text-red-500" />
-              : <Minus size={11} strokeWidth={2.5} className="text-amber-400" />}
-          <p className={`text-xs font-bold ${good ? 'text-green-600' : warn ? 'text-red-600' : 'text-amber-600'}`}>
-            {display}
+          {noData ? (
+            <Minus size={11} strokeWidth={2} className="text-slate-300" />
+          ) : good ? (
+            <ArrowUpRight size={11} strokeWidth={2.5} className="text-green-500" />
+          ) : warn ? (
+            <ArrowDownRight size={11} strokeWidth={2.5} className="text-red-500" />
+          ) : (
+            <Minus size={11} strokeWidth={2.5} className="text-amber-400" />
+          )}
+          <p className={`text-xs font-bold ${
+            noData ? 'text-slate-300'
+            : good ? 'text-green-600'
+            : warn ? 'text-red-600'
+            : 'text-amber-600'
+          }`}>
+            {noData ? (noDataLabel ?? '—') : display}
           </p>
         </div>
       </div>
       <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
         <motion.div
-          className={`h-full rounded-full ${trackColor}`}
+          className={`h-full rounded-full ${noData ? 'bg-slate-200' : trackColor}`}
           initial={{ width: 0 }}
-          animate={{ width: `${invert ? 100 - Math.min(value, 100) + (100 - pct) : pct}%` }}
-          style={{ width: `${invert ? (100 - (value / max) * 100) : pct}%` }}
+          animate={{ width: `${barPct}%` }}
           transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
         />
       </div>
@@ -813,29 +900,56 @@ function RecentJobsList({ orders, onNav }) {
 
 /* ─── Demand Zones ───────────────────────────────────────────── */
 
-const ZONE_SEEDS = [
-  { name: 'Koramangala', dist: '1.2 km', level: 'very_high', wait: '<2 min' },
-  { name: 'HSR Layout',  dist: '2.4 km', level: 'high',      wait: '3–5 min' },
-  { name: 'BTM Layout',  dist: '3.1 km', level: 'high',      wait: '4–6 min' },
-  { name: 'Indiranagar', dist: '4.8 km', level: 'medium',    wait: '8–12 min' },
-];
 const LEVEL_META = {
-  very_high: { label: 'Very High', bg: 'bg-red-50',   ring: 'ring-red-100',   dot: 'bg-red-500',   text: 'text-red-700'   },
-  high:      { label: 'High',      bg: 'bg-amber-50', ring: 'ring-amber-100', dot: 'bg-amber-500', text: 'text-amber-700' },
-  medium:    { label: 'Moderate',  bg: 'bg-blue-50',  ring: 'ring-blue-100',  dot: 'bg-blue-400',  text: 'text-blue-700'  },
+  very_high: { label: 'Very High', bg: 'bg-red-50',   ring: 'ring-red-100',   dot: 'bg-red-500',   text: 'text-red-700',   bar: 'bg-red-400'    },
+  high:      { label: 'High',      bg: 'bg-amber-50', ring: 'ring-amber-100', dot: 'bg-amber-500', text: 'text-amber-700', bar: 'bg-amber-400'  },
+  medium:    { label: 'Moderate',  bg: 'bg-blue-50',  ring: 'ring-blue-100',  dot: 'bg-blue-400',  text: 'text-blue-700',  bar: 'bg-blue-300'   },
+  low:       { label: 'Low',       bg: 'bg-slate-50', ring: 'ring-slate-100', dot: 'bg-slate-300', text: 'text-slate-500', bar: 'bg-slate-200'  },
 };
 
 function DemandZonesWidget() {
   const [expanded, setExpanded] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [coords, setCoords]     = useState(null);
+
+  // Real GPS — watch position while component is mounted
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 90000);
-    return () => clearInterval(id);
+    if (!navigator.geolocation) return;
+    const id = navigator.geolocation.watchPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 60000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
   }, []);
-  const zones = [...ZONE_SEEDS].sort((a, b) =>
-    tick % 2 === 0 ? (a.level === 'very_high' ? -1 : 1) : a.dist.localeCompare(b.dist));
+
+  const { data, isLoading } = useGetDemandZonesQuery(
+    coords ? { lat: coords.lat, lng: coords.lng } : undefined,
+    { skip: !coords, pollingInterval: 60000 },
+  );
+
+  const zones = data?.zones ?? [];
   const top = zones[0];
-  const topMeta = LEVEL_META[top.level];
+
+  if (!coords || isLoading || !top) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24 }}
+        className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3"
+      >
+        <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+          <Flame size={14} strokeWidth={2} className="text-red-600" />
+        </div>
+        <div>
+          <p className="text-xs font-bold text-[#0F172A]">High Demand Zones</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">
+            {!coords ? 'Waiting for GPS location…' : 'Loading nearby zones…'}
+          </p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  const topMeta = LEVEL_META[top.level] ?? LEVEL_META.low;
 
   return (
     <motion.div
@@ -846,7 +960,7 @@ function DemandZonesWidget() {
     >
       <div className="flex gap-0.5 -mx-4 -mt-4 mb-4 h-1">
         {[0,1,2,3,4,5].map((i) => (
-          <motion.div key={i} className="flex-1 bg-red-400"
+          <motion.div key={i} className={`flex-1 ${topMeta.bar}`}
             animate={{ opacity: [0.2, 1, 0.2] }}
             transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }}
           />
@@ -865,6 +979,8 @@ function DemandZonesWidget() {
           <ChevronRight size={10} strokeWidth={2.5} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
         </button>
       </div>
+
+      {/* Top zone highlight */}
       <div className={`flex items-center gap-3 p-3 rounded-xl ring-1 ${topMeta.bg} ${topMeta.ring}`}>
         <div className="relative shrink-0">
           <div className={`w-2.5 h-2.5 rounded-full ${topMeta.dot}`} />
@@ -873,31 +989,36 @@ function DemandZonesWidget() {
             transition={{ duration: 1.2, repeat: Infinity }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-bold ${topMeta.text}`}>{top.name}
+          <p className={`text-sm font-bold ${topMeta.text}`}>
+            {top.name}
             <span className={`ml-1.5 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-white/60 ${topMeta.text}`}>
               {topMeta.label}
             </span>
           </p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{top.dist} away · jobs in {top.wait}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">
+            {top.distKm} km away · jobs in {top.waitMin} min
+          </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Zap size={11} strokeWidth={2.5} className={topMeta.text} />
           <span className={`text-xs font-extrabold ${topMeta.text}`}>Go</span>
         </div>
       </div>
+
+      {/* Expanded list */}
       <AnimatePresence>
         {expanded && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden">
             <div className="space-y-1.5 pt-2">
               {zones.slice(1).map((z) => {
-                const m = LEVEL_META[z.level];
+                const m = LEVEL_META[z.level] ?? LEVEL_META.low;
                 return (
                   <div key={z.name} className="flex items-center gap-2.5 px-1 py-1.5">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${m.dot}`} />
                     <p className="text-xs font-semibold text-[#0F172A] flex-1">{z.name}</p>
                     <span className={`text-[9px] font-bold ${m.text}`}>{m.label}</span>
-                    <span className="text-[10px] text-slate-400">{z.dist}</span>
+                    <span className="text-[10px] text-slate-400">{z.distKm} km</span>
                   </div>
                 );
               })}
@@ -909,10 +1030,9 @@ function DemandZonesWidget() {
   );
 }
 
-/* ─── Offer Modal — Uber-style full-screen bottom card ─────────── */
+/* ─── Offer Modal — Uber driver style ──────────────────────────── */
 
 function OfferModal({ offer, onAccept, onReject, accepting }) {
-  /* Derive timeout from expiresAt, cap at 30s display max */
   const totalSec = offer.expiresAt
     ? Math.min(30, Math.max(1, Math.round((new Date(offer.expiresAt).getTime() - Date.now()) / 1000)))
     : 30;
@@ -924,7 +1044,6 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
     const expires = offer.expiresAt
       ? new Date(offer.expiresAt).getTime()
       : Date.now() + totalSec * 1000;
-
     const tick = () => {
       const l = Math.max(0, Math.ceil((expires - Date.now()) / 1000));
       setLeft(l);
@@ -936,135 +1055,148 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
   }, [offer, onReject]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const progress = left / totalRef.current;
-  const circ     = 2 * Math.PI * 28;
-  const offset   = circ * (1 - progress);
   const urgent   = left <= 6;
 
-  const svc    = SERVICE_ICON_MAP[offer.service] || { Icon: Wrench, bg: 'bg-slate-100', color: 'text-slate-600' };
+  const svc     = SERVICE_ICON_MAP[offer.service] || { Icon: Wrench, bg: 'bg-slate-100', color: 'text-slate-600' };
   const SvcIcon = svc.Icon;
+
+  /* Static map centred on pickup — shown as map background */
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  const [pickLng, pickLat] = offer.pickupCoords || [0, 0];
+  const mapUrl = mapboxToken && pickLng && pickLat
+    ? `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/` +
+      `pin-l+1d4ed8(${pickLng},${pickLat})/` +
+      `${pickLng},${pickLat},14,0/800x500@2x` +
+      `?access_token=${mapboxToken}&attribution=false&logo=false`
+    : null;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-[#0F172A]/80 backdrop-blur-[3px] flex items-end justify-center z-50"
+      className="fixed inset-0 z-50 flex flex-col"
     >
+      {/* Map fills the top half */}
+      <div className="flex-1 relative bg-slate-300 overflow-hidden">
+        {mapUrl
+          ? <img src={mapUrl} alt="map" className="w-full h-full object-cover" />
+          : (
+            <div className="w-full h-full bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 flex items-center justify-center">
+              <MapPin size={36} strokeWidth={1.5} className="text-slate-400" />
+            </div>
+          )
+        }
+        {/* Countdown pill — top right of map */}
+        <div className={`absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm ${urgent ? 'bg-red-500' : 'bg-[#0F172A]/80'}`}>
+          <Clock size={12} strokeWidth={2.5} className="text-white" />
+          <span className="text-white font-extrabold text-sm tabular-nums">{left}s</span>
+        </div>
+      </div>
+
+      {/* Bottom card slides up */}
       <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-        className="bg-white w-full max-w-lg rounded-t-[28px] overflow-hidden shadow-2xl"
+        transition={{ type: 'spring', damping: 30, stiffness: 340 }}
+        className="bg-white rounded-t-[28px] -mt-7 shadow-[0_-8px_40px_rgba(0,0,0,0.15)] relative z-10"
       >
-        {/* countdown progress bar */}
-        <div className="h-1.5 bg-slate-100 relative overflow-hidden">
+        {/* Progress bar */}
+        <div className="absolute top-0 inset-x-0 h-1 rounded-t-[28px] overflow-hidden bg-slate-100">
           <motion.div
-            className={`h-full absolute left-0 top-0 transition-colors duration-300 ${urgent ? 'bg-red-500' : 'bg-blue-600'}`}
+            className={`h-full absolute left-0 top-0 ${urgent ? 'bg-red-500' : 'bg-blue-600'}`}
             animate={{ width: `${Math.max(0, progress * 100)}%` }}
             transition={{ duration: 0.25, ease: 'linear' }}
           />
         </div>
 
-        <div className="px-5 pt-5 pb-8 space-y-4">
+        <div className="px-5 pt-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
 
-          {/* header: service icon + label + circular countdown */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3.5">
-              <div className={`w-[52px] h-[52px] rounded-2xl ${svc.bg} flex items-center justify-center shrink-0`}>
-                <SvcIcon size={24} strokeWidth={1.75} className={svc.color} />
+          {/* Service label + Exclusive badge + X dismiss */}
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className={`w-10 h-10 rounded-xl ${svc.bg} flex items-center justify-center shrink-0`}>
+                <SvcIcon size={20} strokeWidth={1.75} className={svc.color} />
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
-                  New Job Request
-                </p>
-                <h2 className="text-[19px] font-extrabold text-[#0F172A] capitalize leading-tight">
+                <p className="font-extrabold text-[#0F172A] text-base capitalize leading-tight">
                   {offer.service.replace(/_/g, ' ')}
-                </h2>
+                </p>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                  Exclusive
+                </span>
               </div>
             </div>
-
-            {/* circular countdown */}
-            <div className="relative w-[60px] h-[60px] flex items-center justify-center shrink-0">
-              <svg width="60" height="60" viewBox="0 0 64 64" className="-rotate-90 absolute inset-0">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="#F1F5F9" strokeWidth="5" />
-                <circle
-                  cx="32" cy="32" r="28" fill="none"
-                  stroke={urgent ? '#EF4444' : '#2563EB'}
-                  strokeWidth="5"
-                  strokeDasharray={circ}
-                  strokeDashoffset={offset}
-                  strokeLinecap="round"
-                  style={{ transition: 'stroke-dashoffset 0.25s linear' }}
-                />
-              </svg>
-              <span className={`text-[22px] font-extrabold relative z-10 tabular-nums ${urgent ? 'text-red-600' : 'text-[#0F172A]'}`}>
-                {left}
-              </span>
-            </div>
-          </div>
-
-          {/* earnings — prominent */}
-          <div className={`rounded-2xl px-4 py-3.5 flex items-center justify-between ${urgent ? 'bg-red-50 ring-1 ring-red-100' : 'bg-green-50 ring-1 ring-green-100'}`}>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Your Earnings</p>
-              <p className={`text-[42px] font-extrabold leading-none mt-0.5 ${urgent ? 'text-red-700' : 'text-green-700'}`}>
-                ₹{offer.price}
-              </p>
-            </div>
-            <div className={`w-12 h-12 rounded-xl ${urgent ? 'bg-red-100' : 'bg-green-100'} flex items-center justify-center`}>
-              <BadgeIndianRupee size={22} strokeWidth={1.75} className={urgent ? 'text-red-600' : 'text-green-600'} />
-            </div>
-          </div>
-
-          {/* distance + ETA row */}
-          {(offer.distanceKm || offer.etaMinutes) && (
-            <div className="flex gap-2.5">
-              {offer.distanceKm && (
-                <div className="flex-1 bg-blue-50 rounded-2xl px-3 py-3 text-center">
-                  <p className="text-[18px] font-extrabold text-blue-700 tabular-nums">{offer.distanceKm} km</p>
-                  <p className="text-[9px] font-bold text-blue-400 uppercase tracking-wide mt-0.5">Distance</p>
-                </div>
-              )}
-              {offer.etaMinutes && (
-                <div className="flex-1 bg-slate-50 rounded-2xl px-3 py-3 text-center">
-                  <p className="text-[18px] font-extrabold text-slate-700 tabular-nums">{offer.etaMinutes} min</p>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">Drive Time</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* pickup address */}
-          <div className="bg-slate-50 rounded-2xl p-3.5 flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
-              <MapPin size={13} strokeWidth={2} className="text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Service location</p>
-              <p className="text-sm font-semibold text-[#0F172A] leading-snug line-clamp-2">{offer.pickupAddress}</p>
-            </div>
-          </div>
-
-          {/* action buttons */}
-          <div className="flex gap-3 pt-0.5">
             <button
               onClick={onReject}
-              className="flex-1 h-[54px] rounded-2xl bg-slate-100 text-slate-600 font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-200 transition active:scale-[0.97]"
+              className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center shrink-0 hover:bg-slate-200 transition active:scale-95"
             >
-              <X size={16} strokeWidth={2.5} />
-              Ignore
-            </button>
-            <button
-              onClick={onAccept}
-              disabled={accepting}
-              className="flex-[2.5] h-[54px] rounded-2xl bg-blue-600 text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-200 transition active:scale-[0.97] disabled:opacity-60"
-            >
-              {accepting
-                ? <Loader2 size={18} className="animate-spin" />
-                : <><CheckCircle size={18} strokeWidth={2.5} /> Accept Job</>}
+              <X size={18} strokeWidth={2.5} className="text-slate-500" />
             </button>
           </div>
+
+          {/* Price + surge icon */}
+          <div className="flex items-center gap-2 mb-1">
+            <p className={`text-[52px] font-extrabold leading-none tabular-nums ${urgent ? 'text-red-600' : 'text-[#0F172A]'}`}>
+              ₹{offer.price}
+            </p>
+            <Zap size={24} strokeWidth={2.5} className={urgent ? 'text-red-500' : 'text-blue-600'} />
+          </div>
+
+          {/* Rating + Verified */}
+          <div className="flex items-center gap-3 mb-5">
+            <span className="flex items-center gap-1 text-sm font-bold text-[#0F172A]">
+              <Star size={14} strokeWidth={0} className="fill-amber-400" />
+              4.9
+            </span>
+            <span className="flex items-center gap-1 text-sm font-bold text-blue-600">
+              <BadgeCheck size={15} strokeWidth={2.5} className="text-blue-600" />
+              Verified
+            </span>
+          </div>
+
+          {/* Route stops — Uber style vertical connector */}
+          <div className="mb-5">
+            {offer.etaMinutes || offer.distanceKm ? (
+              <div className="flex gap-3 items-start mb-3">
+                <div className="flex flex-col items-center pt-1 shrink-0">
+                  <div className="w-2.5 h-2.5 rounded-full bg-slate-400 ring-2 ring-slate-200" />
+                  <div className="w-px flex-1 bg-slate-200 my-1 min-h-[20px]" />
+                </div>
+                <div className="flex-1 min-w-0 pb-3 border-b border-slate-100">
+                  <p className="font-bold text-[#0F172A] text-sm">
+                    {[offer.etaMinutes && `${offer.etaMinutes} min`, offer.distanceKm && `(${offer.distanceKm} km)`]
+                      .filter(Boolean).join(' ')} away
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-1">
+                    {offer.pickupAddress}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+            <div className="flex gap-3 items-start">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#0F172A] ring-2 ring-slate-300 mt-1 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-[#0F172A] text-sm">Service location</p>
+                <p className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-1">
+                  {offer.pickupAddress}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Accept */}
+          <motion.button
+            onClick={onAccept}
+            disabled={accepting}
+            className="w-full h-[56px] bg-blue-600 text-white font-extrabold text-lg rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition active:scale-[0.98] disabled:opacity-60"
+            whileTap={{ scale: 0.98 }}
+          >
+            {accepting
+              ? <Loader2 size={20} className="animate-spin" />
+              : 'Accept'}
+          </motion.button>
         </div>
       </motion.div>
     </motion.div>

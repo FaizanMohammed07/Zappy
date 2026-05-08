@@ -19,6 +19,7 @@ export default function LoginPage({ role = 'user' }) {
   const [name, setName] = useState('');
   const [skills, setSkills] = useState([]);
   const [step, setStep] = useState('phone');
+  const [isNewUser, setIsNewUser] = useState(true);
   const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
   const [loginUser, { isLoading: loggingUser }] = useLoginUserMutation();
   const [loginWorker, { isLoading: loggingWorker }] = useLoginWorkerMutation();
@@ -33,8 +34,9 @@ export default function LoginPage({ role = 'user' }) {
       return;
     }
     try {
-      const r = await requestOtp({ phone }).unwrap();
+      const r = await requestOtp({ phone, role }).unwrap();
       if (r.otp) setOtp(r.otp);
+      setIsNewUser(r.isNewUser ?? true);
       setStep('otp');
     } catch (err) {
       toast.error(err.data?.error || 'Failed to send OTP');
@@ -145,17 +147,19 @@ export default function LoginPage({ role = 'user' }) {
                 />
               </div>
 
-              <div>
-                <label className="input-label">Your Name (first time only)</label>
-                <input
-                  className="input"
-                  placeholder="e.g. Priya Sharma"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
+              {isNewUser && (
+                <div>
+                  <label className="input-label">Your Name</label>
+                  <input
+                    className="input"
+                    placeholder="e.g. Priya Sharma"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+              )}
 
-              {role === 'worker' && (
+              {isNewUser && role === 'worker' && (
                 <div>
                   <label className="input-label">Your Skills</label>
                   <div className="flex flex-wrap gap-2 mt-1">

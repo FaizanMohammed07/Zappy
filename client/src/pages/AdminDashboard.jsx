@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingBag, Users, Briefcase, Tag,
   Wallet, Scale, CreditCard, BarChart2, Gift, XCircle,
-  FileText, LogOut, Menu, X, ChevronRight, FileCheck,
+  FileText, LogOut, Menu, X, ChevronRight, FileCheck, Crown,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
 import { adminPath } from '../config/admin';
@@ -22,6 +22,7 @@ import Incentives from './admin/Incentives';
 import Cancellation from './admin/Cancellation';
 import Audit from './admin/Audit';
 import AdminKycReview from './AdminKycReview';
+import AdminPlans from './admin/Plans';
 
 const NAV = [
   { id: 'overview',     label: 'Overview',        icon: LayoutDashboard },
@@ -30,6 +31,7 @@ const NAV = [
   { id: 'workers',      label: 'Workers',          icon: Briefcase },
   { id: 'kyc',          label: 'KYC',              icon: FileCheck },
   { id: 'pricing',      label: 'Pricing',          icon: Tag },
+  { id: 'plans',        label: 'Subscr. Plans',    icon: Crown },
   { id: 'wallet',       label: 'Wallet',           icon: Wallet },
   { id: 'disputes',     label: 'Disputes',         icon: Scale },
   { id: 'payouts',      label: 'Payouts',          icon: CreditCard },
@@ -53,6 +55,7 @@ const SECTION_MAP = {
   incentives:   Incentives,
   cancellation: Cancellation,
   audit:        Audit,
+  plans:        AdminPlans,
 };
 
 export default function AdminDashboard() {

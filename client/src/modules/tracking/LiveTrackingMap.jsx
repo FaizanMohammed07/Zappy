@@ -220,13 +220,16 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
 
     const map = new mapboxgl.Map({
       container:          containerRef.current,
-      style:              'mapbox://styles/mapbox/navigation-night-v1',
+      style:              'mapbox://styles/mapbox/streets-v12',
       center:             initCenter,
       zoom:               14,
       attributionControl: false,
       logoPosition:       'bottom-left',
     });
     st.map = map;
+
+    // Zoom + compass controls
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
     map.on('load', () => {
       /* ── Route source (lineMetrics required for gradient) ── */
@@ -242,31 +245,26 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
         type:   'line', source: 'route',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-width':   14,
-          'line-blur':    6,
-          'line-opacity': 0.35,
+          'line-width':   16,
+          'line-blur':    8,
+          'line-opacity': 0.28,
           'line-gradient': [
             'interpolate', ['linear'], ['line-progress'],
-            0,   '#93C5FD',
+            0,   '#6366F1',
             0.5, '#3B82F6',
-            1,   '#2563EB',
+            1,   '#06B6D4',
           ],
         },
       });
-      /* shimmer */
+      /* casing — white border for contrast on light map */
       map.addLayer({
-        id:     'route-shimmer',
+        id:     'route-casing',
         type:   'line', source: 'route',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-width':   7,
-          'line-opacity': 0.6,
-          'line-gradient': [
-            'interpolate', ['linear'], ['line-progress'],
-            0,   '#BFDBFE',
-            0.5, '#60A5FA',
-            1,   '#2563EB',
-          ],
+          'line-width':   9,
+          'line-color':   '#ffffff',
+          'line-opacity': 0.9,
         },
       });
       /* core */
@@ -275,13 +273,13 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
         type:   'line', source: 'route',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-width':   3.5,
-          'line-opacity': 0.95,
+          'line-width':   5,
+          'line-opacity': 1,
           'line-gradient': [
             'interpolate', ['linear'], ['line-progress'],
-            0,   '#E0F2FE',
-            0.5, '#38BDF8',
-            1,   '#2563EB',
+            0,   '#6366F1',
+            0.5, '#3B82F6',
+            1,   '#06B6D4',
           ],
         },
       });
@@ -392,37 +390,26 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
   }, [service]);
 
   /* ── Render ── */
-  if (!TOKEN) {
+  if (!TOKEN || mapError) {
     return (
-      <div style={{ height }} className="rounded-2xl bg-[#0D1B2A] ring-1 ring-slate-700 flex items-center justify-center">
-        <div className="flex items-center gap-2 text-slate-400">
-          <AlertCircle size={16} />
-          <span className="text-sm font-medium">Map token not configured</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (mapError) {
-    return (
-      <div style={{ height }} className="rounded-2xl bg-[#0D1B2A] ring-1 ring-red-800 flex items-center justify-center">
-        <div className="flex items-center gap-2 text-red-400">
-          <AlertCircle size={16} />
-          <span className="text-sm font-medium">Map unavailable</span>
-        </div>
+      <div style={{ height }} className="rounded-2xl bg-slate-50 ring-1 ring-slate-200 flex flex-col items-center justify-center gap-2">
+        <AlertCircle size={20} className="text-slate-400" />
+        <span className="text-sm font-medium text-slate-500">
+          {!TOKEN ? 'Map token not configured' : 'Map temporarily unavailable'}
+        </span>
       </div>
     );
   }
 
   return (
-    <div style={{ height }} className="relative rounded-2xl overflow-hidden ring-1 ring-slate-700 bg-[#0D1B2A]">
+    <div style={{ height }} className="relative rounded-2xl overflow-hidden ring-1 ring-slate-200 bg-slate-100">
       {!mapReady && (
-        <div className="lt2-skeleton absolute inset-0 bg-[#0D1B2A] z-10 rounded-2xl flex items-center justify-center">
+        <div className="lt2-skeleton absolute inset-0 bg-slate-100 z-10 rounded-2xl flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#1E3A5F] flex items-center justify-center ring-1 ring-blue-900">
-              <div className="w-5 h-5 rounded-full bg-blue-700" />
+            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center ring-1 ring-slate-300">
+              <div className="w-5 h-5 rounded-full bg-blue-400" />
             </div>
-            <div className="w-28 h-2 rounded-full bg-[#1E3A5F]" />
+            <div className="w-28 h-2 rounded-full bg-slate-200" />
           </div>
         </div>
       )}

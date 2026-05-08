@@ -51,8 +51,9 @@ router.get('/quote', authenticate, requireRole('user'), validate(quoteSchema, 'q
 router.post('/', authenticate, requireRole('user'), orderLimiter, validate(createOrderSchema), ctrl.createOrder);
 router.get('/mine', authenticate, requireRole('user'), ctrl.listMine);
 router.get('/:id', authenticate, ctrl.getOne);
+router.get('/:id/cancel-preview', authenticate, requireRole('user'), ctrl.getCancelPreview);
 router.get('/:id/invoice', authenticate, requireRole('user'), ctrl.getInvoice);
-router.post('/:id/cancel', authenticate, requireRole('user'), ctrl.cancelOrder);
+router.post('/:id/cancel', authenticate, requireRole('user'), validate(Joi.object({ reason: Joi.string().max(200).allow('', null) })), ctrl.cancelOrder);
 router.post('/:id/rate', authenticate, requireRole('user'), validate(rateSchema), ctrl.rateOrder);
 router.post('/:id/rate-user', authenticate, requireRole('worker'), validate(rateSchema), ctrl.workerRateUser);
 router.get('/:id/timeline', authenticate, ctrl.getTimeline);
@@ -61,7 +62,7 @@ router.post('/:id/reject', authenticate, requireRole('worker'), ctrl.rejectOffer
 router.post('/:id/start-trip', authenticate, requireRole('worker'), ctrl.startTrip);
 router.post('/:id/arrived', authenticate, requireRole('worker'), ctrl.arrive);
 router.post('/:id/start-service', authenticate, requireRole('worker'), validate(Joi.object({ otp: Joi.string().length(4).required() })), ctrl.startService);
-router.post('/:id/complete', authenticate, requireRole('worker'), ctrl.completeOrder);
+router.post('/:id/complete', authenticate, requireRole('worker'), validate(Joi.object({ completionPhotos: Joi.array().items(Joi.string()).max(5).default([]) })), ctrl.completeOrder);
 router.post('/:id/worker-cancel', authenticate, requireRole('worker'), validate(Joi.object({ reason: Joi.string().max(300).allow('', null) })), ctrl.workerCancelOrder);
 
 module.exports = router;

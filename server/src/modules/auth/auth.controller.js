@@ -3,8 +3,9 @@ const config = require('../../config');
 
 async function requestOtp(req, res, next) {
   try {
-    const otp = await authService.requestOtp(req.body.phone);
-    res.json({ ok: true, ...(config.env !== 'production' ? { otp } : {}) });
+    const { phone, role } = req.body;
+    const { otp, isNewUser } = await authService.requestOtp(phone, role);
+    res.json({ ok: true, isNewUser, ...(config.env !== 'production' ? { otp } : {}) });
   } catch (err) { next(err); }
 }
 

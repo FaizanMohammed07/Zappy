@@ -1,21 +1,47 @@
 import { useState, useEffect } from 'react';
-import { useAdminGetPricingConfigQuery, useAdminSetPricingConfigMutation, useAdminTogglesMutation } from '../../services/api';
+import {
+  useGetPricingConfigQuery,
+  useAdminUpdatePricingMutation,
+  useAdminTogglesMutation,
+} from '../../services/api';
 import { SectionHeader, Card, FormRow, Input, SaveBtn, PageLoader } from './_shared';
 import toast from 'react-hot-toast';
 
 export default function Pricing() {
-  const { data: cfg, isLoading } = useAdminGetPricingConfigQuery();
-  const [setPricing, { isLoading: saving }] = useAdminSetPricingConfigMutation();
+  // Correct endpoint: public GET /pricing → returns { pricing: { baseFeePaise, ... } }
+  const { data, isLoading } = useGetPricingConfigQuery();
+  // Correct endpoint: PATCH /api/${slug}/pricing → pricingService.updateActiveConfig (persists to Mongo + busts cache)
+  const [updatePricing, { isLoading: saving }] = useAdminUpdatePricingMutation();
+  // Correct endpoint: PATCH /api/${slug}/toggles → pricingService.updateActiveConfig
   const [setToggles, { isLoading: savingToggles }] = useAdminTogglesMutation();
 
-  const [form, setForm] = useState({ baseFee: 40, perKmFee: 12, perMinFee: 2, platformFee: 10, minFare: 60, surgeMaxMultiplier: 2.5 });
-  const [toggles, setTogglesState] = useState({ surgeEnabled: true, surgeMaxCap: 2.5, commissionRate: 0.30 });
+  // Display in rupees; save as paise
+  const [form, setForm] = useState({
+    baseFee: 35, perKmFee: 12, perMinFee: 2, platformFee: 15, minFare: 60, surgeMaxMultiplier: 2.5,
+  });
+  const [toggles, setTogglesState] = useState({
+    surgeEnabled: true, surgeMaxCap: 2.5, commissionRate: 0.30,
+  });
 
   useEffect(() => {
-    if (cfg && Object.keys(cfg).length > 0) {
-      setForm(prev => ({ ...prev, ...cfg }));
-    }
-  }, [cfg]);
+    const p = data?.pricing;
+    if (!p) return;
+    // Convert paise → rupees for fare fields
+    setForm({
+      baseFee:            (p.baseFeePaise    ?? 3500)  / 100,
+      perKmFee:           (p.perKmFeePaise   ?? 1200)  / 100,
+      perMinFee:          (p.perMinFeePaise  ?? 200)   / 100,
+      platformFee:        (p.platformFeePaise ?? 1500) / 100,
+      minFare:            (p.minFarePaise    ?? 6000)  / 100,
+      surgeMaxMultiplier: p.surgeMaxCap ?? 2.5,
+    });
+    // Seed toggle state from real config
+    setTogglesState({
+      surgeEnabled:  p.surgeEnabled  ?? true,
+      surgeMaxCap:   p.surgeMaxCap   ?? 2.5,
+      commissionRate: p.commissionRate ?? 0.30,
+    });
+  }, [data]);
 
   const field = (key) => ({
     type: 'number', value: form[key] ?? '',
@@ -24,10 +50,18 @@ export default function Pricing() {
 
   async function savePricing() {
     try {
-      await setPricing(form).unwrap();
+      // Convert rupees → paise; server schema expects integer paise + surgeMaxCap
+      await updatePricing({
+        baseFeePaise:    Math.round(form.baseFee    * 100),
+        perKmFeePaise:   Math.round(form.perKmFee   * 100),
+        perMinFeePaise:  Math.round(form.perMinFee  * 100),
+        platformFeePaise: Math.round(form.platformFee * 100),
+        minFarePaise:    Math.round(form.minFare    * 100),
+        surgeMaxCap:     form.surgeMaxMultiplier,
+      }).unwrap();
       toast.success('Pricing config saved');
     } catch (err) {
-      toast.error(err.data?.error || 'Save failed');
+      toast.error(err?.data?.error || 'Save failed');
     }
   }
 
@@ -36,7 +70,7 @@ export default function Pricing() {
       await setToggles(toggles).unwrap();
       toast.success('Settings saved');
     } catch (err) {
-      toast.error(err.data?.error || 'Save failed');
+      toast.error(err?.data?.error || 'Save failed');
     }
   }
 
@@ -84,7 +118,10 @@ export default function Pricing() {
                 onClick={() => setTogglesState(p => ({ ...p, surgeEnabled: !p.surgeEnabled }))}
                 className={`relative inline-flex w-11 h-6 rounded-full transition-colors ${toggles.surgeEnabled ? 'bg-blue-600' : 'bg-slate-200'}`}
               >
-                <span className={`inline-block w-5 h-5 rounded-full bg-white shadow transition-transform mt-0.5 ${toggles.surgeEnabled ? 'translate-x-5.5' : 'translate-x-0.5'}`} style={{ transform: toggles.surgeEnabled ? 'translateX(22px)' : 'translateX(2px)' }} />
+                <span
+                  className="inline-block w-5 h-5 rounded-full bg-white shadow transition-transform mt-0.5"
+                  style={{ transform: toggles.surgeEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
+                />
               </button>
               <span className="text-sm font-medium text-slate-700">{toggles.surgeEnabled ? 'Enabled' : 'Disabled'}</span>
             </div>

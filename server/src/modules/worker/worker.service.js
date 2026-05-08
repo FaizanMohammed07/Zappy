@@ -3,6 +3,7 @@ const Order = require('../order/order.model');
 const geoService = require('./geo.service');
 const pricingService = require('../pricing/pricing.service');
 const { redis } = require('../../config/redis');
+const config = require('../../config');
 
 async function goOnline({ workerId, lng, lat }) {
   // Load first to check KYC status — cheap guard before we write anything.
@@ -11,7 +12,8 @@ async function goOnline({ workerId, lng, lat }) {
   if (existing.isBlocked) {
     throw Object.assign(new Error('Account is blocked'), { status: 403, code: 'WORKER_BLOCKED' });
   }
-  if (existing.kyc?.status !== 'approved') {
+  // In production, KYC is mandatory. In development, allow unverified workers for testing.
+  if (config.env === 'production' && existing.kyc?.status !== 'approved') {
     throw Object.assign(new Error('KYC approval required before going online'), {
       status: 403, code: 'KYC_NOT_APPROVED', kycStatus: existing.kyc?.status || 'not_submitted',
     });

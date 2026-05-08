@@ -122,6 +122,9 @@ export const api = createApi({
       query: (page = 1) => `/orders/mine?page=${page}`,
       providesTags: ['Order'],
     }),
+    getCancelPreview: b.query({
+      query: (id) => `/orders/${id}/cancel-preview`,
+    }),
     cancelOrder: b.mutation({
       query: ({ id, reason }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { reason } }),
       invalidatesTags: (r, e, a) => ['Order', { type: 'Order', id: a.id }],
@@ -136,6 +139,19 @@ export const api = createApi({
     }),
     getOrderInvoiceUrl: b.query({
       query: (id) => `/orders/${id}/invoice`,
+    }),
+
+    // --- Chat ---
+    getChatMessages: b.query({
+      query: ({ orderId, limit = 50 }) => `/orders/${orderId}/chat?limit=${limit}`,
+      providesTags: (r, e, { orderId }) => [{ type: 'Order', id: `chat-${orderId}` }],
+    }),
+    sendChatMessage: b.mutation({
+      query: ({ orderId, text, cannedCode }) => ({
+        url: `/orders/${orderId}/chat`,
+        method: 'POST',
+        body: { text, cannedCode },
+      }),
     }),
 
     // --- Worker ---
@@ -171,8 +187,12 @@ export const api = createApi({
       invalidatesTags: (r, e, a) => [{ type: 'Order', id: a.id }],
     }),
     workerComplete: b.mutation({
-      query: (id) => ({ url: `/orders/${id}/complete`, method: 'POST' }),
-      invalidatesTags: (r, e, id) => ['Order', 'Earnings', { type: 'Order', id }],
+      query: ({ id, completionPhotos = [] }) => ({
+        url: `/orders/${id}/complete`,
+        method: 'POST',
+        body: { completionPhotos },
+      }),
+      invalidatesTags: (r, e, a) => ['Order', 'Earnings', { type: 'Order', id: a.id }],
     }),
     getWorkerOrders: b.query({
       query: (page = 1) => `/workers/orders?page=${page}`,
@@ -180,6 +200,9 @@ export const api = createApi({
     }),
     getNearbyWorkers: b.query({
       query: ({ lat, lng }) => `/workers/nearby?lat=${lat}&lng=${lng}`,
+    }),
+    getDemandZones: b.query({
+      query: ({ lat, lng }) => `/workers/demand-zones?lat=${lat}&lng=${lng}`,
     }),
 
     // --- KYC ---
@@ -372,6 +395,24 @@ export const api = createApi({
     adminWorkerPenalties: b.query({
       query: (id) => adminApiPath(`/workers/${id}/penalties`),
     }),
+
+    // --- Admin: Subscription Plans ---
+    adminListPlans: b.query({
+      query: () => adminApiPath('/plans'),
+      providesTags: ['Plan'],
+    }),
+    adminCreatePlan: b.mutation({
+      query: (body) => ({ url: adminApiPath('/plans'), method: 'POST', body }),
+      invalidatesTags: ['Plan'],
+    }),
+    adminUpdatePlan: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/plans/${id}`), method: 'PATCH', body }),
+      invalidatesTags: ['Plan'],
+    }),
+    adminDeletePlan: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/plans/${id}`), method: 'DELETE' }),
+      invalidatesTags: ['Plan'],
+    }),
   }),
 });
 
@@ -387,6 +428,7 @@ export const {
   useCreateOrderMutation,
   useGetOrderQuery,
   useListOrdersQuery,
+  useGetCancelPreviewQuery,
   useCancelOrderMutation,
   useRateOrderMutation,
   useGetWorkerMeQuery,
@@ -450,7 +492,14 @@ export const {
   useSaveRecentLocationMutation,
   useRegisterDeviceTokenMutation,
   useGetOrderInvoiceUrlQuery,
+  useGetChatMessagesQuery,
+  useSendChatMessageMutation,
   useGetWorkerOrdersQuery,
   useGetNearbyWorkersQuery,
+  useGetDemandZonesQuery,
   useLazyGetNearbyWorkersQuery,
+  useAdminListPlansQuery,
+  useAdminCreatePlanMutation,
+  useAdminUpdatePlanMutation,
+  useAdminDeletePlanMutation,
 } = api;

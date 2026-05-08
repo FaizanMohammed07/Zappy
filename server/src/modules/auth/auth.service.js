@@ -13,7 +13,7 @@ async function comparePassword(pw, hash) {
 }
 
 // ---- OTP (phone-based) ----
-async function requestOtp(phone) {
+async function requestOtp(phone, role) {
   // Prevent OTP flooding — at most 3 OTPs per phone per 10 min
   const floodKey = `otp:flood:${phone}`;
   const count = await redis.incr(floodKey);
@@ -25,7 +25,18 @@ async function requestOtp(phone) {
   }
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   await redis.setex(`otp:${phone}`, 300, otp);
-  return otp;
+
+  // Tell the client whether this is a new account so it can skip registration fields
+  let isNewUser = true;
+  if (role === 'worker') {
+    const existing = await Worker.findOne({ phone }).select('_id').lean();
+    isNewUser = !existing;
+  } else if (role === 'user') {
+    const existing = await User.findOne({ phone }).select('_id').lean();
+    isNewUser = !existing;
+  }
+
+  return { otp, isNewUser };
 }
 
 async function verifyOtp(phone, otp) {

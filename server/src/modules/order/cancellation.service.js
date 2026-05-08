@@ -1,12 +1,20 @@
 /**
  * Cancellation Service
  * --------------------------------------------------------------------------
- * All penalty amounts and time windows come from CancellationConfig (DB),
- * cached in Redis for 60 s so every request gets fresh values after an admin
- * update without hammering Mongo.
+ * Fee/penalty logic based on Uber/Rapido/Zomato model:
  *
- * Fee/penalty calculators are pure functions — they return amounts only;
- * callers own the wallet debits and state transitions.
+ * USER CANCEL:
+ *   - Before assignment (searching)  → FREE always
+ *   - Within 2 min of assignment     → FREE (grace window)
+ *   - After 2 min of assignment      → Flat fee (₹20 default)
+ *   - Worker on_the_way              → Higher fee (₹30 default)
+ *   - Worker arrived                 → Highest fee (₹50 default) + worker compensation
+ *
+ * WORKER CANCEL:
+ *   - Assigned                       → ₹20 penalty
+ *   - on_the_way / arrived           → ₹40 penalty (×2 multiplier)
+ *
+ * All amounts from CancellationConfig (DB), cached in Redis 60s.
  * --------------------------------------------------------------------------
  */
 
@@ -17,16 +25,20 @@ const CACHE_KEY = 'config:cancellation:active';
 const CACHE_TTL = 60;
 
 const DEFAULTS = {
-  freeCancelWindowSec: 60,
-  userCancelFeePaise: 1000,
-  workerCancelPenaltyPaise: 2000,
-  workerNoShowPenaltyPaise: 5000,
+  freeCancelWindowSec:       120,   // 2 min grace after worker assigned
+  userCancelFeeAssignedPaise: 2000, // ₹20 — assigned but within trip
+  userCancelFeeOnWayPaise:    3000, // ₹30 — worker already on the way
+  userCancelFeeArrivedPaise:  5000, // ₹50 — worker at your door
+  // Legacy field kept for backwards compat:
+  userCancelFeePaise:         2000,
+  workerCancelPenaltyPaise:   2000,
+  workerNoShowPenaltyPaise:   5000,
   lateWorkerCancelMultiplier: 2,
-  workerRejectLimit: 5,
-  workerCancelLimit: 3,
-  workerCancelWindowSec: 86400,
-  rejectRatePenaltyWeight: 3.0,
-  cancelRatePenaltyWeight: 5.0,
+  workerRejectLimit:          5,
+  workerCancelLimit:          3,
+  workerCancelWindowSec:      86400,
+  rejectRatePenaltyWeight:    3.0,
+  cancelRatePenaltyWeight:    5.0,
 };
 
 async function getConfig() {
@@ -44,11 +56,6 @@ async function bustCache() {
   await redis.del(CACHE_KEY);
 }
 
-/**
- * Create a new active config, versioning the old one out.
- * @param {object} patch
- * @param {string} adminId
- */
 async function updateConfig(patch, adminId) {
   const current = await CancellationConfig.findOne({ isActive: true });
   if (current) {
@@ -67,39 +74,114 @@ async function updateConfig(patch, adminId) {
   return next;
 }
 
-// ─── User cancellation fee ────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Returns { feePaise, reason }.
- * All fee logic driven by config; no hardcoded values here.
+ * Find when the order was most recently assigned by reading statusHistory.
+ * Returns the Date, or null if never assigned.
+ */
+function getAssignedAt(order) {
+  const entries = order.statusHistory || [];
+  // Last 'assigned' entry (re-dispatch can create multiple)
+  const entry = [...entries].reverse().find((h) => h.status === 'assigned');
+  return entry?.at ? new Date(entry.at) : null;
+}
+
+// ─── User cancellation fee ────────────────────────────────────────────────────
+
+/**
+ * Returns { feePaise, reason, secsLeft, workerCompensationPaise }.
+ *   secsLeft: seconds remaining in free-cancel window (0 if window expired).
+ *   workerCompensationPaise: what % the worker should receive from the fee.
  */
 async function calculateUserCancelFee(order) {
   const cfg = await getConfig();
-  const ageSec = (Date.now() - new Date(order.createdAt).getTime()) / 1000;
-  const workerActive = ['assigned', 'on_the_way', 'arrived'].includes(order.status);
 
-  // Free: within grace window AND no worker yet active
-  if (!workerActive && ageSec <= cfg.freeCancelWindowSec) {
-    return { feePaise: 0, reason: 'within_grace_period' };
+  // Before any worker commits → always free
+  if (!['assigned', 'on_the_way', 'arrived'].includes(order.status)) {
+    return {
+      feePaise: 0,
+      reason: 'no_worker_assigned',
+      secsLeft: null,
+      workerCompensationPaise: 0,
+    };
   }
-  // Free: still searching, within window
-  if (order.status === 'searching' && ageSec <= cfg.freeCancelWindowSec) {
-    return { feePaise: 0, reason: 'within_grace_period' };
+
+  const assignedAt   = getAssignedAt(order) || new Date(order.createdAt);
+  const sinceAssignedSec = (Date.now() - assignedAt.getTime()) / 1000;
+  const graceSec     = cfg.freeCancelWindowSec ?? 120;
+  const secsLeft     = Math.max(0, Math.ceil(graceSec - sinceAssignedSec));
+
+  // Within free-cancel window
+  if (sinceAssignedSec <= graceSec) {
+    return { feePaise: 0, reason: 'within_grace_period', secsLeft, workerCompensationPaise: 0 };
+  }
+
+  // Past grace — tiered by how far the worker got
+  let feePaise;
+  let workerCompensationPaise = 0;
+
+  if (order.status === 'arrived') {
+    feePaise = cfg.userCancelFeeArrivedPaise ?? 5000;
+    workerCompensationPaise = Math.round(feePaise * 0.7); // 70% to worker
+  } else if (order.status === 'on_the_way') {
+    feePaise = cfg.userCancelFeeOnWayPaise ?? 3000;
+    workerCompensationPaise = Math.round(feePaise * 0.5); // 50% to worker
+  } else {
+    feePaise = cfg.userCancelFeeAssignedPaise ?? 2000;
+    workerCompensationPaise = 0; // worker hadn't moved yet
   }
 
   return {
-    feePaise: cfg.userCancelFeePaise,
-    reason: workerActive ? 'worker_already_assigned' : 'past_grace_period',
+    feePaise,
+    reason: `worker_${order.status}`,
+    secsLeft: 0,
+    workerCompensationPaise,
   };
 }
 
-// ─── Worker cancellation penalty ─────────────────────────────────────────
+// ─── Preview (no side effects) ────────────────────────────────────────────────
 
 /**
- * Worker penalty depends on how far through the order they were when they bailed.
- *   assigned          → base penalty
- *   on_the_way/arrived → base × lateWorkerCancelMultiplier (default ×2)
+ * Same logic as calculateUserCancelFee but also returns human-readable info
+ * for the UI to show before the user confirms cancellation.
  */
+async function previewCancelFee(order) {
+  const result = await calculateUserCancelFee(order);
+
+  const isFree = result.feePaise === 0;
+
+  let message;
+  if (!['assigned', 'on_the_way', 'arrived'].includes(order.status)) {
+    message = 'No charge — worker not yet assigned';
+  } else if (isFree && result.secsLeft > 0) {
+    const mins = Math.floor(result.secsLeft / 60);
+    const secs = result.secsLeft % 60;
+    message = mins > 0
+      ? `Free to cancel for ${mins}m ${secs}s more`
+      : `Free to cancel for ${secs}s more`;
+  } else if (isFree) {
+    message = 'Free to cancel';
+  } else {
+    const rs = Math.round(result.feePaise / 100);
+    message = order.status === 'arrived'
+      ? `₹${rs} fee — worker is already at your location`
+      : order.status === 'on_the_way'
+      ? `₹${rs} fee — worker is on the way`
+      : `₹${rs} fee — worker was assigned to you`;
+  }
+
+  return {
+    ...result,
+    feeRupees: Math.round(result.feePaise / 100),
+    isFree,
+    message,
+    canCancel: !['arrived', 'in_progress', 'completed', 'cancelled', 'failed'].includes(order.status),
+  };
+}
+
+// ─── Worker cancellation penalty ─────────────────────────────────────────────
+
 async function calculateWorkerCancelPenalty(order) {
   const cfg = await getConfig();
   const isLate = ['on_the_way', 'arrived'].includes(order.status);
@@ -113,9 +195,6 @@ async function calculateWorkerCancelPenalty(order) {
   };
 }
 
-/**
- * No-show penalty (applied via dispute resolution).
- */
 async function calculateNoShowPenalty() {
   const cfg = await getConfig();
   return cfg.workerNoShowPenaltyPaise;
@@ -128,5 +207,6 @@ module.exports = {
   calculateUserCancelFee,
   calculateWorkerCancelPenalty,
   calculateNoShowPenalty,
+  previewCancelFee,
   DEFAULTS,
 };

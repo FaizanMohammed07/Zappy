@@ -95,24 +95,28 @@ export function useOrderSocket(orderId, callbacks = {}) {
 
 /**
  * Worker side — listens for incoming job requests (broadcast model).
- * onOffer(offer)     — order broadcast received
- * onCancelled(p)     — order taken by another worker, dismiss popup
+ * onOffer(offer)        — order broadcast received
+ * onCancelled(p)        — order taken by another worker, dismiss popup
+ * onForceAssigned(data) — force-assigned by system, navigate to job directly
  */
-export function useWorkerOfferSocket(onOffer, onCancelled) {
+export function useWorkerOfferSocket(onOffer, onCancelled, onForceAssigned) {
   const { accessToken: token } = useSelector(selectAuth);
 
   useEffect(() => {
     if (!token) return;
     const socket = getSocket(token);
-    const offerHandler     = (offer) => onOffer(offer);
-    const cancelledHandler = (p)     => onCancelled?.(p);
+    const offerHandler         = (offer) => onOffer(offer);
+    const cancelledHandler     = (p)     => onCancelled?.(p);
+    const forceAssignedHandler = (data)  => onForceAssigned?.(data);
     socket.on('new_job_request', offerHandler);
     socket.on('offer.cancelled', cancelledHandler);
+    socket.on('job.assigned',    forceAssignedHandler);
     return () => {
       socket.off('new_job_request', offerHandler);
       socket.off('offer.cancelled', cancelledHandler);
+      socket.off('job.assigned',    forceAssignedHandler);
     };
-  }, [token, onOffer, onCancelled]);
+  }, [token, onOffer, onCancelled, onForceAssigned]);
 }
 
 export function useDisconnectOnLogout() {

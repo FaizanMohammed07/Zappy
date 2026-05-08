@@ -13,6 +13,10 @@ class OrderRepository {
     return Order.findById(id).lean();
   }
 
+  findByIdWithOtp(id) {
+    return Order.findById(id).select('+otp').lean();
+  }
+
   findActiveByUser(userId) {
     return Order.findOne({
       userId,

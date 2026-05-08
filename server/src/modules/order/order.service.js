@@ -21,12 +21,6 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
   // Abuse gate FIRST — cheap Redis checks before any Mongo writes.
   await abuseService.assertCanBook(userId);
 
-  const active = await orderRepo.findActiveByUser(userId);
-  if (active) {
-    await abuseService.releaseBookingSlot(userId); // don't count this as a booking
-    throw Object.assign(new Error('You already have an active order'), { status: 409, code: 'ORDER_ACTIVE_EXISTS', activeOrderId: active._id });
-  }
-
   const origin = { lat: pickupLocation.lat, lng: pickupLocation.lng };
   // For services without a drop, use pickup as both endpoints (home service model).
   const dest = dropLocation
@@ -83,7 +77,7 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     'dispatch',
     { orderId: String(order._id), attempt: 0 },
     {
-      jobId: `order:${order._id}`,
+      jobId: `order_${order._id}`,
       priority: isEmergency ? 1 : 10,
       delay: schedDelay,
     }
@@ -173,13 +167,13 @@ async function workerStartService({ orderId, workerId, otp }) {
   return guardedTransition(orderId, workerId, ['arrived'], 'in_progress');
 }
 
-async function workerComplete({ orderId, workerId }) {
+async function workerComplete({ orderId, workerId, completionPhotos = [] }) {
   const order = await guardedTransition(
     orderId,
     workerId,
     ['in_progress', 'arrived'],
     'completed',
-    { completedAt: new Date() }
+    { completedAt: new Date(), ...(completionPhotos.length ? { completionPhotos } : {}) }
   );
 
   // --- Earnings: Pro-aware commission split ---
@@ -438,13 +432,9 @@ async function cancelByUser({ orderId, userId, reason }) {
 
   // Cancellation fee policy
   const cancellationService = require('./cancellation.service');
-  const { feePaise, reason: feeReason } = await cancellationService.calculateUserCancelFee(order);
+  const { feePaise, reason: feeReason, workerCompensationPaise = 0 } = await cancellationService.calculateUserCancelFee(order);
 
   if (feePaise > 0) {
-    // Try to debit user wallet — may fail if insufficient. Either way, the
-    // cancellation proceeds; an unpaid fee is recorded as a pending obligation
-    // (a follow-up booking attempt would be blocked by abuse.assertCanBook
-    // if we extended it; here we just record).
     const walletService = require('../wallet/wallet.service');
     const Transaction = require('../payment/transaction.model');
     try {
@@ -458,22 +448,20 @@ async function cancelByUser({ orderId, userId, reason }) {
         refs: { orderId },
         description: `Cancellation fee — ${feeReason}`,
       });
-      // Credit the worker partially as compensation if they were already on the way
-      if (order.workerId && order.status === 'on_the_way') {
-        const workerCompensation = Math.round(feePaise * 0.5); // 50% goes to worker
+      // Compensate worker based on how far they got
+      if (order.workerId && workerCompensationPaise > 0) {
         await walletService.apply({
           kind: 'worker',
           id: order.workerId,
           type: 'credit',
-          amountPaise: workerCompensation,
+          amountPaise: workerCompensationPaise,
           reason: Transaction.REASONS.WORKER_EARNING,
           idempotencyKey: `cancelcomp:${orderId}`,
           refs: { orderId },
-          description: 'Compensation — user cancelled while you were on the way',
+          description: `Compensation — user cancelled (${order.status})`,
         });
       }
     } catch (err) {
-      // Insufficient funds — log but allow cancellation
       logger.warn({ orderId, userId, feePaise, err: err.message }, 'Cancellation fee not collected');
     }
   }
@@ -485,43 +473,68 @@ async function cancelByUser({ orderId, userId, reason }) {
     { cancelledAt: new Date(), cancellationReason: reason || 'user_cancelled' }
   );
 
-  // Free the worker if one was assigned.
+  // Free the worker — mark available again in both Mongo + Redis
   if (updated.workerId) {
     await Worker.updateOne(
       { _id: updated.workerId },
       { $set: { isAvailable: true, currentOrderId: null } }
     );
     await geoService.setAvailability(updated.workerId, true);
+    // Refresh alive timestamp so worker stays discoverable immediately
+    await redis.zadd('workers:alive', Date.now(), String(updated.workerId));
 
-    // Cancellation AFTER assignment burns a strike — protects workers from
-    // being dispatched to bad-faith users who book and cancel repeatedly.
-    const hadWorker = ['assigned', 'on_the_way'].includes(order.status);
+    const hadWorker = ['assigned', 'on_the_way', 'arrived'].includes(order.status);
     if (hadWorker) {
       await abuseService.recordCancelAfterAssignment(userId);
+      // Notify worker their assignment was cancelled
+      const notificationService = require('../notification/notification.service');
+      notificationService.notify({
+        recipient: { kind: 'worker', id: updated.workerId },
+        type:  'order_cancelled',
+        title: '❌ Order cancelled by customer',
+        body:  feePaise > 0
+          ? `You received ₹${Math.round((workerCompensationPaise || 0) / 100)} compensation`
+          : 'The customer cancelled before you arrived',
+        deepLink: '/worker',
+        data:  { orderId: String(orderId) },
+      }).catch(() => {});
     }
   }
 
-  // If a pre-charge exists (UPI/card), write the refund row.
   if (order.payment?.status === 'paid') {
     ledgerService.recordRefund(updated, reason).catch((err) =>
       logger.error({ err: err.message, orderId }, 'Refund ledger write failed')
     );
   }
 
-  // Remove the dispatch job if still pending.
-  const job = await dispatchQueue.getJob(`order:${orderId}`);
-  if (job) await job.remove().catch(() => {});
+  // Remove any pending dispatch jobs for this order
+  const dispatchJobIds = [
+    `order_${orderId}`,
+    `order_${orderId}_retry_1`,
+    `order_${orderId}_retry_2`,
+  ];
+  await Promise.all(
+    dispatchJobIds.map((jid) =>
+      dispatchQueue.getJob(jid).then((j) => j?.remove().catch(() => {})).catch(() => {})
+    )
+  );
 
   await redis.publish(
     'order:event',
     JSON.stringify({
       orderId: String(orderId),
       event: 'order.cancelled',
-      payload: { reason: reason || 'user_cancelled' },
+      payload: { reason: reason || 'user_cancelled', feePaise },
     })
   );
 
-  return updated;
+  return {
+    order: updated,
+    feePaise,
+    feeRupees: Math.round(feePaise / 100),
+    feeReason,
+    workerCompensationPaise: workerCompensationPaise || 0,
+  };
 }
 
 /**
@@ -629,7 +642,7 @@ async function workerCancel({ orderId, workerId, reason }) {
   await dispatchQueue.add(
     'dispatch',
     { orderId: String(orderId), attempt: existingAttempted.length },
-    { jobId: `order:${orderId}:redispatch:${Date.now()}` }
+    { jobId: `order_${orderId}_redispatch_${Date.now()}` }
   );
 
   return { ok: true, penaltyPaise, penaltyReason };
@@ -717,7 +730,13 @@ module.exports = {
   workerCancel,
   rateOrder,
   workerRateUser,
-  getOrder: (id) => orderRepo.findByIdLean(id),
-  listByUser: (userId, opts) => orderRepo.listByUser(userId, opts),
+  getOrder: (id) => orderRepo.findByIdWithOtp(id),
+  listByUser: async (userId, opts) => {
+    const [orders, total] = await Promise.all([
+      orderRepo.listByUser(userId, opts),
+      orderRepo.countByUser(userId),
+    ]);
+    return [orders, total];
+  },
   listByWorker: (workerId, opts) => orderRepo.listByWorker(workerId, opts),
 };

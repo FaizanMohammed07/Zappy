@@ -1,5 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, ClipboardList, MapPin, Wallet, User } from 'lucide-react';
+import { useListNotificationsQuery } from '../../services/api';
+import { useSelector } from 'react-redux';
+import { selectIsAuthed } from '../../modules/auth/authSlice';
 
 const TABS = [
   { key: 'home',     label: 'Home',     path: '/',          Icon: Home },
@@ -10,9 +13,16 @@ const TABS = [
 ];
 
 export default function BottomNav({ active }) {
-  const nav = useNavigate();
-  const loc = useLocation();
+  const nav        = useNavigate();
+  const loc        = useLocation();
+  const isAuthed   = useSelector(selectIsAuthed);
   const currentKey = active || TABS.find((t) => t.path === loc.pathname)?.key || 'home';
+
+  const { data: notifData } = useListNotificationsQuery(
+    { page: 1, unreadOnly: true },
+    { skip: !isAuthed, pollingInterval: 60000 }
+  );
+  const unreadCount = notifData?.notifications?.length || 0;
 
   return (
     <nav className="bottom-nav">
@@ -25,11 +35,18 @@ export default function BottomNav({ active }) {
             className={`bottom-nav-item${isActive ? ' active' : ''}`}
             aria-label={label}
           >
-            <Icon
-              size={20}
-              strokeWidth={isActive ? 2.5 : 1.75}
-              className={isActive ? 'text-zappy-600' : 'text-slate-400'}
-            />
+            <div className="relative">
+              <Icon
+                size={20}
+                strokeWidth={isActive ? 2.5 : 1.75}
+                className={isActive ? 'text-zappy-600' : 'text-slate-400'}
+              />
+              {key === 'profile' && unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-0.5 leading-none">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </div>
             <span>{label}</span>
           </button>
         );

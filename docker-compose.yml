@@ -50,7 +50,7 @@ services:
       - NODE_ENV=production
       - MONGO_URI=mongodb://mongo:27017/hyperlocal
       - REDIS_URL=redis://redis:6379
-    command: ["node", "src/queues/dispatch.worker.js"]
+    command: ["node", "src/jobs/dispatch.worker.js"]
     depends_on:
       mongo:
         condition: service_healthy
@@ -67,7 +67,7 @@ services:
       - NODE_ENV=production
       - MONGO_URI=mongodb://mongo:27017/hyperlocal
       - REDIS_URL=redis://redis:6379
-    command: ["node", "src/queues/notifications.worker.js"]
+    command: ["node", "src/jobs/notifications.worker.js"]
     depends_on:
       mongo:
         condition: service_healthy

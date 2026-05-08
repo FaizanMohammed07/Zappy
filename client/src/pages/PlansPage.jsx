@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
-  ArrowLeft, CheckCircle2, Zap, ShieldOff, Award, TrendingUp,
-  Target, Loader2, AlertCircle, Crown,
+  ArrowLeft, CheckCircle2, Zap, ShieldOff, Award, TrendingUp, TrendingDown,
+  Target, Loader2, AlertCircle, Crown, Star, Shield, Rocket,
 } from 'lucide-react';
 import {
   useListPlansQuery, useMySubscriptionQuery,
@@ -155,48 +155,92 @@ export default function PlansPage() {
         </div>
 
         {/* Plans */}
-        {plansData?.plans?.map((plan) => {
-          const isCurrent = activeSub?.planCode === plan.code;
+        {(plansData?.plans?.length === 0) && (
+          <div className="text-center py-12 text-slate-400">
+            <Crown size={32} className="mx-auto mb-3 opacity-30" />
+            <p className="font-semibold">No plans available right now</p>
+          </div>
+        )}
+
+        {plansData?.plans?.map((plan, idx) => {
+          const isCurrent  = activeSub?.planCode === plan.code;
+          const isPremium  = idx > 0; // last plan in list = most premium
+          const price      = plan.priceInPaise / 100;
+          const monthLabel = plan.durationDays === 30 ? '/month' : `/${plan.durationDays} days`;
+
           return (
             <div
               key={plan.code}
-              className={`card ${isCurrent ? 'ring-2 ring-zappy-600 shadow-soft-lg' : ''}`}
+              className={`rounded-2xl overflow-hidden ${
+                isPremium
+                  ? 'ring-2 ring-zappy-600'
+                  : 'ring-1 ring-slate-200'
+              }`}
+              style={isPremium ? { boxShadow: '0 8px 32px rgba(99,102,241,0.18)' } : {}}
             >
-              {isCurrent && (
-                <div className="flex items-center gap-1.5 mb-3">
-                  <CheckCircle2 size={13} strokeWidth={2.5} className="text-zappy-600" />
-                  <span className="text-xs font-bold text-zappy-600 uppercase tracking-wide">Current Plan</span>
+              {/* Premium badge strip */}
+              {isPremium && (
+                <div className="bg-gradient-to-r from-zappy-600 to-violet-600 py-1.5 px-4 flex items-center justify-center gap-2">
+                  <Star size={11} strokeWidth={2.5} className="text-yellow-300 fill-yellow-300" />
+                  <span className="text-[11px] font-extrabold text-white uppercase tracking-widest">Most Popular</span>
+                  <Star size={11} strokeWidth={2.5} className="text-yellow-300 fill-yellow-300" />
                 </div>
               )}
 
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div>
-                  <h3 className="font-bold text-[#0F172A] text-lg">{plan.name}</h3>
-                  <p className="text-sm text-slate-500 mt-0.5 leading-relaxed">{plan.description}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-2xl font-extrabold text-zappy-600">₹{plan.priceInPaise / 100}</p>
-                  <p className="text-xs text-slate-400 font-medium">/{plan.durationDays} days</p>
-                </div>
-              </div>
-
-              <PlanBenefits effects={plan.effects} audience={audience} />
-
-              <button
-                onClick={() => handleSubscribe(plan)}
-                disabled={isCurrent || !!activeSub || purchasing === plan.code}
-                className={`w-full mt-4 ${isCurrent ? 'btn-secondary' : 'btn-primary'}`}
-              >
-                {purchasing === plan.code ? (
-                  <><Loader2 size={14} className="animate-spin" /> Opening payment…</>
-                ) : isCurrent ? (
-                  <><CheckCircle2 size={14} /> Active plan</>
-                ) : activeSub ? (
-                  'Cancel current plan to switch'
-                ) : (
-                  <><Zap size={14} strokeWidth={2.5} /> Subscribe for ₹{plan.priceInPaise / 100}</>
+              <div className={`bg-white p-5`}>
+                {isCurrent && (
+                  <div className="flex items-center gap-1.5 mb-3 text-zappy-600">
+                    <CheckCircle2 size={13} strokeWidth={2.5} />
+                    <span className="text-xs font-extrabold uppercase tracking-wide">Your Current Plan</span>
+                  </div>
                 )}
-              </button>
+
+                {/* Price + name row */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-extrabold text-[#0F172A] text-xl">{plan.name}</h3>
+                    {plan.description && (
+                      <p className="text-sm text-slate-500 mt-1 leading-relaxed">{plan.description}</p>
+                    )}
+                    {plan.trialDays > 0 && (
+                      <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
+                        <Zap size={9} strokeWidth={3} />
+                        {plan.trialDays}-day free trial
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-3xl font-black text-[#0F172A]">₹{price}</p>
+                    <p className="text-xs text-slate-400 font-semibold mt-0.5">{monthLabel}</p>
+                  </div>
+                </div>
+
+                {/* Benefits */}
+                <PlanBenefits effects={plan.effects} audience={audience} />
+
+                {/* CTA */}
+                <button
+                  onClick={() => handleSubscribe(plan)}
+                  disabled={isCurrent || !!activeSub || purchasing === plan.code}
+                  className={`w-full mt-5 py-3.5 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
+                    isCurrent
+                      ? 'bg-slate-100 text-slate-500 cursor-default'
+                      : isPremium
+                      ? 'bg-gradient-to-r from-zappy-600 to-violet-600 text-white shadow-lg shadow-zappy-600/25 hover:shadow-zappy-600/40'
+                      : 'bg-[#0F172A] text-white hover:bg-slate-800'
+                  } disabled:opacity-60`}
+                >
+                  {purchasing === plan.code ? (
+                    <><Loader2 size={14} className="animate-spin" /> Opening payment…</>
+                  ) : isCurrent ? (
+                    <><CheckCircle2 size={14} strokeWidth={2.5} /> Active Plan</>
+                  ) : activeSub ? (
+                    'Cancel current plan first'
+                  ) : (
+                    <><Rocket size={14} strokeWidth={2.5} /> Get {plan.name} — ₹{price}{monthLabel}</>
+                  )}
+                </button>
+              </div>
             </div>
           );
         })}
@@ -208,30 +252,30 @@ export default function PlansPage() {
 function PlanBenefits({ effects, audience }) {
   const items = [];
   if (audience === 'user') {
-    if (effects?.surgeCap === 1.0) items.push({ Icon: ShieldOff, text: 'No surge pricing, ever' });
-    else if (effects?.surgeCap) items.push({ Icon: TrendingDown, text: `Surge capped at ${effects.surgeCap}×` });
-    if (effects?.waivePlatformFee) items.push({ Icon: Award, text: 'No platform fees on bookings' });
-    if (effects?.priorityAssignment) items.push({ Icon: Zap, text: 'Priority worker assignment' });
+    if (effects?.surgeCap === 1.0) items.push({ Icon: ShieldOff, text: 'No surge pricing, ever', color: 'text-green-600 bg-green-50' });
+    else if (effects?.surgeCap) items.push({ Icon: TrendingDown, text: `Surge capped at ${effects.surgeCap}×`, color: 'text-green-600 bg-green-50' });
+    if (effects?.waivePlatformFee) items.push({ Icon: Award, text: 'Zero platform fees on every booking', color: 'text-blue-600 bg-blue-50' });
+    if (effects?.priorityAssignment) items.push({ Icon: Zap, text: 'Priority worker assignment — faster service', color: 'text-amber-600 bg-amber-50' });
   } else {
     if (effects?.commissionDelta < 0) {
-      items.push({ Icon: TrendingUp, text: `${Math.abs(effects.commissionDelta * 100).toFixed(0)}% lower platform commission` });
+      items.push({ Icon: TrendingUp, text: `${Math.abs(effects.commissionDelta * 100).toFixed(0)}% lower platform commission — keep more earnings`, color: 'text-green-600 bg-green-50' });
     }
-    if (effects?.proBoost) items.push({ Icon: Target, text: 'Higher visibility in job matching' });
-    if (effects?.visibilityMultiplier > 1) items.push({ Icon: Zap, text: `${effects.visibilityMultiplier}× more job offers` });
+    if (effects?.proBoost) items.push({ Icon: Shield, text: 'Pro badge on your profile', color: 'text-violet-600 bg-violet-50' });
+    if (effects?.visibilityMultiplier > 1) items.push({ Icon: Target, text: `${effects.visibilityMultiplier}× more job offers sent to you`, color: 'text-blue-600 bg-blue-50' });
   }
 
   if (!items.length) return null;
 
   return (
-    <ul className="space-y-2 mt-2">
-      {items.map(({ Icon, text }, i) => (
-        <li key={i} className="flex items-center gap-2.5">
-          <div className="w-5 h-5 rounded-full bg-success-50 flex items-center justify-center shrink-0">
-            <Icon size={10} strokeWidth={2.5} className="text-success-600" />
+    <div className="bg-slate-50 rounded-xl p-3 space-y-2">
+      {items.map(({ Icon, text, color }, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
+            <Icon size={13} strokeWidth={2.5} />
           </div>
-          <span className="text-sm text-slate-700 font-medium">{text}</span>
-        </li>
+          <span className="text-sm text-slate-700 font-semibold leading-snug">{text}</span>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
