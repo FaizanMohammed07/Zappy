@@ -6,13 +6,14 @@ import {
   Loader2, Zap, TrendingUp, Users, CheckCircle, Calendar,
   Clock, Image as ImageIcon, X, Plus, Sparkles, Wrench,
   Droplets, Bolt, Wind, Hammer, Car, HelpCircle, Star,
-  Paintbrush, Layers,
+  Paintbrush, Layers, Ticket, Tag,
 } from 'lucide-react';
 import LocationPicker from '../modules/booking/LocationPicker';
 import SmartPricingPanel from '../components/booking/SmartPricingPanel';
 import {
   useLazyGetQuoteQuery, useCreateOrderMutation,
   usePresignUploadMutation, useLazyGetNearbyWorkersQuery,
+  useValidatePromoMutation,
 } from '../services/api';
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp } from '../lib/animations';
@@ -114,13 +115,17 @@ export default function BookingPage() {
   const [pricingMode,   setPricingMode]   = useState('now');
   const [nudgeIdx,      setNudgeIdx]      = useState(0);
   const [showNudge,     setShowNudge]     = useState(false);
+  const [promoCode,     setPromoCode]     = useState('');
+  const [promoResult,   setPromoResult]   = useState(null); // { discountPaise, discountDisplay, code }
+  const [promoError,    setPromoError]    = useState('');
   const nudgeTimer = useRef(null);
   const fileInputRef = useRef(null);
 
-  const [fetchQuote,  { data: quoteData, isFetching: quoting }] = useLazyGetQuoteQuery();
-  const [createOrder, { isLoading: creating }]                  = useCreateOrderMutation();
-  const [presignUpload]                                          = usePresignUploadMutation();
-  const [fetchNearby, { data: nearbyData }]                     = useLazyGetNearbyWorkersQuery();
+  const [fetchQuote,     { data: quoteData, isFetching: quoting }] = useLazyGetQuoteQuery();
+  const [createOrder,    { isLoading: creating }]                  = useCreateOrderMutation();
+  const [presignUpload]                                             = usePresignUploadMutation();
+  const [fetchNearby,    { data: nearbyData }]                     = useLazyGetNearbyWorkersQuery();
+  const [validatePromo,  { isLoading: validatingPromo }]           = useValidatePromoMutation();
 
   const meta         = SERVICE_META[service] || { label: service?.replace(/_/g, ' ') || 'Service', icon: Wrench, gradient: 'from-slate-500 to-slate-700', accent: '#64748b' };
   const ServiceIcon  = meta.icon;
@@ -171,6 +176,32 @@ export default function BookingPage() {
     e.target.value = '';
   }
 
+  async function applyPromo() {
+    if (!promoCode.trim()) return;
+    setPromoError('');
+    setPromoResult(null);
+    try {
+      const res = await validatePromo({
+        code: promoCode.trim().toUpperCase(),
+        service,
+        orderTotalPaise: (q?.total || 0) * 100,
+      }).unwrap();
+      setPromoResult({
+        code: res.promo.code,
+        discountPaise: res.discountPaise,
+        discountDisplay: `₹${Math.round(res.discountPaise / 100)}`,
+      });
+    } catch (err) {
+      setPromoError(err.data?.error || 'Invalid promo code');
+    }
+  }
+
+  function clearPromo() {
+    setPromoCode('');
+    setPromoResult(null);
+    setPromoError('');
+  }
+
   async function placeOrder() {
     if (schedMode === 'later' && !scheduledAt) {
       toast.error('Please pick a date and time');
@@ -187,6 +218,7 @@ export default function BookingPage() {
         scheduledAt: schedMode === 'later' ? new Date(scheduledAt).toISOString() : undefined,
         pickupLocation: location,
         paymentMethod,
+        promoCode: promoResult?.code || undefined,
       };
       const r = await createOrder(body).unwrap();
       toast.success(schedMode === 'later' ? 'Booking scheduled!' : 'Order placed — finding a worker');
@@ -611,6 +643,62 @@ export default function BookingPage() {
           </div>
         </motion.div>
 
+        {/* Promo code */}
+        <motion.div
+          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          variants={fadeInUp}
+        >
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center">
+              <Ticket size={15} strokeWidth={2} className="text-green-600" />
+            </div>
+            <p className="font-bold text-[#0F172A] text-sm">Promo Code</p>
+            {promoResult && (
+              <span className="ml-auto text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                {promoResult.discountDisplay} off
+              </span>
+            )}
+          </div>
+
+          {promoResult ? (
+            <div className="flex items-center gap-2 bg-green-50 rounded-xl px-3 py-2.5 ring-1 ring-green-100">
+              <Tag size={13} className="text-green-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-green-700">{promoResult.code}</p>
+                <p className="text-[10px] text-green-600">{promoResult.discountDisplay} will be deducted at checkout</p>
+              </div>
+              <button onClick={clearPromo} className="w-6 h-6 rounded-full bg-green-200/60 flex items-center justify-center shrink-0">
+                <X size={11} className="text-green-700" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={promoCode}
+                onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
+                placeholder="Enter promo code"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono font-semibold text-slate-800 uppercase tracking-widest outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent transition placeholder:font-normal placeholder:tracking-normal placeholder:uppercase-none"
+              />
+              <motion.button
+                onClick={applyPromo}
+                disabled={!promoCode.trim() || validatingPromo}
+                className="flex items-center gap-1.5 bg-green-600 disabled:opacity-50 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition"
+                whileTap={{ scale: 0.95 }}
+              >
+                {validatingPromo ? <Loader2 size={13} className="animate-spin" /> : 'Apply'}
+              </motion.button>
+            </div>
+          )}
+          {promoError && (
+            <p className="text-xs text-red-500 font-semibold mt-2 flex items-center gap-1.5">
+              <X size={11} /> {promoError}
+            </p>
+          )}
+        </motion.div>
+
         {/* Assurance strip */}
         <motion.div variants={fadeInUp} className="flex items-center justify-center gap-6 py-2">
           {[
@@ -676,7 +764,13 @@ export default function BookingPage() {
               ) : schedMode === 'later' ? (
                 <><Calendar size={18} strokeWidth={2.5} /> Schedule Booking · ₹{q?.total || '—'}</>
               ) : (
-                <><Zap size={18} strokeWidth={2.5} /> Confirm Booking · ₹{q?.total || '—'}</>
+                <>
+                  <Zap size={18} strokeWidth={2.5} />
+                  {promoResult
+                    ? <>Confirm Booking · <s className="opacity-60 text-sm">₹{q?.total}</s> ₹{Math.max(0, (q?.total || 0) - Math.round(promoResult.discountPaise / 100))}</>
+                    : <>Confirm Booking · ₹{q?.total || '—'}</>
+                  }
+                </>
               )}
             </motion.button>
           )}

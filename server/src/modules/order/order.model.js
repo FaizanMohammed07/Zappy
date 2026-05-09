@@ -105,6 +105,10 @@ const orderSchema = new mongoose.Schema(
     // Proof-of-work photos uploaded by worker at job completion
     completionPhotos: [{ type: String }],
 
+    // Promo/coupon applied at checkout
+    promoCode:     { type: String, default: null },
+    discountPaise: { type: Number, default: 0 },
+
     // OTP for verifying worker at site (prevents impersonation)
     otp: { type: String, select: false },
 

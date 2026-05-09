@@ -58,13 +58,18 @@ export function Card({ children, className = '' }) {
   );
 }
 
-export function Pagination({ page, total, limit = 50, onPrev, onNext }) {
-  const pages = total ? Math.ceil(total / limit) : null;
+export function Pagination({ page, total, limit = 50, onPrev, onNext, totalPages, onChange }) {
+  // Supports two calling conventions:
+  //   { page, total, limit, onPrev, onNext }  (legacy)
+  //   { page, totalPages, onChange }           (new)
+  const pages = totalPages ?? (total ? Math.ceil(total / limit) : null);
+  const handlePrev = onPrev ?? (() => onChange && onChange(page - 1));
+  const handleNext = onNext ?? (() => onChange && onChange(page + 1));
   return (
     <div className="flex items-center justify-between pt-1">
       <button
         disabled={page <= 1}
-        onClick={onPrev}
+        onClick={handlePrev}
         className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
       >
         <ChevronLeft size={13} /> Prev
@@ -74,7 +79,7 @@ export function Pagination({ page, total, limit = 50, onPrev, onNext }) {
       </span>
       <button
         disabled={pages != null && page >= pages}
-        onClick={onNext}
+        onClick={handleNext}
         className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
       >
         Next <ChevronRight size={13} />
@@ -207,7 +212,7 @@ export function Select({ children, ...props }) {
   );
 }
 
-export function SaveBtn({ loading, onClick, children = 'Save Changes' }) {
+export function SaveBtn({ loading, onClick, children, label }) {
   return (
     <button
       onClick={onClick}
@@ -215,7 +220,7 @@ export function SaveBtn({ loading, onClick, children = 'Save Changes' }) {
       className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm px-4 py-2 rounded-lg transition"
     >
       {loading && <Loader2 size={14} className="animate-spin" />}
-      {children}
+      {children ?? label ?? 'Save Changes'}
     </button>
   );
 }

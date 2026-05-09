@@ -3,14 +3,23 @@
  * ----------------------------------------------------------------------------
  * Flow:
  *   1. Transition order to 'searching'.
- *   2. Walk RADIUS_STEPS: 1 → 2 → 3 → 5 → 8 → 12 km.
- *   3. At each step, find ALL available workers in that radius (excluding
- *      already-notified ones) and broadcast 'new_job_request' simultaneously.
- *   4. Wait STEP_WINDOW_MS for any accept signal (30s default).
- *   5. First accept wins — lock with atomic Mongo transaction.
- *   6. If no accept after all steps → FORCE-ASSIGN nearest available worker.
- *   7. If force-assign fails → re-queue with delay (max MAX_RETRIES times).
+ *   2. Walk RADIUS_STEPS: 50m → 100m → 250m → 500m → 1km → 2km → 3.5km → 5km → 8km → 12km
+ *      Total voluntary window = 10 steps × 30s = exactly 5 minutes.
+ *   3. At each step, find ALL available SKILLED workers in that radius
+ *      (excluding already-notified ones) and broadcast simultaneously.
+ *   4. If no workers at a step, wait the minimum window (10s) before expanding.
+ *   5. First voluntary accept wins — locked with atomic Mongo transaction.
+ *   6. After 5 minutes with no accept → FORCE-ASSIGN nearest SKILLED worker (no skill bypass).
+ *   7. If force-assign fails → re-queue with 90s delay (max 2 retries).
  *   8. Only mark failed after all retries and force-assign attempts exhausted.
+ *
+ * Business rules:
+ *   - Workers must have kyc.status === 'approved' (enforced by geo.service)
+ *   - Workers must have rating >= DISPATCH_MIN_WORKER_RATING (enforced by geo.service)
+ *   - Skill filter is NEVER bypassed — wrong-skill assignment is prevented at all layers
+ *   - Workers on dues hard-limit are blocked from dispatch (enforced by geo.service)
+ *   - Workers with high cancel/reject rates are deprioritized by scoring (enforced by geo.service)
+ *   - Preferred worker (user's last completed worker) gets priority at step 0
  * ----------------------------------------------------------------------------
  */
 
@@ -25,15 +34,17 @@ const config = require('../config');
 const logger = require('../utils/logger');
 const { QUEUES, notificationsQueue, dispatchQueue } = require('./index');
 
-const MAX_BATCH_SIZE = 10;
-const FORCE_ASSIGN_RADIUS_KM = 25; // last-resort: search up to 25km for any worker
-const MAX_RETRIES = 2;             // re-queue attempts before giving up
-const RETRY_DELAY_MS = 90_000;     // 90s between retry attempts
+const MAX_BATCH_SIZE     = 10;
+const MAX_RETRIES        = 2;
+const RETRY_DELAY_MS     = 90_000;     // 90s between retry attempts
+const MIN_STEP_WAIT_MS   = 10_000;     // minimum wait per step even if no workers found
 
 /* ─── Main job processor ────────────────────────────────────────── */
 
 async function processDispatchJob(job) {
   const { orderId, retryCount = 0 } = job.data;
+  const jobStartMs = Date.now();
+
   logger.info({ orderId, retryCount }, '[DISPATCH] Job picked up');
 
   const order = await Order.findById(orderId);
@@ -55,18 +66,34 @@ async function processDispatchJob(job) {
   }
 
   const [lng, lat] = order.pickupLocation.coordinates;
-  const radiusSteps = config.dispatch.radiusSteps;
+  const radiusSteps  = config.dispatch.radiusSteps;
   const stepWindowMs = config.dispatch.stepWindowMs;
+  const minSearchMs  = config.dispatch.minSearchMs;   // 5 minutes
 
   const alreadyNotified = new Set(
     (order.dispatch?.attemptedWorkerIds || []).map(String)
   );
 
-  /* ── Walk radius steps ── */
+  /* ── Preferred worker: user's last accepted worker for same service ── */
+  const preferredWorkerId = await getPreferredWorker(order);
+  if (preferredWorkerId) {
+    logger.info({ orderId, preferredWorkerId }, '[DISPATCH] Offering preferred worker first');
+    const result = await offerToWorker(order, preferredWorkerId, stepWindowMs);
+    if (result.accepted) {
+      const locked = await lockOrderToWorker(order._id, preferredWorkerId, order.service);
+      if (locked) {
+        await onOrderAssigned(order, preferredWorkerId, []);
+        recordOutcomes(preferredWorkerId, 'accept', [], []);
+        return { ok: true, workerId: preferredWorkerId, preferred: true };
+      }
+    }
+    alreadyNotified.add(String(preferredWorkerId));
+  }
+
+  /* ── Walk radius steps (voluntary accept window) ── */
   for (let stepIdx = 0; stepIdx < radiusSteps.length; stepIdx++) {
     const radiusKm = radiusSteps[stepIdx];
 
-    /* Keep BullMQ lock alive — ping every 60s so the lock isn't stolen */
     const keepAlive = setInterval(
       () => job.updateProgress({ step: stepIdx, alive: true }).catch(() => {}),
       60_000,
@@ -79,20 +106,24 @@ async function processDispatchJob(job) {
         return { ok: false, reason: 'status_changed' };
       }
 
+      const elapsedMs = Date.now() - jobStartMs;
       logger.info(
-        { orderId, stepIdx: stepIdx + 1, totalSteps: radiusSteps.length, radiusKm },
+        { orderId, stepIdx: stepIdx + 1, totalSteps: radiusSteps.length, radiusKm, elapsedSec: Math.round(elapsedMs / 1000) },
         `[DISPATCH] Step ${stepIdx + 1}/${radiusSteps.length} — searching ${radiusKm}km`,
       );
 
+      const radiusLabel = radiusKm < 1 ? `${Math.round(radiusKm * 1000)}m` : `${radiusKm}km`;
       const userMsg = stepIdx === 0
         ? 'Searching for nearby workers…'
-        : `Expanding search to ${radiusKm}km — still looking…`;
+        : `Expanding search to ${radiusLabel} — still looking…`;
 
       await emitToOrderRoom(order._id, 'order.dispatch_update', {
         message: userMsg,
         radiusKm,
+        radiusLabel,
         step: stepIdx + 1,
         totalSteps: radiusSteps.length,
+        elapsedSec: Math.round(elapsedMs / 1000),
       });
 
       const candidates = await geoService.findCandidates({
@@ -108,14 +139,17 @@ async function processDispatchJob(job) {
       );
 
       if (candidates.length === 0) {
-        logger.info({ orderId, radiusKm }, '[DISPATCH] No new workers at this radius, expanding…');
+        // No workers at this step — wait a minimum window anyway so we don't
+        // burn through all steps in milliseconds when nobody is online.
+        const waitMs = Math.min(MIN_STEP_WAIT_MS, stepWindowMs);
+        logger.info({ orderId, radiusKm, waitMs }, '[DISPATCH] No workers, holding before next step');
+        await sleep(waitMs);
         continue;
       }
 
       const batchWorkers = candidates.slice(0, MAX_BATCH_SIZE).map(String);
       const expiresAt = new Date(Date.now() + stepWindowMs);
 
-      /* ── Broadcast offer to all workers in batch simultaneously ── */
       logger.info(
         { orderId, radiusKm, notifying: batchWorkers.length },
         `[DISPATCH] Notifying ${batchWorkers.length} workers`,
@@ -145,7 +179,6 @@ async function processDispatchJob(job) {
         }).catch(() => {});
       }
 
-      /* ── Wait step window for any accept ── */
       const result = await waitForBatchWindow(String(order._id), batchWorkers, stepWindowMs);
 
       logger.info(
@@ -159,7 +192,7 @@ async function processDispatchJob(job) {
       );
 
       if (result.acceptedBy) {
-        const locked = await lockOrderToWorker(order._id, result.acceptedBy);
+        const locked = await lockOrderToWorker(order._id, result.acceptedBy, order.service);
         if (locked) {
           logger.info({ orderId, workerId: result.acceptedBy }, '[DISPATCH] ✅ Order assigned via accept');
           await onOrderAssigned(order, result.acceptedBy, [...result.rejected, ...result.ignored]);
@@ -179,13 +212,38 @@ async function processDispatchJob(job) {
     }
   }
 
-  /* ── All voluntary radius steps exhausted — FORCE-ASSIGN nearest ── */
-  logger.info({ orderId }, '[DISPATCH] All voluntary steps exhausted — attempting force-assign');
+  /* ── Guarantee minimum 5-minute search window before force-assign ── */
+  const elapsedMs = Date.now() - jobStartMs;
+  const remainingMs = minSearchMs - elapsedMs;
+  if (remainingMs > 0) {
+    logger.info(
+      { orderId, remainingMs: Math.round(remainingMs / 1000) },
+      '[DISPATCH] Radius steps done early — holding for minimum search window',
+    );
+    await emitToOrderRoom(order._id, 'order.dispatch_update', {
+      message: 'Still searching — please hold…',
+      radiusKm: config.dispatch.radiusSteps.at(-1),
+    });
+
+    // Check for cancellation every 10s during the hold
+    const holdStart = Date.now();
+    while (Date.now() - holdStart < remainingMs) {
+      await sleep(Math.min(10_000, remainingMs - (Date.now() - holdStart)));
+      const check = await Order.findById(orderId).select('status').lean();
+      if (!check || check.status !== 'searching') {
+        return { ok: false, reason: 'status_changed_during_hold' };
+      }
+    }
+  }
+
+  /* ── All voluntary steps exhausted — FORCE-ASSIGN nearest skilled worker ── */
+  logger.info({ orderId }, '[DISPATCH] 5-min window elapsed — attempting force-assign (skill-matched only)');
   await emitToOrderRoom(order._id, 'order.dispatch_update', {
     message: 'Assigning the nearest available worker…',
   });
 
-  const forceResult = await attemptForceAssign(order, FORCE_ASSIGN_RADIUS_KM);
+  const forceAssignRadius = config.dispatch.forceAssignRadiusKm ?? 20;
+  const forceResult = await attemptForceAssign(order, forceAssignRadius);
   if (forceResult.ok) {
     logger.info({ orderId, workerId: forceResult.workerId }, '[DISPATCH] ✅ Force-assigned');
     return forceResult;
@@ -202,12 +260,12 @@ async function processDispatchJob(job) {
       {
         jobId: `order_${order._id}_retry_${nextRetry}`,
         delay: RETRY_DELAY_MS,
-        priority: 1, // high priority retry
+        priority: 1,
       },
     );
 
     await emitToOrderRoom(order._id, 'order.dispatch_update', {
-      message: 'No workers nearby right now — retrying in 90 seconds…',
+      message: 'No available workers right now — retrying shortly…',
     });
 
     return { ok: false, reason: 'retrying', retryCount: nextRetry };
@@ -222,39 +280,97 @@ async function processDispatchJob(job) {
   return { ok: false, reason: 'all_attempts_exhausted' };
 }
 
-/* ─── Force-assign: bypass accept, lock directly to nearest worker ─ */
+/* ─── Preferred worker: check if user's last worker is online + skilled ── */
+
+async function getPreferredWorker(order) {
+  try {
+    const lastOrder = await Order.findOne({
+      userId: order.userId,
+      service: order.service,
+      status: 'completed',
+      workerId: { $exists: true, $ne: null },
+    })
+      .sort({ completedAt: -1 })
+      .select('workerId')
+      .lean();
+
+    if (!lastOrder?.workerId) return null;
+
+    const wId = String(lastOrder.workerId);
+    const [avail, hasSkill, alive] = await Promise.all([
+      redis.hget('workers:available', wId),
+      redis.sismember(`workers:skill:${order.service}`, wId),
+      redis.zscore('workers:alive', wId),
+    ]);
+
+    const freshnessThreshold = Date.now() - 8 * 60 * 1000;
+    const isFresh = !alive || Number(alive) >= freshnessThreshold;
+
+    if (avail === '1' && hasSkill === 1 && isFresh) {
+      // Final KYC + rating guard
+      const w = await WorkerModel.findOne({
+        _id: wId,
+        isBlocked: false,
+        'kyc.status': 'approved',
+        rating: { $gte: config.dispatch.minWorkerRating ?? 3.0 },
+      }).select('_id').lean();
+      return w ? wId : null;
+    }
+    return null;
+  } catch (err) {
+    logger.warn({ err: err.message }, '[DISPATCH] Preferred worker lookup failed');
+    return null;
+  }
+}
+
+/* ─── Offer to a single worker and wait for their response ─────── */
+
+async function offerToWorker(order, workerId, windowMs) {
+  const expiresAt = new Date(Date.now() + windowMs);
+  await redis.publish('worker:offer', JSON.stringify({
+    workerId,
+    order: {
+      _id:           String(order._id),
+      service:       order.service,
+      pickupAddress: order.pickupLocation.address,
+      pickupCoords:  order.pickupLocation.coordinates,
+      price:         order.pricing.total,
+      expiresAt:     expiresAt.toISOString(),
+      preferred:     true,
+    },
+  }));
+
+  const result = await waitForBatchWindow(String(order._id), [workerId], windowMs);
+  return { accepted: !!result.acceptedBy };
+}
+
+/* ─── Force-assign: skill-matched only, no bypass ──────────────── */
 
 async function attemptForceAssign(order, radiusKm) {
   const orderId = String(order._id);
   const [lng, lat] = order.pickupLocation.coordinates;
 
-  // Try with skill filter first, then without as absolute last resort
-  const searchVariants = [
-    { skill: order.service, radiusKm, label: 'skilled' },
-    { skill: null,          radiusKm, label: 'any-skill' },
-  ];
+  // SKILL FILTER IS ALWAYS ON — we never assign a wrong-service worker.
+  // Radius is wider (up to forceAssignRadiusKm) to cast a larger net.
+  const candidates = await geoService.findCandidates({
+    lng, lat,
+    skill:      order.service,
+    excludeIds: [],
+    radiusKm,
+    skipSkillFilter: false,           // hard: never skip skill filter
+  });
 
-  for (const { skill, radiusKm: r, label } of searchVariants) {
-    const candidates = await geoService.findCandidates({
-      lng, lat,
-      skill: skill || order.service,
-      excludeIds: [],
-      radiusKm: r,
-      skipSkillFilter: !skill,
-    });
+  logger.info({ orderId, found: candidates.length, radiusKm }, '[DISPATCH] Force-assign skilled candidates');
 
-    logger.info({ orderId, label, found: candidates.length }, '[DISPATCH] Force-assign candidates');
-
-    for (const workerId of candidates.slice(0, 5)) {
-      const locked = await lockOrderToWorker(order._id, workerId);
-      if (locked) {
-        await onForceAssigned(order, workerId);
-        return { ok: true, workerId, forceAssigned: true };
-      }
+  for (const workerId of candidates.slice(0, 5)) {
+    const locked = await lockOrderToWorker(order._id, workerId, order.service);
+    if (locked) {
+      await onForceAssigned(order, workerId);
+      return { ok: true, workerId, forceAssigned: true };
     }
   }
 
-  return { ok: false, reason: 'no_lockable_workers' };
+  return { ok: false, reason: 'no_lockable_skilled_workers' };
 }
 
 /* ─── Shared post-assignment actions ────────────────────────────── */
@@ -264,15 +380,10 @@ async function onOrderAssigned(order, workerId, losers = []) {
 
   await emitToOrderRoom(order._id, 'order.assigned', { workerId, orderId });
 
-  /* Cancel offers for workers who lost the race */
   for (const wId of losers) {
-    redis.publish('worker:offer_cancel', JSON.stringify({
-      workerId: wId,
-      orderId,
-    })).catch(() => {});
+    redis.publish('worker:offer_cancel', JSON.stringify({ workerId: wId, orderId })).catch(() => {});
   }
 
-  /* Notify user */
   try {
     const notificationService = require('../modules/notification/notification.service');
     const worker = await WorkerModel.findById(workerId).select('name rating').lean();
@@ -296,7 +407,6 @@ async function onForceAssigned(order, workerId) {
 
   await emitToOrderRoom(order._id, 'order.assigned', { workerId, orderId });
 
-  /* Push `job.assigned` to the worker's own socket room */
   await redis.publish('worker:assigned', JSON.stringify({
     workerId,
     orderId,
@@ -305,7 +415,6 @@ async function onForceAssigned(order, workerId) {
     price:         order.pricing.total,
   })).catch(() => {});
 
-  /* Notify both sides */
   try {
     const notificationService = require('../modules/notification/notification.service');
     const worker = await WorkerModel.findById(workerId).select('name rating').lean();
@@ -315,7 +424,7 @@ async function onForceAssigned(order, workerId) {
         recipient: { kind: 'user', id: order.userId },
         type:  'worker_assigned',
         title: '✅ Worker assigned!',
-        body:  worker ? `${worker.name} is on the way` : 'A worker is on the way',
+        body:  worker ? `${worker.name} (⭐ ${(worker.rating || 5).toFixed(1)}) is on the way` : 'A worker is on the way',
         deepLink: `/orders/${orderId}`,
         data: { orderId, workerId },
       }),
@@ -384,13 +493,30 @@ function waitForBatchWindow(orderId, workerIds, windowMs) {
 }
 
 /* ─── Atomic order + worker lock ───────────────────────────────── */
+// Verifies the worker has the required skill before locking.
+// This is the final safety net — even if geo.service somehow returns
+// a wrong-skill worker, this transaction will abort.
 
-async function lockOrderToWorker(orderId, workerId) {
+async function lockOrderToWorker(orderId, workerId, requiredSkill) {
   const mongoose = require('mongoose');
   const session  = await mongoose.startSession();
   try {
     let updated = null;
     await session.withTransaction(async () => {
+      // Verify skill match inside the transaction — abort if wrong
+      const worker = await WorkerModel.findOne(
+        {
+          _id: workerId,
+          isAvailable: true,
+          isBlocked: false,
+          'kyc.status': 'approved',
+          skills: requiredSkill,
+        },
+        { _id: 1 },
+        { session },
+      );
+      if (!worker) throw Object.assign(new Error('WORKER_SKILL_MISMATCH_OR_UNAVAILABLE'), { abort: true });
+
       updated = await Order.findOneAndUpdate(
         { _id: orderId, status: { $in: ['searching', 'created'] }, workerId: null },
         {
@@ -406,12 +532,11 @@ async function lockOrderToWorker(orderId, workerId) {
       );
       if (!updated) throw Object.assign(new Error('ORDER_NOT_LOCKABLE'), { abort: true });
 
-      const upd = await WorkerModel.updateOne(
-        { _id: workerId, isAvailable: true, isBlocked: false },
+      await WorkerModel.updateOne(
+        { _id: workerId },
         { $set: { isAvailable: false, currentOrderId: orderId } },
         { session },
       );
-      if (upd.matchedCount === 0) throw Object.assign(new Error('WORKER_NOT_AVAILABLE'), { abort: true });
     });
 
     if (!updated) return false;
@@ -435,15 +560,15 @@ function recordOutcomes(acceptedBy, acceptOutcome, rejected, ignored) {
   if (acceptedBy && acceptOutcome) {
     abuseService.recordWorkerOutcome(acceptedBy, acceptOutcome).catch(() => {});
   }
-  for (const wId of rejected) {
-    abuseService.recordWorkerOutcome(wId, 'reject').catch(() => {});
-  }
-  for (const wId of ignored) {
-    abuseService.recordWorkerOutcome(wId, 'timeout').catch(() => {});
-  }
+  for (const wId of rejected) abuseService.recordWorkerOutcome(wId, 'reject').catch(() => {});
+  for (const wId of ignored)  abuseService.recordWorkerOutcome(wId, 'timeout').catch(() => {});
 }
 
 /* ─── Helpers ───────────────────────────────────────────────────── */
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 async function markOrderFailed(order, reason) {
   order.status = 'failed';
@@ -473,7 +598,7 @@ async function main() {
     {
       connection:   createBullConnection(),
       concurrency:  50,
-      lockDuration: 300_000, // 5 min — keepAlive extends it every 60s
+      lockDuration: 360_000, // 6 min lock — covers the full 5-min search window + overhead
     },
   );
 
@@ -487,7 +612,7 @@ async function main() {
     logger.error({ err: err.message }, '[DISPATCH] Worker error'),
   );
 
-  logger.info('[DISPATCH] Progressive radius + force-assign worker started');
+  logger.info('[DISPATCH] Progressive radius + force-assign worker started (5-min guaranteed window)');
 }
 
 if (require.main === module) {

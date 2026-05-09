@@ -66,7 +66,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -413,6 +413,131 @@ export const api = createApi({
       query: (id) => ({ url: adminApiPath(`/plans/${id}`), method: 'DELETE' }),
       invalidatesTags: ['Plan'],
     }),
+
+    // --- Ads ---
+    getActiveAds: b.query({
+      query: () => '/ads',
+      providesTags: ['Ad'],
+    }),
+    trackAdImpression: b.mutation({
+      query: (id) => ({ url: `/ads/${id}/impression`, method: 'POST' }),
+    }),
+    trackAdClick: b.mutation({
+      query: (id) => ({ url: `/ads/${id}/click`, method: 'POST' }),
+    }),
+    // Admin: Ads
+    adminListAds: b.query({
+      query: ({ status, audience, page = 1 } = {}) => {
+        const params = new URLSearchParams({ page });
+        if (status)   params.set('status', status);
+        if (audience) params.set('audience', audience);
+        return adminApiPath(`/ads?${params}`);
+      },
+      providesTags: ['Ad'],
+    }),
+    adminCreateAd: b.mutation({
+      query: (body) => ({ url: adminApiPath('/ads'), method: 'POST', body }),
+      invalidatesTags: ['Ad'],
+    }),
+    adminUpdateAd: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/ads/${id}`), method: 'PATCH', body }),
+      invalidatesTags: ['Ad'],
+    }),
+    adminDeleteAd: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/ads/${id}`), method: 'DELETE' }),
+      invalidatesTags: ['Ad'],
+    }),
+
+    // --- Promos/Coupons ---
+    validatePromo: b.mutation({
+      query: (body) => ({ url: '/promos/validate', method: 'POST', body }),
+    }),
+    // Admin: Promos
+    adminListPromos: b.query({
+      query: ({ page = 1 } = {}) => adminApiPath(`/promos?page=${page}`),
+      providesTags: ['Promo'],
+    }),
+    adminCreatePromo: b.mutation({
+      query: (body) => ({ url: adminApiPath('/promos'), method: 'POST', body }),
+      invalidatesTags: ['Promo'],
+    }),
+    adminUpdatePromo: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/promos/${id}`), method: 'PATCH', body }),
+      invalidatesTags: ['Promo'],
+    }),
+    adminDeletePromo: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/promos/${id}`), method: 'DELETE' }),
+      invalidatesTags: ['Promo'],
+    }),
+
+    // --- Gamification ---
+    getGamification: b.query({
+      query: () => '/gamification',
+      providesTags: ['Gamification'],
+    }),
+
+    // --- Recommendations ---
+    getRecommendations: b.query({
+      query: () => '/recommendations',
+      providesTags: ['Recommendations'],
+    }),
+
+    // --- Admin: Geo Analytics (Heatmap) ---
+    adminGeoAnalytics: b.query({
+      query: ({ days = 30, precision = 2, service } = {}) => ({
+        url: adminApiPath('/geo-analytics'),
+        params: { days, precision, service },
+      }),
+    }),
+    adminDemandPatterns: b.query({
+      query: ({ days = 30, service } = {}) => ({
+        url: adminApiPath('/demand-patterns'),
+        params: { days, service },
+      }),
+    }),
+
+    // --- Admin: System Health ---
+    adminSystemHealth: b.query({
+      query: () => adminApiPath('/system/health'),
+    }),
+
+    // --- Admin: Feature Flags ---
+    adminFeatureFlags: b.query({
+      query: () => adminApiPath('/feature-flags'),
+      providesTags: ['FeatureFlags'],
+    }),
+    adminSetFeatureFlag: b.mutation({
+      query: (body) => ({ url: adminApiPath('/feature-flags'), method: 'POST', body }),
+      invalidatesTags: ['FeatureFlags'],
+    }),
+
+    // --- Admin: Alerts ---
+    adminAlerts: b.query({
+      query: () => adminApiPath('/alerts'),
+    }),
+
+    // --- Admin: Retention ---
+    adminRetention: b.query({
+      query: (days = 30) => adminApiPath(`/retention?days=${days}`),
+    }),
+
+    // --- Admin: Support Tickets ---
+    adminSupportTickets: b.query({
+      query: ({ status, priority, category, page = 1 } = {}) => ({
+        url: adminApiPath('/support'),
+        params: { status, priority, category, page },
+      }),
+      providesTags: ['SupportTickets'],
+    }),
+    adminReplyTicket: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/support/${id}/reply`), method: 'POST', body }),
+      invalidatesTags: ['SupportTickets'],
+    }),
+
+    // --- Admin: Live Operations ---
+    adminLiveOps: b.query({
+      query: () => adminApiPath('/liveops'),
+    }),
   }),
 });
 
@@ -502,4 +627,32 @@ export const {
   useAdminCreatePlanMutation,
   useAdminUpdatePlanMutation,
   useAdminDeletePlanMutation,
+  // Ads
+  useGetActiveAdsQuery,
+  useTrackAdImpressionMutation,
+  useTrackAdClickMutation,
+  useAdminListAdsQuery,
+  useAdminCreateAdMutation,
+  useAdminUpdateAdMutation,
+  useAdminDeleteAdMutation,
+  // Promos
+  useValidatePromoMutation,
+  useAdminListPromosQuery,
+  useAdminCreatePromoMutation,
+  useAdminUpdatePromoMutation,
+  useAdminDeletePromoMutation,
+  // Gamification + Recommendations
+  useGetGamificationQuery,
+  useGetRecommendationsQuery,
+  // Enterprise admin
+  useAdminGeoAnalyticsQuery,
+  useAdminDemandPatternsQuery,
+  useAdminSystemHealthQuery,
+  useAdminFeatureFlagsQuery,
+  useAdminSetFeatureFlagMutation,
+  useAdminAlertsQuery,
+  useAdminRetentionQuery,
+  useAdminSupportTicketsQuery,
+  useAdminReplyTicketMutation,
+  useAdminLiveOpsQuery,
 } = api;

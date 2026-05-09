@@ -15,6 +15,8 @@ const notificationRoutes = require('../modules/notification/notification.routes'
 const serviceRoutes = require('../modules/service/service.routes');
 const payoutRoutes = require('../modules/payout/payout.routes');
 const engagementRoutes = require('../modules/engagement/engagement.routes');
+const adRoutes = require('../modules/ads/ad.routes');
+const promoRoutes = require('../modules/promo/promo.routes');
 
 function mountRoutes(app) {
   const slug = process.env.ADMIN_LOGIN_SLUG;
@@ -43,6 +45,12 @@ function mountRoutes(app) {
   app.use('/api/catalog', serviceRoutes);
   app.use('/api/payouts', payoutRoutes);
   app.use(`/api/${slug}/payouts`, payoutRoutes.adminRouter);
+
+  // Ads + Promo
+  app.use('/api/ads', adRoutes);
+  app.use(`/api/${slug}/ads`, adRoutes.adminRouter);
+  app.use('/api/promos', promoRoutes);
+  app.use(`/api/${slug}/promos`, promoRoutes.adminRouter);
 
   // Block anyone probing the old /api/admin path
   app.use('/api/admin', (req, res) => res.status(404).json({ error: 'Not found' }));

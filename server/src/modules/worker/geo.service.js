@@ -30,10 +30,19 @@ async function markOnline(worker) {
 }
 
 async function markOffline(workerId) {
+  // Fetch skills before wiping so we can remove from per-skill sets.
+  // Small extra read is fine — markOffline is infrequent.
+  let skills = [];
+  try {
+    const w = await Worker.findById(workerId).select('skills').lean();
+    skills = w?.skills || [];
+  } catch { /* best-effort */ }
+
   const pipe = redis.multi();
   pipe.zrem(ONLINE_GEO_KEY, String(workerId));
   pipe.hdel(AVAIL_HASH_KEY, String(workerId));
   pipe.zrem(ALIVE_ZSET_KEY, String(workerId));
+  for (const skill of skills) pipe.srem(`${SKILLS_SET_PREFIX}${skill}`, String(workerId));
   await pipe.exec();
 }
 
@@ -126,11 +135,18 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
     return mongoFallback({ lng, lat, skill, excludeIds, radiusKm, skipSkillFilter });
   }
 
-  // Rating + penalty — fetch from Mongo in one query.
+  // Rating + penalty + KYC — fetch from Mongo in one query.
   const ids = filtered.map((f) => f.workerId);
+  const minRating = config.dispatch.minWorkerRating ?? 3.0;
+
   const [ratings, cancellationCfg] = await Promise.all([
     Worker.find(
-      { _id: { $in: ids }, isBlocked: false },
+      {
+        _id: { $in: ids },
+        isBlocked: false,
+        'kyc.status': 'approved',       // never dispatch to unverified workers
+        rating: { $gte: minRating },    // skip workers below quality threshold
+      },
       { _id: 1, rating: 1, completedJobs: 1, penalties: 1 }
     ).lean(),
     require('../order/cancellation.service').getConfig(),
@@ -187,12 +203,15 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
 
 async function mongoFallback({ lng, lat, skill, excludeIds, radiusKm, skipSkillFilter = false }) {
   const effectiveRadius = radiusKm ?? config.dispatch.radiusKm;
+  const minRating = config.dispatch.minWorkerRating ?? 3.0;
   logger.info({ lng, lat, skill, radiusKm: effectiveRadius, skipSkillFilter }, 'Falling back to Mongo $near query');
 
   const query = {
     isOnline: true,
     isAvailable: true,
     isBlocked: false,
+    'kyc.status': 'approved',
+    rating: { $gte: minRating },
     _id: { $nin: excludeIds },
     currentLocation: {
       $near: {

@@ -102,6 +102,41 @@ router.patch(
 // Worker penalty stats
 router.get('/workers/:id/penalties', ctrl.getWorkerPenaltyStats);
 
+// Geographic analytics + demand patterns (heatmap data)
+router.get('/geo-analytics', ctrl.getGeoAnalytics);
+router.get('/demand-patterns', ctrl.getDemandPatterns);
+
+// System health
+router.get('/system/health', ctrl.getSystemHealth);
+
+// Feature flags
+router.get('/feature-flags', ctrl.getFeatureFlags);
+router.post(
+  '/feature-flags',
+  validate(Joi.object({ flag: Joi.string().required(), enabled: Joi.boolean().required() })),
+  ctrl.setFeatureFlag
+);
+
+// Alerts
+router.get('/alerts', ctrl.getAlerts);
+
+// Retention cohorts
+router.get('/retention', ctrl.getRetention);
+
+// Support tickets
+router.get('/support', ctrl.listSupportTickets);
+router.post(
+  '/support/:id/reply',
+  validate(Joi.object({
+    text: Joi.string().min(1).max(2000).required(),
+    status: Joi.string().valid('open', 'in_progress', 'waiting_user', 'resolved', 'closed').optional(),
+  })),
+  ctrl.replyToSupportTicket
+);
+
+// Live operations
+router.get('/liveops', ctrl.getLiveOps);
+
 // Subscription plan management (full CRUD)
 router.get('/plans', ctrl.listAllPlans);
 router.post(

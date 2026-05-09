@@ -5,6 +5,8 @@ import {
   LayoutDashboard, ShoppingBag, Users, Briefcase, Tag,
   Wallet, Scale, CreditCard, BarChart2, Gift, XCircle,
   FileText, LogOut, Menu, X, ChevronRight, FileCheck, Crown,
+  Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
+  HeadphonesIcon, Radio, Globe,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
 import { adminPath } from '../config/admin';
@@ -23,6 +25,15 @@ import Cancellation from './admin/Cancellation';
 import Audit from './admin/Audit';
 import AdminKycReview from './AdminKycReview';
 import AdminPlans from './admin/Plans';
+import Ads from './admin/Ads';
+import Promos from './admin/Promos';
+import SystemHealth from './admin/SystemHealth';
+import Heatmap from './admin/Heatmap';
+import FeatureFlags from './admin/FeatureFlags';
+import Alerts from './admin/Alerts';
+import Retention from './admin/Retention';
+import Support from './admin/Support';
+import LiveOps from './admin/LiveOps';
 
 const NAV = [
   { id: 'overview',     label: 'Overview',        icon: LayoutDashboard },
@@ -36,9 +47,18 @@ const NAV = [
   { id: 'disputes',     label: 'Disputes',         icon: Scale },
   { id: 'payouts',      label: 'Payouts',          icon: CreditCard },
   { id: 'analytics',    label: 'Analytics',        icon: BarChart2 },
+  { id: 'heatmap',      label: 'Geo Intelligence', icon: Globe },
   { id: 'incentives',   label: 'Incentives',       icon: Gift },
   { id: 'cancellation', label: 'Cancellation',     icon: XCircle },
+  { id: 'ads',          label: 'Ad Campaigns',     icon: Megaphone },
+  { id: 'promos',       label: 'Promo Codes',      icon: Ticket },
   { id: 'audit',        label: 'Audit Logs',       icon: FileText },
+  { id: 'liveops',      label: 'Live Ops',         icon: Radio },
+  { id: 'alerts',       label: 'Alerts',           icon: Bell },
+  { id: 'retention',    label: 'Retention',        icon: Repeat2 },
+  { id: 'support',      label: 'Support',          icon: HeadphonesIcon },
+  { id: 'flags',        label: 'Feature Flags',    icon: ToggleRight },
+  { id: 'health',       label: 'System Health',    icon: Server },
 ];
 
 const SECTION_MAP = {
@@ -52,10 +72,19 @@ const SECTION_MAP = {
   disputes:     Disputes,
   payouts:      Payouts,
   analytics:    Analytics,
+  heatmap:      Heatmap,
   incentives:   Incentives,
   cancellation: Cancellation,
+  ads:          Ads,
+  promos:       Promos,
   audit:        Audit,
   plans:        AdminPlans,
+  liveops:      LiveOps,
+  alerts:       Alerts,
+  retention:    Retention,
+  support:      Support,
+  flags:        FeatureFlags,
+  health:       SystemHealth,
 };
 
 export default function AdminDashboard() {

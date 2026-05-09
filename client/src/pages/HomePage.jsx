@@ -4,12 +4,14 @@ import { motion } from 'framer-motion';
 import {
   Bell, Search, ChevronRight, Zap, Star, TrendingUp, Wrench,
   Droplets, Bolt, Wind, Hammer, Users, Car, Sparkles, Paintbrush2,
+  Flame, Trophy, Ticket, Gem,
 } from 'lucide-react';
 import { selectAuth } from '../modules/auth/authSlice';
-import { useListOrdersQuery } from '../services/api';
+import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery } from '../services/api';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
+import AdBanner from '../components/common/AdBanner';
 import {
   staggerContainer, fadeInUp, fadeIn, scaleIn,
 } from '../lib/animations';
@@ -43,14 +45,35 @@ const STATUS_LABELS = {
   created:     'Order placed',
 };
 
+const LEVEL_COLORS = {
+  Rookie: 'from-slate-400 to-slate-500',
+  Explorer: 'from-green-400 to-emerald-500',
+  Regular: 'from-blue-400 to-blue-600',
+  Pro: 'from-violet-400 to-purple-600',
+  Expert: 'from-amber-400 to-orange-500',
+  Elite: 'from-rose-400 to-red-500',
+  Champion: 'from-pink-400 to-fuchsia-600',
+  Legend: 'from-yellow-300 to-amber-500',
+};
+
+const REC_SERVICE_ICONS = {
+  electrical: Bolt, plumbing: Droplets, ac_repair: Wind,
+  carpenter: Hammer, helper: Users, puncture: Car,
+  cleaning: Sparkles, painting: Paintbrush2,
+};
+
 export default function HomePage() {
   const nav = useNavigate();
   const { profile } = useSelector(selectAuth);
   const { data } = useListOrdersQuery(1);
+  const { data: gamData } = useGetGamificationQuery();
+  const { data: recData } = useGetRecommendationsQuery();
 
   const activeOrder = data?.orders?.find((o) => ACTIVE_STATUSES.includes(o.status));
   const firstName = profile?.name?.split(' ')[0] || 'there';
   const greeting = getGreeting();
+  const gam = gamData?.gamification;
+  const recommendations = recData?.recommendations || [];
 
   return (
     <PageTransition>
@@ -96,6 +119,57 @@ export default function HomePage() {
         </header>
 
         <div className="page-container">
+
+          {/* Gamification strip */}
+          {gam && (
+            <motion.div className="mt-4" variants={fadeIn} initial="initial" animate="animate">
+              <div className="bg-white border border-slate-100 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
+                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shrink-0 shadow-sm`}>
+                  <Trophy size={16} strokeWidth={2} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xs font-bold text-slate-900">{gam.levelName}</p>
+                    <span className="text-[10px] font-semibold text-slate-400">{gam.xp} XP</span>
+                    {gam.streak >= 2 && (
+                      <span className="flex items-center gap-0.5 text-[10px] font-bold text-orange-500">
+                        <Flame size={10} />
+                        {gam.streak} streak
+                      </span>
+                    )}
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5">
+                    <div
+                      className={`h-1.5 rounded-full bg-gradient-to-r ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} transition-all duration-500`}
+                      style={{ width: `${Math.min(100, gam.progressPercent || 0)}%` }}
+                    />
+                  </div>
+                  {gam.nextLevelName && (
+                    <p className="text-[9px] text-slate-400 mt-0.5">{gam.xpToNext} XP to {gam.nextLevelName}</p>
+                  )}
+                </div>
+                {gam.badges?.length > 0 && (
+                  <div className="flex gap-1 shrink-0">
+                    {gam.badges.slice(-3).map((b) => {
+                      const id = typeof b === 'string' ? b : b?.id ?? '';
+                      const cfg =
+                        id === 'first_order'      ? { Icon: Star,  bg: 'bg-blue-50',   color: 'text-blue-500'   } :
+                        id.startsWith('loyal')    ? { Icon: Gem,   bg: 'bg-violet-50', color: 'text-violet-500' } :
+                        id.startsWith('streak')   ? { Icon: Flame, bg: 'bg-orange-50', color: 'text-orange-500' } :
+                        id === 'legend'           ? { Icon: Trophy,bg: 'bg-amber-50',  color: 'text-amber-500'  } :
+                                                    { Icon: Star,  bg: 'bg-slate-50',  color: 'text-slate-400'  };
+                      const { Icon, bg, color } = cfg;
+                      return (
+                        <div key={id} className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center`} title={id.replace(/_/g, ' ')}>
+                          <Icon size={13} strokeWidth={2} className={color} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           {/* Active order banner */}
           {activeOrder && (
@@ -180,6 +254,50 @@ export default function HomePage() {
               </motion.button>
             </div>
           </div>
+
+          {/* Ad banners */}
+          <AdBanner className="mt-4" />
+
+          {/* Recommendations */}
+          {recommendations.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-[#0F172A] text-[15px]">Recommended for you</h3>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Personalized</span>
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto no-scrollbar -mx-4 px-4 pb-1">
+                {recommendations.slice(0, 6).map(({ service: svc, reason }) => {
+                  const s = SERVICES.find((x) => x.key === svc);
+                  const Icon = REC_SERVICE_ICONS[svc] || Wrench;
+                  const bg = s?.bg || 'bg-slate-50';
+                  const color = s?.color || 'text-slate-600';
+                  return (
+                    <motion.button
+                      key={svc}
+                      onClick={() => nav(`/book/${svc}`)}
+                      className="shrink-0 flex flex-col items-center bg-white border border-slate-100 rounded-2xl px-3.5 py-3 shadow-sm gap-2 w-24"
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <div className={`w-11 h-11 rounded-xl ${bg} flex items-center justify-center`}>
+                        <Icon size={20} strokeWidth={1.75} className={color} />
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-700 text-center leading-tight capitalize">
+                        {svc.replace(/_/g, ' ')}
+                      </p>
+                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                        reason === 'trending' ? 'bg-orange-50 text-orange-600' :
+                        reason === 'history'  ? 'bg-blue-50 text-blue-600' :
+                        'bg-slate-50 text-slate-500'
+                      }`}>
+                        {reason === 'trending' ? '🔥 Trending' : reason === 'history' ? '📋 Used before' : '✨ Popular'}
+                      </span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Services grid */}
           <div className="mt-6">

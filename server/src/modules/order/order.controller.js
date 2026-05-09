@@ -63,6 +63,31 @@ async function getOne(req, res, next) {
       // Null during active orders, so populate from the worker's own profile rating.
       if (order.workerRating == null) order.workerRating = worker.rating || null;
     }
+
+    // Resolve completion photo keys/paths to fresh presigned S3 URLs (valid 2h).
+    // Stored values may be bare S3 keys (e.g. "order-proof/uid/uuid") or legacy
+    // "/api/uploads/download/..." proxy paths — both are normalized here so the
+    // client always receives a directly loadable HTTPS URL.
+    if (order.completionPhotos?.length) {
+      const s3Service = require('../../utils/s3.service');
+      order.completionPhotos = await Promise.all(
+        order.completionPhotos.map(async (val) => {
+          if (!val) return val;
+          // Already a full HTTPS URL (public bucket or previously resolved) — keep as-is
+          if (val.startsWith('https://')) return val;
+          // Strip legacy proxy prefix
+          const key = val.startsWith('/api/uploads/download/')
+            ? val.slice('/api/uploads/download/'.length)
+            : val;
+          try {
+            return await s3Service.getDownloadUrl(key);
+          } catch {
+            return val; // If S3 is unreachable, return original value rather than crashing
+          }
+        })
+      );
+    }
+
     res.json({ order });
   } catch (err) { next(err); }
 }

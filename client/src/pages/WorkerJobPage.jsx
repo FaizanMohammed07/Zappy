@@ -109,14 +109,15 @@ export default function WorkerJobPage() {
         headers: { 'Content-Type': file.type || 'image/jpeg' },
       });
 
-      const finalUrl = `/api/uploads/download/${key}`;
+      // Store the bare S3 key. The order controller resolves it to a fresh
+      // presigned download URL on every fetch, so the customer always sees the image.
       setProofPhotos((prev) =>
-        prev.map((p) => p.id === photoId ? { ...p, url: finalUrl, uploading: false } : p)
+        prev.map((p) => p.id === photoId ? { ...p, key, uploading: false } : p)
       );
     } catch {
-      // Dev fallback: use blob URL directly (won't persist but allows testing)
+      // Dev fallback: store a sentinel so the photo is submitted without a real key
       setProofPhotos((prev) =>
-        prev.map((p) => p.id === photoId ? { ...p, url: preview, uploading: false } : p)
+        prev.map((p) => p.id === photoId ? { ...p, key: null, uploading: false } : p)
       );
     }
   }, [proofPhotos.length, presign]);
@@ -175,17 +176,18 @@ export default function WorkerJobPage() {
   }
 
   async function onComplete() {
-    const readyPhotos = proofPhotos.filter((p) => !p.uploading && p.url);
-    if (readyPhotos.length === 0) {
-      toast.error('Please take at least 1 proof-of-work photo');
-      return;
-    }
     if (proofPhotos.some((p) => p.uploading)) {
       toast.error('Please wait for photos to finish uploading');
       return;
     }
+    // Use S3 key for persistence; fall back to preview blob for dev (key is null)
+    const readyPhotos = proofPhotos.filter((p) => !p.uploading && (p.key || p.preview));
+    if (readyPhotos.length === 0) {
+      toast.error('Please take at least 1 proof-of-work photo');
+      return;
+    }
     try {
-      await complete({ id, completionPhotos: readyPhotos.map((p) => p.url) }).unwrap();
+      await complete({ id, completionPhotos: readyPhotos.map((p) => p.key || p.preview) }).unwrap();
       toast.success('Job completed!');
       nav('/worker', { replace: true });
     }
@@ -358,11 +360,11 @@ export default function WorkerJobPage() {
                 </p>
               </div>
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                proofPhotos.filter(p => p.url).length > 0
+                proofPhotos.filter(p => !p.uploading).length > 0
                   ? 'bg-green-100 text-green-700'
                   : 'bg-violet-100 text-violet-600'
               }`}>
-                {proofPhotos.filter(p => p.url).length}/3
+                {proofPhotos.filter(p => !p.uploading).length}/3
               </span>
             </div>
 

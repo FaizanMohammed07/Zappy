@@ -32,6 +32,16 @@ const userSchema = new mongoose.Schema(
     defaultPayment: { type: String, enum: ['cash', 'upi', 'card'], default: 'upi' },
     rating: { type: Number, default: 5, min: 0, max: 5 },
     isBlocked: { type: Boolean, default: false },
+
+    // Gamification — XP, levels, streaks, badges (mirrors worker incentive system)
+    gamification: {
+      xp:            { type: Number, default: 0 },
+      level:         { type: Number, default: 1 },
+      streak:        { type: Number, default: 0 },
+      lastOrderDate: { type: Date },
+      totalOrders:   { type: Number, default: 0 },
+      badges:        [{ id: String, label: String, earnedAt: Date }],
+    },
   },
   { timestamps: true }
 );

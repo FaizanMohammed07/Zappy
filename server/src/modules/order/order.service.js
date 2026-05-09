@@ -17,7 +17,7 @@ const logger = require('../../utils/logger');
  * 4. Generate 4-digit OTP for on-site worker verification.
  * 5. Enqueue dispatch — the dispatcher takes it from here.
  */
-async function createOrder({ userId, service, subCategory, pickupLocation, dropLocation, description, images, scheduledAt, paymentMethod, priority }) {
+async function createOrder({ userId, service, subCategory, pickupLocation, dropLocation, description, images, scheduledAt, paymentMethod, priority, promoCode }) {
   // Abuse gate FIRST — cheap Redis checks before any Mongo writes.
   await abuseService.assertCanBook(userId);
 
@@ -38,6 +38,27 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
 
   // Record demand for surge calculation.
   await pricingService.recordDemand(origin.lat, origin.lng);
+
+  // Apply promo code discount
+  let appliedPromo = null;
+  if (promoCode) {
+    try {
+      const promoService = require('../promo/promo.service');
+      appliedPromo = await promoService.applyPromo({
+        code: promoCode,
+        userId,
+        orderTotalPaise: Math.round((pricing.total || 0) * 100),
+        service,
+      });
+      // Reduce total by discount amount
+      const discountRupees = appliedPromo.discountPaise / 100;
+      pricing = { ...pricing, total: Math.max(0, pricing.total - discountRupees) };
+    } catch (err) {
+      // Invalid promo codes are a soft fail — order proceeds at full price
+      logger.warn({ userId, promoCode, err: err.message }, 'Promo code rejected at order creation');
+      appliedPromo = null;
+    }
+  }
 
   const otp = crypto.randomInt(1000, 9999).toString();
 
@@ -68,8 +89,21 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     status: 'created',
     statusHistory: [{ status: 'created' }],
     payment: { method: paymentMethod || 'upi', status: 'pending' },
+    promoCode: appliedPromo ? appliedPromo.code : undefined,
+    discountPaise: appliedPromo ? appliedPromo.discountPaise : 0,
     otp,
   });
+
+  // Record promo usage after order is persisted
+  if (appliedPromo) {
+    const promoService = require('../promo/promo.service');
+    promoService.recordUsage({
+      code: appliedPromo.code,
+      userId,
+      orderId: order._id,
+      discountPaise: appliedPromo.discountPaise,
+    }).catch((err) => logger.warn({ err: err.message, promoCode: appliedPromo.code }, 'Promo usage record failed'));
+  }
 
   // Enqueue dispatch with optional delay for scheduled orders.
   const schedDelay = scheduledAt ? Math.max(0, new Date(scheduledAt).getTime() - Date.now()) : 0;
@@ -319,6 +353,13 @@ async function workerComplete({ orderId, workerId, completionPhotos = [] }) {
     }
   );
   await geoService.setAvailability(workerId, true);
+
+  // User gamification — award XP for completed order
+  const gamificationService = require('../engagement/user-gamification.service');
+  gamificationService.onOrderCompleted({
+    userId: order.userId,
+    workerRatingGiven: order.workerRating || null,
+  }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Gamification update failed'));
 
   // Incentive milestone check — best-effort, needs updated count
   const incentiveService = require('../worker/incentive.service');

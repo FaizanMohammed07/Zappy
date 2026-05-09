@@ -81,4 +81,37 @@ async function reverseGeocode(lat, lng) {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
-module.exports = { getDistanceAndEta, reverseGeocode, haversineKm };
+/**
+ * Returns a short human-readable zone label e.g. "Kondapur, Hyderabad".
+ * Prefers sublocality → locality → administrative_area_level_2.
+ * Cached in Redis 48h per rounded coordinate (matches geo-analytics precision).
+ */
+async function getZoneLabel(lat, lng) {
+  const key = `zone-label:${lat.toFixed(2)},${lng.toFixed(2)}`;
+  const cached = await redis.get(key);
+  if (cached) return cached;
+  try {
+    const url = new URL(GEOCODE_URL);
+    url.searchParams.set('latlng', `${lat},${lng}`);
+    url.searchParams.set('result_type', 'sublocality|locality');
+    url.searchParams.set('key', config.googleMaps.key);
+    const res  = await fetch(url.toString());
+    const data = await res.json();
+    if (data.status === 'OK' && data.results.length) {
+      const comps = data.results[0].address_components || [];
+      const pick  = (type) => comps.find((c) => c.types.includes(type))?.long_name;
+      const sub   = pick('sublocality_level_1') || pick('sublocality');
+      const city  = pick('locality') || pick('administrative_area_level_2');
+      const label = [sub, city].filter(Boolean).join(', ') || data.results[0].formatted_address?.split(',').slice(0, 2).join(',').trim();
+      if (label) {
+        await redis.setex(key, 60 * 60 * 48, label);
+        return label;
+      }
+    }
+  } catch (err) {
+    logger.error({ err: err.message }, 'getZoneLabel failed');
+  }
+  return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+}
+
+module.exports = { getDistanceAndEta, reverseGeocode, getZoneLabel, haversineKm };

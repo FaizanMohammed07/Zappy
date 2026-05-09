@@ -432,13 +432,7 @@ export default function OrderTrackingPage() {
             </div>
             <div className={`grid gap-2 ${order.completionPhotos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {order.completionPhotos.map((url, i) => (
-                <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                  <img
-                    src={url}
-                    alt={`Work proof ${i + 1}`}
-                    className="w-full aspect-video object-cover rounded-xl ring-1 ring-slate-100 hover:ring-green-300 transition"
-                  />
-                </a>
+                <ProofPhoto key={i} url={url} index={i} />
               ))}
             </div>
           </motion.div>
@@ -657,6 +651,44 @@ export default function OrderTrackingPage() {
 
     </div>
     </PageTransition>
+  );
+}
+
+function ProofPhoto({ url, index }) {
+  const [state, setState] = useState('loading'); // loading | loaded | error
+
+  if (!url) return null;
+
+  return (
+    <a
+      href={state === 'loaded' ? url : undefined}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block rounded-xl overflow-hidden ring-1 ring-slate-100 hover:ring-green-300 transition bg-slate-50"
+      onClick={state !== 'loaded' ? (e) => e.preventDefault() : undefined}
+    >
+      {/* Fixed-height container prevents the "blank white box" on error/loading */}
+      <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+        {state === 'loading' && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 size={18} className="animate-spin text-slate-300" />
+          </div>
+        )}
+        {state === 'error' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-slate-50">
+            <AlertCircle size={20} className="text-slate-300" />
+            <p className="text-[10px] text-slate-400 font-medium">Photo unavailable</p>
+          </div>
+        )}
+        <img
+          src={url}
+          alt={`Work proof ${index + 1}`}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${state === 'loaded' ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setState('loaded')}
+          onError={() => setState('error')}
+        />
+      </div>
+    </a>
   );
 }
 

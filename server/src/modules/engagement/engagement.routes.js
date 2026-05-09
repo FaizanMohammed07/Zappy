@@ -4,6 +4,8 @@ const ctrl = require('./engagement.controller');
 const Feedback = require('../order/feedback.model');
 const { authenticate, requireRole } = require('../../middlewares/auth');
 const { validate } = require('../../middlewares/validate');
+const recommendationsService = require('./recommendations.service');
+const gamificationService = require('./user-gamification.service');
 
 const router = express.Router();
 
@@ -53,6 +55,28 @@ router.post(
 );
 
 router.get('/support/mine', authenticate, ctrl.listMyTickets);
+
+// Smart recommendations
+router.get('/recommendations', authenticate, async (req, res, next) => {
+  try {
+    if (req.auth.role === 'worker') {
+      const data = await recommendationsService.getWorkerRecommendations(req.auth.sub);
+      return res.json(data);
+    }
+    const services = await recommendationsService.getUserRecommendations(req.auth.sub);
+    const trending = await recommendationsService.getTrending();
+    res.json({ services, trending });
+  } catch (err) { next(err); }
+});
+
+// User gamification profile
+router.get('/gamification', authenticate, requireRole('user'), async (req, res, next) => {
+  try {
+    const profile = await gamificationService.getGamificationProfile(req.auth.sub);
+    if (!profile) return res.status(404).json({ error: 'Profile not found' });
+    res.json({ gamification: profile });
+  } catch (err) { next(err); }
+});
 
 router.post(
   '/support/:id/messages',
