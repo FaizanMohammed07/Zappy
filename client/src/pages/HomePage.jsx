@@ -1,339 +1,747 @@
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import {
-  Bell, Search, ChevronRight, Zap, Star, TrendingUp, Wrench,
-  Droplets, Bolt, Wind, Hammer, Users, Car, Sparkles, Paintbrush2,
-  Flame, Trophy, Ticket, Gem,
+  Bell, Search, ChevronRight, ChevronDown, Zap, Star, Wrench,
+  Droplets, Bolt, Hammer, Users, Car, Sparkles,
+  Flame, Trophy, Smartphone, Battery, Layers,
+  Bike, Fuel, AlertTriangle, ArrowUpRight,
+  Clock, Wallet, User, ShieldCheck,
+  CheckCircle, Lock, TrendingUp, MapPin, Loader2,
+  Laptop, Tv, Wifi, Camera, Heart, PartyPopper, Dog,
+  ShieldAlert, Cpu, MonitorSmartphone,
 } from 'lucide-react';
-import { selectAuth } from '../modules/auth/authSlice';
+import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
 import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery } from '../services/api';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import AdBanner from '../components/common/AdBanner';
-import {
-  staggerContainer, fadeInUp, fadeIn, scaleIn,
-} from '../lib/animations';
+import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
+import IntroSplash from '../components/common/IntroSplash';
+import HeroCarousel from '../components/home/HeroCarousel';
+import OffersSection from '../components/home/OffersSection';
 
-const SERVICES = [
-  { key: 'electrical', name: 'Electrical', Icon: Bolt,         bg: 'bg-amber-50',   color: 'text-amber-600'  },
-  { key: 'plumbing',   name: 'Plumbing',   Icon: Droplets,     bg: 'bg-blue-50',    color: 'text-blue-600'   },
-  { key: 'ac_repair',  name: 'AC Repair',  Icon: Wind,         bg: 'bg-cyan-50',    color: 'text-cyan-600'   },
-  { key: 'carpenter',  name: 'Carpenter',  Icon: Hammer,       bg: 'bg-orange-50',  color: 'text-orange-600' },
-  { key: 'helper',     name: 'Helper',     Icon: Users,        bg: 'bg-green-50',   color: 'text-green-600'  },
-  { key: 'puncture',   name: 'Puncture',   Icon: Car,          bg: 'bg-slate-50',   color: 'text-slate-600'  },
-  { key: 'cleaning',   name: 'Cleaning',   Icon: Sparkles,     bg: 'bg-purple-50',  color: 'text-purple-600' },
-  { key: 'painting',   name: 'Painting',   Icon: Paintbrush2,  bg: 'bg-pink-50',    color: 'text-pink-600'   },
+/* ─── Most booked — Electronics Rescue ────────────────────────────────── */
+const MOST_BOOKED = [
+  { key: 'screen_replacement',  name: 'Screen Replacement', img: 'https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.88, price: 399, mrp: 499, instant: true },
+  { key: 'battery_replacement', name: 'Battery Replacement',img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.83, price: 299, mrp: null, instant: true },
+  { key: 'laptop_slow',         name: 'Laptop Speed Fix',   img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.79, price: 499, mrp: 599, instant: false },
+  { key: 'charging_issue',      name: 'Charging Port Fix',  img: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.76, price: 199, mrp: null, instant: true },
+  { key: 'data_recovery',       name: 'Data Recovery',      img: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.81, price: 799, mrp: 999, instant: false },
 ];
 
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+/* ─── Vehicle care highlights ──────────────────────────────────────────── */
+const VEHICLE_HIGHLIGHTS = [
+  { key: 'puncture',         name: 'Puncture Repair',  img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.82, price: 149, mrp: null, instant: true  },
+  { key: 'car_wash',         name: 'Car Wash',         img: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.75, price: 349, mrp: null, instant: true  },
+  { key: 'battery_jump_start',name: 'Jump Start',      img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.91, price: 299, mrp: null, instant: true  },
+  { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1558981396-7f5e96fd2378?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.77, price: 499, mrp: 599, instant: false },
+  { key: 'car_detailing',    name: 'Car Detailing',    img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.85, price: 1499, mrp: 1799, instant: false },
+];
+
+/* ─── Service tile data ────────────────────────────────────────────────── */
+// Electronics Rescue — Mobile
+const PHONE_TILES = [
+  { key: 'screen_replacement',  name: 'Screen Fix',    Icon: Smartphone, grad: 'from-indigo-500 to-violet-600',  shadow: 'rgba(99,102,241,0.4)',  eta: '25 mins' },
+  { key: 'battery_replacement', name: 'Battery',       Icon: Battery,    grad: 'from-emerald-500 to-green-600',  shadow: 'rgba(16,185,129,0.35)', eta: '30 mins' },
+  { key: 'charging_issue',      name: 'Charging',      Icon: Bolt,       grad: 'from-yellow-500 to-amber-600',   shadow: 'rgba(245,158,11,0.4)',  eta: '20 mins' },
+  { key: 'camera_issue',        name: 'Camera',        Icon: Camera,     grad: 'from-pink-500 to-rose-600',      shadow: 'rgba(244,63,94,0.35)',  eta: null      },
+  { key: 'software_issue',      name: 'Software',      Icon: Cpu,        grad: 'from-red-500 to-rose-600',       shadow: 'rgba(239,68,68,0.35)', eta: null      },
+  { key: 'water_damage',        name: 'Water Damage',  Icon: Droplets,   grad: 'from-sky-500 to-blue-600',       shadow: 'rgba(14,165,233,0.35)',eta: null      },
+  { key: 'data_recovery',       name: 'Data Recovery', Icon: Layers,     grad: 'from-violet-500 to-purple-600',  shadow: 'rgba(139,92,246,0.35)',eta: null      },
+];
+
+// Electronics Rescue — Laptop
+const LAPTOP_TILES = [
+  { key: 'laptop_slow',             name: 'Slow Laptop',    Icon: Laptop, grad: 'from-slate-600 to-slate-800',   eta: '45 mins' },
+  { key: 'laptop_ssd_upgrade',      name: 'SSD Upgrade',    Icon: Cpu,    grad: 'from-blue-600 to-indigo-700',   eta: null      },
+  { key: 'laptop_screen_issue',     name: 'Screen Repair',  Icon: MonitorSmartphone, grad: 'from-violet-500 to-purple-700', eta: null },
+  { key: 'laptop_virus_removal',    name: 'Virus Removal',  Icon: ShieldAlert, grad: 'from-red-500 to-rose-700', eta: null },
+  { key: 'laptop_data_recovery',    name: 'Data Recovery',  Icon: Layers, grad: 'from-emerald-500 to-teal-700',  eta: null      },
+  { key: 'laptop_charging_issue',   name: 'Charging Fix',   Icon: Bolt,   grad: 'from-amber-500 to-orange-600',  eta: '40 mins' },
+];
+
+// Smart Devices
+const SMART_TILES = [
+  { key: 'smart_tv_install',    name: 'Smart TV',         Icon: Tv,       grad: 'from-slate-700 to-slate-900',   eta: '60 mins' },
+  { key: 'router_setup',        name: 'WiFi Setup',       Icon: Wifi,     grad: 'from-blue-500 to-cyan-600',     eta: '30 mins' },
+  { key: 'cctv_install',        name: 'CCTV Install',     Icon: Camera,   grad: 'from-stone-600 to-stone-800',   eta: null      },
+  { key: 'smart_lock_install',  name: 'Smart Lock',       Icon: Lock,     grad: 'from-indigo-600 to-violet-700', eta: null      },
+  { key: 'home_automation_setup',name: 'Home Auto',       Icon: Zap,      grad: 'from-amber-500 to-orange-600',  eta: null      },
+];
+
+// Vehicle Care
+const VEHICLE_TILES = [
+  { key: 'puncture',           name: 'Puncture',      Icon: AlertTriangle, grad: 'from-slate-600 to-slate-800',  shadow: 'rgba(100,116,139,0.4)', eta: '18 mins' },
+  { key: 'battery_jump_start', name: 'Jump Start',    Icon: Zap,           grad: 'from-yellow-500 to-amber-600', shadow: 'rgba(245,158,11,0.4)',  eta: '15 mins' },
+  { key: 'bike_wash',          name: 'Bike Wash',     Icon: Bike,          grad: 'from-cyan-500 to-blue-600',    shadow: 'rgba(6,182,212,0.35)', eta: '30 mins' },
+  { key: 'car_wash',           name: 'Car Wash',      Icon: Car,           grad: 'from-sky-500 to-blue-700',     shadow: 'rgba(14,165,233,0.35)',eta: '35 mins' },
+  { key: 'car_breakdown',      name: 'Breakdown',     Icon: Hammer,        grad: 'from-red-500 to-rose-700',     shadow: 'rgba(239,68,68,0.35)', eta: '20 mins' },
+  { key: 'fuel_delivery',      name: 'Fuel Delivery', Icon: Fuel,          grad: 'from-orange-500 to-red-500',   shadow: 'rgba(249,115,22,0.4)', eta: '25 mins' },
+];
+
+// Family & Elder Assist
+const FAMILY_TILES = [
+  { key: 'medicine_pickup',    name: 'Medicine',      Icon: Heart,       grad: 'from-rose-500 to-pink-600',     eta: '40 mins' },
+  { key: 'hospital_companion', name: 'Hospital Help', Icon: ShieldCheck, grad: 'from-blue-500 to-indigo-600',   eta: null      },
+  { key: 'grocery_assistance', name: 'Grocery',       Icon: Users,       grad: 'from-green-500 to-emerald-600', eta: '45 mins' },
+  { key: 'elder_companion',    name: 'Elder Care',    Icon: Heart,       grad: 'from-violet-500 to-purple-600', eta: null      },
+  { key: 'home_visit_check',   name: 'Home Visit',    Icon: CheckCircle, grad: 'from-teal-500 to-cyan-600',     eta: null      },
+];
+
+// Event Crew
+const EVENT_TILES = [
+  { key: 'event_birthday_setup', name: 'Birthday',   Icon: PartyPopper, grad: 'from-pink-500 to-fuchsia-600',  eta: null },
+  { key: 'event_decorator',      name: 'Decorator',  Icon: Sparkles,    grad: 'from-violet-500 to-purple-600', eta: null },
+  { key: 'event_setup_crew',     name: 'Setup Crew', Icon: Users,       grad: 'from-blue-500 to-indigo-600',   eta: null },
+  { key: 'event_wedding_setup',  name: 'Wedding',    Icon: Star,        grad: 'from-amber-400 to-orange-500',  eta: null },
+  { key: 'event_sound_crew',     name: 'Sound',      Icon: Layers,      grad: 'from-slate-600 to-slate-800',   eta: null },
+];
+
+// Pet Assistance
+const PET_TILES = [
+  { key: 'pet_grooming',       name: 'Grooming',    Icon: Dog,        grad: 'from-amber-400 to-orange-500',  eta: '60 mins' },
+  { key: 'pet_walking',        name: 'Walking',     Icon: Bike,       grad: 'from-green-500 to-emerald-600', eta: '20 mins' },
+  { key: 'pet_sitting',        name: 'Pet Sitting', Icon: Heart,      grad: 'from-rose-500 to-pink-600',     eta: null      },
+  { key: 'pet_vet_assist',     name: 'Vet Help',    Icon: ShieldCheck,grad: 'from-blue-500 to-indigo-600',   eta: null      },
+  { key: 'pet_transport',      name: 'Transport',   Icon: Car,        grad: 'from-violet-500 to-purple-600', eta: null      },
+];
+
+const HERO_POSTERS = [
+  { Icon: Smartphone, label: 'Phone Repair',  grad: 'from-indigo-500 via-violet-600 to-purple-700' },
+  { Icon: Car,        label: 'Vehicle Care',  grad: 'from-slate-600 via-slate-700 to-slate-900'    },
+  { Icon: Heart,      label: 'Family Assist', grad: 'from-rose-500 via-pink-500 to-fuchsia-600'    },
+  { Icon: Dog,        label: 'Pet Care',      grad: 'from-amber-400 via-orange-500 to-red-500'     },
+];
+
+const ACTIVE_STATUSES = ['created','searching','assigned','on_the_way','arrived','in_progress'];
+const STATUS_LABELS = {
+  searching: 'Finding a worker', assigned: 'Worker assigned', on_the_way: 'On the way',
+  arrived: 'Arrived', in_progress: 'In progress', created: 'Order placed',
+};
+const LEVEL_COLORS = {
+  Rookie: 'from-slate-400 to-slate-500',    Explorer: 'from-green-400 to-emerald-500',
+  Regular: 'from-blue-400 to-blue-600',     Pro: 'from-violet-400 to-purple-600',
+  Expert: 'from-amber-400 to-orange-500',   Elite: 'from-rose-400 to-red-500',
+  Champion: 'from-pink-400 to-fuchsia-600', Legend: 'from-yellow-300 to-amber-500',
+};
+
+/* ─── Live worker badge ────────────────────────────────────────────────── */
+function LiveBadge() {
+  const [n, setN] = useState(47);
+  useEffect(() => {
+    const id = setInterval(() => setN(x => x + (Math.random() > 0.5 ? 1 : -1)), 6000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 ring-1 ring-green-200">
+      <motion.span className="w-1.5 h-1.5 rounded-full bg-green-500"
+        animate={{ opacity: [1, 0.3, 1], scale: [1, 0.8, 1] }}
+        transition={{ duration: 1.5, repeat: Infinity }} />
+      <span className="text-[11px] font-bold text-green-700">{n} workers live</span>
+    </div>
+  );
 }
 
-const ACTIVE_STATUSES = ['created', 'searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'];
+/* ─── UC-style image service card ──────────────────────────────────────── */
+function ServiceImageCard({ item, nav }) {
+  return (
+    <motion.button
+      onClick={() => nav(`/book/${item.key}`)}
+      className="shrink-0 w-44 flex flex-col text-left"
+      whileHover={{ y: -4 }}
+      whileTap={{ scale: 0.96 }}
+    >
+      <div className="w-full h-36 rounded-2xl overflow-hidden bg-slate-100 mb-2.5 relative">
+        <img
+          src={item.img}
+          alt={item.name}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+          onError={e => { e.target.style.display = 'none'; }}
+        />
+        {item.instant && (
+          <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm rounded-full px-2 py-0.5 shadow-sm">
+            <Zap size={8} className="text-green-600" strokeWidth={2.5} />
+            <span className="text-[9px] font-black text-green-600">Instant</span>
+          </div>
+        )}
+      </div>
+      <p className="text-[13px] font-bold text-slate-900 leading-tight mb-1">{item.name}</p>
+      <div className="flex items-center gap-1 mb-1">
+        <Star size={10} className="text-amber-400 fill-amber-400" />
+        <span className="text-[11px] font-semibold text-slate-700">{item.rating.toFixed(2)}</span>
+        {item.instant && (
+          <>
+            <span className="text-slate-300 mx-0.5">·</span>
+            <Zap size={8} className="text-green-600" strokeWidth={2.5} />
+            <span className="text-[10px] font-semibold text-green-600">Instant</span>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[13px] font-black text-slate-900">₹{item.price}</span>
+        {item.mrp && <span className="text-[11px] text-slate-400 line-through">₹{item.mrp}</span>}
+      </div>
+    </motion.button>
+  );
+}
 
-const STATUS_LABELS = {
-  searching:   'Finding a worker',
-  assigned:    'Worker assigned',
-  on_the_way:  'Worker on the way',
-  arrived:     'Worker has arrived',
-  in_progress: 'Service in progress',
-  created:     'Order placed',
-};
+/* ─── Gradient poster tile ─────────────────────────────────────────────── */
+function PosterTile({ svc, nav }) {
+  const { key, name, Icon, grad, shadow, eta } = svc;
+  return (
+    <motion.button onClick={() => nav(`/book/${key}`)} className="w-[84px] sm:w-[96px] md:w-[112px] lg:w-[128px] flex flex-col items-center gap-2 group shrink-0"
+      whileHover={{ y: -4 }} whileTap={{ scale: 0.92 }} transition={springSnap}>
+      <div className={`w-full aspect-square rounded-2xl bg-gradient-to-br ${grad} relative overflow-hidden`}
+        style={{ boxShadow: shadow ? `0 6px 20px ${shadow}` : '0 4px 12px rgba(0,0,0,0.15)' }}>
+        <div className="absolute -right-3 -top-3 w-14 h-14 rounded-full bg-white/10" />
+        <div className="absolute -left-2 -bottom-3 w-10 h-10 rounded-full bg-white/10" />
+        <div className="absolute inset-0 opacity-10" style={{
+          backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,0.4) 0px,rgba(255,255,255,0.4) 1px,transparent 1px,transparent 8px)',
+        }} />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Icon size={22} strokeWidth={1.75} className="text-white drop-shadow-sm relative z-10" />
+        </div>
+        {eta && (
+          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/30 backdrop-blur-sm rounded-full px-1.5 py-0.5 flex items-center gap-0.5">
+              <Clock size={7} className="text-white/90" />
+              <span className="text-[9px] font-black text-white">{eta}</span>
+            </div>
+          </div>
+        )}
+        <motion.div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
+      </div>
+      <span className="text-[11px] font-semibold text-slate-600 text-center leading-tight">{name}</span>
+    </motion.button>
+  );
+}
 
-const LEVEL_COLORS = {
-  Rookie: 'from-slate-400 to-slate-500',
-  Explorer: 'from-green-400 to-emerald-500',
-  Regular: 'from-blue-400 to-blue-600',
-  Pro: 'from-violet-400 to-purple-600',
-  Expert: 'from-amber-400 to-orange-500',
-  Elite: 'from-rose-400 to-red-500',
-  Champion: 'from-pink-400 to-fuchsia-600',
-  Legend: 'from-yellow-300 to-amber-500',
-};
+/* ─── Compact poster tile ──────────────────────────────────────────────── */
+function CompactTile({ svc, nav }) {
+  const { key, name, Icon, grad, eta } = svc;
+  return (
+    <motion.button onClick={() => nav(`/book/${key}`)} className="w-[72px] sm:w-[84px] md:w-[96px] lg:w-[104px] flex flex-col items-center gap-1.5 group shrink-0"
+      whileHover={{ y: -3 }} whileTap={{ scale: 0.93 }}>
+      <div className={`w-full aspect-square rounded-xl bg-gradient-to-br ${grad} relative overflow-hidden`}
+        style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
+        <div className="absolute -right-2 -top-2 w-10 h-10 rounded-full bg-white/10" />
+        <div className="absolute -left-1 -bottom-2 w-7 h-7 rounded-full bg-white/10" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Icon size={18} strokeWidth={1.75} className="text-white relative z-10" />
+        </div>
+        {eta && (
+          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/25 backdrop-blur-sm rounded-full px-1 py-px flex items-center gap-0.5">
+              <Clock size={6} className="text-white/90" />
+              <span className="text-[8px] font-black text-white">{eta}</span>
+            </div>
+          </div>
+        )}
+      </div>
+      <span className="text-[10px] font-semibold text-slate-600 text-center leading-tight">{name}</span>
+    </motion.button>
+  );
+}
 
-const REC_SERVICE_ICONS = {
-  electrical: Bolt, plumbing: Droplets, ac_repair: Wind,
-  carpenter: Hammer, helper: Users, puncture: Car,
-  cleaning: Sparkles, painting: Paintbrush2,
-};
+/* ─── Section header ───────────────────────────────────────────────────── */
+function SectionHeader({ title, badge, badgeColor = 'bg-indigo-50 text-indigo-600 ring-indigo-100', onSeeAll }) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[17px] font-black text-slate-900">{title}</h3>
+        {badge && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 ${badgeColor}`}>{badge}</span>}
+      </div>
+      {onSeeAll && (
+        <motion.button onClick={onSeeAll} className="text-xs font-bold text-indigo-600 flex items-center gap-0.5" whileHover={{ x: 2 }}>
+          See all <ChevronRight size={12} strokeWidth={3} />
+        </motion.button>
+      )}
+    </div>
+  );
+}
 
+/* ─── Main component ───────────────────────────────────────────────────── */
 export default function HomePage() {
   const nav = useNavigate();
   const { profile } = useSelector(selectAuth);
-  const { data } = useListOrdersQuery(1);
-  const { data: gamData } = useGetGamificationQuery();
-  const { data: recData } = useGetRecommendationsQuery();
+  const isAuthed     = useSelector(selectIsAuthed);
 
-  const activeOrder = data?.orders?.find((o) => ACTIVE_STATUSES.includes(o.status));
-  const firstName = profile?.name?.split(' ')[0] || 'there';
-  const greeting = getGreeting();
-  const gam = gamData?.gamification;
+  const { data }          = useListOrdersQuery(1, { skip: !isAuthed });
+  const { data: gamData } = useGetGamificationQuery(undefined, { skip: !isAuthed });
+  const { data: recData } = useGetRecommendationsQuery(undefined, { skip: !isAuthed });
+
+  const activeOrder    = data?.orders?.find(o => ACTIVE_STATUSES.includes(o.status));
+  const firstName      = profile?.name?.split(' ')[0] || 'there';
+  const gam            = gamData?.gamification;
   const recommendations = recData?.recommendations || [];
+
+  // Re-engagement banner (#99): show "book again" nudge if last completed order was >7 days ago
+  const lastCompleted = data?.orders?.find(o => o.status === 'completed');
+  const daysSinceLastOrder = lastCompleted
+    ? Math.floor((Date.now() - new Date(lastCompleted.completedAt || lastCompleted.createdAt).getTime()) / 86_400_000)
+    : null;
+  const showReengagement = daysSinceLastOrder !== null && daysSinceLastOrder >= 7 && !activeOrder;
+
+  /* ── GPS location detection ───────────────────────────────────────── */
+  const [loc, setLoc] = useState({ primary: 'Detecting location…', secondary: null, loading: true });
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLoc({ primary: 'Location unavailable', secondary: null, loading: false });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude: lat, longitude: lon } }) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=14&addressdetails=1`,
+          );
+          const data = await res.json();
+          const a = data.address || {};
+          const primary   = a.neighbourhood || a.suburb || a.village || a.town || a.city || 'Your Location';
+          const secondary = [a.city || a.town, a.state].filter(Boolean).join(', ') || null;
+          setLoc({ primary, secondary, loading: false });
+        } catch {
+          setLoc({ primary: 'Location found', secondary: null, loading: false });
+        }
+      },
+      () => setLoc({ primary: 'Moinabad, India', secondary: null, loading: false }),
+      { timeout: 10000, enableHighAccuracy: false, maximumAge: 120000 },
+    );
+  }, []);
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-[#F9FAFB] pb-24">
+      <IntroSplash />
+      <div className="min-h-screen pb-28 bg-white">
 
-        {/* Header */}
-        <header className="bg-white border-b border-slate-100">
-          <div className="page-container py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <ZappyLogo size={32} />
-                <div>
-                  <p className="text-[11px] text-slate-400 font-medium leading-none">{greeting},</p>
-                  <p className="text-[15px] font-bold text-[#0F172A] leading-tight">{firstName} 👋</p>
-                </div>
+        {/* ─── Premium Navbar ───────────────────────────────────────── */}
+        <header className="sticky top-0 z-30 bg-white" style={{ boxShadow: '0 1px 0 0 #f1f5f9, 0 4px 20px rgba(0,0,0,0.05)' }}>
+          {/* Top accent gradient line */}
+          <div className="h-[4px] bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
+
+          <div className="max-w-[1600px] w-full mx-auto px-4 h-[60px] md:h-[80px] flex items-center gap-3 md:gap-8">
+            {/* Logo */}
+            <div className="flex items-center gap-2 shrink-0 cursor-pointer" onClick={() => nav('/')}>
+              <ZappyLogo size={32} className="md:w-10 md:h-10" />
+              <span className="hidden lg:block text-2xl font-black tracking-tighter text-slate-900">Zappy</span>
+            </div>
+
+            {/* Location widget ─ world-class GPS chip */}
+            <motion.button
+              className="flex-1 md:flex-none md:w-[280px] min-w-0 flex items-center gap-3 px-4 h-10 md:h-12 rounded-xl relative overflow-hidden text-left"
+              style={{
+                background: 'linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%)',
+                border: '1px solid rgba(99,102,241,0.15)',
+              }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {/* Animated GPS pin */}
+              <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
+                <MapPin size={16} strokeWidth={2.5} className="text-indigo-600 relative z-10" />
+                {loc.loading && (
+                  <>
+                    <motion.div
+                      className="absolute inset-0 rounded-full border border-indigo-400"
+                      animate={{ scale: [1, 2.2], opacity: [0.7, 0] }}
+                      transition={{ duration: 1.4, repeat: Infinity, ease: 'easeOut' }}
+                    />
+                    <motion.div
+                      className="absolute inset-0 rounded-full border border-indigo-400"
+                      animate={{ scale: [1, 2.2], opacity: [0.7, 0] }}
+                      transition={{ duration: 1.4, repeat: Infinity, ease: 'easeOut', delay: 0.55 }}
+                    />
+                  </>
+                )}
+                {!loc.loading && (
+                  <motion.div
+                    className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 ring-2 ring-white"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                  />
+                )}
               </div>
+
+              {/* Location text */}
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-0.5">
+                  Delivering to
+                </p>
+                <AnimatePresence mode="wait">
+                  {loc.loading ? (
+                    <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="flex items-center gap-1.5">
+                      <Loader2 size={12} className="text-indigo-400 animate-spin" />
+                      <span className="text-[13px] font-semibold text-slate-400">Detecting…</span>
+                    </motion.div>
+                  ) : (
+                    <motion.div key="found" initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                      className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-sm font-black text-slate-900 truncate">{loc.primary}</span>
+                      {loc.secondary && (
+                        <span className="text-[11px] text-slate-400 font-medium truncate hidden sm:block">
+                          {loc.secondary}
+                        </span>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <ChevronDown size={14} className="text-indigo-400 shrink-0" />
+            </motion.button>
+
+            {/* ─── Desktop Search bar ───────────────────────────────────────────── */}
+            <div className="hidden md:block flex-1 max-w-2xl mx-auto">
               <motion.button
-                onClick={() => nav('/notifications')}
-                className="relative w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center"
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.94 }}
-                aria-label="Notifications"
+                onClick={() => nav('/services')}
+                className="w-full flex items-center gap-3 rounded-2xl px-5 h-12 text-left"
+                style={{ background: '#f8fafc', border: '2px solid #e2e8f0' }}
+                whileHover={{ borderColor: '#6366f1', background: '#fafbff' }}
+                whileTap={{ scale: 0.99 }}
               >
-                <Bell size={18} strokeWidth={1.75} className="text-slate-600" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-zappy-600 rounded-full" />
+                <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
+                <span className="text-[15px] font-medium text-slate-400 flex-1">Search for a service…</span>
+                <motion.span
+                  className="text-xs font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0"
+                  animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
+                >
+                  50+ services
+                </motion.span>
               </motion.button>
             </div>
 
-            {/* Search */}
-            <motion.button
-              onClick={() => nav('/services')}
-              className="mt-4 w-full flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-btn px-4 py-3 text-left"
-              whileHover={{ scale: 1.01, borderColor: '#CBD5E1' }}
-              whileTap={{ scale: 0.99 }}
-            >
-              <Search size={16} strokeWidth={2} className="text-slate-400 shrink-0" />
-              <span className="text-sm text-slate-400 font-medium flex-1">Search for a service…</span>
-              <span className="text-[11px] font-semibold text-zappy-600 bg-zappy-50 px-2 py-0.5 rounded-full">
-                50+ services
-              </span>
-            </motion.button>
+            {/* Action Icons */}
+            <div className="flex items-center gap-3 shrink-0">
+              {/* Bell */}
+              <motion.button
+                onClick={() => nav('/notifications')}
+                className="relative w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 hover:bg-slate-100 transition-colors"
+                whileTap={{ scale: 0.88 }}
+              >
+                <Bell size={18} strokeWidth={1.75} className="text-slate-600" />
+                <motion.span
+                  className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white"
+                  animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 2, repeat: Infinity }}
+                />
+              </motion.button>
+
+              {/* Avatar */}
+              <motion.button
+                onClick={() => nav('/profile')}
+                className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-black shadow-md hover:shadow-lg transition-shadow"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)' }}
+                whileTap={{ scale: 0.88 }}
+              >
+                {firstName[0]?.toUpperCase() || <User size={16} />}
+              </motion.button>
+            </div>
           </div>
         </header>
 
-        <div className="page-container">
+        {/* ─── Mobile Search bar ───────────────────────────────────────────── */}
+        <div className="md:hidden bg-white px-4 pt-3 pb-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
+          <motion.button
+            onClick={() => nav('/services')}
+            className="w-full flex items-center gap-3 rounded-xl px-4 h-11 text-left"
+            style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0' }}
+            whileHover={{ borderColor: '#6366f1', background: '#fafbff' }}
+            whileTap={{ scale: 0.99 }}
+          >
+            <Search size={16} strokeWidth={2} className="text-slate-400 shrink-0" />
+            <span className="text-sm font-medium text-slate-400 flex-1">Search for a service…</span>
+            <motion.span
+              className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full shrink-0"
+              animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
+            >
+              50+ services
+            </motion.span>
+          </motion.button>
+        </div>
 
-          {/* Gamification strip */}
+        {/* ─── Hero section ─────────────────────────────────────────── */}
+        <div className="max-w-[1600px] w-full mx-auto px-4 pt-5 pb-5">
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <motion.h1
+                className="text-[26px] font-black text-slate-900 leading-[1.2] mb-2"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+              >
+                Trusted assistance,<br />at your doorstep
+              </motion.h1>
+              <motion.p className="text-sm text-slate-500 font-medium"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
+                Phones · Laptops · Cars · Elders · Pets · Events
+              </motion.p>
+            </div>
+            <div className="mt-2">
+              <LiveBadge />
+            </div>
+          </div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <HeroCarousel />
+          </motion.div>
+        </div>
+
+        {/* ─── Trust stats ──────────────────────────────────────────── */}
+        <div style={{ borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', background: '#fafbfc' }}>
+          <div className="max-w-[1600px] w-full mx-auto px-4 py-3 flex items-center justify-around">
+            {[
+              { val: '50K+', label: 'Bookings',     color: 'text-indigo-600' },
+              { val: '4.8',  label: 'Avg Rating',   color: 'text-amber-500'  },
+              { val: '500+', label: 'Verified Pros', color: 'text-green-600' },
+              { val: '<60s', label: 'Avg Match',     color: 'text-violet-600' },
+            ].map(({ val, label, color }) => (
+              <div key={label} className="text-center">
+                <p className={`text-sm font-black ${color}`}>{val}</p>
+                <p className="text-[9px] text-slate-400 font-medium mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="max-w-[1600px] w-full mx-auto">
+
+          {/* ─── Re-engagement banner (#99) ──────────────────────────── */}
+          <AnimatePresence>
+            {showReengagement && lastCompleted && (
+              <motion.div className="px-4 mt-4"
+                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <motion.button
+                  onClick={() => nav(`/book/${lastCompleted.service}`)}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl text-left"
+                  style={{ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '1px solid rgba(34,197,94,0.25)' }}
+                  whileTap={{ scale: 0.98 }}>
+                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                    <Clock size={16} strokeWidth={2} className="text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Book again?</p>
+                    <p className="text-sm font-bold text-green-900 capitalize truncate mt-0.5">
+                      {lastCompleted.service?.replace(/_/g, ' ')} · {daysSinceLastOrder}d ago
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className="text-green-500 shrink-0" />
+                </motion.button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ─── Active order banner ────────────────────────────────── */}
+          <AnimatePresence>
+            {activeOrder && (
+              <motion.div className="px-4 mt-4"
+                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <motion.button
+                  onClick={() => nav(`/orders/${activeOrder._id}`)}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl text-left relative overflow-hidden"
+                  style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', boxShadow: '0 8px 24px rgba(79,70,229,0.3)' }}
+                  whileHover={{ y: -2 }} whileTap={{ scale: 0.99 }}>
+                  <motion.div className="absolute inset-0 opacity-20"
+                    style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)' }}
+                    animate={{ x: ['-100%', '200%'] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }} />
+                  <motion.div className="w-3 h-3 rounded-full bg-green-400 shrink-0"
+                    animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
+                  <div className="flex-1 min-w-0 relative z-10">
+                    <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Live Order</p>
+                    <p className="text-sm font-bold text-white truncate capitalize mt-0.5">
+                      {activeOrder.service.replace(/_/g, ' ')} · {STATUS_LABELS[activeOrder.status]}
+                    </p>
+                  </div>
+                  <ArrowUpRight size={16} className="text-white/70 shrink-0 relative z-10" />
+                </motion.button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ─── Gamification ────────────────────────────────────────── */}
           {gam && (
-            <motion.div className="mt-4" variants={fadeIn} initial="initial" animate="animate">
-              <div className="bg-white border border-slate-100 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
-                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shrink-0 shadow-sm`}>
-                  <Trophy size={16} strokeWidth={2} className="text-white" />
+            <motion.div className="px-4 mt-4">
+              <div className="p-4 rounded-2xl bg-white ring-1 ring-slate-100" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
+                <div className="flex items-center gap-3">
+                  <motion.div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shrink-0`}
+                    whileHover={{ rotate: 8 }} transition={springSnap}>
+                    <Trophy size={18} strokeWidth={2} className="text-white" />
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <p className="text-sm font-black text-slate-900">{gam.levelName}</p>
+                      <span className="text-[10px] text-slate-400">{gam.xp} XP</span>
+                      {gam.streak >= 2 && (
+                        <motion.span className="flex items-center gap-0.5 text-[10px] font-black text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full ring-1 ring-orange-100"
+                          animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                          <Flame size={9} className="fill-orange-500" /> {gam.streak}
+                        </motion.span>
+                      )}
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <motion.div className={`h-full rounded-full bg-gradient-to-r ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'}`}
+                        initial={{ width: '0%' }} animate={{ width: `${Math.min(100, gam.progressPercent || 0)}%` }}
+                        transition={{ duration: 1, delay: 0.3 }} />
+                    </div>
+                    {gam.nextLevelName && <p className="text-[10px] text-slate-400 mt-1">{gam.xpToNext} XP to <strong>{gam.nextLevelName}</strong></p>}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-xs font-bold text-slate-900">{gam.levelName}</p>
-                    <span className="text-[10px] font-semibold text-slate-400">{gam.xp} XP</span>
-                    {gam.streak >= 2 && (
-                      <span className="flex items-center gap-0.5 text-[10px] font-bold text-orange-500">
-                        <Flame size={10} />
-                        {gam.streak} streak
-                      </span>
-                    )}
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5">
-                    <div
-                      className={`h-1.5 rounded-full bg-gradient-to-r ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} transition-all duration-500`}
-                      style={{ width: `${Math.min(100, gam.progressPercent || 0)}%` }}
-                    />
-                  </div>
-                  {gam.nextLevelName && (
-                    <p className="text-[9px] text-slate-400 mt-0.5">{gam.xpToNext} XP to {gam.nextLevelName}</p>
-                  )}
-                </div>
-                {gam.badges?.length > 0 && (
-                  <div className="flex gap-1 shrink-0">
-                    {gam.badges.slice(-3).map((b) => {
-                      const id = typeof b === 'string' ? b : b?.id ?? '';
-                      const cfg =
-                        id === 'first_order'      ? { Icon: Star,  bg: 'bg-blue-50',   color: 'text-blue-500'   } :
-                        id.startsWith('loyal')    ? { Icon: Gem,   bg: 'bg-violet-50', color: 'text-violet-500' } :
-                        id.startsWith('streak')   ? { Icon: Flame, bg: 'bg-orange-50', color: 'text-orange-500' } :
-                        id === 'legend'           ? { Icon: Trophy,bg: 'bg-amber-50',  color: 'text-amber-500'  } :
-                                                    { Icon: Star,  bg: 'bg-slate-50',  color: 'text-slate-400'  };
-                      const { Icon, bg, color } = cfg;
-                      return (
-                        <div key={id} className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center`} title={id.replace(/_/g, ' ')}>
-                          <Icon size={13} strokeWidth={2} className={color} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </motion.div>
           )}
 
-          {/* Active order banner */}
-          {activeOrder && (
-            <motion.div className="mt-4" variants={fadeIn} initial="initial" animate="animate">
-              <motion.button
-                onClick={() => nav(`/orders/${activeOrder._id}`)}
-                className="w-full flex items-center gap-3 bg-zappy-600 rounded-card p-4 text-left shadow-soft"
-                whileHover={{ scale: 1.01, y: -2 }}
-                whileTap={{ scale: 0.99 }}
-              >
-                <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse-slow shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold text-white/70 uppercase tracking-wide">Live order</p>
-                  <p className="text-sm font-semibold text-white truncate capitalize">
-                    {activeOrder.service.replace(/_/g, ' ')} · {STATUS_LABELS[activeOrder.status] || activeOrder.status}
-                  </p>
-                </div>
-                <ChevronRight size={16} className="text-white/70 shrink-0" />
-              </motion.button>
-            </motion.div>
-          )}
-
-          {/* Desktop: hero + promo side by side on lg+ */}
-          <div className="mt-4 lg:grid lg:grid-cols-[1fr_280px] lg:gap-4 xl:grid-cols-[1fr_320px]">
-
-            {/* Hero card */}
-            <motion.div
-              className="card-hero"
-              variants={scaleIn}
-              initial="initial"
-              animate="animate"
-            >
-              <div className="relative z-10 max-w-[65%]">
-                <p className="text-[11px] font-bold text-white/60 uppercase tracking-widest mb-1">Get instant help</p>
-                <h2 className="text-[22px] font-bold text-white leading-tight">
-                  Need help at home?
-                </h2>
-                <p className="text-sm text-white/70 mt-1 mb-5 leading-relaxed">
-                  Trusted professionals, at your door in minutes.
-                </p>
-                <motion.button
-                  onClick={() => nav('/services')}
-                  className="inline-flex items-center gap-2 bg-white text-zappy-700 font-bold text-sm px-5 py-2.5 rounded-btn shadow-soft"
-                  whileHover={{ scale: 1.04, boxShadow: '0 8px 24px rgba(15,23,42,0.15)' }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  <Zap size={14} strokeWidth={2.5} />
-                  Book Now
-                </motion.button>
+          {/* ─── Quick cards ─────────────────────────────────────────── */}
+          <div className="px-4 mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
+            <motion.button onClick={() => nav('/plans')} className="rounded-2xl p-4 text-left"
+              style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.2)', boxShadow: '0 4px 16px rgba(245,158,11,0.1)' }}
+              whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center mb-3">
+                <Star size={16} strokeWidth={2} className="text-amber-600 fill-amber-400" />
               </div>
-              <div className="absolute right-0 top-0 bottom-0 w-32 flex items-center justify-center opacity-10">
-                <Wrench size={96} strokeWidth={1} className="text-white" />
+              <p className="text-sm font-black text-slate-900">Go Premium</p>
+              <p className="text-[11px] text-amber-700 mt-0.5 font-medium">No surge · No fees</p>
+            </motion.button>
+            <motion.button onClick={() => nav('/wallet')} className="rounded-2xl p-4 text-left"
+              style={{ background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid rgba(59,130,246,0.15)', boxShadow: '0 4px 16px rgba(59,130,246,0.08)' }}
+              whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center mb-3">
+                <Wallet size={16} strokeWidth={2} className="text-blue-600" />
               </div>
-            </motion.div>
-
-            {/* Promo cards — stacked on mobile, shown to the right on lg */}
-            <div className="mt-3 lg:mt-0 grid grid-cols-2 gap-3 lg:grid-cols-1 lg:gap-3">
-              <motion.button
-                onClick={() => nav('/plans')}
-                className="card text-left bg-gradient-to-br from-amber-50 to-orange-50 ring-amber-100"
-                whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(251,191,36,0.20)' }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center mb-3">
-                  <Star size={18} strokeWidth={2} className="text-amber-600" />
-                </div>
-                <p className="text-sm font-bold text-[#0F172A]">Go Premium</p>
-                <p className="text-[11px] text-amber-700 mt-0.5 font-medium">No surge, no fees</p>
-              </motion.button>
-
-              <motion.button
-                onClick={() => nav('/wallet')}
-                className="card text-left"
-                whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(37,99,235,0.12)' }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <div className="w-10 h-10 rounded-xl bg-zappy-50 flex items-center justify-center mb-3">
-                  <TrendingUp size={18} strokeWidth={2} className="text-zappy-600" />
-                </div>
-                <p className="text-sm font-bold text-[#0F172A]">Wallet</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Balance & top-up</p>
-              </motion.button>
-            </div>
+              <p className="text-sm font-black text-slate-900">Wallet</p>
+              <p className="text-[11px] text-blue-700 mt-0.5 font-medium">Balance &amp; top-up</p>
+            </motion.button>
           </div>
 
-          {/* Ad banners */}
-          <AdBanner className="mt-4" />
+          {/* ─── Offers ──────────────────────────────────────────────── */}
+          <OffersSection />
 
-          {/* Recommendations */}
-          {recommendations.length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-[#0F172A] text-[15px]">Recommended for you</h3>
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Personalized</span>
-              </div>
-              <div className="flex gap-2.5 overflow-x-auto no-scrollbar -mx-4 px-4 pb-1">
-                {recommendations.slice(0, 6).map(({ service: svc, reason }) => {
-                  const s = SERVICES.find((x) => x.key === svc);
-                  const Icon = REC_SERVICE_ICONS[svc] || Wrench;
-                  const bg = s?.bg || 'bg-slate-50';
-                  const color = s?.color || 'text-slate-600';
-                  return (
-                    <motion.button
-                      key={svc}
-                      onClick={() => nav(`/book/${svc}`)}
-                      className="shrink-0 flex flex-col items-center bg-white border border-slate-100 rounded-2xl px-3.5 py-3 shadow-sm gap-2 w-24"
-                      whileHover={{ y: -2 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <div className={`w-11 h-11 rounded-xl ${bg} flex items-center justify-center`}>
-                        <Icon size={20} strokeWidth={1.75} className={color} />
-                      </div>
-                      <p className="text-[11px] font-bold text-slate-700 text-center leading-tight capitalize">
-                        {svc.replace(/_/g, ' ')}
-                      </p>
-                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
-                        reason === 'trending' ? 'bg-orange-50 text-orange-600' :
-                        reason === 'history'  ? 'bg-blue-50 text-blue-600' :
-                        'bg-slate-50 text-slate-500'
-                      }`}>
-                        {reason === 'trending' ? '🔥 Trending' : reason === 'history' ? '📋 Used before' : '✨ Popular'}
-                      </span>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Ad Banners */}
+          <div className="px-4"><AdBanner className="mt-4" /></div>
 
-          {/* Services grid */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-[#0F172A] text-[15px]">Our Services</h3>
-              <motion.button
-                onClick={() => nav('/services')}
-                className="text-xs font-semibold text-zappy-600 flex items-center gap-1"
-                whileHover={{ x: 2 }}
-              >
-                View all <ChevronRight size={12} strokeWidth={2.5} />
-              </motion.button>
+          {/* ─── Electronics Rescue — Most Booked ────────────────────── */}
+          <div className="mt-7">
+            <div className="px-4">
+              <SectionHeader title="Electronics Rescue" badge="Most Booked" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
             </div>
-            <motion.div
-              className="grid grid-cols-4 gap-3"
-              variants={staggerContainer}
-              initial="initial"
-              animate="animate"
-            >
-              {SERVICES.map(({ key, name, Icon, bg, color }) => (
-                <motion.button
-                  key={key}
-                  onClick={() => nav(`/book/${key}`)}
-                  className="flex flex-col items-center gap-2 py-1"
-                  variants={fadeInUp}
-                  whileHover={{ y: -3 }}
-                  whileTap={{ scale: 0.93 }}
-                >
-                  <div className={`w-14 h-14 rounded-2xl ${bg} flex items-center justify-center shadow-sm`}>
-                    <Icon size={24} strokeWidth={1.75} className={color} />
-                  </div>
-                  <span className="text-[11px] font-semibold text-slate-600 text-center leading-tight">{name}</span>
-                </motion.button>
+            <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-1">
+              {MOST_BOOKED.map((item, i) => (
+                <ServiceImageCard key={i} item={item} nav={nav} />
               ))}
-            </motion.div>
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <motion.button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></motion.button>
+              </div>
+            </div>
           </div>
+
+          {/* ─── Phone Repair grid ────────────────────────────────────── */}
+          <div className="px-4 mt-7">
+            <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
+            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#eef2ff,#f5f3ff)', border: '1px solid rgba(99,102,241,0.12)' }}>
+              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
+                {PHONE_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+              </motion.div>
+            </div>
+          </div>
+
+          {/* ─── Laptop Services ──────────────────────────────────────── */}
+          <div className="px-4 mt-7">
+            <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-600 ring-slate-200" onSeeAll={() => nav('/services')} />
+            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)', border: '1px solid rgba(100,116,139,0.15)' }}>
+              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
+                {LAPTOP_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+              </motion.div>
+            </div>
+          </div>
+
+          {/* ─── Smart Devices ────────────────────────────────────────── */}
+          <div className="px-4 mt-7">
+            <SectionHeader title="Smart Devices" badge="Install & Fix" badgeColor="bg-amber-50 text-amber-700 ring-amber-100" onSeeAll={() => nav('/services')} />
+            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.15)' }}>
+              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
+                {SMART_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+              </motion.div>
+            </div>
+          </div>
+
+          {/* ─── Vehicle Care — Image cards ───────────────────────────── */}
+          <div className="mt-7">
+            <div className="px-4">
+              <SectionHeader title="Vehicle Care" badge="On-Road Help" badgeColor="bg-cyan-50 text-cyan-700 ring-cyan-100" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-1">
+              {VEHICLE_HIGHLIGHTS.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <motion.button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></motion.button>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Vehicle tiles ────────────────────────────────────────── */}
+          <div className="px-4 mt-5">
+            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#f0f9ff,#e0f2fe)', border: '1px solid rgba(14,165,233,0.15)' }}>
+              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
+                {VEHICLE_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><PosterTile svc={svc} nav={nav} /></motion.div>)}
+              </motion.div>
+            </div>
+          </div>
+
+          {/* ─── Family & Elder Assist ────────────────────────────────── */}
+          <div className="px-4 mt-7">
+            <SectionHeader title="Family Assist" badge="Trusted Help" badgeColor="bg-rose-50 text-rose-600 ring-rose-100" onSeeAll={() => nav('/services')} />
+            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fff1f2,#ffe4e6)', border: '1px solid rgba(244,63,94,0.12)' }}>
+              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
+                {FAMILY_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+              </motion.div>
+            </div>
+          </div>
+
+          {/* ─── Event Crew ───────────────────────────────────────────── */}
+          <div className="px-4 mt-7">
+            <SectionHeader title="Event Crew" badge="Book a Team" badgeColor="bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100" onSeeAll={() => nav('/services')} />
+            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fdf4ff,#fae8ff)', border: '1px solid rgba(168,85,247,0.12)' }}>
+              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
+                {EVENT_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+              </motion.div>
+            </div>
+          </div>
+
+          {/* ─── Pet Assistance ───────────────────────────────────────── */}
+          <div className="px-4 mt-7">
+            <SectionHeader title="Pet Assistance" badge="GPS Tracked" badgeColor="bg-amber-50 text-amber-700 ring-amber-100" onSeeAll={() => nav('/services')} />
+            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.15)' }}>
+              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
+                {PET_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+              </motion.div>
+            </div>
+          </div>
+
+          {/* ─── Trust strip ──────────────────────────────────────────── */}
+          <div className="px-4 mt-7 mb-4">
+            <div className="rounded-2xl p-4 ring-1 ring-slate-200/60" style={{ background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)' }}>
+              <div className="flex items-center justify-around">
+                {[
+                  { Icon: ShieldCheck, label: 'Insured Work',  color: 'text-indigo-500', bg: 'bg-indigo-50' },
+                  { Icon: CheckCircle, label: 'Verified Pros', color: 'text-green-600',  bg: 'bg-green-50'  },
+                  { Icon: Lock,        label: 'Secure Pay',    color: 'text-blue-600',   bg: 'bg-blue-50'   },
+                  { Icon: TrendingUp,  label: '4.8 Rated',     color: 'text-amber-600',  bg: 'bg-amber-50'  },
+                ].map(({ Icon, label, color, bg }) => (
+                  <div key={label} className="flex flex-col items-center gap-1.5">
+                    <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center`}>
+                      <Icon size={16} strokeWidth={1.75} className={color} />
+                    </div>
+                    <p className="text-[9px] font-bold text-slate-500 text-center uppercase tracking-wide">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <BottomNav active="home" />

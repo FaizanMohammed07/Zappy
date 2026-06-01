@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { ExternalLink } from 'lucide-react';
 import { useGetActiveAdsQuery, useTrackAdImpressionMutation, useTrackAdClickMutation } from '../../services/api';
+import { selectIsAuthed } from '../../modules/auth/authSlice';
 
 /**
  * AdBanner — horizontally scrollable ad strip for the home screen.
@@ -14,7 +16,8 @@ const impressedSet = new Set(); // session-level dedup
 
 export default function AdBanner({ className = '' }) {
   const nav = useNavigate();
-  const { data } = useGetActiveAdsQuery();
+  const isAuthed = useSelector(selectIsAuthed);
+  const { data } = useGetActiveAdsQuery(undefined, { skip: !isAuthed });
   const [trackImpression] = useTrackAdImpressionMutation();
   const [trackClick] = useTrackAdClickMutation();
   const trackedRef = useRef(new Set());

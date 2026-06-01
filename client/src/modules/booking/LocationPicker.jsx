@@ -12,10 +12,16 @@ import {
   useLazyGetNearbyWorkersQuery,
 } from '../../services/api';
 import { saveGeoLocation, loadGeoLocation } from '../../utils/geoCache';
+import { useGeolocation } from '../../hooks/useGeolocation';
 
 const TOKEN    = import.meta.env.VITE_MAPBOX_TOKEN;
 const SHEET_H  = 200;
-const GEO_OPTS = { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 };
+// Keep a legacy GEO_OPTS constant for the inline geolocation call in map view;
+// the quick-view GPS button uses the hook's multi-sample getBestPosition instead.
+const GEO_OPTS = { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 };
+
+const ACCURACY_GOOD_M = 50;
+const ACCURACY_WARN_M = 150;
 
 const TAG_META = {
   home:  { icon: Home,      bg: 'from-blue-500 to-blue-600',    ring: 'ring-blue-200'   },
@@ -99,12 +105,15 @@ function makeUserLocationEl() {
 function ensureWorkerDotStyles() { ensureLocPickStyles(); }
 
 export default function LocationPicker({ onConfirm, serviceLabel }) {
+  const { getCurrent } = useGeolocation();
+
   const [view,        setView]        = useState('quick');
   const [address,     setAddress]     = useState('');
   const [coords,      setCoords]      = useState(null);
   const [isDragging,  setDrag]        = useState(false);
   const [geoState,    setGeoState]    = useState('idle');
   const [geoError,    setGeoError]    = useState(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [detectedLoc, setDetectedLoc] = useState(() => loadGeoLocation());
   const [searchQ,     setSearchQ]     = useState('');
   const [results,     setResults]     = useState([]);
@@ -123,22 +132,22 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
   const savedAddresses  = addrData?.addresses      || [];
   const recentLocations = addrData?.recentLocations || [];
 
+  // On mount: acquire GPS using multi-sample accuracy improvement.
+  // The hook collects up to 4 readings over 8 seconds and returns the most
+  // accurate one, dramatically reducing the ~500-1500m WiFi-triangulation error
+  // that makes the same physical location appear 1-2km apart across browsers.
   useEffect(() => {
-    if (!navigator.geolocation) return;
     setGeoState('loading');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-        saveGeoLocation(loc);
+    getCurrent()
+      .then((loc) => {
         setDetectedLoc(loc);
+        setGpsAccuracy(loc.accuracy);
         setGeoState('done');
-      },
-      () => {
+      })
+      .catch(() => {
         setGeoState(detectedLoc ? 'done' : 'error');
-        setGeoError('Could not detect location. Check GPS permissions.');
-      },
-      GEO_OPTS,
-    );
+        setGeoError('Could not detect location. Enable GPS and try again.');
+      });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -251,11 +260,11 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
 
   function _goToMyLocation() {
     setGeoState('loading');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+    getCurrent()
+      .then((loc) => {
         saveGeoLocation(loc);
         setDetectedLoc(loc);
+        setGpsAccuracy(loc.accuracy);
         setGeoState('done');
         if (view === 'map' && mapRef.current) {
           mapRef.current.flyTo({ center: [loc.lng, loc.lat], zoom: 16, duration: 800 });
@@ -272,13 +281,11 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
           stateRef.current.pendingCenter = [loc.lng, loc.lat];
           setView('map');
         }
-      },
-      () => {
+      })
+      .catch(() => {
         setGeoState('error');
         setGeoError('Location access denied. Enable GPS and try again.');
-      },
-      GEO_OPTS,
-    );
+      });
   }
 
   function confirmLocation() {
@@ -376,13 +383,20 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
                   GPS acquiring signal…
                 </p>
               )}
-              {geoState === 'done' && detectedLoc && (
-                <p className="text-xs text-green-600 font-semibold mt-0.5 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                  Location detected
-                  {detectedLoc.accuracy != null ? ` · ±${Math.round(detectedLoc.accuracy)}m` : ''}
-                </p>
-              )}
+              {geoState === 'done' && detectedLoc && (() => {
+                const acc = gpsAccuracy ?? detectedLoc.accuracy;
+                const isGood = acc == null || acc <= ACCURACY_GOOD_M;
+                const isWarn = acc != null && acc > ACCURACY_GOOD_M && acc <= ACCURACY_WARN_M;
+                const isBad  = acc != null && acc > ACCURACY_WARN_M;
+                return (
+                  <p className={`text-xs font-semibold mt-0.5 flex items-center gap-1.5 ${isBad ? 'text-amber-600' : isWarn ? 'text-yellow-600' : 'text-green-600'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${isBad ? 'bg-amber-500' : isWarn ? 'bg-yellow-500' : 'bg-green-500'}`} />
+                    {isGood && `GPS locked · ±${acc != null ? Math.round(acc) : '<50'}m`}
+                    {isWarn && `Location detected · ±${Math.round(acc)}m accuracy — tap map to fine-tune`}
+                    {isBad  && `Low GPS accuracy (±${Math.round(acc)}m) — please pin your location on map`}
+                  </p>
+                );
+              })()}
               {geoState === 'error' && (
                 <p className="text-xs text-red-500 font-medium mt-0.5">{geoError}</p>
               )}

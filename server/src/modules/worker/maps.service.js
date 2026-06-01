@@ -8,7 +8,11 @@ const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 const CACHE_TTL_SECONDS = 60 * 5; // 5 min — routes don't change fast.
 
 function cacheKey(origin, dest) {
-  const round = (n) => n.toFixed(4); // ~11m precision
+  // Round to 3 decimal places (~111m grid). This buckets nearby coordinates into
+  // the same cache cell so two users 50m apart share the same distance result —
+  // reducing Google API calls and preventing tiny GPS jitter from creating cache
+  // misses that surface as different quoted distances to the same destination.
+  const round = (n) => n.toFixed(3);
   return `dm:${round(origin.lat)},${round(origin.lng)}:${round(dest.lat)},${round(dest.lng)}`;
 }
 

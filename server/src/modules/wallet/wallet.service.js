@@ -106,8 +106,16 @@ async function apply({
   //   - worker: allowed to go negative (commission debt) down to hard limit.
   //             Soft limit (-₹200) triggers warnings elsewhere; the hard limit
   //             (-₹500) blocks the debit at the DB filter.
-  const filter = { 'owner.kind': kind, 'owner.id': id, isFrozen: false };
+  //
+  // Freeze semantics:
+  //   - DEBITS  on frozen wallets: always blocked (prevents withdrawals during fraud review)
+  //   - CREDITS on frozen wallets: allowed — a worker who earned money while frozen
+  //     must still receive their earnings; the freeze exists to block outflows, not
+  //     to confiscate wages already earned. Payout.service separately checks isFrozen
+  //     before any withdrawal is initiated.
+  const filter = { 'owner.kind': kind, 'owner.id': id };
   if (type === 'debit') {
+    filter.isFrozen = false; // debits blocked on frozen wallets
     if (kind === 'user') {
       filter.balancePaise = { $gte: amountPaise };
     } else if (kind === 'worker') {
@@ -142,7 +150,7 @@ async function apply({
       ? (kind === 'worker'
           ? 'Debit would breach hard limit (-₹500). Clear dues first.'
           : 'Insufficient funds or wallet frozen')
-      : 'Wallet write failed';
+      : 'Wallet credit failed — wallet document could not be created';
     throw Object.assign(new Error(msg), {
       status: 400,
       code: type === 'debit'

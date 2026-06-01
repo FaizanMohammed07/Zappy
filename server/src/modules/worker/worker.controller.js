@@ -131,4 +131,266 @@ async function getDemandZones(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getMe, goOnline, goOffline, updateLocation, getEarnings, getOrders, getNearbyWorkers, getDemandZones };
+/* ── Shift Slots ─────────────────────────────────────────────────────────── */
+
+async function getShifts(req, res, next) {
+  try {
+    const availService = require('./availability.service');
+    const from = req.query.from ? new Date(req.query.from) : new Date();
+    const to   = req.query.to   ? new Date(req.query.to)   : new Date(Date.now() + 7 * 86400000);
+    const shifts = await availService.getShifts({ workerId: req.auth.sub, fromDate: from, toDate: to });
+    const today  = await availService.getTodayShifts(req.auth.sub);
+    res.json({ shifts, today });
+  } catch (err) { next(err); }
+}
+
+async function previewShift(req, res, next) {
+  try {
+    const availService = require('./availability.service');
+    const { startHour, endHour, lat, lng } = req.query;
+    if (!startHour || !endHour || !lat || !lng) {
+      return res.status(400).json({ error: 'startHour, endHour, lat, lng required' });
+    }
+    const data = await availService.previewShift({
+      startHour: Number(startHour),
+      endHour:   Number(endHour),
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+    });
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
+async function commitShift(req, res, next) {
+  try {
+    const availService = require('./availability.service');
+    const { startHour, endHour, lat, lng, date, zoneLabel } = req.body;
+    if (!Number.isInteger(startHour) || !Number.isInteger(endHour)) {
+      return res.status(400).json({ error: 'startHour and endHour must be integers' });
+    }
+    const result = await availService.commitShift({
+      workerId: req.auth.sub,
+      date: date ? new Date(date) : new Date(),
+      startHour,
+      endHour,
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      zoneLabel,
+    });
+    res.status(201).json(result);
+  } catch (err) { next(err); }
+}
+
+async function cancelShiftSlot(req, res, next) {
+  try {
+    const availService = require('./availability.service');
+    const doc = await availService.cancelSlot({
+      workerId: req.auth.sub,
+      startHour: Number(req.body.startHour),
+      date: req.body.date ? new Date(req.body.date) : new Date(),
+    });
+    res.json({ ok: true, doc });
+  } catch (err) { next(err); }
+}
+
+/* ── Wellness ──────────────────────────────────────────────────────────────── */
+
+async function getWellness(req, res, next) {
+  try {
+    const wellnessService = require('./wellness.service');
+    const data = await wellnessService.computeWellnessScore(req.auth.sub);
+    if (!data) return res.status(404).json({ error: 'Worker not found' });
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
+async function claimBreakBonus(req, res, next) {
+  try {
+    const wellnessService = require('./wellness.service');
+    const result = await wellnessService.creditBreakBonus(req.auth.sub);
+    if (!result.ok) return res.status(400).json({ error: 'No break bonus available right now' });
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
+/* ── Neighborhood Reputation ───────────────────────────────────────────────── */
+
+async function getNeighborhoodRep(req, res, next) {
+  try {
+    const Order = require('../order/order.model');
+    const workerId = req.params.id || req.auth.sub;
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.status(400).json({ error: 'lat and lng required' });
+    }
+
+    /* 5km radius around the customer/pickup location */
+    const radiusMeters = 5000;
+    const since90d = new Date(Date.now() - 90 * 86400000);
+
+    const localOrders = await Order.find({
+      workerId,
+      status: 'completed',
+      completedAt: { $gte: since90d },
+      pickupLocation: {
+        $near: {
+          $geometry: { type: 'Point', coordinates: [lng, lat] },
+          $maxDistance: radiusMeters,
+        },
+      },
+    }).select('userRating completedAt').lean().limit(200);
+
+    const totalLocal = localOrders.length;
+    const ratedLocal = localOrders.filter(o => o.userRating);
+    const localRating = ratedLocal.length > 0
+      ? Math.round((ratedLocal.reduce((s, o) => s + o.userRating, 0) / ratedLocal.length) * 10) / 10
+      : null;
+
+    /* Area label from demand-zone seeds (nearest match within 3km) */
+    const ZONES = [
+      { name: 'Koramangala', lat: 12.9352, lng: 77.6245 },
+      { name: 'HSR Layout',  lat: 12.9116, lng: 77.6389 },
+      { name: 'Indiranagar', lat: 12.9784, lng: 77.6408 },
+      { name: 'Whitefield',  lat: 12.9698, lng: 77.7500 },
+      { name: 'Jayanagar',   lat: 12.9308, lng: 77.5839 },
+      { name: 'BTM Layout',  lat: 12.9165, lng: 77.6101 },
+      { name: 'Marathahalli',lat: 12.9591, lng: 77.6974 },
+    ];
+    const nearest = ZONES.reduce((best, z) => {
+      const d = haversineKm(lat, lng, z.lat, z.lng);
+      return (!best || d < best.d) ? { name: z.name, d } : best;
+    }, null);
+    const areaLabel = nearest?.d < 3 ? nearest.name : `${lat.toFixed(2)},${lng.toFixed(2)}`;
+
+    const isLocalHero = totalLocal >= 10 && localRating && localRating >= 4.5;
+
+    res.json({
+      workerId: String(workerId),
+      areaLabel,
+      totalLocalJobs: totalLocal,
+      localRating,
+      isLocalHero,
+      radiusKm: radiusMeters / 1000,
+    });
+  } catch (err) { next(err); }
+}
+
+async function getPublicProfile(req, res, next) {
+  try {
+    const worker = await Worker.findById(req.params.id)
+      .select('name rating completedJobs skills kyc.status penalties createdAt')
+      .lean();
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+    res.json({
+      worker: {
+        _id:           worker._id,
+        name:          worker.name,
+        rating:        worker.rating,
+        completedJobs: worker.completedJobs,
+        skills:        worker.skills || [],
+        verified:      worker.kyc?.status === 'approved',
+        memberSince:   worker.createdAt,
+        acceptRate:    worker.penalties?.totalOffers > 0
+          ? Math.round(((worker.penalties.totalOffers - (worker.penalties.totalRejects || 0)) / worker.penalties.totalOffers) * 100)
+          : null,
+      },
+    });
+  } catch (err) { next(err); }
+}
+
+async function getLeaderboard(req, res, next) {
+  try {
+    const Order = require('../order/order.model');
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+
+    const pipeline = [
+      { $match: { status: 'completed', completedAt: { $gte: since }, workerId: { $ne: null } } },
+      { $group: { _id: '$workerId', weekEarnings: { $sum: '$pricing.total' }, jobs: { $sum: 1 } } },
+      { $sort: { weekEarnings: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: 'workers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'w',
+          pipeline: [{ $project: { name: 1 } }],
+        },
+      },
+      { $unwind: { path: '$w', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          workerId: '$_id',
+          name: '$w.name',
+          weekEarnings: 1,
+          jobs: 1,
+        },
+      },
+    ];
+
+    const results = await Order.aggregate(pipeline);
+    const leaders = results.map((r, i) => ({
+      rank:        i + 1,
+      workerId:    String(r.workerId),
+      name:        r.name ? `${r.name.charAt(0)}*** ${r.name.split(' ').pop()?.charAt(0) || ''}.` : 'Worker',
+      weekEarnings: Math.round(r.weekEarnings),
+      jobs:        r.jobs,
+    }));
+
+    // If caller is authenticated worker, find their rank
+    let myRank = null;
+    if (req.auth?.role === 'worker') {
+      const allResults = await Order.aggregate([
+        { $match: { status: 'completed', completedAt: { $gte: since }, workerId: { $ne: null } } },
+        { $group: { _id: '$workerId', weekEarnings: { $sum: '$pricing.total' } } },
+        { $sort: { weekEarnings: -1 } },
+      ]);
+      const idx = allResults.findIndex((r) => String(r._id) === String(req.auth.sub));
+      myRank = idx >= 0 ? { rank: idx + 1, total: allResults.length } : null;
+    }
+
+    res.json({ leaders, myRank });
+  } catch (err) { next(err); }
+}
+
+async function updateProfile(req, res, next) {
+  try {
+    const workerId = req.auth.sub;
+    const { name, skills, bio } = req.body;
+    const update = {};
+    if (name)   update.name   = name;
+    if (skills) update.skills = skills;
+    if (bio !== undefined) update.bio = bio;
+
+    const worker = await require('./worker.model').findByIdAndUpdate(
+      workerId,
+      { $set: update },
+      { new: true, runValidators: true }
+    ).select('name skills bio').lean();
+
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+    // If skills changed, refresh the Redis skill sets so dispatch picks up new skills immediately
+    if (skills) {
+      const geoService = require('./geo.service');
+      const full = await require('./worker.model').findById(workerId).lean();
+      if (full?.isOnline) await geoService.markOnline(full).catch(() => {});
+    }
+
+    res.json({ worker });
+  } catch (err) { next(err); }
+}
+
+module.exports = {
+  getMe, goOnline, goOffline, updateLocation, getEarnings,
+  getOrders, getNearbyWorkers, getDemandZones,
+  getShifts, previewShift, commitShift, cancelShiftSlot,
+  getWellness, claimBreakBonus,
+  getNeighborhoodRep,
+  getPublicProfile,
+  getLeaderboard,
+  updateProfile,
+};

@@ -33,6 +33,16 @@ const userSchema = new mongoose.Schema(
     rating: { type: Number, default: 5, min: 0, max: 5 },
     isBlocked: { type: Boolean, default: false },
 
+    // Lifetime abuse counters — persisted in Mongo so Redis TTL expiry
+    // doesn't reset the history. Used for escalating penalties.
+    abuse: {
+      totalCancels:           { type: Number, default: 0 }, // all cancels ever
+      cancelAfterAssignment:  { type: Number, default: 0 }, // subset: after worker assigned
+      totalDisputes:          { type: Number, default: 0 },
+      freezeCount:            { type: Number, default: 0 }, // how many times frozen
+      lastFreezeAt:           { type: Date },
+    },
+
     // Gamification — XP, levels, streaks, badges (mirrors worker incentive system)
     gamification: {
       xp:            { type: Number, default: 0 },

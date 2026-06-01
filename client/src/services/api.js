@@ -5,6 +5,10 @@ import { adminApiPath } from '../config/admin';
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: '/api',
+  // credentials: 'include' sends the httpOnly refresh-token cookie on every request.
+  // The server only reads it on /auth/refresh and /auth/logout — all other routes
+  // ignore it. Required for the silent refresh flow. (#78)
+  credentials: 'include',
   prepareHeaders: (headers, { getState }) => {
     const token = getState().auth.accessToken;
     if (token) headers.set('authorization', `Bearer ${token}`);
@@ -33,21 +37,17 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
   const release = await refreshMutex.acquire();
   try {
     const state = api.getState();
-    const rt = state.auth.refreshToken;
-    if (!rt) {
-      api.dispatch(logout());
-      return result;
-    }
+    // RT is in an httpOnly cookie — we don't need to read it from state.
+    // credentials: 'include' (set on rawBaseQuery) sends the cookie automatically.
     const refreshRes = await rawBaseQuery(
-      { url: '/auth/refresh', method: 'POST', body: { refreshToken: rt } },
+      { url: '/auth/refresh', method: 'POST' },
       api,
       extraOptions
     );
-    if (refreshRes.data) {
+    if (refreshRes.data?.accessToken) {
       api.dispatch(
         setAuth({
           accessToken: refreshRes.data.accessToken,
-          refreshToken: refreshRes.data.refreshToken,
           profile: state.auth.profile,
           role: state.auth.role,
         })
@@ -66,7 +66,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -105,6 +105,9 @@ export const api = createApi({
     registerDeviceToken: b.mutation({
       query: (body) => ({ url: '/users/device-token', method: 'POST', body }),
     }),
+    registerWorkerDeviceToken: b.mutation({
+      query: (body) => ({ url: '/workers/device-token', method: 'POST', body }),
+    }),
 
     // --- Pricing quote ---
     getQuote: b.query({ query: (params) => ({ url: '/orders/quote', params }) }),
@@ -128,6 +131,14 @@ export const api = createApi({
     cancelOrder: b.mutation({
       query: ({ id, reason }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { reason } }),
       invalidatesTags: (r, e, a) => ['Order', { type: 'Order', id: a.id }],
+    }),
+    workerReportNoResponse: b.mutation({
+      query: (id) => ({ url: `/orders/${id}/no-response`, method: 'POST' }),
+      invalidatesTags: (r, e, id) => [{ type: 'Order', id }],
+    }),
+    workerReportPartUnavailable: b.mutation({
+      query: ({ id, partName, notes }) => ({ url: `/orders/${id}/part-unavailable`, method: 'POST', body: { partName, notes } }),
+      invalidatesTags: (r, e, a) => [{ type: 'Order', id: a.id }],
     }),
     rateOrder: b.mutation({
       query: ({ id, rating, review }) => ({
@@ -156,6 +167,10 @@ export const api = createApi({
 
     // --- Worker ---
     getWorkerMe: b.query({ query: () => '/workers/me', providesTags: ['Me'] }),
+    updateWorkerProfile: b.mutation({
+      query: (body) => ({ url: '/workers/profile', method: 'PATCH', body }),
+      invalidatesTags: ['Me'],
+    }),
     goOnline: b.mutation({
       query: (body) => ({ url: '/workers/online', method: 'POST', body }),
       invalidatesTags: ['Me'],
@@ -315,6 +330,9 @@ export const api = createApi({
     adminToggles: b.mutation({
       query: (body) => ({ url: adminApiPath('/toggles'), method: 'PATCH', body }),
     }),
+    adminToggleDispatch: b.mutation({
+      query: (body) => ({ url: adminApiPath('/dispatch/toggle'), method: 'PATCH', body }),
+    }),
     adminRevenue: b.query({
       query: (days = 7) => adminApiPath(`/revenue?days=${days}`),
     }),
@@ -322,6 +340,38 @@ export const api = createApi({
     // --- Admin: Extended ---
     adminAnalytics: b.query({
       query: (days = 30) => adminApiPath(`/analytics?days=${days}`),
+    }),
+    // Founder Audit (scenarios 96-98)
+    adminOrderAudit: b.query({
+      query: (orderId) => adminApiPath(`/audit/order/${orderId}`),
+    }),
+    adminCommissionAudit: b.query({
+      query: (days = 7) => adminApiPath(`/audit/commission?days=${days}`),
+    }),
+    adminWorkerTrustAudit: b.query({
+      query: () => adminApiPath('/audit/worker-trust'),
+    }),
+    adminReconciliationQueue: b.query({
+      query: () => adminApiPath('/payments/reconciliation-queue'),
+    }),
+    adminReconcilePayment: b.mutation({
+      query: (razorpayOrderId) => ({ url: adminApiPath(`/payments/${razorpayOrderId}/reconcile`), method: 'POST' }),
+    }),
+    // Business Intelligence (scenarios 81-85)
+    adminServicePnL: b.query({
+      query: (days = 30) => adminApiPath(`/business/service-pnl?days=${days}`),
+    }),
+    adminChurnRisk: b.query({
+      query: () => adminApiPath('/business/churn-risk'),
+    }),
+    adminDeadCategories: b.query({
+      query: (days = 30) => adminApiPath(`/business/dead-categories?days=${days}`),
+    }),
+    adminGeoReadiness: b.query({
+      query: ({ lat, lng, radiusKm = 15 }) => adminApiPath(`/business/geo-readiness?lat=${lat}&lng=${lng}&radiusKm=${radiusKm}`),
+    }),
+    adminQuoteAbandonment: b.query({
+      query: (days = 7) => adminApiPath(`/business/quote-abandonment?days=${days}`),
     }),
     adminListUsers: b.query({
       query: ({ q, blocked, page = 1 } = {}) => ({ url: adminApiPath('/users'), params: { q, blocked, page } }),
@@ -383,6 +433,41 @@ export const api = createApi({
     }),
     adminRatingSweep: b.mutation({
       query: () => ({ url: adminApiPath('/incentives/rating-sweep'), method: 'POST' }),
+    }),
+    adminListDeferredMilestones: b.query({
+      query: () => adminApiPath('/incentives/deferred'),
+      providesTags: ['DeferredMilestones'],
+    }),
+    adminReleaseDeferredMilestone: b.mutation({
+      query: ({ workerId, milestone }) => ({
+        url: adminApiPath(`/incentives/deferred/${workerId}/${milestone}/release`),
+        method: 'POST',
+      }),
+      invalidatesTags: ['DeferredMilestones'],
+    }),
+
+    // --- Admin: Cashback ---
+    adminGetCashbackConfig: b.query({
+      query: () => adminApiPath('/cashback/config'),
+      providesTags: ['CashbackConfig'],
+    }),
+    adminSetCashbackConfig: b.mutation({
+      query: (body) => ({ url: adminApiPath('/cashback/config'), method: 'PUT', body }),
+      invalidatesTags: ['CashbackConfig'],
+    }),
+    adminGetCashbackStats: b.query({
+      query: (days = 30) => adminApiPath(`/cashback/stats?days=${days}`),
+    }),
+
+    // --- Admin: Referrals ---
+    adminGetReferralStats: b.query({
+      query: (days = 30) => adminApiPath(`/referrals/stats?days=${days}`),
+    }),
+    adminListRecentReferrals: b.query({
+      query: ({ status, page = 1 } = {}) => ({
+        url: adminApiPath('/referrals/recent'),
+        params: { ...(status && { status }), page },
+      }),
     }),
     adminGetCancellationConfig: b.query({
       query: () => adminApiPath('/cancellation-config'),
@@ -538,6 +623,154 @@ export const api = createApi({
     adminLiveOps: b.query({
       query: () => adminApiPath('/liveops'),
     }),
+
+    // --- Construction Timer (correct server path: /vertical-features/construction/timer) ---
+    getConstructionTimer: b.query({ query: (orderId) => `/vertical-features/construction/timer/${orderId}` }),
+    startConstructionTimer: b.mutation({ query: ({ orderId }) => ({ url: '/vertical-features/construction/timer/start', method: 'POST', body: { orderId } }) }),
+    pauseConstructionTimer: b.mutation({ query: ({ orderId }) => ({ url: '/vertical-features/construction/timer/pause', method: 'POST', body: { orderId } }) }),
+    resumeConstructionTimer: b.mutation({ query: ({ orderId }) => ({ url: '/vertical-features/construction/timer/resume', method: 'POST', body: { orderId } }) }),
+    stopConstructionTimer: b.mutation({ query: ({ orderId }) => ({ url: '/vertical-features/construction/timer/stop', method: 'POST', body: { orderId } }) }),
+
+    // --- Phone Health (correct server path: /vertical-features/phone/health-report) ---
+    getPhoneHealthReport: b.query({ query: (orderId) => `/vertical-features/phone/health-report/${orderId}` }),
+    submitPhoneHealthReport: b.mutation({
+      query: ({ orderId, components, partsReplaced }) => ({ url: '/vertical-features/phone/health-report', method: 'POST', body: { orderId, components, partsReplaced } }),
+    }),
+
+    // --- Vehicle Health (correct server path: /vertical-features/vehicles/health-report) ---
+    getVehicleHealthReport: b.query({ query: (orderId) => `/vertical-features/vehicles/health-report/${orderId}` }),
+    submitVehicleHealthReport: b.mutation({
+      query: ({ orderId, reportType, preDamageDocs }) => ({ url: '/vertical-features/vehicles/health-report', method: 'POST', body: { orderId, reportType, preDamageDocs } }),
+    }),
+
+    // --- Admin Catalog (correct server path: /catalog/admin/services) ---
+    adminGetCatalogServices: b.query({ query: () => '/catalog/admin/services' }),
+    adminUpdateCatalogService: b.mutation({
+      query: ({ code, ...body }) => ({ url: `/catalog/admin/services/${code}`, method: 'PUT', body }),
+    }),
+    adminServiceActiveOrderCount: b.query({
+      query: (code) => `/catalog/admin/services/${code}/active-orders`,
+    }),
+    // --- Admin Verticals (correct server path: /${slug}/verticals mounted in routes) ---
+    adminGetVerticals: b.query({ query: () => `${adminApiPath('/verticals')}` }),
+    adminUpdateVertical: b.mutation({
+      query: ({ vertical, ...body }) => ({ url: adminApiPath(`/verticals/${vertical}`), method: 'PUT', body }),
+    }),
+    adminAddSparePart: b.mutation({
+      query: ({ vertical, ...body }) => ({ url: adminApiPath(`/verticals/mobile/spare-parts`), method: 'POST', body }),
+    }),
+    adminUpdateSparePart: b.mutation({
+      query: ({ partId, ...body }) => ({ url: adminApiPath(`/verticals/mobile/spare-parts/${partId}`), method: 'PATCH', body }),
+    }),
+    adminRemoveSparePart: b.mutation({
+      query: ({ partId }) => ({ url: adminApiPath(`/verticals/mobile/spare-parts/${partId}`), method: 'DELETE' }),
+    }),
+    adminRefundOrder: b.mutation({
+      query: ({ orderId, reason }) => ({ url: adminApiPath(`/orders/${orderId}/refund`), method: 'POST', body: { reason } }),
+    }),
+
+    // --- Warranty (correct server path: /service-features/warranties/order/:orderId) ---
+    getOrderWarranty: b.query({
+      query: (orderId) => `/service-features/warranties/order/${orderId}`,
+    }),
+
+    // --- Service Checklist (correct server path: /service-features/checklist/:service) ---
+    getServiceChecklist: b.query({
+      query: (service) => `/service-features/checklist/${service}`,
+    }),
+    submitChecklist: b.mutation({
+      query: ({ orderId, completedItems }) => ({ url: `/orders/${orderId}/checklist`, method: 'POST', body: { completedIds: completedItems } }),
+    }),
+
+    // --- Shifts (correct server paths) ---
+    getShifts: b.query({
+      query: ({ lat, lng } = {}) => `/workers/shifts${lat ? `?lat=${lat}&lng=${lng}` : ''}`,
+    }),
+    previewShift: b.query({
+      query: ({ lat, lng }) => `/workers/shifts/preview?lat=${lat}&lng=${lng}`,
+    }),
+    commitShift: b.mutation({
+      query: (body) => ({ url: '/workers/shifts', method: 'POST', body }),
+    }),
+    cancelShiftSlot: b.mutation({
+      query: ({ slotId }) => ({ url: '/workers/shifts/cancel', method: 'DELETE', body: { slotId } }),
+    }),
+
+    // --- Wellness ---
+    getWellness: b.query({ query: () => '/workers/wellness' }),
+
+    // --- Earned Wage ---
+    getEarnedWage: b.query({ query: () => '/workers/earned-wage' }),
+    requestWageAdvance: b.mutation({
+      query: ({ amountPaise }) => ({ url: '/workers/earned-wage/advance', method: 'POST', body: { amountPaise } }),
+    }),
+
+    // --- SOS ---
+    triggerSOS: b.mutation({
+      query: ({ orderId, lat, lng }) => ({ url: `/workers/sos`, method: 'POST', body: { orderId, lat, lng } }),
+    }),
+
+    // --- Break Bonus (server: POST /workers/wellness/break-bonus) ---
+    claimBreakBonus: b.mutation({
+      query: () => ({ url: '/workers/wellness/break-bonus', method: 'POST' }),
+    }),
+
+    // --- Price Revision ---
+    getPriceRevision: b.query({
+      query: (orderId) => `/orders/${orderId}/price-revision`,
+      providesTags: (r, e, id) => [{ type: 'Order', id }],
+    }),
+    respondPriceRevision: b.mutation({
+      query: ({ orderId, accept }) => ({ url: `/orders/${orderId}/price-revision/respond`, method: 'POST', body: { accept } }),
+      invalidatesTags: (r, e, a) => [{ type: 'Order', id: a.orderId }],
+    }),
+
+    // --- Tip ---
+    sendTip: b.mutation({
+      query: ({ orderId, amountPaise }) => ({ url: `/orders/${orderId}/tip`, method: 'POST', body: { amountPaise } }),
+      invalidatesTags: (r, e, a) => [{ type: 'Order', id: a.orderId }],
+    }),
+
+    // --- Surge Info ---
+    getSurgeInfo: b.query({
+      query: ({ lat, lng }) => `/pricing/surge?lat=${lat}&lng=${lng}`,
+    }),
+
+    // --- Diagnosis Flow ---
+    getDiagnosisFlow: b.query({
+      query: (service) => `/service-features/diagnosis/${service}`,
+    }),
+    analyseDiagnosis: b.mutation({
+      query: ({ service, answers }) => ({
+        url: `/service-features/diagnosis/${service}/analyse`,
+        method: 'POST',
+        body: { answers },
+      }),
+    }),
+
+    // --- Worker: Public Profile + Leaderboard ---
+    getWorkerPublicProfile: b.query({
+      query: (workerId) => `/workers/${workerId}/public`,
+      providesTags: (r, e, id) => [{ type: 'Worker', id }],
+    }),
+    getWorkerLeaderboard: b.query({
+      query: () => '/workers/leaderboard',
+      providesTags: ['Worker'],
+    }),
+
+    // --- Referrals ---
+    getReferralCode: b.query({
+      query: () => '/referrals/my-code',
+      providesTags: ['Referral'],
+    }),
+    applyReferralCode: b.mutation({
+      query: (code) => ({ url: '/referrals/apply', method: 'POST', body: { code } }),
+      invalidatesTags: ['Referral'],
+    }),
+    getReferralHistory: b.query({
+      query: () => '/referrals/history',
+      providesTags: ['Referral'],
+    }),
   }),
 });
 
@@ -555,8 +788,11 @@ export const {
   useListOrdersQuery,
   useGetCancelPreviewQuery,
   useCancelOrderMutation,
+  useWorkerReportNoResponseMutation,
+  useWorkerReportPartUnavailableMutation,
   useRateOrderMutation,
   useGetWorkerMeQuery,
+  useUpdateWorkerProfileMutation,
   useGoOnlineMutation,
   useGoOfflineMutation,
   useGetEarningsQuery,
@@ -587,8 +823,19 @@ export const {
   useGetPricingConfigQuery,
   useAdminUpdatePricingMutation,
   useAdminTogglesMutation,
+  useAdminToggleDispatchMutation,
   useAdminRevenueQuery,
   useAdminAnalyticsQuery,
+  useAdminOrderAuditQuery,
+  useAdminCommissionAuditQuery,
+  useAdminWorkerTrustAuditQuery,
+  useAdminReconciliationQueueQuery,
+  useAdminReconcilePaymentMutation,
+  useAdminServicePnLQuery,
+  useAdminChurnRiskQuery,
+  useAdminDeadCategoriesQuery,
+  useAdminGeoReadinessQuery,
+  useAdminQuoteAbandonmentQuery,
   useAdminListUsersQuery,
   useAdminBlockUserMutation,
   useAdminGetPricingConfigQuery,
@@ -605,6 +852,13 @@ export const {
   useAdminGetIncentivesQuery,
   useAdminSetMilestonesMutation,
   useAdminRatingSweepMutation,
+  useAdminListDeferredMilestonesQuery,
+  useAdminReleaseDeferredMilestoneMutation,
+  useAdminGetCashbackConfigQuery,
+  useAdminSetCashbackConfigMutation,
+  useAdminGetCashbackStatsQuery,
+  useAdminGetReferralStatsQuery,
+  useAdminListRecentReferralsQuery,
   useAdminGetCancellationConfigQuery,
   useAdminUpdateCancellationConfigMutation,
   useAdminWorkerPenaltiesQuery,
@@ -616,6 +870,7 @@ export const {
   useDeleteAddressMutation,
   useSaveRecentLocationMutation,
   useRegisterDeviceTokenMutation,
+  useRegisterWorkerDeviceTokenMutation,
   useGetOrderInvoiceUrlQuery,
   useGetChatMessagesQuery,
   useSendChatMessageMutation,
@@ -655,4 +910,58 @@ export const {
   useAdminSupportTicketsQuery,
   useAdminReplyTicketMutation,
   useAdminLiveOpsQuery,
+  // Referrals
+  useGetReferralCodeQuery,
+  useApplyReferralCodeMutation,
+  useGetReferralHistoryQuery,
+  // Worker public profile + leaderboard
+  useGetWorkerPublicProfileQuery,
+  useGetWorkerLeaderboardQuery,
+  // Diagnosis flow
+  useGetDiagnosisFlowQuery,
+  useAnalyseDiagnosisMutation,
+  // Surge info
+  useLazyGetSurgeInfoQuery,
+  // Tip
+  useSendTipMutation,
+  // Price revision
+  useGetPriceRevisionQuery,
+  useRespondPriceRevisionMutation,
+  // Warranty + checklist
+  useGetOrderWarrantyQuery,
+  useGetServiceChecklistQuery,
+  useSubmitChecklistMutation,
+  // Shifts
+  useGetShiftsQuery,
+  useLazyPreviewShiftQuery,
+  useCommitShiftMutation,
+  useCancelShiftSlotMutation,
+  // Wellness + earned wage
+  useGetWellnessQuery,
+  useGetEarnedWageQuery,
+  useRequestWageAdvanceMutation,
+  // SOS + bonus
+  useTriggerSOSMutation,
+  useClaimBreakBonusMutation,
+  // Construction timer
+  useGetConstructionTimerQuery,
+  useStartConstructionTimerMutation,
+  usePauseConstructionTimerMutation,
+  useResumeConstructionTimerMutation,
+  useStopConstructionTimerMutation,
+  // Phone + vehicle health
+  useGetPhoneHealthReportQuery,
+  useSubmitPhoneHealthReportMutation,
+  useGetVehicleHealthReportQuery,
+  useSubmitVehicleHealthReportMutation,
+  // Admin catalog + verticals
+  useAdminGetCatalogServicesQuery,
+  useAdminUpdateCatalogServiceMutation,
+  useAdminServiceActiveOrderCountQuery,
+  useAdminGetVerticalsQuery,
+  useAdminUpdateVerticalMutation,
+  useAdminAddSparePartMutation,
+  useAdminUpdateSparePartMutation,
+  useAdminRemoveSparePartMutation,
+  useAdminRefundOrderMutation,
 } = api;

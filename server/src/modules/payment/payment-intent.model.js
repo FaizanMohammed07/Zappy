@@ -62,11 +62,20 @@ const paymentIntentSchema = new mongoose.Schema(
     ],
 
     failureReason: String,
+
+    // Reconciliation flag: set when side-effects fail after payment captures. (#95/#96)
+    // Admin must manually verify and apply the credit/subscription/order update.
+    reconciliationRequired: { type: Boolean, default: false, index: true },
+    reconciliationReason:   String,
+    reconciliationAt:       Date,
+    reconciledAt:           Date,   // set by admin when resolved
+    reconciledBy:           { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
   },
   { timestamps: true }
 );
 
 paymentIntentSchema.index({ 'owner.id': 1, createdAt: -1 });
 paymentIntentSchema.index({ status: 1, createdAt: -1 });
+paymentIntentSchema.index({ reconciliationRequired: 1, createdAt: -1 });
 
 module.exports = mongoose.model('PaymentIntent', paymentIntentSchema);

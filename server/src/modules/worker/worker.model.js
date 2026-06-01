@@ -21,7 +21,7 @@ const workerSchema = new mongoose.Schema(
     kyc: {
       status: {
         type: String,
-        enum: ['not_submitted', 'pending_review', 'approved', 'rejected'],
+        enum: ['not_submitted', 'pending_review', 'approved', 'rejected', 'suspended'],
         default: 'not_submitted',
         index: true,
       },
@@ -32,6 +32,24 @@ const workerSchema = new mongoose.Schema(
       reviewedAt: Date,
       reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
       rejectionReason: String,
+      // Resubmission controls (#86)
+      rejectionCount: { type: Number, default: 0 },      // lifetime rejections
+      lastRejectedAt: Date,                              // last rejection timestamp
+      submissionHistory: [{                              // immutable audit trail
+        aadhaarUrl: String,
+        licenseUrl: String,
+        selfieUrl: String,
+        submittedAt: Date,
+        outcome: String,  // 'pending' | 'approved' | 'rejected'
+        rejectionReason: String,
+      }],
+    },
+
+    // Trust signals — accumulated misconduct flags (#89)
+    trust: {
+      harassmentComplaints: { type: Number, default: 0 },   // safety complaints by users
+      harassmentFlaggedAt: Date,                            // when auto-flagged for review
+      blockedFromUserIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // per-user blocks
     },
 
     // Availability + location — SOURCE OF TRUTH; Redis is a cache.
@@ -61,8 +79,15 @@ const workerSchema = new mongoose.Schema(
       lastPenaltyAt:  { type: Date },
     },
 
+    // Emergency contact for SOS feature
+    emergencyContact: {
+      name:  { type: String, maxlength: 100 },
+      phone: { type: String, maxlength: 15 },
+    },
+
     // Ops
-    deviceTokens: [String], // FCM
+    deviceTokens: [String], // FCM push tokens
+    deviceIds:    [String], // hardware fingerprints (for multi-account detection)
     isBlocked: { type: Boolean, default: false },
     lastSeenAt: { type: Date },
   },

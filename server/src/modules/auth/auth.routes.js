@@ -2,7 +2,7 @@ const express = require('express');
 const Joi = require('joi');
 const ctrl = require('./auth.controller');
 const { validate } = require('../../middlewares/validate');
-const { authLimiter } = require('../../middlewares/rateLimit');
+const { authLimiter, adminAuthLimiter } = require('../../middlewares/rateLimit');
 
 const router = express.Router();
 
@@ -20,13 +20,19 @@ router.post(
 router.post(
   '/worker/login',
   authLimiter,
-  validate(Joi.object({ phone: phoneSchema, otp: Joi.string().length(6).required(), name: Joi.string().max(100).optional(), skills: Joi.array().items(Joi.string()).optional() })),
+  validate(Joi.object({
+    phone:    phoneSchema,
+    otp:      Joi.string().length(6).required(),
+    name:     Joi.string().max(100).optional(),
+    skills:   Joi.array().items(Joi.string()).optional(),
+    deviceId: Joi.string().max(200).optional(), // hardware fingerprint for multi-account detection
+  })),
   ctrl.loginWorker
 );
 
 router.post(
   '/admin/login',
-  authLimiter,
+  adminAuthLimiter,  // 3 attempts / 15 min — much stricter than user authLimiter (#79)
   validate(Joi.object({ email: Joi.string().email().required(), password: Joi.string().min(8).required() })),
   ctrl.loginAdmin
 );

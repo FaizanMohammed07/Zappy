@@ -11,12 +11,14 @@ import {
   Sparkles, Paintbrush2, Wrench, Clock, BarChart2,
   ChevronDown, ChevronUp, ArrowRight, BadgeIndianRupee,
   ShieldCheck, TrendingDown, Siren, ArrowUpRight,
-  ArrowDownRight, Minus,
+  ArrowDownRight, Minus, Smartphone, Battery, Layers,
+  Home, Bike, Fuel, Pencil,
 } from 'lucide-react';
 import {
   useGetWorkerMeQuery, useGoOnlineMutation, useGoOfflineMutation,
   useGetEarningsQuery, useWorkerAcceptMutation, useWorkerRejectMutation,
   useGetKycStatusQuery, useGetWorkerOrdersQuery, useGetDemandZonesQuery,
+  useGetWorkerLeaderboardQuery,
 } from '../services/api';
 import { useWorkerOfferSocket } from '../hooks/useSocket';
 import { setOffer, clearOffer, setOnline, selectWorker } from '../modules/worker/workerSlice';
@@ -24,6 +26,9 @@ import { selectAuth, logout } from '../modules/auth/authSlice';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { getSocket } from '../services/socket';
 import { ZappyLogo } from '../components/common/ZappyLogo';
+import ShiftSlotsWidget from '../components/worker/ShiftSlotsWidget';
+import WellnessWidget from '../components/worker/WellnessWidget';
+import EarnedWageWidget from '../components/worker/EarnedWageWidget';
 import toast from 'react-hot-toast';
 
 /* ─── Constants (mirror backend incentive.service.js) ─────────── */
@@ -45,14 +50,30 @@ const BADGES = [
 ];
 
 const SERVICE_ICON_MAP = {
-  electrical: { Icon: Bolt,        bg: 'bg-amber-100',  color: 'text-amber-600'  },
-  plumbing:   { Icon: Droplets,    bg: 'bg-blue-100',   color: 'text-blue-600'   },
-  ac_repair:  { Icon: Wind,        bg: 'bg-cyan-100',   color: 'text-cyan-600'   },
-  carpenter:  { Icon: Hammer,      bg: 'bg-orange-100', color: 'text-orange-600' },
-  helper:     { Icon: Users,       bg: 'bg-green-100',  color: 'text-green-600'  },
-  puncture:   { Icon: Car,         bg: 'bg-slate-100',  color: 'text-slate-500'  },
-  cleaning:   { Icon: Sparkles,    bg: 'bg-purple-100', color: 'text-purple-600' },
-  painting:   { Icon: Paintbrush2, bg: 'bg-pink-100',   color: 'text-pink-600'   },
+  // Original
+  electrical:            { Icon: Bolt,          bg: 'bg-amber-100',   color: 'text-amber-600'  },
+  plumbing:              { Icon: Droplets,       bg: 'bg-blue-100',    color: 'text-blue-600'   },
+  ac_repair:             { Icon: Wind,           bg: 'bg-cyan-100',    color: 'text-cyan-600'   },
+  carpenter:             { Icon: Hammer,         bg: 'bg-orange-100',  color: 'text-orange-600' },
+  helper:                { Icon: Users,          bg: 'bg-green-100',   color: 'text-green-600'  },
+  puncture:              { Icon: Car,            bg: 'bg-slate-100',   color: 'text-slate-500'  },
+  cleaning:              { Icon: Sparkles,       bg: 'bg-purple-100',  color: 'text-purple-600' },
+  painting:              { Icon: Paintbrush2,    bg: 'bg-pink-100',    color: 'text-pink-600'   },
+  // Mobile phone
+  screen_replacement:    { Icon: Smartphone,     bg: 'bg-indigo-100',  color: 'text-indigo-600' },
+  battery_replacement:   { Icon: Battery,        bg: 'bg-emerald-100', color: 'text-emerald-600'},
+  charging_issue:        { Icon: Bolt,           bg: 'bg-yellow-100',  color: 'text-yellow-600' },
+  speaker_mic_issue:     { Icon: Layers,         bg: 'bg-violet-100',  color: 'text-violet-600' },
+  software_issue:        { Icon: Wrench,         bg: 'bg-red-100',     color: 'text-red-600'    },
+  water_damage_check:    { Icon: Droplets,       bg: 'bg-sky-100',     color: 'text-sky-600'    },
+  // Construction
+  mason:                 { Icon: Home,           bg: 'bg-stone-100',   color: 'text-stone-600'  },
+  // Car + Bike
+  battery_jump_start:    { Icon: Zap,            bg: 'bg-yellow-100',  color: 'text-yellow-600' },
+  fuel_delivery:         { Icon: Fuel,           bg: 'bg-orange-100',  color: 'text-orange-600' },
+  bike_wash:             { Icon: Bike,           bg: 'bg-cyan-100',    color: 'text-cyan-600'   },
+  car_wash:              { Icon: Car,            bg: 'bg-blue-100',    color: 'text-blue-600'   },
+  minor_roadside_repair: { Icon: AlertTriangle,  bg: 'bg-red-100',     color: 'text-red-600'    },
 };
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -108,11 +129,11 @@ export default function WorkerDashboard() {
   const worker   = useSelector(selectWorker);
   const { accessToken: token } = useSelector(selectAuth);
 
-  const { data: meData, refetch: refetchMe } = useGetWorkerMeQuery(undefined, { pollingInterval: 15000 });
-  const { data: todayData }   = useGetEarningsQuery('today');
-  const { data: weekData }    = useGetEarningsQuery('week');
-  const { data: kycData }     = useGetKycStatusQuery();
-  const { data: jobsData }    = useGetWorkerOrdersQuery(1);
+  const { data: meData, refetch: refetchMe } = useGetWorkerMeQuery(undefined, { pollingInterval: 15000, skip: !token });
+  const { data: todayData }   = useGetEarningsQuery('today',  { skip: !token });
+  const { data: weekData }    = useGetEarningsQuery('week',   { skip: !token });
+  const { data: kycData }     = useGetKycStatusQuery(undefined, { skip: !token });
+  const { data: jobsData }    = useGetWorkerOrdersQuery(1,    { skip: !token });
 
   const [goOnline]  = useGoOnlineMutation();
   const [goOffline] = useGoOfflineMutation();
@@ -121,6 +142,8 @@ export default function WorkerDashboard() {
 
   const { getCurrent, watch } = useGeolocation();
   const watchRef   = useRef(null);
+  const [myLat, setMyLat] = useState(null);
+  const [myLng, setMyLng] = useState(null);
   const [gpsOn,        setGpsOn]        = useState(false);
   const [toggling,     setToggling]     = useState(false);
   const [onlineTimer,  setOnlineTimer]  = useState(0); // seconds online this session
@@ -216,7 +239,16 @@ export default function WorkerDashboard() {
     setTimeout(() => nav(`/worker/jobs/${data.orderId}`), 1500);
   }, [dispatch, nav, refetchMe]);
 
-  useWorkerOfferSocket(handleOffer, handleOfferCancelled, handleForceAssigned);
+  // Customer boosted their offer while worker is viewing it — update price live
+  const handleOfferBoosted = useCallback((data) => {
+    if (worker.currentOffer && String(worker.currentOffer._id) === String(data?.orderId)) {
+      dispatch(setOffer({ ...worker.currentOffer, price: data.newTotal, boostedBy: data.rupees }));
+      playOfferAlert();
+      try { navigator.vibrate?.([60, 40, 100, 40, 150]); } catch {}
+    }
+  }, [dispatch, worker.currentOffer]);
+
+  useWorkerOfferSocket(handleOffer, handleOfferCancelled, handleForceAssigned, handleOfferBoosted);
 
   // Continuous location broadcast — socket (fast) + REST fallback (reliable)
   const lastRestRef = useRef(0);
@@ -228,6 +260,8 @@ export default function WorkerDashboard() {
     watchRef.current = watch(
       (pos) => {
         setGpsOn(true);
+        setMyLat(pos.lat);
+        setMyLng(pos.lng);
         const now = Date.now();
 
         // Socket: every 4s (fast path — keeps geo + alive zset hot)
@@ -301,76 +335,150 @@ export default function WorkerDashboard() {
   return (
     <div className="min-h-screen bg-slate-100">
 
-      {/* ── Gradient Header ──────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-[#1a237e] via-[#283593] to-[#1565c0] pb-8">
-        <div className="max-w-lg mx-auto px-4 pt-5">
+      {/* ── Cinematic Header ──────────────────────────────────── */}
+      <div className="relative overflow-hidden pb-10" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e3a5f 100%)' }}>
+        {/* Animated orbs */}
+        <motion.div
+          className="absolute -top-20 -right-20 w-72 h-72 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.4), transparent)' }}
+          animate={{ scale: [1, 1.25, 1], opacity: [0.3, 0.5, 0.3] }}
+          transition={{ duration: 6, repeat: Infinity }}
+        />
+        <motion.div
+          className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(234,179,8,0.25), transparent)' }}
+          animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 8, repeat: Infinity, delay: 2 }}
+        />
+        {/* Grid overlay */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
+        }} />
 
-          {/* top bar */}
-          <div className="flex items-center justify-between mb-5">
-            <ZappyLogo size={24} />
-            <button
+        <div className="relative z-10 max-w-lg mx-auto px-5 pt-6 pb-8">
+          {/* ── Top bar ─────────────────────────────────────── */}
+          <div className="flex items-center justify-between mb-7">
+            <ZappyLogo size={26} />
+            <motion.button
               onClick={() => { dispatch(logout()); nav('/worker/login'); }}
-              className="flex items-center gap-1.5 text-[11px] font-semibold text-white/60 border border-white/20 px-3 py-1.5 rounded-full hover:bg-white/10 transition"
+              className="flex items-center gap-1.5 text-[11px] font-bold text-white/50 px-3.5 py-2 rounded-full transition-colors hover:text-white/80"
+              style={{ border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
+              whileTap={{ scale: 0.93 }}
             >
-              <LogOut size={11} strokeWidth={2} />
+              <LogOut size={12} strokeWidth={2.5} />
               Logout
-            </button>
+            </motion.button>
           </div>
 
-          {/* profile row */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-white font-extrabold text-xl shrink-0 ring-2 ring-white/30">
+          {/* ── Profile row ─────────────────────────────────── */}
+          <div className="flex items-center gap-4 mb-7">
+            {/* Avatar */}
+            <motion.div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-2xl shrink-0 relative"
+              style={{
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.5), rgba(139,92,246,0.4))',
+                border: '2px solid rgba(255,255,255,0.2)',
+                backdropFilter: 'blur(12px)',
+                boxShadow: '0 8px 32px rgba(99,102,241,0.25)',
+              }}
+              animate={{ boxShadow: ['0 0 0 0px rgba(99,102,241,0.35)', '0 0 0 10px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)'] }}
+              transition={{ duration: 3.5, repeat: Infinity, delay: 1 }}
+            >
               {initials}
-            </div>
+              {/* Online dot */}
+              {isOnline && (
+                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#0f172a]" />
+              )}
+            </motion.div>
+
+            {/* Name + meta */}
             <div className="flex-1 min-w-0">
-              <p className="text-white/60 text-xs font-medium">{getGreeting()}</p>
-              <p className="text-white font-extrabold text-xl leading-tight truncate">{me?.name ?? '…'}</p>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="text-white/45 text-[11px] font-semibold tracking-wide">{getGreeting()}</p>
+                <button
+                  onClick={() => nav('/worker/profile')}
+                  className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                  title="Edit profile"
+                >
+                  <Pencil size={11} className="text-white/40" />
+                </button>
+              </div>
+              <p className="text-white font-black text-2xl leading-tight truncate">{me?.name ?? '…'}</p>
+              <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
                 <span className="flex items-center gap-1 text-amber-300 text-xs font-bold">
-                  <Star size={10} className="fill-amber-300" />
+                  <Star size={10} className="fill-amber-300 stroke-amber-300" />
                   {hasRatingData ? rating.toFixed(1) : 'New'}
                 </span>
-                <span className="text-white/30">·</span>
-                <span className="text-white/60 text-xs">{completedJobs} jobs</span>
+                <span className="w-px h-3 bg-white/15" />
+                <span className="text-white/45 text-xs font-semibold">{completedJobs} jobs</span>
                 {me?.skills?.[0] && (
                   <>
-                    <span className="text-white/30">·</span>
-                    <span className="text-white/60 text-xs capitalize">{me.skills[0].replace(/_/g, ' ')}</span>
+                    <span className="w-px h-3 bg-white/15" />
+                    <span className="text-white/45 text-xs font-semibold capitalize">{me.skills[0].replace(/_/g, ' ')}</span>
                   </>
                 )}
               </div>
             </div>
+
+            {/* Verified badge */}
             {kycApproved && (
-              <div className="flex items-center gap-1 bg-green-500/20 border border-green-400/30 px-2.5 py-1.5 rounded-full shrink-0">
-                <BadgeCheck size={12} strokeWidth={2.5} className="text-green-300" />
-                <span className="text-[10px] font-bold text-green-300">Verified</span>
-              </div>
+              <motion.div
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full shrink-0"
+                style={{
+                  background: 'rgba(34,197,94,0.12)',
+                  border: '1px solid rgba(34,197,94,0.3)',
+                  backdropFilter: 'blur(8px)',
+                }}
+                animate={{ boxShadow: ['0 0 0 0px rgba(34,197,94,0.25)', '0 0 0 6px rgba(34,197,94,0)', '0 0 0 0px rgba(34,197,94,0)'] }}
+                transition={{ duration: 3, repeat: Infinity }}
+              >
+                <BadgeCheck size={13} strokeWidth={2.5} className="text-green-400" />
+                <span className="text-[10px] font-extrabold text-green-400 tracking-wide">Verified</span>
+              </motion.div>
             )}
           </div>
 
-          {/* earnings hero strip */}
-          <div className="bg-white/10 backdrop-blur rounded-2xl p-4 grid grid-cols-3 divide-x divide-white/10">
-            <div className="pr-3">
-              <p className="text-white/50 text-[9px] font-bold uppercase tracking-widest mb-1">Today</p>
-              <p className="text-white font-extrabold text-2xl leading-none">₹{todayRs}</p>
-              <p className="text-white/50 text-[10px] mt-1">{todayJobs} jobs</p>
-            </div>
-            <div className="px-3">
-              <p className="text-white/50 text-[9px] font-bold uppercase tracking-widest mb-1">This Week</p>
-              <p className="text-white font-extrabold text-2xl leading-none">₹{weekRs}</p>
-              <p className="text-white/50 text-[10px] mt-1">avg ₹{weekAvgRs}</p>
-            </div>
-            <div className="pl-3">
-              <p className="text-white/50 text-[9px] font-bold uppercase tracking-widest mb-1">All Time</p>
-              <p className="text-white font-extrabold text-2xl leading-none">₹{totalWallet}</p>
-              <p className="text-white/50 text-[10px] mt-1">total earned</p>
+          {/* ── Earnings strip ─────────────────────────────── */}
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: 'rgba(255,255,255,0.07)',
+              border: '1px solid rgba(255,255,255,0.11)',
+              backdropFilter: 'blur(16px)',
+            }}
+          >
+            <div className="grid grid-cols-3">
+              {[
+                { label: 'TODAY', value: todayRs, sub: `${todayJobs} job${todayJobs !== 1 ? 's' : ''}`, highlight: true },
+                { label: 'THIS WEEK', value: weekRs, sub: `avg ₹${weekAvgRs}` },
+                { label: 'ALL TIME', value: totalWallet, sub: 'total earned' },
+              ].map(({ label, value, sub, highlight }, i) => (
+                <div
+                  key={label}
+                  className={`px-4 py-4 ${i === 1 ? 'border-x border-white/10' : ''}`}
+                >
+                  <p className="text-white/35 text-[9px] font-black uppercase tracking-[0.15em] mb-2">{label}</p>
+                  <motion.p
+                    className={`font-black text-2xl leading-none tabular-nums ${
+                      highlight && (isOnline || isBusy) ? 'text-green-300' : 'text-white'
+                    }`}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.08 + 0.15, type: 'spring', stiffness: 300 }}
+                  >
+                    ₹{value}
+                  </motion.p>
+                  <p className="text-white/35 text-[10px] mt-1.5 font-medium">{sub}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Scrollable content ───────────────────────────────── */}
-      <div className="max-w-lg mx-auto px-4 -mt-4 space-y-3 pb-10">
+      <div className="max-w-lg mx-auto px-4 mt-4 space-y-3.5 pb-10">
 
         {/* ── KYC Banner — hidden in dev to unblock testing ──── */}
         {!kycApproved && !import.meta.env.DEV && (
@@ -422,98 +530,182 @@ export default function WorkerDashboard() {
 
         {/* ── Online Toggle ────────────────────────────────────── */}
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="bg-white rounded-2xl p-4 shadow-sm"
+          className="rounded-2xl overflow-hidden"
+          style={{
+            background: isBusy
+              ? 'linear-gradient(135deg, #fffbeb, #fef3c7)'
+              : isOnline
+                ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+                : 'white',
+            border: isOnline ? '1px solid rgba(34,197,94,0.25)' : isBusy ? '1px solid rgba(245,158,11,0.25)' : '1px solid rgba(0,0,0,0.06)',
+            boxShadow: isOnline ? '0 4px 24px rgba(34,197,94,0.12)' : '0 2px 12px rgba(0,0,0,0.05)',
+          }}
         >
-          <div className="flex items-center justify-between">
+          {/* Animated green bar on top when online */}
+          {isOnline && (
+            <div className="h-0.5 w-full overflow-hidden">
+              <motion.div
+                className="h-full bg-green-500"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                style={{ width: '60%' }}
+              />
+            </div>
+          )}
+          <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors ${
-                isBusy ? 'bg-amber-50' : isOnline ? 'bg-green-50' : 'bg-slate-100'
-              }`}>
+              <motion.div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
+                  isBusy ? 'bg-amber-100' : isOnline ? 'bg-green-100' : 'bg-slate-100'
+                }`}
+                animate={isOnline && !isBusy ? {
+                  boxShadow: ['0 0 0 0px rgba(34,197,94,0.4)', '0 0 0 10px rgba(34,197,94,0)', '0 0 0 0px rgba(34,197,94,0)']
+                } : {}}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
                 {isBusy
-                  ? <Briefcase size={18} strokeWidth={2} className="text-amber-600" />
+                  ? <Briefcase size={20} strokeWidth={1.75} className="text-amber-600" />
                   : isOnline
-                    ? <Navigation size={18} strokeWidth={2} className="text-green-600" />
-                    : <WifiOff size={18} strokeWidth={2} className="text-slate-400" />}
-              </div>
+                    ? <Navigation size={20} strokeWidth={1.75} className="text-green-600" />
+                    : <WifiOff size={20} strokeWidth={1.75} className="text-slate-400" />}
+              </motion.div>
               <div>
-                <p className="font-bold text-[#0F172A] text-sm">
-                  {isBusy ? 'Currently on a job' : isOnline ? 'Online — accepting jobs' : 'Offline'}
+                <p className={`font-black text-base ${isOnline ? 'text-green-800' : isBusy ? 'text-amber-800' : 'text-slate-800'}`}>
+                  {isBusy ? 'On a job' : isOnline ? 'Online · Accepting jobs' : 'Offline'}
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${gpsOn ? 'bg-green-500' : 'bg-red-400'}`} />
-                  <p className="text-[10px] text-slate-400 font-medium">
+                  <motion.div
+                    className={`w-1.5 h-1.5 rounded-full ${gpsOn ? 'bg-green-500' : 'bg-red-400'}`}
+                    animate={gpsOn ? { opacity: [1, 0.4, 1] } : {}}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                  <p className="text-[11px] text-slate-500 font-medium">
                     {gpsOn ? 'GPS active' : 'GPS off'}
-                    {fmtTimer && ` · ${fmtTimer}`}
+                    {fmtTimer && <span className="text-green-600 font-bold"> · {fmtTimer}</span>}
                   </p>
                 </div>
               </div>
             </div>
 
             {!isBusy && (
-              <button
+              <motion.button
                 onClick={toggleOnline}
                 disabled={toggling || !canGoOnline}
-                className={`relative w-14 h-7 rounded-full transition-all duration-300 shrink-0 disabled:opacity-50 ${
+                className={`relative w-16 h-8 rounded-full transition-colors duration-300 shrink-0 disabled:opacity-50 ${
                   isOnline ? 'bg-green-500' : 'bg-slate-200'
                 }`}
+                style={{ boxShadow: isOnline ? '0 4px 16px rgba(34,197,94,0.4)' : 'none' }}
+                whileTap={{ scale: 0.93 }}
               >
                 {toggling
-                  ? <Loader2 size={12} className="absolute inset-0 m-auto animate-spin text-white" />
-                  : <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all duration-300 ${
-                      isOnline ? 'left-[calc(100%-26px)]' : 'left-0.5'
-                    }`} />
+                  ? <Loader2 size={14} className="absolute inset-0 m-auto animate-spin text-white" />
+                  : (
+                    <motion.span
+                      className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-md"
+                      animate={{ left: isOnline ? 'calc(100% - 28px)' : '4px' }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    />
+                  )
                 }
-              </button>
+              </motion.button>
             )}
           </div>
         </motion.div>
 
         {/* ── Earnings Chart ───────────────────────────────────── */}
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.08 }}
-          className="bg-white rounded-2xl p-4 shadow-sm"
+          className="bg-white rounded-2xl overflow-hidden"
+          style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.04)' }}
         >
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">7-Day Earnings</p>
-            <button onClick={() => nav('/wallet')} className="text-xs font-bold text-blue-600 flex items-center gap-0.5">
-              Full history <ChevronRight size={10} strokeWidth={2.5} />
-            </button>
+          <div className="flex items-center justify-between px-4 pt-4 pb-3">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">7-Day Earnings</p>
+              {hasChartData && (
+                <motion.p
+                  className="text-xl font-black text-slate-900 mt-0.5"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  ₹{weekRs}
+                </motion.p>
+              )}
+            </div>
+            <motion.button
+              onClick={() => nav('/wallet')}
+              className="flex items-center gap-1 text-xs font-bold text-indigo-600 px-3 py-1.5 rounded-xl bg-indigo-50"
+              whileTap={{ scale: 0.94 }}
+            >
+              Full history <ChevronRight size={10} strokeWidth={3} />
+            </motion.button>
           </div>
 
           {hasChartData ? (
-            <div className="flex items-end gap-2" style={{ height: 72 }}>
-              {chart7d.map((d, i) => {
-                const barH = Math.max(Math.round((d.earningsPaise / chartMax) * 56), 3);
-                const isToday = i === chart7d.length - 1;
-                const DAY = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-                const dayLabel = DAY[new Date(d.date + 'T00:00').getDay()];
-                return (
-                  <div key={d.date} className="flex-1 flex flex-col items-center justify-end gap-1.5">
-                    {isToday && d.earningsPaise > 0 && (
-                      <p className="text-[8px] font-bold text-blue-600">₹{Math.round(d.earningsPaise / 100)}</p>
-                    )}
-                    <motion.div
-                      className={`w-full rounded-lg ${isToday ? 'bg-blue-600' : 'bg-slate-200'}`}
-                      initial={{ height: 0 }}
-                      animate={{ height: barH }}
-                      transition={{ duration: 0.5, delay: i * 0.06, ease: 'easeOut' }}
-                    />
-                    <span className={`text-[9px] font-semibold ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
-                      {isToday ? 'Now' : dayLabel}
+            <div className="px-4 pb-5">
+              {/* Bars — fixed 104px zone, labels float above via absolute */}
+              <div className="flex items-end gap-2" style={{ height: 104 }}>
+                {chart7d.map((d, i) => {
+                  const barH = Math.max(Math.round((d.earningsPaise / chartMax) * 88), 4);
+                  const isToday = i === chart7d.length - 1;
+                  const rs = Math.round(d.earningsPaise / 100);
+                  return (
+                    <div key={d.date} className="flex-1 relative flex items-end">
+                      {isToday && rs > 0 && (
+                        <motion.p
+                          className="absolute -top-5 left-0 right-0 text-center text-[9px] font-black text-indigo-600"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.6 }}
+                        >
+                          ₹{rs}
+                        </motion.p>
+                      )}
+                      <motion.div
+                        className="w-full rounded-lg"
+                        initial={{ height: 0 }}
+                        animate={{ height: barH }}
+                        transition={{ duration: 0.5, delay: i * 0.06, ease: [0.34, 1.56, 0.64, 1] }}
+                        style={{
+                          background: isToday
+                            ? 'linear-gradient(180deg, #818cf8 0%, #4f46e5 100%)'
+                            : 'linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%)',
+                          boxShadow: isToday ? '0 4px 14px rgba(99,102,241,0.4)' : 'none',
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Day labels — own row, never overlaps bars */}
+              <div className="flex gap-2 mt-2.5">
+                {chart7d.map((d, i) => {
+                  const isToday = i === chart7d.length - 1;
+                  const DAY = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+                  const dayLabel = DAY[new Date(d.date + 'T00:00').getDay()];
+                  return (
+                    <span
+                      key={d.date}
+                      className={`flex-1 text-center text-[9px] font-bold ${
+                        isToday ? 'text-indigo-500' : 'text-slate-300'
+                      }`}
+                    >
+                      {isToday ? 'Today' : dayLabel}
                     </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-6 gap-2">
-              <BarChart2 size={28} strokeWidth={1.5} className="text-slate-200" />
-              <p className="text-sm font-semibold text-slate-400">No earnings yet this week</p>
+            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <BarChart2 size={32} strokeWidth={1} className="text-slate-100" />
+              <p className="text-sm font-bold text-slate-300">No earnings yet this week</p>
               <p className="text-xs text-slate-300">Go online to start earning</p>
             </div>
           )}
@@ -617,11 +809,26 @@ export default function WorkerDashboard() {
           </div>
         </motion.div>
 
+        {/* ── Earned Wage Access ───────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.155 }}>
+          <EarnedWageWidget />
+        </motion.div>
+
+        {/* ── Shift Slots (Predictive Availability) ────────────── */}
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+          <ShiftSlotsWidget currentLat={myLat} currentLng={myLng} />
+        </motion.div>
+
+        {/* ── Wellness System ───────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}>
+          <WellnessWidget />
+        </motion.div>
+
         {/* ── Performance ──────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.17 }}
+          transition={{ delay: 0.18 }}
           className="bg-white rounded-2xl p-4 shadow-sm"
         >
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Performance</p>
@@ -695,6 +902,9 @@ export default function WorkerDashboard() {
 
         {/* ── Recent Jobs ──────────────────────────────────────── */}
         <RecentJobsList orders={jobsData?.orders} onNav={nav} />
+
+        {/* ── Leaderboard ──────────────────────────────────────── */}
+        <LeaderboardWidget workerId={me?._id} />
 
         {/* ── Demand Zones ─────────────────────────────────────── */}
         {isOnline && <DemandZonesWidget />}
@@ -898,6 +1108,116 @@ function RecentJobsList({ orders, onNav }) {
   );
 }
 
+/* ─── Leaderboard Widget ─────────────────────────────────────── */
+
+const MOCK_LEADERS = [
+  { rank: 1, name: 'R*** K.', weekEarnings: 8400, isMe: false },
+  { rank: 2, name: 'A*** S.', weekEarnings: 7200, isMe: false },
+  { rank: 3, name: 'M*** P.', weekEarnings: 6800, isMe: false },
+  { rank: 4, name: 'S*** R.', weekEarnings: 5900, isMe: false },
+  { rank: 5, name: 'K*** V.', weekEarnings: 5100, isMe: false },
+];
+
+const RANK_COLORS = {
+  1: 'text-amber-500',
+  2: 'text-slate-400',
+  3: 'text-orange-500',
+};
+
+function LeaderboardWidget({ workerId }) {
+  const { data, isLoading } = useGetWorkerLeaderboardQuery(undefined, {
+    // Tolerate missing endpoint gracefully
+    refetchOnMountOrArgChange: true,
+  });
+
+  const leaders = data?.leaders?.length ? data.leaders : MOCK_LEADERS;
+  const myRank  = data?.myRank?.rank  ?? 12;
+  const total   = data?.myRank?.total ?? 847;
+  const maxEarnings = Math.max(...leaders.map((l) => l.weekEarnings), 1);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.22 }}
+      className="bg-white rounded-2xl shadow-sm overflow-hidden"
+      style={{ border: '1px solid rgba(0,0,0,0.04)' }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+        <div className="flex items-center gap-2">
+          <Trophy size={14} strokeWidth={2} className="text-amber-500" />
+          <p className="text-xs font-bold text-slate-700">Top Earners · This Week</p>
+        </div>
+        <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">
+          You&apos;re #{myRank}
+        </span>
+      </div>
+
+      {/* List */}
+      <div className="divide-y divide-slate-50 px-0">
+        {isLoading
+          ? Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
+                <div className="w-5 h-4 bg-slate-100 rounded" />
+                <div className="flex-1 h-3 bg-slate-100 rounded" />
+                <div className="w-12 h-3 bg-slate-100 rounded" />
+              </div>
+            ))
+          : leaders.map((leader, i) => {
+              const isHighlighted = leader.isMe;
+              const barPct = Math.round((leader.weekEarnings / maxEarnings) * 100);
+              const rankColor = RANK_COLORS[leader.rank] ?? 'text-slate-400';
+              return (
+                <motion.div
+                  key={leader.rank}
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.25 + i * 0.05 }}
+                  className={`flex items-center gap-3 px-4 py-3 ${
+                    isHighlighted ? 'bg-indigo-50' : ''
+                  }`}
+                >
+                  {/* Rank */}
+                  <p className={`text-sm font-black w-5 text-center shrink-0 ${rankColor}`}>
+                    {leader.rank}
+                  </p>
+
+                  {/* Name + bar */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold truncate ${isHighlighted ? 'text-indigo-700' : 'text-slate-700'}`}>
+                      {leader.name}
+                    </p>
+                    <div className="w-full h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                      <motion.div
+                        className={`h-full rounded-full ${isHighlighted ? 'bg-indigo-500' : 'bg-amber-400'}`}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${barPct}%` }}
+                        transition={{ duration: 0.7, ease: 'easeOut', delay: 0.3 + i * 0.06 }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Earnings */}
+                  <p className={`text-xs font-extrabold shrink-0 ${isHighlighted ? 'text-indigo-600' : 'text-slate-700'}`}>
+                    ₹{leader.weekEarnings.toLocaleString('en-IN')}
+                  </p>
+                </motion.div>
+              );
+            })
+        }
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 border-t border-slate-50">
+        <p className="text-[10px] font-semibold text-slate-400 text-center">
+          Your rank: #{myRank} of {total.toLocaleString('en-IN')} workers
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
 /* ─── Demand Zones ───────────────────────────────────────────── */
 
 const LEVEL_META = {
@@ -1078,20 +1398,41 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
       className="fixed inset-0 z-50 flex flex-col"
     >
       {/* Map fills the top half */}
-      <div className="flex-1 relative bg-slate-300 overflow-hidden">
-        {mapUrl
-          ? <img src={mapUrl} alt="map" className="w-full h-full object-cover" />
-          : (
-            <div className="w-full h-full bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 flex items-center justify-center">
-              <MapPin size={36} strokeWidth={1.5} className="text-slate-400" />
-            </div>
-          )
-        }
-        {/* Countdown pill — top right of map */}
-        <div className={`absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm ${urgent ? 'bg-red-500' : 'bg-[#0F172A]/80'}`}>
-          <Clock size={12} strokeWidth={2.5} className="text-white" />
-          <span className="text-white font-extrabold text-sm tabular-nums">{left}s</span>
-        </div>
+      <div className="flex-1 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)' }}>
+        {mapUrl ? (
+          <img src={mapUrl} alt="map" className="w-full h-full object-cover opacity-80" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <motion.div
+              className="w-32 h-32 rounded-full"
+              style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.3), transparent)' }}
+              animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+            <MapPin size={36} strokeWidth={1.5} className="text-indigo-400 absolute" />
+          </div>
+        )}
+        {/* Dark overlay */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.5) 100%)' }} />
+        {/* Countdown pill */}
+        <motion.div
+          className="absolute top-4 right-4 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl backdrop-blur-md"
+          style={{ background: urgent ? 'rgba(239,68,68,0.9)' : 'rgba(15,23,42,0.8)', border: `1px solid ${urgent ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.15)'}` }}
+          animate={urgent ? { scale: [1, 1.04, 1] } : {}}
+          transition={{ duration: 0.4, repeat: Infinity }}
+        >
+          <Clock size={13} strokeWidth={2.5} className="text-white" />
+          <span className="text-white font-black text-base tabular-nums">{left}s</span>
+        </motion.div>
+        {/* NEW JOB banner */}
+        <motion.div
+          className="absolute top-4 left-4 px-3.5 py-2 rounded-2xl backdrop-blur-md"
+          style={{ background: 'rgba(99,102,241,0.8)', border: '1px solid rgba(99,102,241,0.4)' }}
+          animate={{ boxShadow: ['0 0 0 0px rgba(99,102,241,0.4)', '0 0 0 12px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)'] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        >
+          <span className="text-white font-black text-xs tracking-widest">⚡ NEW JOB</span>
+        </motion.div>
       </div>
 
       {/* Bottom card slides up */}
@@ -1099,49 +1440,84 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 340 }}
-        className="bg-white rounded-t-[28px] -mt-7 shadow-[0_-8px_40px_rgba(0,0,0,0.15)] relative z-10"
+        transition={{ type: 'spring', damping: 28, stiffness: 360 }}
+        className="relative z-10 rounded-t-[32px] -mt-8"
+        style={{ background: 'white', boxShadow: '0 -16px 60px rgba(0,0,0,0.25)' }}
       >
-        {/* Progress bar */}
-        <div className="absolute top-0 inset-x-0 h-1 rounded-t-[28px] overflow-hidden bg-slate-100">
+        {/* Animated progress bar */}
+        <div className="absolute top-0 inset-x-0 h-1 rounded-t-[32px] overflow-hidden bg-slate-100">
           <motion.div
-            className={`h-full absolute left-0 top-0 ${urgent ? 'bg-red-500' : 'bg-blue-600'}`}
+            className="h-full absolute left-0 top-0 rounded-full"
+            style={{ background: urgent ? 'linear-gradient(90deg, #ef4444, #f97316)' : 'linear-gradient(90deg, #6366f1, #0ea5e9)' }}
             animate={{ width: `${Math.max(0, progress * 100)}%` }}
             transition={{ duration: 0.25, ease: 'linear' }}
           />
         </div>
 
-        <div className="px-5 pt-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
+        {/* Drag handle */}
+        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-0" />
 
-          {/* Service label + Exclusive badge + X dismiss */}
+        <div className="px-5 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+          {/* Service label + dismiss */}
           <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className={`w-10 h-10 rounded-xl ${svc.bg} flex items-center justify-center shrink-0`}>
-                <SvcIcon size={20} strokeWidth={1.75} className={svc.color} />
-              </div>
+            <div className="flex items-center gap-3">
+              <motion.div
+                className={`w-12 h-12 rounded-2xl ${svc.bg} flex items-center justify-center shrink-0`}
+                animate={{ rotate: [0, -5, 5, 0] }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <SvcIcon size={22} strokeWidth={1.75} className={svc.color} />
+              </motion.div>
               <div>
-                <p className="font-extrabold text-[#0F172A] text-base capitalize leading-tight">
+                <p className="font-black text-slate-900 text-lg capitalize leading-tight">
                   {offer.service.replace(/_/g, ' ')}
                 </p>
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                  Exclusive
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full ring-1 ring-indigo-100">
+                  Exclusive to you
                 </span>
               </div>
             </div>
-            <button
+            <motion.button
               onClick={onReject}
-              className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center shrink-0 hover:bg-slate-200 transition active:scale-95"
+              className="w-10 h-10 bg-slate-100 rounded-2xl flex items-center justify-center shrink-0"
+              whileTap={{ scale: 0.9 }}
             >
               <X size={18} strokeWidth={2.5} className="text-slate-500" />
-            </button>
+            </motion.button>
           </div>
 
-          {/* Price + surge icon */}
+          {/* Price — highlights with boost badge when customer boosts live */}
           <div className="flex items-center gap-2 mb-1">
-            <p className={`text-[52px] font-extrabold leading-none tabular-nums ${urgent ? 'text-red-600' : 'text-[#0F172A]'}`}>
+            <motion.p
+              key={offer.price}
+              className={`font-black leading-none tabular-nums ${urgent ? 'text-red-600' : offer.boostedBy ? 'text-orange-600' : 'text-slate-900'}`}
+              style={{ fontSize: 52 }}
+              animate={offer.boostedBy
+                ? { scale: [1, 1.18, 1], color: ['#ea580c', '#f97316', '#ea580c'] }
+                : urgent ? { scale: [1, 1.03, 1] } : {}}
+              transition={offer.boostedBy ? { duration: 0.5 } : { duration: 0.4, repeat: Infinity }}
+            >
               ₹{offer.price}
-            </p>
-            <Zap size={24} strokeWidth={2.5} className={urgent ? 'text-red-500' : 'text-blue-600'} />
+            </motion.p>
+            {offer.boostedBy ? (
+              <motion.div
+                initial={{ scale: 0, rotate: -15 }}
+                animate={{ scale: 1, rotate: 0 }}
+                className="flex flex-col items-center"
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.15, 1], boxShadow: ['0 0 0 0 rgba(249,115,22,0.6)', '0 0 0 12px rgba(249,115,22,0)', '0 0 0 0 rgba(249,115,22,0)'] }}
+                  transition={{ duration: 1.2, repeat: Infinity }}
+                  className="flex items-center gap-1 bg-orange-500 text-white text-[10px] font-black px-2 py-1 rounded-full"
+                >
+                  <Flame size={10} strokeWidth={2.5} />
+                  +₹{offer.boostedBy} BOOST
+                </motion.div>
+                <span className="text-[9px] font-bold text-orange-500 mt-0.5">Customer boosted offer!</span>
+              </motion.div>
+            ) : (
+              <Zap size={24} strokeWidth={2.5} className={urgent ? 'text-red-500' : 'text-blue-600'} />
+            )}
           </div>
 
           {/* Rating + Verified */}

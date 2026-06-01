@@ -33,6 +33,7 @@ const geoService = require('../modules/worker/geo.service');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { QUEUES, notificationsQueue, dispatchQueue } = require('./index');
+const pricingService = require('../modules/pricing/pricing.service');
 
 const MAX_BATCH_SIZE     = 10;
 const MAX_RETRIES        = 2;
@@ -46,6 +47,15 @@ async function processDispatchJob(job) {
   const jobStartMs = Date.now();
 
   logger.info({ orderId, retryCount }, '[DISPATCH] Job picked up');
+
+  // Kill-switch: admin can pause dispatch without stopping the BullMQ process.
+  // Jobs are re-queued with a 60s delay and drain normally once re-enabled.
+  const cfg = await pricingService.getActiveConfig();
+  if (!cfg.dispatchEnabled) {
+    logger.warn({ orderId }, '[DISPATCH] Dispatch paused by admin — re-queuing in 60s');
+    await dispatchQueue.add('dispatch', job.data, { delay: 60_000 });
+    return { ok: false, reason: 'dispatch_paused' };
+  }
 
   const order = await Order.findById(orderId);
   if (!order) {
@@ -66,6 +76,37 @@ async function processDispatchJob(job) {
   }
 
   const [lng, lat] = order.pickupLocation.coordinates;
+
+  /* ── Per-zone concurrency throttle (#64) ─────────────────────────────────
+   * When 100+ orders land in the same geo-bucket (warehouse, event, dense zone),
+   * all their dispatches hit the same ~50 workers simultaneously. Workers get
+   * flooded with offers, ignore most, and all 100 re-dispatch — storm.
+   *
+   * Cap: max 20 active dispatches per zone-bucket at any moment.
+   * Orders beyond the cap wait 10s and retry — they naturally stagger out.
+   *
+   * Zone bucket = 0.02° lat/lng ≈ 2km × 2km cell. Coarser than the surge bucket
+   * (0.01°) to provide broader protection.
+   */
+  const ZONE_DISPATCH_CAP   = 20;   // max concurrent dispatches per 2km cell
+  const ZONE_DISPATCH_DELAY = 10_000; // ms to wait before retry if zone is full
+  const zoneBucket = `${(lat / 0.02).toFixed(0)}:${(lng / 0.02).toFixed(0)}`;
+  const zoneKey    = `dispatch:zone:${zoneBucket}`;
+
+  try {
+    const zoneCount = await redis.incr(zoneKey);
+    await redis.expire(zoneKey, 120); // auto-expire if something goes wrong
+    if (zoneCount > ZONE_DISPATCH_CAP) {
+      await redis.decr(zoneKey); // we're not proceeding, give the slot back
+      logger.info({ orderId, zoneBucket, zoneCount }, '[DISPATCH] Zone at capacity — re-queuing in 10s');
+      await dispatchQueue.add('dispatch', job.data, { delay: ZONE_DISPATCH_DELAY });
+      return { ok: false, reason: 'zone_throttled', zoneBucket };
+    }
+  } catch (_) { /* Redis error — proceed without throttle, fail open */ }
+
+  // Decrement zone counter when this job exits (success or failure).
+  const releaseZoneSlot = () => redis.decr(zoneKey).catch(() => {});
+  try {
   const radiusSteps  = config.dispatch.radiusSteps;
   const stepWindowMs = config.dispatch.stepWindowMs;
   const minSearchMs  = config.dispatch.minSearchMs;   // 5 minutes
@@ -155,29 +196,46 @@ async function processDispatchJob(job) {
         `[DISPATCH] Notifying ${batchWorkers.length} workers`,
       );
 
-      for (const workerId of batchWorkers) {
-        alreadyNotified.add(workerId);
-        redis.publish('worker:offer', JSON.stringify({
-          workerId,
-          order: {
-            _id:           String(order._id),
-            service:       order.service,
-            pickupAddress: order.pickupLocation.address,
-            pickupCoords:  order.pickupLocation.coordinates,
-            price:         order.pricing.total,
-            distanceKm:    order.pricing?.distanceKm
-              ? parseFloat(order.pricing.distanceKm).toFixed(1)
-              : null,
-            etaMinutes:    order.pricing?.etaMinutes || null,
-            expiresAt:     expiresAt.toISOString(),
-          },
-        })).catch(() => {});
+      // Store the FULL current batch on the order so all notified workers can
+      // pass the socket auth check (order:subscribe) and call accept/reject.
+      // currentOfferWorkerId stays as the primary (first) for backwards compat.
+      await Order.updateOne({ _id: order._id }, {
+        $set: {
+          'dispatch.currentOfferWorkerId': batchWorkers[0],
+          'dispatch.currentOfferWorkerIds': batchWorkers,
+          'dispatch.offerExpiresAt': expiresAt,
+        },
+      }).catch(() => {});
 
-        notificationsQueue.add('worker_offer', {
-          workerId,
-          orderId: String(order._id),
-        }).catch(() => {});
-      }
+      // Publish offers + enqueue notifications in parallel batches.
+      // addBulk is a single Redis transaction vs N individual LPUSH calls. (#62)
+      const orderPayload = {
+        _id:           String(order._id),
+        service:       order.service,
+        pickupAddress: order.pickupLocation.address,
+        pickupCoords:  order.pickupLocation.coordinates,
+        price:         order.pricing.total,
+        distanceKm:    order.pricing?.distanceKm
+          ? parseFloat(order.pricing.distanceKm).toFixed(1)
+          : null,
+        etaMinutes:    order.pricing?.etaMinutes || null,
+        expiresAt:     expiresAt.toISOString(),
+      };
+
+      const pubMessages = batchWorkers.map((workerId) =>
+        redis.publish('worker:offer', JSON.stringify({ workerId, order: orderPayload }))
+      );
+      const notifJobs = batchWorkers.map((workerId) => ({
+        name: 'worker_offer',
+        data: { workerId, orderId: String(order._id) },
+      }));
+
+      batchWorkers.forEach((id) => alreadyNotified.add(id));
+
+      await Promise.all([
+        Promise.allSettled(pubMessages),                    // socket fan-out
+        notificationsQueue.addBulk(notifJobs).catch(() => {}), // push notifications — single Redis tx
+      ]);
 
       const result = await waitForBatchWindow(String(order._id), batchWorkers, stepWindowMs);
 
@@ -278,6 +336,9 @@ async function processDispatchJob(job) {
     await markOrderFailed(finalOrder, 'no_workers_available');
   }
   return { ok: false, reason: 'all_attempts_exhausted' };
+  } finally {
+    releaseZoneSlot();
+  }
 }
 
 /* ─── Preferred worker: check if user's last worker is online + skilled ── */
@@ -405,7 +466,7 @@ async function onOrderAssigned(order, workerId, losers = []) {
 async function onForceAssigned(order, workerId) {
   const orderId = String(order._id);
 
-  await emitToOrderRoom(order._id, 'order.assigned', { workerId, orderId });
+  await emitToOrderRoom(order._id, 'order.assigned', { workerId, orderId, forceAssigned: true });
 
   await redis.publish('worker:assigned', JSON.stringify({
     workerId,
@@ -413,7 +474,32 @@ async function onForceAssigned(order, workerId) {
     service:       order.service,
     pickupAddress: order.pickupLocation.address,
     price:         order.pricing.total,
+    forceAssigned: true,
   })).catch(() => {});
+
+  // Force-assign bonus — amount set by admin in pricing config (default ₹15)
+  let FORCE_ASSIGN_BONUS_PAISE = 1500;
+  try {
+    const PricingConfig = require('../modules/pricing/pricing-config.model');
+    const cfg = await PricingConfig.findOne({ isActive: true }).select('forceAssignBonusPaise').lean();
+    if (cfg?.forceAssignBonusPaise != null) FORCE_ASSIGN_BONUS_PAISE = cfg.forceAssignBonusPaise;
+  } catch { /* keep default */ }
+  try {
+    const walletService  = require('../modules/wallet/wallet.service');
+    const Transaction    = require('../modules/payment/transaction.model');
+    await walletService.apply({
+      kind: 'worker',
+      id: workerId,
+      type: 'credit',
+      amountPaise: FORCE_ASSIGN_BONUS_PAISE,
+      reason: Transaction.REASONS.WORKER_EARNING,
+      idempotencyKey: `forceassign:bonus:${orderId}`,
+      refs: { orderId },
+      description: 'Force-assign bonus — job auto-routed to you',
+    });
+  } catch (err) {
+    logger.warn({ err: err.message, workerId, orderId }, '[DISPATCH] Force-assign bonus credit failed');
+  }
 
   try {
     const notificationService = require('../modules/notification/notification.service');
@@ -423,18 +509,20 @@ async function onForceAssigned(order, workerId) {
       notificationService.notify({
         recipient: { kind: 'user', id: order.userId },
         type:  'worker_assigned',
-        title: '✅ Worker assigned!',
-        body:  worker ? `${worker.name} (⭐ ${(worker.rating || 5).toFixed(1)}) is on the way` : 'A worker is on the way',
+        title: 'Worker assigned',
+        body:  worker
+          ? `${worker.name} (${(worker.rating || 5).toFixed(1)} stars) is on the way`
+          : 'A worker is on the way',
         deepLink: `/orders/${orderId}`,
         data: { orderId, workerId },
       }),
       notificationService.notify({
         recipient: { kind: 'worker', id: workerId },
         type:  'job_assigned',
-        title: '🚀 New job assigned to you!',
-        body:  `${order.service.replace(/_/g, ' ')} — ₹${order.pricing.total}`,
+        title: 'Job auto-routed to you + ₹15 bonus',
+        body:  `${order.service.replace(/_/g, ' ')} — ₹${order.pricing.total}. A ₹15 priority bonus has been added to your wallet. Please start your trip promptly.`,
         deepLink: `/worker/jobs/${orderId}`,
-        data: { orderId },
+        data: { orderId, forceAssigned: 'true', bonusPaise: String(FORCE_ASSIGN_BONUS_PAISE) },
       }),
     ]);
   } catch (err) {
@@ -577,6 +665,45 @@ async function markOrderFailed(order, reason) {
   await order.save();
   await emitToOrderRoom(order._id, 'order.failed', { reason });
   logger.info({ orderId: order._id, reason }, '[DISPATCH] Order marked failed');
+
+  // Auto-refund: if the user had already paid online, issue a full refund.
+  // Cash orders need no refund (money never reached platform).
+  if (order.payment?.status === 'paid' && order.payment?.method !== 'cash') {
+    try {
+      const razorpay = require('../modules/payment/razorpay.client');
+      const PaymentIntent = require('../modules/payment/payment-intent.model');
+      const intent = await PaymentIntent.findOne({
+        orderId: order._id,
+        status: 'captured',
+      }).lean();
+      if (intent?.razorpayPaymentId) {
+        const refund = await razorpay.refundPayment(intent.razorpayPaymentId, intent.amountPaise);
+        // Mark intent refunded
+        await PaymentIntent.updateOne(
+          { _id: intent._id },
+          { $set: { status: 'refunded', refundId: refund.id, refundedAt: new Date() } }
+        );
+        logger.info({ orderId: order._id, refundId: refund.id }, '[DISPATCH] Auto-refund issued on order failure');
+      }
+    } catch (refundErr) {
+      // Non-blocking — admin can manually refund if this fails.
+      logger.error({ err: refundErr.message, orderId: order._id }, '[DISPATCH] Auto-refund failed — manual action required');
+    }
+  }
+
+  // Notify user of failure + refund status
+  const notificationService = require('../modules/notification/notification.service');
+  const wasPaid = order.payment?.status === 'paid' && order.payment?.method !== 'cash';
+  notificationService.notify({
+    recipient: { kind: 'user', id: order.userId },
+    type: 'order_failed',
+    title: 'No workers available',
+    body: wasPaid
+      ? 'We could not find a worker for your request. A full refund has been initiated.'
+      : 'We could not find a worker for your request. No charge was applied.',
+    deepLink: `/orders/${order._id}`,
+    data: { orderId: String(order._id) },
+  }).catch(() => {});
 }
 
 async function emitToOrderRoom(orderId, event, payload) {

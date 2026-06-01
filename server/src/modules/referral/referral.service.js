@@ -71,19 +71,32 @@ async function applyAtSignup({ code, referee, refereeIp, refereeDeviceId }) {
     throw Object.assign(new Error('Cannot refer yourself'), { status: 400, code: 'REFERRAL_SELF' });
   }
 
-  // Anti-abuse: same IP/device referring multiple accounts
+  const REFERRAL_WINDOW_MS = 30 * 86400 * 1000; // 30 days
+  const MAX_REFERRALS_PER_REFERRER = 20;         // hard cap per referrer per month
+
+  // 1. Same IP or device already claimed a referral bonus recently — block farming
   if (refereeIp || refereeDeviceId) {
-    const recent = await ReferralUse.findOne({
+    const recentByDevice = await ReferralUse.findOne({
       $or: [
         ...(refereeIp ? [{ refereeIp }] : []),
         ...(refereeDeviceId ? [{ refereeDeviceId }] : []),
       ],
-      createdAt: { $gte: new Date(Date.now() - 30 * 86400 * 1000) },
+      createdAt: { $gte: new Date(Date.now() - REFERRAL_WINDOW_MS) },
     });
-    if (recent) {
-      logger.warn({ refereeIp, refereeDeviceId }, 'Referral abuse suspected — denying');
+    if (recentByDevice) {
+      logger.warn({ refereeIp, refereeDeviceId }, 'Referral abuse suspected — same IP/device');
       throw Object.assign(new Error('Referral cannot be applied'), { status: 400, code: 'REFERRAL_DUPLICATE' });
     }
+  }
+
+  // 2. Referrer monthly cap — prevents one user farming 100s of accounts
+  const referrerMonthlyCount = await ReferralUse.countDocuments({
+    'referrer.id': codeDoc.owner.id,
+    createdAt: { $gte: new Date(Date.now() - REFERRAL_WINDOW_MS) },
+  });
+  if (referrerMonthlyCount >= MAX_REFERRALS_PER_REFERRER) {
+    logger.warn({ referrerId: codeDoc.owner.id, count: referrerMonthlyCount }, '[REFERRAL] Monthly cap hit — possible farming');
+    throw Object.assign(new Error('Referral limit reached'), { status: 429, code: 'REFERRAL_CAP' });
   }
 
   let use;
@@ -106,35 +119,35 @@ async function applyAtSignup({ code, referee, refereeIp, refereeDeviceId }) {
     throw err;
   }
 
-  // Credit referee instantly
-  await walletService.apply({
-    kind: referee.kind,
-    id: referee.id,
-    type: 'credit',
-    amountPaise: REFEREE_BONUS_PAISE,
-    reason: Transaction.REASONS.REFERRAL_REWARD,
-    idempotencyKey: `referral:referee:${use._id}`,
-    description: `Welcome bonus — referred by ${codeDoc.code}`,
-  });
-
-  use.refereeBonusGivenAt = new Date();
+  // DO NOT credit the referee bonus immediately on signup.
+  // Instant ₹50 on signup with no order required was the primary farming vector:
+  // 20 SIM cards × ₹50 = ₹1000 free cash with zero intent to use the platform.
+  //
+  // Instead: mark the use record as 'signup' (pending). The bonus is credited
+  // in onRefereeFirstOrder() when the referee completes their FIRST order.
+  // This aligns incentives: referee bonus = reward for genuine first use, same
+  // as the referrer reward.
   await use.save();
 
   await ReferralCode.updateOne({ _id: codeDoc._id }, { $inc: { totalUses: 1 } });
 
+  // Notify referee of the PENDING bonus — tells them what they'll earn on first order
   await notificationService.notify({
     recipient: referee,
     type: 'referral_reward',
-    title: '🎁 Welcome bonus credited!',
-    body: `₹${REFEREE_BONUS_PAISE / 100} has been added to your wallet`,
-    deepLink: '/wallet',
+    title: '🎁 Referral bonus waiting!',
+    body: `Complete your first order to claim ₹${REFEREE_BONUS_PAISE / 100} in your wallet`,
+    deepLink: '/',
   });
 
   return use;
 }
 
 /**
- * Called after a referee's FIRST completed order. Awards the referrer.
+ * Called after a referee's FIRST completed order.
+ * Credits BOTH:
+ *   1. The referee's signup bonus (deferred from applyAtSignup — see comment there)
+ *   2. The referrer's reward
  * Idempotent — if already rewarded, returns silently.
  */
 async function onRefereeFirstOrder({ refereeKind, refereeId, orderId }) {
@@ -148,9 +161,31 @@ async function onRefereeFirstOrder({ refereeKind, refereeId, orderId }) {
   use.status = 'rewarded';
   use.referrerRewardPaise = REFERRER_REWARD_PAISE;
   use.referrerRewardGivenAt = new Date();
+  use.refereeBonusGivenAt = new Date();
   use.qualifyingOrderId = orderId;
   await use.save();
 
+  // Credit referee their deferred signup bonus (now that they've proved intent)
+  await walletService.apply({
+    kind: use.referee.kind,
+    id: use.referee.id,
+    type: 'credit',
+    amountPaise: REFEREE_BONUS_PAISE,
+    reason: Transaction.REASONS.REFERRAL_REWARD,
+    idempotencyKey: `referral:referee:${use._id}`,
+    description: `Welcome bonus — you completed your first order via referral ${use.code}`,
+    refs: { orderId },
+  });
+
+  await notificationService.notify({
+    recipient: { kind: use.referee.kind, id: use.referee.id },
+    type: 'referral_reward',
+    title: '🎁 Referral bonus credited!',
+    body: `₹${REFEREE_BONUS_PAISE / 100} added to your wallet for completing your first order`,
+    deepLink: '/wallet',
+  });
+
+  // Credit referrer
   await walletService.apply({
     kind: use.referrer.kind,
     id: use.referrer.id,

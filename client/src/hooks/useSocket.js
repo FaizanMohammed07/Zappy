@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectAuth } from '../modules/auth/authSlice';
 import { getSocket, disconnectSocket } from '../services/socket';
@@ -17,8 +17,48 @@ const STATUS_MSG = {
 };
 
 /**
+ * Returns live socket connection state: 'connected' | 'reconnecting' | 'offline'
+ * Attach to any page that needs to show a degraded-connection banner.
+ */
+export function useSocketStatus() {
+  const { accessToken: token } = useSelector(selectAuth);
+  const [status, setSocketStatus] = useState('connected');
+
+  useEffect(() => {
+    if (!token) return;
+    const socket = getSocket(token);
+    setSocketStatus(socket.connected ? 'connected' : 'reconnecting');
+
+    const onConnect    = () => setSocketStatus('connected');
+    const onDisconnect = () => setSocketStatus('reconnecting');
+    const onConnError  = () => setSocketStatus('offline');
+    const onReconnectFail = () => setSocketStatus('offline');
+
+    socket.on('connect',          onConnect);
+    socket.on('disconnect',       onDisconnect);
+    socket.on('connect_error',    onConnError);
+    socket.on('reconnect_failed', onReconnectFail);
+
+    return () => {
+      socket.off('connect',          onConnect);
+      socket.off('disconnect',       onDisconnect);
+      socket.off('connect_error',    onConnError);
+      socket.off('reconnect_failed', onReconnectFail);
+    };
+  }, [token]);
+
+  return status;
+}
+
+/**
  * Subscribes to an order's live updates via socket.
- * Events flow: backend pub/sub → socket server → order:<id> room → here.
+ *
+ * Resilience guarantees:
+ *   - Re-subscribes on every socket reconnect (network switch, server restart,
+ *     browser tab restore). Fixes #56/#57/#58/#60.
+ *   - Re-subscribes when server broadcasts `server:rooms_reset` (Redis restart). Fixes #59.
+ *   - REST polling in OrderTrackingPage (pollingInterval:10000) acts as the
+ *     fallback data source while socket is degraded.
  */
 export function useOrderSocket(orderId, callbacks = {}) {
   const dispatch = useDispatch();
@@ -28,9 +68,14 @@ export function useOrderSocket(orderId, callbacks = {}) {
     if (!orderId || !token) return;
     const socket = getSocket(token);
 
+    // subscribe is called:
+    //   1. immediately if already connected
+    //   2. on every (re)connect — fixes #56, #57, #58, #60
+    //   3. on server:rooms_reset signal — fixes #59 (Redis restart)
     const subscribe = () => socket.emit('order:subscribe', { orderId });
     if (socket.connected) subscribe();
-    else socket.once('connect', subscribe);
+    socket.on('connect',            subscribe);
+    socket.on('server:rooms_reset', subscribe);
 
     const onStatus = (p) => {
       dispatch(setStatus({ status: p.status, at: p.at }));
@@ -81,6 +126,8 @@ export function useOrderSocket(orderId, callbacks = {}) {
 
     return () => {
       socket.emit('order:unsubscribe', { orderId });
+      socket.off('connect',            subscribe);
+      socket.off('server:rooms_reset', subscribe);
       socket.off('order.status',          onStatus);
       socket.off('order.assigned',        onAssigned);
       socket.off('worker.location',       onLocation);
@@ -95,28 +142,36 @@ export function useOrderSocket(orderId, callbacks = {}) {
 
 /**
  * Worker side — listens for incoming job requests (broadcast model).
- * onOffer(offer)        — order broadcast received
- * onCancelled(p)        — order taken by another worker, dismiss popup
- * onForceAssigned(data) — force-assigned by system, navigate to job directly
+ *
+ * Resilience: server auto-joins worker:<id> room on every new connection
+ * (see sockets/index.js), so offers resume automatically after reconnect
+ * without any client-side room rejoin. We only need to re-register event
+ * listeners — which useEffect does on remount / token change.
  */
-export function useWorkerOfferSocket(onOffer, onCancelled, onForceAssigned) {
+export function useWorkerOfferSocket(onOffer, onCancelled, onForceAssigned, onBoost) {
   const { accessToken: token } = useSelector(selectAuth);
 
   useEffect(() => {
     if (!token) return;
     const socket = getSocket(token);
+
     const offerHandler         = (offer) => onOffer(offer);
     const cancelledHandler     = (p)     => onCancelled?.(p);
     const forceAssignedHandler = (data)  => onForceAssigned?.(data);
+    const boostHandler         = (data)  => onBoost?.(data);
+
     socket.on('new_job_request', offerHandler);
     socket.on('offer.cancelled', cancelledHandler);
     socket.on('job.assigned',    forceAssignedHandler);
+    socket.on('offer.boosted',   boostHandler);
+
     return () => {
       socket.off('new_job_request', offerHandler);
       socket.off('offer.cancelled', cancelledHandler);
       socket.off('job.assigned',    forceAssignedHandler);
+      socket.off('offer.boosted',   boostHandler);
     };
-  }, [token, onOffer, onCancelled, onForceAssigned]);
+  }, [token, onOffer, onCancelled, onForceAssigned, onBoost]);
 }
 
 export function useDisconnectOnLogout() {

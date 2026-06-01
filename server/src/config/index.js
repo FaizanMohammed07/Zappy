@@ -8,7 +8,7 @@ const schema = Joi.object({
   REDIS_URL: Joi.string().required(),
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_EXPIRES_IN: Joi.string().default('7d'),
-  GOOGLE_MAPS_KEY: Joi.string().required(),
+  GOOGLE_MAPS_KEY: Joi.string().default(''),  // optional — haversine fallback used when absent
   AWS_REGION: Joi.string().default('ap-south-1'),
   AWS_S3_BUCKET: Joi.string().required(),
   AWS_ACCESS_KEY_ID: Joi.string().required(),
@@ -31,6 +31,15 @@ const schema = Joi.object({
   RAZORPAY_KEY_ID: Joi.string().default(''),
   RAZORPAY_KEY_SECRET: Joi.string().default(''),
   RAZORPAY_WEBHOOK_SECRET: Joi.string().default(''),
+  // Firebase Admin SDK (service account — replaces legacy server key)
+  FIREBASE_PROJECT_ID:    Joi.string().default(''),
+  FIREBASE_CLIENT_EMAIL:  Joi.string().default(''),
+  FIREBASE_PRIVATE_KEY:   Joi.string().default(''),
+  // Legacy server key (kept for backwards compat, prefer Admin SDK above)
+  FIREBASE_SERVER_KEY: Joi.string().default(''),
+  // SMS — optional (set to enable; if empty, SMS is logged only)
+  SMS_PROVIDER_KEY: Joi.string().default(''),
+  SMS_FROM: Joi.string().default('ZAPPY'),
 }).unknown();
 
 const { value: env, error } = schema.validate(process.env, { abortEarly: false });
@@ -76,5 +85,15 @@ module.exports = {
     keyId: env.RAZORPAY_KEY_ID,
     keySecret: env.RAZORPAY_KEY_SECRET,
     webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+  },
+  firebase: {
+    projectId:   env.FIREBASE_PROJECT_ID,
+    clientEmail: env.FIREBASE_CLIENT_EMAIL,
+    privateKey:  env.FIREBASE_PRIVATE_KEY,
+    serverKey:   env.FIREBASE_SERVER_KEY, // legacy fallback
+  },
+  sms: {
+    providerKey: env.SMS_PROVIDER_KEY,
+    from: env.SMS_FROM,
   },
 };

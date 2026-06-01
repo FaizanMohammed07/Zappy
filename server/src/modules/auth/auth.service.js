@@ -24,7 +24,10 @@ async function requestOtp(phone, role) {
     });
   }
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  await redis.setex(`otp:${phone}`, 300, otp);
+  // Store OTP + failed attempt counter in a hash so we can lock out brute-force
+  // without two separate Redis keys. TTL = 5 min.
+  await redis.hset(`otp:${phone}`, 'code', otp, 'attempts', '0');
+  await redis.expire(`otp:${phone}`, 300);
 
   // Tell the client whether this is a new account so it can skip registration fields
   let isNewUser = true;
@@ -40,8 +43,21 @@ async function requestOtp(phone, role) {
 }
 
 async function verifyOtp(phone, otp) {
-  const stored = await redis.get(`otp:${phone}`);
-  if (!stored || stored !== otp) return false;
+  const data = await redis.hgetall(`otp:${phone}`);
+  if (!data || !data.code) return false;
+
+  // Brute-force lockout: max 5 wrong attempts before the OTP is invalidated.
+  const attempts = parseInt(data.attempts || '0', 10);
+  if (attempts >= 5) {
+    await redis.del(`otp:${phone}`);
+    return false;
+  }
+
+  if (data.code !== otp) {
+    await redis.hincrby(`otp:${phone}`, 'attempts', 1);
+    return false;
+  }
+
   await redis.del(`otp:${phone}`);
   return true;
 }
@@ -62,21 +78,54 @@ async function loginUserWithOtp({ phone, otp, name }) {
   return { user, ...tokens };
 }
 
-async function loginWorkerWithOtp({ phone, otp, name, skills }) {
+// Max distinct worker accounts allowed per device fingerprint in a 30-day window.
+const MAX_WORKERS_PER_DEVICE = 2; // Allow 2 (lost phone re-registration edge case)
+
+async function loginWorkerWithOtp({ phone, otp, name, skills, deviceId }) {
   const ok = await verifyOtp(phone, otp);
   if (!ok) throw Object.assign(new Error('Invalid OTP'), { status: 401, code: 'OTP_INVALID' });
 
   let worker = await Worker.findOne({ phone });
-  if (!worker) {
+  const isNewWorker = !worker;
+
+  if (isNewWorker) {
     if (!name || !skills?.length) {
       throw Object.assign(new Error('First-time login requires name and skills'), {
         status: 400, code: 'WORKER_ONBOARDING_REQUIRED',
       });
     }
+
+    // Device fingerprint check — detect one phone creating many worker accounts.
+    // Uses a Redis set: key = device fingerprint, members = worker phone numbers
+    // that registered from this device in the last 30 days.
+    if (deviceId) {
+      const deviceKey = `worker:device:${deviceId}`;
+      const registeredPhones = await redis.smembers(deviceKey);
+      if (registeredPhones.length >= MAX_WORKERS_PER_DEVICE && !registeredPhones.includes(phone)) {
+        logger.warn({ deviceId, existingPhones: registeredPhones, newPhone: phone },
+          '[FRAUD] Device fingerprint: too many worker registrations from same device');
+        throw Object.assign(
+          new Error('This device has already been used to register multiple worker accounts. Contact support.'),
+          { status: 429, code: 'DEVICE_MULTI_ACCOUNT' }
+        );
+      }
+      // Record this phone against the device fingerprint (30-day window)
+      await redis.multi()
+        .sadd(deviceKey, phone)
+        .expire(deviceKey, 30 * 86400)
+        .exec();
+    }
+
     worker = await Worker.create({ phone, name, skills });
   }
+
   if (worker.isBlocked) {
     throw Object.assign(new Error('Account is blocked'), { status: 403, code: 'ACCOUNT_BLOCKED' });
+  }
+
+  // Store device fingerprint on the worker record for KYC cross-reference
+  if (deviceId && isNewWorker) {
+    Worker.updateOne({ _id: worker._id }, { $addToSet: { deviceIds: deviceId } }).catch(() => {});
   }
 
   const tokens = await tokenService.issueTokenPair({

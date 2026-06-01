@@ -1,9 +1,15 @@
 const authRoutes = require('../modules/auth/auth.routes');
+const verticalConfigRoutes = require('../modules/service/vertical-config.routes');
 const userRoutes = require('../modules/user/user.routes');
 const uploadRoutes = require('../modules/user/upload.routes');
 const workerRoutes = require('../modules/worker/worker.routes');
 const kycRoutes = require('../modules/worker/kyc.routes');
 const orderRoutes = require('../modules/order/order.routes');
+const featuresRoutes = require('../modules/order/features.routes');
+const workerFeaturesRoutes = require('../modules/worker/worker-features.routes');
+const serviceMemoryRoutes = require('../modules/service/service-memory.routes');
+const { router: serviceFeaturesRouter, orderRouter: serviceOrderRouter } = require('../modules/service/service-features.routes');
+const verticalFeaturesRouter = require('../modules/service/vertical-features.routes');
 const adminRoutes = require('../modules/admin/admin.routes');
 const pricingRoutes = require('../modules/pricing/pricing.routes');
 const subscriptionRoutes = require('../modules/subscription/subscription.routes');
@@ -32,6 +38,12 @@ function mountRoutes(app) {
   app.use('/api', engagementRoutes);
   app.use(`/api/${slug}/support`, engagementRoutes.adminRouter);
   app.use('/api/orders', orderRoutes);
+  app.use('/api/orders', featuresRoutes);              // Feature routes: /api/orders/:id/service-photos, /tip, etc.
+  app.use('/api/orders', serviceOrderRouter);          // Service features: materials, checklist, spare-parts, inspection
+  app.use('/api/workers', workerFeaturesRoutes);       // Worker features: /sos, /earned-wage, /emergency-fund, /area-notes
+  app.use('/api/service-memory', serviceMemoryRoutes); // Appliance passport
+  app.use('/api/service-features', serviceFeaturesRouter); // Diagnosis, warranty, maintenance plans, portfolio, time-estimate
+  app.use('/api/vertical-features', verticalFeaturesRouter); // Phone catalog/health, vehicle profiles/health, construction timer/site-visit
   app.use(`/api/${slug}`, adminRoutes);
   app.use(`/api/${slug}/pricing`, pricingRoutes.adminRouter);
   app.use(`/api/${slug}/disputes`, disputeRoutes.adminRouter);
@@ -45,6 +57,9 @@ function mountRoutes(app) {
   app.use('/api/catalog', serviceRoutes);
   app.use('/api/payouts', payoutRoutes);
   app.use(`/api/${slug}/payouts`, payoutRoutes.adminRouter);
+
+  // Vertical service configs (admin-only)
+  app.use(`/api/${slug}/verticals`, verticalConfigRoutes);
 
   // Ads + Promo
   app.use('/api/ads', adRoutes);

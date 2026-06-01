@@ -28,8 +28,22 @@ let io = null;
 function initSockets(httpServer) {
   const { pubClient, subClient } = createPubSubPair();
 
+  // When Redis reconnects after a restart, the adapter's room memberships are
+  // gone. Broadcast `server:rooms_reset` so all connected clients re-emit
+  // `order:subscribe` and rejoin their rooms. (#59)
+  pubClient.on('ready', () => {
+    if (io) {
+      logger.warn('[SOCKET] Redis reconnected — broadcasting rooms_reset to all clients');
+      io.emit('server:rooms_reset', { reason: 'redis_reconnect', at: Date.now() });
+    }
+  });
+
   io = new Server(httpServer, {
-    cors: { origin: '*', methods: ['GET', 'POST'] },
+    cors: {
+      origin: process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? false : '*'),
+      methods: ['GET', 'POST'],
+      credentials: true,
+    },
     pingInterval: 25000,
     pingTimeout: 20000,
     transports: ['websocket', 'polling'],
@@ -49,18 +63,64 @@ function initSockets(httpServer) {
     }
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     const { sub: id, role } = socket.user;
     logger.info({ id, role, sid: socket.id }, 'Socket connected');
 
-    // Join role-based personal room
+    // Join role-based personal room (restored on every reconnect automatically).
     socket.join(`${role}:${id}`);
 
-    // --- Client-driven room joins ---
-    socket.on('order:subscribe', ({ orderId }) => {
+    // Restore order room membership after server restart / reconnect (#60).
+    // Workers on an active job and users with an active order need to be
+    // back in `order:<id>` without waiting for the client to call order:subscribe.
+    try {
+      if (role === 'worker') {
+        const activeOrder = await Order.findOne({
+          workerId: id,
+          status: { $in: ['assigned', 'on_the_way', 'arrived', 'in_progress'] },
+        }).select('_id').lean();
+        if (activeOrder) {
+          socket.join(`order:${activeOrder._id}`);
+          logger.info({ workerId: id, orderId: activeOrder._id }, '[SOCKET] Worker auto-rejoined order room on connect');
+        }
+      } else if (role === 'user') {
+        const activeOrder = await Order.findOne({
+          userId: id,
+          status: { $in: ['created', 'searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'] },
+        }).select('_id').lean();
+        if (activeOrder) {
+          socket.join(`order:${activeOrder._id}`);
+          logger.info({ userId: id, orderId: activeOrder._id }, '[SOCKET] User auto-rejoined order room on connect');
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err.message, id, role }, '[SOCKET] Failed to auto-restore order room');
+    }
+
+    // --- Client-driven room joins (authorization-gated) ---
+    socket.on('order:subscribe', async ({ orderId }) => {
       if (!orderId) return;
-      socket.join(`order:${orderId}`);
-      socket.emit('order:subscribed', { orderId });
+      try {
+        const order = await Order.findById(orderId).select('userId workerId dispatch').lean();
+        if (!order) return;
+
+        const isUser   = String(order.userId) === String(id);
+        const isWorker = String(order.workerId || '') === String(id);
+        // Check both the primary offer field AND the full broadcast batch.
+        const offerBatch = (order.dispatch?.currentOfferWorkerIds || []).map(String);
+        const isOffered  = String(order.dispatch?.currentOfferWorkerId || '') === String(id)
+                        || offerBatch.includes(String(id));
+        const isAdmin  = role === 'admin';
+
+        if (!isUser && !isWorker && !isOffered && !isAdmin) {
+          socket.emit('order:subscribe_denied', { orderId, reason: 'not_authorized' });
+          return;
+        }
+        socket.join(`order:${orderId}`);
+        socket.emit('order:subscribed', { orderId });
+      } catch {
+        // DB error — deny silently
+      }
     });
 
     socket.on('order:unsubscribe', ({ orderId }) => {
@@ -73,11 +133,48 @@ function initSockets(httpServer) {
     socket.on('worker:location', async ({ lat, lng, orderId }) => {
       if (role !== 'worker') return;
       if (typeof lat !== 'number' || typeof lng !== 'number') return;
+      // Basic coordinate range validation
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
       // Server-side throttle: at most 1 broadcast/sec per worker.
       const throttleKey = `loc:ws:${id}`;
       const canEmit = await redis.set(throttleKey, '1', 'EX', 1, 'NX');
       if (canEmit !== 'OK') return;
+
+      // GPS spoofing velocity check — reject teleportation.
+      // IMPORTANT: key by socket.id (not worker id) so each device tracks its own
+      // movement independently. With one key per worker, two phones in different
+      // cities alternating writes look like instant teleportation and incorrectly
+      // reject legitimate updates from both devices.
+      const prevKey = `loc:prev:${socket.id}`;
+      const prevRaw = await redis.get(prevKey);
+      if (prevRaw) {
+        try {
+          const prev = JSON.parse(prevRaw);
+          const R = 6371000; // Earth radius in metres
+          const dLat = (lat - prev.lat) * Math.PI / 180;
+          const dLng = (lng - prev.lng) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2
+            + Math.cos(prev.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+          const distMetres = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const elapsedSec = Math.max(1, (Date.now() - prev.ts) / 1000);
+          const speedMps = distMetres / elapsedSec;
+          // 150 km/h ≈ 41.7 m/s — flag anything faster as suspicious
+          if (speedMps > 41.7) {
+            logger.warn({ workerId: id, speedMps: Math.round(speedMps), distMetres: Math.round(distMetres) }, '[SPOOFING] Suspicious GPS jump — location update rejected');
+            return;
+          }
+        } catch { /* malformed prev — allow through */ }
+      }
+      // TTL matches socket lifetime expectation — cleans up automatically on disconnect
+      await redis.set(prevKey, JSON.stringify({ lat, lng, ts: Date.now() }), 'EX', 300);
+
+      // Secondary check: if this worker has >1 active socket (multiple devices),
+      // log the active device count so ops can detect credential sharing.
+      const workerSockets = await io.in(`worker:${id}`).allSockets().catch(() => new Set());
+      if (workerSockets.size > 1) {
+        logger.info({ workerId: id, activeSockets: workerSockets.size }, '[MULTI_DEVICE] Worker active on multiple devices');
+      }
 
       // Update geo + alive heartbeat so freshness filter stays current
       await geoService.updateLocation(id, lng, lat);
@@ -108,7 +205,7 @@ function initSockets(httpServer) {
   // Dispatch worker publishes events; we relay them to the right rooms.
   const subscriber = subClient.duplicate();
 
-  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', (err) => {
+  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', 'surge:alert', 'order:boost', (err) => {
     if (err) logger.error({ err }, 'Pub/sub subscribe failed');
   });
   // Notifications are per-recipient — `notification:<kind>:<id>`. Use pattern sub.
@@ -152,6 +249,53 @@ function initSockets(httpServer) {
       if (channel === 'worker:assigned') {
         // { workerId, orderId, service, pickupAddress, price }  — force-assigned, no accept needed
         io.to(`worker:${data.workerId}`).emit('job.assigned', data);
+        return;
+      }
+
+      if (channel === 'order:boost') {
+        // { orderId, amountPaise, rupees, newTotal }
+        // Push updated offer price to all workers in the order room (they're viewing the offer)
+        io.to(`order:${data.orderId}`).emit('offer.boosted', {
+          orderId:    data.orderId,
+          amountPaise: data.amountPaise,
+          rupees:      data.rupees,
+          newTotal:    data.newTotal,
+        });
+        return;
+      }
+
+      if (channel === 'surge:alert') {
+        // { lat, lng, multiplier, service } — notify online workers within 5 km
+        const { lat, lng, multiplier, service: svc } = data;
+        // Fetch worker IDs from the Redis GEO set directly (lightweight, no skill filter needed)
+        (async () => {
+          try {
+            let geoResult;
+            try {
+              geoResult = await redis.geosearch(
+                'workers:online',
+                'FROMLONLAT', lng, lat,
+                'BYRADIUS', 5, 'km',
+                'ASC', 'COUNT', 50,
+              );
+            } catch {
+              geoResult = await redis.georadius(
+                'workers:online',
+                lng, lat, 5, 'km',
+                'ASC', 'COUNT', '50',
+              );
+            }
+            const workerIds = Array.isArray(geoResult) ? geoResult.map((r) => (Array.isArray(r) ? r[0] : r)) : [];
+            for (const wid of workerIds) {
+              io.to(`worker:${wid}`).emit('surge.alert', { lat, lng, multiplier, service: svc });
+            }
+            if (workerIds.length > 0) {
+              logger.info({ lat, lng, multiplier, service: svc, notified: workerIds.length }, '[SURGE] Socket alert sent');
+            }
+          } catch (err) {
+            logger.warn({ err: err.message }, '[SURGE] Failed to fan out surge alert');
+          }
+        })();
         return;
       }
     } catch (err) {

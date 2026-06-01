@@ -5,29 +5,143 @@ import {
   ArrowLeft, MapPin, FileText, CreditCard, ChevronRight,
   Loader2, Zap, TrendingUp, Users, CheckCircle, Calendar,
   Clock, Image as ImageIcon, X, Plus, Sparkles, Wrench,
-  Droplets, Bolt, Wind, Hammer, Car, HelpCircle, Star,
-  Paintbrush, Layers, Ticket, Tag,
+  Droplets, Bolt, Hammer, Car, Star,
+  Layers, Ticket, Tag, Smartphone, Battery,
+  Bike, Fuel, ShieldCheck, Navigation, AlertTriangle, Flame, Lock,
+  Camera, Tv, Wifi, Heart, Dog, ShieldAlert, Cpu, MonitorSmartphone,
+  Laptop,
 } from 'lucide-react';
 import LocationPicker from '../modules/booking/LocationPicker';
 import SmartPricingPanel from '../components/booking/SmartPricingPanel';
+import SurgeInfoCard from '../components/booking/SurgeInfoCard';
+import DiagnosisFlow from '../components/booking/DiagnosisFlow';
 import {
   useLazyGetQuoteQuery, useCreateOrderMutation,
   usePresignUploadMutation, useLazyGetNearbyWorkersQuery,
-  useValidatePromoMutation,
+  useValidatePromoMutation, useLazyGetSurgeInfoQuery,
+  useSendTipMutation,
 } from '../services/api';
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp } from '../lib/animations';
 import toast from 'react-hot-toast';
 
+// ─── Vertical classification (mirrors server pricing.service.js) ─────────────
+const MOBILE_SERVICES = new Set([
+  'screen_replacement','battery_replacement','charging_issue',
+  'speaker_mic_issue','microphone_issue','software_issue',
+  'water_damage','camera_issue','data_recovery','device_not_turning_on',
+]);
+const LAPTOP_SERVICES = new Set([
+  'laptop_slow','laptop_ssd_upgrade','laptop_ram_upgrade','laptop_keyboard_issue',
+  'laptop_motherboard_issue','laptop_charging_issue','laptop_screen_issue',
+  'laptop_virus_removal','laptop_data_recovery',
+]);
+const SMART_DEVICE_SERVICES = new Set([
+  'smart_tv_install','smart_tv_repair','router_setup','router_troubleshoot',
+  'cctv_install','cctv_repair','smart_lock_install','home_automation_setup',
+]);
+const VEHICLE_SERVICES = new Set([
+  'puncture','bike_chain_issue','bike_brake_issue','bike_battery_issue',
+  'bike_wash','bike_breakdown','bike_service',
+  'car_wash','car_detailing','battery_jump_start','car_puncture',
+  'car_breakdown','fuel_delivery','car_service',
+  'commercial_emergency','commercial_scheduled_maintenance','fleet_support','auto_repair','van_repair',
+]);
+const FAMILY_SERVICES = new Set([
+  'medicine_pickup','hospital_companion','grocery_assistance',
+  'bill_payment_assist','document_submission','home_visit_check',
+  'elder_doctor_visit','elder_companion','elder_home_visit','elder_transport',
+]);
+const EVENT_SERVICES = new Set([
+  'event_decorator','event_setup_crew','event_cleaning_crew','event_helper',
+  'event_sound_crew','event_lighting_crew','event_security_crew',
+  'event_birthday_setup','event_wedding_setup','event_photography_assist','event_catering_assist',
+]);
+const PET_SERVICES = new Set([
+  'pet_grooming','pet_walking','pet_transport','pet_sitting','pet_vet_assist','pet_training_assist',
+]);
+
 const SERVICE_META = {
-  plumbing:   { label: 'Plumbing',       icon: Droplets,   gradient: 'from-cyan-500 to-blue-600',     accent: '#0ea5e9' },
-  electrical: { label: 'Electrical',     icon: Bolt,       gradient: 'from-amber-400 to-orange-500',  accent: '#f59e0b' },
-  ac_repair:  { label: 'AC Repair',      icon: Wind,       gradient: 'from-sky-400 to-cyan-600',      accent: '#38bdf8' },
-  carpenter:  { label: 'Carpenter',      icon: Hammer,     gradient: 'from-amber-600 to-yellow-700',  accent: '#d97706' },
-  puncture:   { label: 'Puncture Repair',icon: Car,        gradient: 'from-slate-500 to-slate-700',   accent: '#64748b' },
-  helper:     { label: 'Helper',         icon: HelpCircle, gradient: 'from-violet-500 to-purple-600', accent: '#8b5cf6' },
-  cleaning:   { label: 'Cleaning',       icon: Sparkles,   gradient: 'from-teal-400 to-emerald-500',  accent: '#14b8a6' },
-  painting:   { label: 'Painting',       icon: Paintbrush, gradient: 'from-pink-500 to-rose-500',     accent: '#ec4899' },
+  // ── Electronics — Mobile ──────────────────────────────────────────────────
+  screen_replacement:    { label: 'Screen Replacement',   icon: Smartphone,    gradient: 'from-indigo-500 to-violet-600',  accent: '#6366f1', vertical: 'mobile'       },
+  battery_replacement:   { label: 'Battery Replacement',  icon: Battery,       gradient: 'from-emerald-500 to-green-600',  accent: '#10b981', vertical: 'mobile'       },
+  charging_issue:        { label: 'Charging Issue',       icon: Bolt,          gradient: 'from-yellow-400 to-orange-500',  accent: '#f59e0b', vertical: 'mobile'       },
+  speaker_mic_issue:     { label: 'Speaker / Mic',        icon: Layers,        gradient: 'from-purple-500 to-violet-600',  accent: '#8b5cf6', vertical: 'mobile'       },
+  microphone_issue:      { label: 'Microphone Repair',    icon: Layers,        gradient: 'from-violet-500 to-purple-600',  accent: '#7c3aed', vertical: 'mobile'       },
+  software_issue:        { label: 'Software Fix',         icon: Wrench,        gradient: 'from-rose-400 to-red-500',       accent: '#ef4444', vertical: 'mobile'       },
+  water_damage:          { label: 'Water Damage',         icon: Droplets,      gradient: 'from-blue-400 to-cyan-500',      accent: '#0ea5e9', vertical: 'mobile'       },
+  camera_issue:          { label: 'Camera Repair',        icon: Camera,        gradient: 'from-pink-500 to-rose-600',      accent: '#ec4899', vertical: 'mobile'       },
+  data_recovery:         { label: 'Data Recovery',        icon: Layers,        gradient: 'from-teal-500 to-emerald-600',   accent: '#14b8a6', vertical: 'mobile'       },
+  device_not_turning_on: { label: 'Device Not Turning On',icon: Smartphone,    gradient: 'from-slate-600 to-slate-800',    accent: '#475569', vertical: 'mobile'       },
+  // ── Electronics — Laptop ─────────────────────────────────────────────────
+  laptop_slow:             { label: 'Slow Laptop Fix',    icon: Laptop,        gradient: 'from-slate-600 to-slate-800',    accent: '#475569', vertical: 'laptop'       },
+  laptop_ssd_upgrade:      { label: 'SSD Upgrade',        icon: Cpu,           gradient: 'from-blue-600 to-indigo-700',    accent: '#2563eb', vertical: 'laptop'       },
+  laptop_ram_upgrade:      { label: 'RAM Upgrade',        icon: Cpu,           gradient: 'from-indigo-500 to-blue-600',    accent: '#4f46e5', vertical: 'laptop'       },
+  laptop_keyboard_issue:   { label: 'Keyboard Repair',    icon: Laptop,        gradient: 'from-amber-500 to-orange-600',   accent: '#f59e0b', vertical: 'laptop'       },
+  laptop_motherboard_issue:{ label: 'Motherboard Repair', icon: Cpu,           gradient: 'from-red-600 to-rose-700',       accent: '#dc2626', vertical: 'laptop'       },
+  laptop_charging_issue:   { label: 'Laptop Charging',    icon: Bolt,          gradient: 'from-amber-400 to-orange-500',   accent: '#f59e0b', vertical: 'laptop'       },
+  laptop_screen_issue:     { label: 'Laptop Screen',      icon: MonitorSmartphone, gradient: 'from-violet-500 to-purple-700', accent: '#7c3aed', vertical: 'laptop'    },
+  laptop_virus_removal:    { label: 'Virus Removal',      icon: ShieldAlert,   gradient: 'from-red-500 to-rose-700',       accent: '#ef4444', vertical: 'laptop'       },
+  laptop_data_recovery:    { label: 'Laptop Data Recovery',icon: Layers,       gradient: 'from-emerald-500 to-teal-700',   accent: '#10b981', vertical: 'laptop'       },
+  // ── Smart Devices ─────────────────────────────────────────────────────────
+  smart_tv_install:      { label: 'Smart TV Install',     icon: Tv,            gradient: 'from-slate-700 to-slate-900',    accent: '#334155', vertical: 'smart_device' },
+  smart_tv_repair:       { label: 'Smart TV Repair',      icon: Tv,            gradient: 'from-red-600 to-rose-700',       accent: '#dc2626', vertical: 'smart_device' },
+  router_setup:          { label: 'Router & WiFi Setup',  icon: Wifi,          gradient: 'from-blue-500 to-cyan-600',      accent: '#0ea5e9', vertical: 'smart_device' },
+  router_troubleshoot:   { label: 'WiFi Fix',             icon: Wifi,          gradient: 'from-sky-500 to-blue-600',       accent: '#0284c7', vertical: 'smart_device' },
+  cctv_install:          { label: 'CCTV Install',         icon: Camera,        gradient: 'from-stone-600 to-stone-800',    accent: '#78716c', vertical: 'smart_device' },
+  cctv_repair:           { label: 'CCTV Repair',          icon: Camera,        gradient: 'from-amber-600 to-orange-700',   accent: '#d97706', vertical: 'smart_device' },
+  smart_lock_install:    { label: 'Smart Lock Install',   icon: Lock,          gradient: 'from-indigo-600 to-violet-700',  accent: '#4f46e5', vertical: 'smart_device' },
+  home_automation_setup: { label: 'Home Automation',      icon: Zap,           gradient: 'from-amber-500 to-orange-600',   accent: '#f59e0b', vertical: 'smart_device' },
+  // ── Vehicle Care ──────────────────────────────────────────────────────────
+  puncture:              { label: 'Puncture Repair',       icon: Car,          gradient: 'from-slate-500 to-slate-700',    accent: '#64748b', vertical: 'vehicle'      },
+  bike_chain_issue:      { label: 'Bike Chain Issue',      icon: Bike,         gradient: 'from-amber-500 to-orange-600',   accent: '#f59e0b', vertical: 'vehicle'      },
+  bike_brake_issue:      { label: 'Bike Brake Repair',     icon: Bike,         gradient: 'from-red-500 to-rose-600',       accent: '#ef4444', vertical: 'vehicle'      },
+  bike_battery_issue:    { label: 'Bike Battery Issue',    icon: Battery,      gradient: 'from-emerald-500 to-green-600',  accent: '#10b981', vertical: 'vehicle'      },
+  bike_wash:             { label: 'Bike Wash',             icon: Bike,         gradient: 'from-cyan-400 to-blue-500',      accent: '#0ea5e9', vertical: 'vehicle'      },
+  bike_breakdown:        { label: 'Bike Breakdown',        icon: AlertTriangle, gradient: 'from-orange-500 to-red-500',    accent: '#f97316', vertical: 'vehicle'      },
+  bike_service:          { label: 'Bike Full Service',     icon: Wrench,       gradient: 'from-violet-500 to-purple-600',  accent: '#8b5cf6', vertical: 'vehicle'      },
+  car_wash:              { label: 'Car Wash',              icon: Car,          gradient: 'from-sky-500 to-blue-600',       accent: '#3b82f6', vertical: 'vehicle'      },
+  car_detailing:         { label: 'Car Detailing',         icon: Sparkles,     gradient: 'from-indigo-500 to-violet-600',  accent: '#6366f1', vertical: 'vehicle'      },
+  battery_jump_start:    { label: 'Battery Jump Start',    icon: Zap,          gradient: 'from-yellow-500 to-amber-600',   accent: '#f59e0b', vertical: 'vehicle'      },
+  car_puncture:          { label: 'Car Tyre Puncture',     icon: Car,          gradient: 'from-slate-600 to-slate-800',    accent: '#475569', vertical: 'vehicle'      },
+  car_breakdown:         { label: 'Car Breakdown',         icon: AlertTriangle, gradient: 'from-red-500 to-rose-600',      accent: '#ef4444', vertical: 'vehicle'      },
+  fuel_delivery:         { label: 'Fuel Delivery',         icon: Fuel,         gradient: 'from-orange-500 to-red-500',     accent: '#f97316', vertical: 'vehicle'      },
+  car_service:           { label: 'Car Full Service',      icon: Wrench,       gradient: 'from-blue-600 to-indigo-700',    accent: '#2563eb', vertical: 'vehicle'      },
+  commercial_emergency:  { label: 'Commercial Emergency',  icon: AlertTriangle, gradient: 'from-red-600 to-rose-700',      accent: '#dc2626', vertical: 'vehicle'      },
+  commercial_scheduled_maintenance: { label: 'Fleet Maintenance', icon: Wrench, gradient: 'from-slate-600 to-slate-800',  accent: '#475569', vertical: 'vehicle'      },
+  fleet_support:         { label: 'Fleet Support',         icon: Car,          gradient: 'from-indigo-600 to-blue-700',    accent: '#4f46e5', vertical: 'vehicle'      },
+  auto_repair:           { label: 'Auto Repair',           icon: Wrench,       gradient: 'from-amber-500 to-orange-600',   accent: '#f59e0b', vertical: 'vehicle'      },
+  van_repair:            { label: 'Van Repair',            icon: Car,          gradient: 'from-stone-600 to-stone-800',    accent: '#78716c', vertical: 'vehicle'      },
+  // ── Family Assist ─────────────────────────────────────────────────────────
+  medicine_pickup:       { label: 'Medicine Pickup',       icon: Heart,        gradient: 'from-rose-500 to-pink-600',      accent: '#f43f5e', vertical: 'family'       },
+  hospital_companion:    { label: 'Hospital Companion',    icon: ShieldCheck,  gradient: 'from-blue-500 to-indigo-600',    accent: '#3b82f6', vertical: 'family'       },
+  grocery_assistance:    { label: 'Grocery Shopping',      icon: Users,        gradient: 'from-green-500 to-emerald-600',  accent: '#10b981', vertical: 'family'       },
+  bill_payment_assist:   { label: 'Bill Payment Assist',   icon: CheckCircle,  gradient: 'from-teal-500 to-cyan-600',      accent: '#14b8a6', vertical: 'family'       },
+  document_submission:   { label: 'Document Submission',   icon: CheckCircle,  gradient: 'from-violet-500 to-purple-600',  accent: '#8b5cf6', vertical: 'family'       },
+  home_visit_check:      { label: 'Home Visit Check',      icon: ShieldCheck,  gradient: 'from-indigo-500 to-blue-600',    accent: '#6366f1', vertical: 'family'       },
+  elder_doctor_visit:    { label: 'Elder Doctor Visit',    icon: Heart,        gradient: 'from-red-500 to-rose-600',       accent: '#ef4444', vertical: 'family'       },
+  elder_companion:       { label: 'Elder Companion',       icon: Users,        gradient: 'from-purple-500 to-violet-600',  accent: '#8b5cf6', vertical: 'family'       },
+  elder_home_visit:      { label: 'Elder Home Visit',      icon: ShieldCheck,  gradient: 'from-teal-500 to-emerald-600',   accent: '#14b8a6', vertical: 'family'       },
+  elder_transport:       { label: 'Elder Transport',       icon: Car,          gradient: 'from-blue-500 to-indigo-600',    accent: '#3b82f6', vertical: 'family'       },
+  // ── Event Crew ────────────────────────────────────────────────────────────
+  event_decorator:           { label: 'Event Decorator',      icon: Sparkles,  gradient: 'from-violet-500 to-purple-600',  accent: '#8b5cf6', vertical: 'event'        },
+  event_setup_crew:          { label: 'Event Setup Crew',     icon: Users,     gradient: 'from-blue-500 to-indigo-600',    accent: '#3b82f6', vertical: 'event'        },
+  event_cleaning_crew:       { label: 'Event Cleaning',       icon: Sparkles,  gradient: 'from-teal-500 to-cyan-600',      accent: '#14b8a6', vertical: 'event'        },
+  event_helper:              { label: 'Event Helper',         icon: Users,     gradient: 'from-green-500 to-emerald-600',  accent: '#10b981', vertical: 'event'        },
+  event_sound_crew:          { label: 'Sound Crew',           icon: Layers,    gradient: 'from-slate-700 to-slate-900',    accent: '#334155', vertical: 'event'        },
+  event_lighting_crew:       { label: 'Lighting Crew',        icon: Zap,       gradient: 'from-amber-400 to-orange-500',   accent: '#f59e0b', vertical: 'event'        },
+  event_security_crew:       { label: 'Event Security',       icon: ShieldCheck, gradient: 'from-red-500 to-rose-600',     accent: '#ef4444', vertical: 'event'        },
+  event_birthday_setup:      { label: 'Birthday Setup',       icon: Star,      gradient: 'from-pink-500 to-fuchsia-600',   accent: '#ec4899', vertical: 'event'        },
+  event_wedding_setup:       { label: 'Wedding Setup',        icon: Star,      gradient: 'from-amber-400 to-orange-500',   accent: '#f59e0b', vertical: 'event'        },
+  event_photography_assist:  { label: 'Photography Assist',   icon: Camera,    gradient: 'from-indigo-500 to-violet-600',  accent: '#6366f1', vertical: 'event'        },
+  event_catering_assist:     { label: 'Catering Assist',      icon: Users,     gradient: 'from-orange-400 to-red-500',     accent: '#f97316', vertical: 'event'        },
+  // ── Pet Assistance ────────────────────────────────────────────────────────
+  pet_grooming:          { label: 'Pet Grooming',          icon: Dog,          gradient: 'from-amber-400 to-orange-500',   accent: '#f59e0b', vertical: 'pet'          },
+  pet_walking:           { label: 'Pet Walking',           icon: Bike,         gradient: 'from-green-500 to-emerald-600',  accent: '#10b981', vertical: 'pet'          },
+  pet_transport:         { label: 'Pet Transport',         icon: Car,          gradient: 'from-violet-500 to-purple-600',  accent: '#8b5cf6', vertical: 'pet'          },
+  pet_sitting:           { label: 'Pet Sitting',           icon: Heart,        gradient: 'from-rose-500 to-pink-600',      accent: '#f43f5e', vertical: 'pet'          },
+  pet_vet_assist:        { label: 'Vet Visit Assist',      icon: ShieldCheck,  gradient: 'from-blue-500 to-indigo-600',    accent: '#3b82f6', vertical: 'pet'          },
+  pet_training_assist:   { label: 'Pet Training',          icon: Star,         gradient: 'from-amber-500 to-orange-600',   accent: '#f59e0b', vertical: 'pet'          },
 };
 
 const SERVICE_SUBCATEGORIES = {
@@ -81,7 +195,89 @@ const SERVICE_SUBCATEGORIES = {
     { key: 'touch_up',  label: 'Touch Up',  icon: '🎨' },
     { key: 'full_home', label: 'Full Home', icon: '🏠' },
   ],
+  // Mobile phone sub-issues
+  screen_replacement: [
+    { key: 'cracked',      label: 'Cracked Screen',       icon: '💔' },
+    { key: 'no_display',   label: 'No Display',           icon: '⬛' },
+    { key: 'touch_broken', label: 'Touch Not Working',    icon: '👆' },
+    { key: 'discoloration',label: 'Discoloration / Spots', icon: '🟡' },
+  ],
+  battery_replacement: [
+    { key: 'fast_drain',  label: 'Fast Drain',       icon: '🪫' },
+    { key: 'not_charging',label: 'Not Charging',     icon: '❌' },
+    { key: 'swollen',     label: 'Swollen Battery',  icon: '⚠️' },
+    { key: 'overheating', label: 'Overheating',      icon: '🌡️' },
+  ],
+  charging_issue: [
+    { key: 'port_loose',   label: 'Loose Port',       icon: '🔌' },
+    { key: 'slow_charge',  label: 'Slow Charging',    icon: '🐢' },
+    { key: 'no_charge',    label: 'Not Charging',     icon: '❌' },
+    { key: 'intermittent', label: 'Intermittent',     icon: '⚡' },
+  ],
+  speaker_mic_issue: [
+    { key: 'no_sound',       label: 'No Sound',           icon: '🔇' },
+    { key: 'muffled',        label: 'Muffled Audio',       icon: '📢' },
+    { key: 'mic_not_working',label: 'Mic Not Working',     icon: '🎤' },
+    { key: 'loudspeaker',    label: 'Loudspeaker Issue',   icon: '🔊' },
+  ],
+  software_issue: [
+    { key: 'slow_phone',  label: 'Slow Phone',      icon: '🐌' },
+    { key: 'app_crash',   label: 'App Crashing',    icon: '💥' },
+    { key: 'virus',       label: 'Virus / Malware', icon: '🦠' },
+    { key: 'factory_reset',label: 'Factory Reset',  icon: '🔄' },
+  ],
+  water_damage_check: [
+    { key: 'fell_water',  label: 'Fell in Water',   icon: '💧' },
+    { key: 'rain',        label: 'Rain Damage',     icon: '🌧️' },
+    { key: 'not_turning_on', label: 'Not Turning On', icon: '❌' },
+  ],
+  // Construction
+  mason: [
+    { key: 'brickwork',      label: 'Brick Work',        icon: '🧱' },
+    { key: 'plastering',     label: 'Plastering',        icon: '🏗️' },
+    { key: 'tile_laying',    label: 'Tile Laying',       icon: '⬜' },
+    { key: 'waterproofing',  label: 'Waterproofing',     icon: '💧' },
+  ],
+  // Car + Bike
+  battery_jump_start: [
+    { key: 'car',    label: 'Car',    icon: '🚗' },
+    { key: 'bike',   label: 'Bike',   icon: '🏍️' },
+    { key: 'scooter',label: 'Scooter',icon: '🛵' },
+  ],
+  fuel_delivery: [
+    { key: 'petrol', label: 'Petrol', icon: '⛽' },
+    { key: 'diesel', label: 'Diesel', icon: '🛢️' },
+  ],
+  bike_wash: [
+    { key: 'basic',    label: 'Basic Wash',       icon: '🚿' },
+    { key: 'full',     label: 'Full Wash + Wax',  icon: '✨' },
+    { key: 'engine',   label: 'Engine Cleaning',  icon: '🔧' },
+  ],
+  car_wash: [
+    { key: 'exterior', label: 'Exterior Only',    icon: '🚗' },
+    { key: 'full',     label: 'Full Wash + Dry',  icon: '✨' },
+    { key: 'interior', label: 'Interior + Vacuum',icon: '🧹' },
+    { key: 'premium',  label: 'Premium Detailing',icon: '💎' },
+  ],
+  minor_roadside_repair: [
+    { key: 'cable',    label: 'Cable Issue',      icon: '🔌' },
+    { key: 'fuse',     label: 'Fuse Blown',       icon: '⚡' },
+    { key: 'belt',     label: 'Belt Problem',     icon: '🔧' },
+    { key: 'other',    label: 'Other Minor Fix',  icon: '🛠️' },
+  ],
 };
+
+const DEVICE_BRANDS = ['Apple', 'Samsung', 'OnePlus', 'Xiaomi', 'Vivo', 'Oppo', 'Others'];
+const VEHICLE_TYPES = [
+  { key: 'bike',    label: 'Bike',    icon: '🏍️' },
+  { key: 'scooter', label: 'Scooter', icon: '🛵' },
+  { key: 'car',     label: 'Car',     icon: '🚗' },
+];
+const CONSTRUCTION_PRICING_MODELS = [
+  { key: 'standard', label: 'Standard', desc: 'Fixed service rate' },
+  { key: 'hourly',   label: 'Hourly',   desc: 'Pay per hour of work' },
+  { key: 'project',  label: 'Project',  desc: 'Quote after site visit' },
+];
 
 const PAYMENT_OPTIONS = [
   { key: 'upi',  label: 'UPI',  icon: '📱', desc: 'Google Pay, PhonePe…'  },
@@ -95,6 +291,16 @@ const NUDGE_POOL = [
   { icon: Star,       text: '95% of bookings matched within 60 seconds',   color: 'text-amber-600',  bg: 'bg-amber-50',  ring: 'ring-amber-100'  },
 ];
 
+/* Pre-computed so stars don't jump on re-render */
+const STARS = Array.from({ length: 40 }, (_, i) => ({
+  id: i,
+  left: (i * 137.508) % 100,
+  top:  (i * 97.631)  % 100,
+  size: i % 6 === 0 ? 2 : 1,
+  dur:  1.4 + (i % 7) * 0.35,
+  delay: (i % 11) * 0.25,
+}));
+
 function todayMin() {
   const d = new Date();
   d.setMinutes(d.getMinutes() + 30);
@@ -104,6 +310,17 @@ function todayMin() {
 export default function BookingPage() {
   const { service } = useParams();
   const nav = useNavigate();
+  const isMobile  = MOBILE_SERVICES.has(service);
+  const isVehicle = VEHICLE_SERVICES.has(service);
+  // Breakdown/tow services need a worker with specialised equipment (#72).
+  // We warn the customer upfront so they can also call a tow operator.
+  const isTowRequired = service === 'car_breakdown' || service === 'bike_breakdown' || service === 'commercial_emergency';
+  // Team/crew bookings: multi-worker dispatch not yet implemented. Show info banner. (#74)
+  const isEventCrewService = EVENT_SERVICES.has(service) && service !== 'event_helper';
+  // Construction/hourly-pricing services (mason, etc.) are disabled in this
+  // catalog version. The pricing model picker is hidden until re-enabled.
+  const isConstruction = false;
+
   const [stage,         setStage]         = useState('location');
   const [location,      setLocation]      = useState(null);
   const [subCategory,   setSubCategory]   = useState('');
@@ -111,21 +328,48 @@ export default function BookingPage() {
   const [images,        setImages]        = useState([]);
   const [schedMode,     setSchedMode]     = useState('now');
   const [scheduledAt,   setScheduledAt]   = useState('');
+  // Scheduled booking — separate date + time state
+  const [bookMode,      setBookMode]      = useState('now'); // 'now' | 'later'
+  const [schedDate,     setSchedDate]     = useState('');   // YYYY-MM-DD
+  const [schedTime,     setSchedTime]     = useState('');   // HH:MM
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [pricingMode,   setPricingMode]   = useState('now');
   const [nudgeIdx,      setNudgeIdx]      = useState(0);
   const [showNudge,     setShowNudge]     = useState(false);
   const [promoCode,     setPromoCode]     = useState('');
-  const [promoResult,   setPromoResult]   = useState(null); // { discountPaise, discountDisplay, code }
+  const [promoResult,   setPromoResult]   = useState(null);
   const [promoError,    setPromoError]    = useState('');
+  const [selectedTier,  setSelectedTier]  = useState('standard');
+  const [tipAmount,     setTipAmount]     = useState(0);
+  const [showOverlay,   setShowOverlay]   = useState(false); // overlay visible
+  const [matchFound,    setMatchFound]    = useState(false); // "Worker found!" success state
+  const [activeOrderId, setActiveOrderId] = useState(null);
+  const [liveBoost,     setLiveBoost]     = useState(0);    // tip selected during matching
+  const [boostSent,     setBoostSent]     = useState(false);
+  const [diagnosisAnswers, setDiagnosisAnswers] = useState(null);
+  const [showDiagnosis,    setShowDiagnosis]    = useState(false);
+
+  // Mobile-specific state
+  const [deviceBrand,   setDeviceBrand]   = useState('');
+  const [deviceModel,   setDeviceModel]   = useState('');
+  const [serviceMode,   setServiceMode]   = useState('doorstep'); // doorstep | pickup
+
+  // Vehicle-specific state
+  const [vehicleType,   setVehicleType]   = useState('');
+
+  // Construction-specific state
+  const [pricingModel,  setPricingModel]  = useState('standard');
+  const [estimatedHours,setEstimatedHours]= useState(2);
   const nudgeTimer = useRef(null);
   const fileInputRef = useRef(null);
 
+  const [sendTip] = useSendTipMutation();
   const [fetchQuote,     { data: quoteData, isFetching: quoting }] = useLazyGetQuoteQuery();
   const [createOrder,    { isLoading: creating }]                  = useCreateOrderMutation();
   const [presignUpload]                                             = usePresignUploadMutation();
   const [fetchNearby,    { data: nearbyData }]                     = useLazyGetNearbyWorkersQuery();
   const [validatePromo,  { isLoading: validatingPromo }]           = useValidatePromoMutation();
+  const [fetchSurge,     { data: surgeInfoData }]                  = useLazyGetSurgeInfoQuery();
 
   const meta         = SERVICE_META[service] || { label: service?.replace(/_/g, ' ') || 'Service', icon: Wrench, gradient: 'from-slate-500 to-slate-700', accent: '#64748b' };
   const ServiceIcon  = meta.icon;
@@ -145,11 +389,27 @@ export default function BookingPage() {
   }, [stage]);
 
   async function onLocationConfirmed(loc) {
+    // Test 34: warn if user confirmed location while GPS was inaccurate (>150m).
+    // This commonly happens when booking from a moving vehicle or inside a building.
+    if (loc.accuracy != null && loc.accuracy > 150) {
+      toast(`Location accuracy is ±${Math.round(loc.accuracy)}m — confirm your address is correct`, {
+        icon: '📍',
+        duration: 5000,
+      });
+    }
     setLocation(loc);
     setPricingMode('now');
     setStage('details');
-    fetchQuote({ service, pickupLat: loc.lat, pickupLng: loc.lng });
+    fetchQuote({
+      service, pickupLat: loc.lat, pickupLng: loc.lng,
+      ...(deviceBrand && { deviceBrand }),
+      ...(deviceModel && { deviceModel }),
+      ...(vehicleType && { vehicleType }),
+      ...(pricingModel !== 'standard' && { pricingModel }),
+      ...(pricingModel === 'hourly' && { estimatedHours }),
+    });
     fetchNearby({ lat: loc.lat, lng: loc.lng });
+    fetchSurge({ lat: loc.lat, lng: loc.lng });
   }
 
   async function uploadImage(file) {
@@ -187,7 +447,7 @@ export default function BookingPage() {
         orderTotalPaise: (q?.total || 0) * 100,
       }).unwrap();
       setPromoResult({
-        code: res.promo.code,
+        code: res.code,
         discountPaise: res.discountPaise,
         discountDisplay: `₹${Math.round(res.discountPaise / 100)}`,
       });
@@ -203,10 +463,13 @@ export default function BookingPage() {
   }
 
   async function placeOrder() {
-    if (schedMode === 'later' && !scheduledAt) {
+    if (bookMode === 'later' && (!schedDate || !schedTime)) {
       toast.error('Please pick a date and time');
       return;
     }
+    const scheduledAtIso = bookMode === 'later' && schedDate && schedTime
+      ? new Date(`${schedDate}T${schedTime}`).toISOString()
+      : undefined;
     setPricingMode('locked');
     try {
       const uploadedUrls = images.filter(i => i.url).map(i => i.url);
@@ -215,14 +478,33 @@ export default function BookingPage() {
         subCategory: subCategory || undefined,
         description,
         images: uploadedUrls,
-        scheduledAt: schedMode === 'later' ? new Date(scheduledAt).toISOString() : undefined,
+        scheduledAt: scheduledAtIso,
         pickupLocation: location,
         paymentMethod,
         promoCode: promoResult?.code || undefined,
+        tier: selectedTier,
+        tipAmount: tipAmount > 0 ? tipAmount : undefined,
+        // Mobile extras
+        ...(isMobile && deviceBrand && { deviceBrand }),
+        ...(isMobile && deviceModel && { deviceModel }),
+        ...(isMobile && { serviceMode }),
+        // Vehicle extras
+        ...(isVehicle && vehicleType && { vehicleType }),
+        // Construction extras
+        ...(isConstruction && { pricingModel }),
+        ...(isConstruction && pricingModel === 'hourly' && { estimatedHours }),
+        // Surge price protection — server rejects if price jumped >20% since quote
+        quotedTotalRupees: quoteData?.quote?.total ?? undefined,
       };
       const r = await createOrder(body).unwrap();
-      toast.success(schedMode === 'later' ? 'Booking scheduled!' : 'Order placed — finding a worker');
-      nav(`/orders/${r.order._id}`, { replace: true });
+      setActiveOrderId(r.order._id);
+      setShowOverlay(true);  // show overlay in "searching" state — boost sheet slides up
+      // After 3s show "Worker found!" success animation, then navigate at 4.5s
+      setTimeout(() => setMatchFound(true), 3000);
+      setTimeout(() => {
+        toast.success(bookMode === 'later' ? 'Booking scheduled!' : 'Order placed — finding a worker');
+        nav(`/orders/${r.order._id}`, { replace: true });
+      }, 4500);
     } catch (err) {
       setPricingMode('now');
       const msg = err.data?.error || 'Failed to place order';
@@ -278,7 +560,14 @@ export default function BookingPage() {
   const hasUploadingImages = images.some(i => i.uploading);
   const canBook = !!q && !creating && pricingMode !== 'wait' && !hasUploadingImages;
 
+  const TIER_MULTIPLIERS = { standard: 1.0, priority: 1.2, express: 1.4 };
+  const baseTotal = q ? (pricingMode === 'wait' ? Math.round(q.total / (q.surgeMultiplier || 1)) : q.total) : 0;
+  const tierPrice = Math.round(baseTotal * (TIER_MULTIPLIERS[selectedTier] || 1.0));
+  const promoDiscountRs = promoResult ? Math.round(promoResult.discountPaise / 100) : 0;
+  const finalDisplayPrice = Math.max(0, tierPrice + tipAmount - promoDiscountRs);
+
   return (
+    <>
     <PageTransition>
     <div className="min-h-screen pb-32" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
 
@@ -347,6 +636,43 @@ export default function BookingPage() {
         animate="animate"
       >
 
+        {/* ── Event crew: single-worker-only notice (#74) ─────────────────── */}
+        {isEventCrewService && (
+          <motion.div variants={fadeInUp}
+            className="rounded-2xl p-4 bg-violet-50 ring-1 ring-violet-200 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+              <Users size={15} strokeWidth={2.5} className="text-violet-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-violet-800">Single crew member assigned</p>
+              <p className="text-xs text-violet-700 mt-1 leading-relaxed">
+                We're currently dispatching one crew member per booking. If your event requires
+                a larger team, please place separate bookings for each additional crew member.
+                Multi-crew dispatch is coming soon.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Tow service capability warning (#72) ───────────────────────── */}
+        {isTowRequired && (
+          <motion.div variants={fadeInUp}
+            className="rounded-2xl p-4 bg-orange-50 ring-1 ring-orange-200 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
+              <AlertTriangle size={15} strokeWidth={2.5} className="text-orange-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-orange-800">Tow truck may be needed</p>
+              <p className="text-xs text-orange-700 mt-1 leading-relaxed">
+                Breakdown services sometimes require a tow vehicle. Zappy will send the nearest
+                available worker, but if your vehicle needs towing we recommend also calling
+                {' '}<strong>National Highway Helpline: 1033</strong> or your insurer's roadside
+                assistance as a backup.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Location card — with map preview */}
         <motion.div
           className="rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100"
@@ -394,6 +720,110 @@ export default function BookingPage() {
             </motion.button>
           </div>
         </motion.div>
+
+        {/* ── Mobile: Device Brand + Model + Service Mode ──────────── */}
+        {isMobile && (
+          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4 space-y-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+            <div className="flex items-center gap-2.5 mb-1">
+              <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
+                <Smartphone size={14} strokeWidth={2.5} className="text-white" />
+              </div>
+              <p className="font-bold text-[#0F172A] text-sm">Phone Details</p>
+            </div>
+            {/* Brand picker */}
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Brand</p>
+              <div className="flex flex-wrap gap-2">
+                {DEVICE_BRANDS.map(brand => (
+                  <motion.button key={brand} onClick={() => setDeviceBrand(b => b === brand ? '' : brand)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${deviceBrand === brand ? 'text-white border-transparent' : 'bg-slate-50 text-slate-600 border-slate-150'}`}
+                    style={deviceBrand === brand ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
+                    whileTap={{ scale: 0.95 }}>
+                    {brand}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+            {/* Model input */}
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Model (optional)</p>
+              <input value={deviceModel} onChange={e => setDeviceModel(e.target.value)} placeholder="e.g. iPhone 14, Galaxy S23…"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-[#111827] placeholder:text-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+            </div>
+            {/* Service Mode */}
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">How should we help?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ key: 'doorstep', label: 'Doorstep Repair', icon: '🏠', desc: 'Technician comes to you' }, { key: 'pickup', label: 'Pickup & Repair', icon: '📦', desc: 'We collect & return' }].map(m => (
+                  <motion.button key={m.key} onClick={() => setServiceMode(m.key)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${serviceMode === m.key ? 'text-white border-transparent' : 'bg-slate-50 border-slate-150'}`}
+                    style={serviceMode === m.key ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
+                    whileTap={{ scale: 0.95 }}>
+                    <div className="text-lg mb-1">{m.icon}</div>
+                    <div className={`text-xs font-bold ${serviceMode === m.key ? 'text-white' : 'text-slate-700'}`}>{m.label}</div>
+                    <div className={`text-[10px] mt-0.5 ${serviceMode === m.key ? 'text-white/70' : 'text-slate-400'}`}>{m.desc}</div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Vehicle: Vehicle Type picker ──────────────────────────── */}
+        {isVehicle && (
+          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
+                <Car size={14} strokeWidth={2.5} className="text-white" />
+              </div>
+              <p className="font-bold text-[#0F172A] text-sm">Your Vehicle</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {VEHICLE_TYPES.map(v => (
+                <motion.button key={v.key} onClick={() => setVehicleType(t => t === v.key ? '' : v.key)}
+                  className={`p-3 rounded-xl border-2 text-center transition-all ${vehicleType === v.key ? 'text-white border-transparent' : 'bg-slate-50 border-slate-150'}`}
+                  style={vehicleType === v.key ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
+                  whileTap={{ scale: 0.95 }}>
+                  <div className="text-2xl mb-1">{v.icon}</div>
+                  <div className={`text-xs font-bold ${vehicleType === v.key ? 'text-white' : 'text-slate-700'}`}>{v.label}</div>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Construction: Pricing Model picker ────────────────────── */}
+        {isConstruction && (
+          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4 space-y-3" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+            <div className="flex items-center gap-2.5 mb-1">
+              <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
+                <FileText size={14} strokeWidth={2.5} className="text-white" />
+              </div>
+              <p className="font-bold text-[#0F172A] text-sm">Pricing Model</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {CONSTRUCTION_PRICING_MODELS.map(m => (
+                <motion.button key={m.key} onClick={() => setPricingModel(m.key)}
+                  className={`p-3 rounded-xl border-2 text-center transition-all ${pricingModel === m.key ? 'text-white border-transparent' : 'bg-slate-50 border-slate-150'}`}
+                  style={pricingModel === m.key ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
+                  whileTap={{ scale: 0.95 }}>
+                  <div className={`text-xs font-bold ${pricingModel === m.key ? 'text-white' : 'text-slate-700'}`}>{m.label}</div>
+                  <div className={`text-[10px] mt-0.5 ${pricingModel === m.key ? 'text-white/70' : 'text-slate-400'}`}>{m.desc}</div>
+                </motion.button>
+              ))}
+            </div>
+            {pricingModel === 'hourly' && (
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Estimated Hours</p>
+                <div className="flex items-center gap-3">
+                  <motion.button onClick={() => setEstimatedHours(h => Math.max(1, h - 0.5))} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold" whileTap={{ scale: 0.9 }}>−</motion.button>
+                  <span className="text-lg font-bold text-[#0F172A] min-w-[3ch] text-center">{estimatedHours}h</span>
+                  <motion.button onClick={() => setEstimatedHours(h => Math.min(24, h + 0.5))} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold" whileTap={{ scale: 0.9 }}>+</motion.button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {/* Sub-categories */}
         {subCategories.length > 0 && (
@@ -457,6 +887,11 @@ export default function BookingPage() {
               onModeChange={setPricingMode}
               onRefetch={() => fetchQuote({ service, pickupLat: location.lat, pickupLng: location.lng })}
               accentGradient={meta.gradient}
+              selectedTier={selectedTier}
+              onTierChange={setSelectedTier}
+              tipAmount={tipAmount}
+              onTipChange={setTipAmount}
+              promoDiscount={promoResult ? Math.round(promoResult.discountPaise / 100) : 0}
             />
           ) : (
             <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
@@ -466,6 +901,38 @@ export default function BookingPage() {
             </div>
           )}
         </motion.div>
+
+        {/* Surge Transparency Card */}
+        {surgeInfoData && (
+          <motion.div variants={fadeInUp}>
+            <SurgeInfoCard surgeData={surgeInfoData} basePrice={q?.total} />
+          </motion.div>
+        )}
+
+        {/* Smart Pre-Diagnosis */}
+        {!diagnosisAnswers && (
+          <motion.div variants={fadeInUp}>
+            <DiagnosisFlow
+              service={service}
+              onComplete={(result) => {
+                setDiagnosisAnswers(result.answers);
+                if (result.urgency === 'urgent') {
+                  import('react-hot-toast').then(({ default: toast }) => toast.error('⚠️ Urgent issue detected — marked as emergency priority'));
+                }
+              }}
+              onSkip={() => setDiagnosisAnswers({})}
+            />
+          </motion.div>
+        )}
+        {diagnosisAnswers && Object.keys(diagnosisAnswers).length > 0 && (
+          <motion.div variants={fadeInUp} className="card bg-blue-50 ring-1 ring-blue-100 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-500" />
+            <p className="text-xs font-semibold text-blue-700 flex-1">
+              Diagnosis saved — worker will arrive prepared
+            </p>
+            <button onClick={() => setDiagnosisAnswers(null)} className="text-[10px] text-blue-400">Redo</button>
+          </motion.div>
+        )}
 
         {/* Description + images */}
         <motion.div
@@ -555,55 +1022,127 @@ export default function BookingPage() {
             </div>
             <p className="font-bold text-[#0F172A] text-sm">When do you need it?</p>
           </div>
+          {/* Book Now / Schedule Later toggle pills */}
           <div className="grid grid-cols-2 gap-2 mb-3">
             {[
-              { key: 'now',   label: 'Book Now',           icon: Zap,   sub: 'Worker dispatched instantly' },
-              { key: 'later', label: 'Schedule for Later', icon: Clock, sub: 'Pick a convenient time'      },
+              { key: 'now',   label: 'Book Now',           icon: Zap,      sub: 'Worker dispatched instantly' },
+              { key: 'later', label: 'Schedule Later',      icon: Calendar, sub: 'Pick a convenient time'      },
             ].map(({ key, label, icon: Icon, sub }) => (
               <motion.button
                 key={key}
-                onClick={() => setSchedMode(key)}
+                onClick={() => setBookMode(key)}
                 className={`flex flex-col items-start p-3.5 rounded-xl border-2 transition-all text-left ${
-                  schedMode === key
+                  bookMode === key
                     ? 'border-transparent text-white'
                     : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'
                 }`}
-                style={schedMode === key ? { background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)', borderColor: 'transparent' } : {}}
+                style={bookMode === key ? { background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)', borderColor: 'transparent' } : {}}
                 whileTap={{ scale: 0.97 }}
               >
-                <Icon size={16} strokeWidth={2.5} className={schedMode === key ? 'text-white mb-2' : 'text-slate-500 mb-2'} />
-                <p className={`text-xs font-bold ${schedMode === key ? 'text-white' : 'text-[#0F172A]'}`}>{label}</p>
-                <p className={`text-[10px] mt-0.5 ${schedMode === key ? 'text-white/60' : 'text-slate-400'}`}>{sub}</p>
+                <Icon size={16} strokeWidth={2.5} className={bookMode === key ? 'text-white mb-2' : 'text-slate-500 mb-2'} />
+                <p className={`text-xs font-bold ${bookMode === key ? 'text-white' : 'text-[#0F172A]'}`}>{label}</p>
+                <p className={`text-[10px] mt-0.5 ${bookMode === key ? 'text-white/60' : 'text-slate-400'}`}>{sub}</p>
               </motion.button>
             ))}
           </div>
+
+          {/* Animated date + time picker — visible when "Schedule Later" selected */}
           <AnimatePresence>
-            {schedMode === 'later' && (
+            {bookMode === 'later' && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.22 }}
+                transition={{ duration: 0.25, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <div className="pt-1">
-                  <label className="text-xs font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">
-                    Select date &amp; time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    min={todayMin()}
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    className="input text-sm w-full"
-                  />
-                  {scheduledAt && (
-                    <p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1.5">
-                      <CheckCircle size={12} />
-                      Scheduled for {new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-                    </p>
+                <div className="pt-2 space-y-3">
+                  {/* Date picker */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                      <Calendar size={11} className="text-slate-400" />
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      min={(() => {
+                        const d = new Date();
+                        d.setHours(d.getHours() + 1);
+                        return d.toISOString().slice(0, 10);
+                      })()}
+                      max={(() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 7);
+                        return d.toISOString().slice(0, 10);
+                      })()}
+                      value={schedDate}
+                      onChange={(e) => setSchedDate(e.target.value)}
+                      className="input text-sm w-full"
+                    />
+                  </div>
+
+                  {/* Time picker — 30-min slots 7:00 AM to 9:00 PM */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                      <Clock size={11} className="text-slate-400" />
+                      Time
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(() => {
+                        const slots = [];
+                        for (let h = 7; h <= 21; h++) {
+                          for (const m of [0, 30]) {
+                            if (h === 21 && m === 30) break;
+                            const hh = String(h).padStart(2, '0');
+                            const mm = String(m).padStart(2, '0');
+                            const val = `${hh}:${mm}`;
+                            const ampm = h < 12 ? 'AM' : 'PM';
+                            const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+                            const label = `${displayH}:${mm} ${ampm}`;
+                            slots.push({ val, label });
+                          }
+                        }
+                        return slots;
+                      })().map(({ val, label }) => (
+                        <motion.button
+                          key={val}
+                          onClick={() => setSchedTime(val)}
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                            schedTime === val
+                              ? 'text-white border-transparent'
+                              : 'bg-slate-50 text-slate-600 border-slate-150 hover:border-slate-300'
+                          }`}
+                          style={schedTime === val ? { background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)' } : {}}
+                          whileTap={{ scale: 0.93 }}
+                        >
+                          {label}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Selected slot chip */}
+                  {schedDate && schedTime && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2 bg-slate-900 text-white rounded-xl px-3.5 py-2.5"
+                    >
+                      <CheckCircle size={13} className="text-green-400 shrink-0" />
+                      <p className="text-xs font-bold">
+                        {new Date(`${schedDate}T${schedTime}`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        {' · '}
+                        {(() => {
+                          const [hh, mm] = schedTime.split(':').map(Number);
+                          const ampm = hh < 12 ? 'AM' : 'PM';
+                          const dh = hh > 12 ? hh - 12 : hh === 0 ? 12 : hh;
+                          return `${dh}:${String(mm).padStart(2, '0')} ${ampm}`;
+                        })()}
+                      </p>
+                    </motion.div>
                   )}
-                  <p className="text-xs text-slate-400 mt-1.5">Dispatch starts 5 min before scheduled time</p>
+
+                  <p className="text-xs text-slate-400">Dispatch starts 5 min before scheduled time</p>
                 </div>
               </motion.div>
             )}
@@ -727,7 +1266,7 @@ export default function BookingPage() {
           {pricingMode === 'wait' ? (
             <div className="text-center py-2">
               <p className="text-sm font-semibold text-slate-500">Waiting for a better price…</p>
-              <p className="text-xs text-slate-400 mt-0.5">You can still book now at ₹{q?.total}</p>
+              <p className="text-xs text-slate-400 mt-0.5">You can still book now at ₹{finalDisplayPrice || q?.total}</p>
               <button
                 onClick={() => setPricingMode('now')}
                 className="mt-2 text-xs font-bold text-blue-600 underline"
@@ -736,6 +1275,18 @@ export default function BookingPage() {
               </button>
             </div>
           ) : (
+            <>
+              {/* Cashback teaser — shows estimated cashback before user books */}
+              {canBook && finalDisplayPrice > 0 && Math.round(finalDisplayPrice * 0.05) >= 1 && (
+                <div className="flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl mb-2"
+                  style={{ background: 'linear-gradient(90deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))' }}>
+                  <span className="text-base">✨</span>
+                  <p className="text-xs font-bold text-violet-700">
+                    You'll earn <span className="text-violet-900">₹{Math.round(finalDisplayPrice * 0.05)}</span> cashback after this order
+                  </p>
+                </div>
+              )}
+
             <motion.button
               disabled={!canBook}
               onClick={placeOrder}
@@ -761,23 +1312,338 @@ export default function BookingPage() {
               )}
               {creating ? (
                 <><Loader2 size={18} className="animate-spin" /> Placing order…</>
-              ) : schedMode === 'later' ? (
-                <><Calendar size={18} strokeWidth={2.5} /> Schedule Booking · ₹{q?.total || '—'}</>
+              ) : bookMode === 'later' ? (
+                <><Calendar size={18} strokeWidth={2.5} /> Schedule Booking · ₹{finalDisplayPrice || '—'}</>
               ) : (
                 <>
                   <Zap size={18} strokeWidth={2.5} />
-                  {promoResult
-                    ? <>Confirm Booking · <s className="opacity-60 text-sm">₹{q?.total}</s> ₹{Math.max(0, (q?.total || 0) - Math.round(promoResult.discountPaise / 100))}</>
-                    : <>Confirm Booking · ₹{q?.total || '—'}</>
+                  {(promoDiscountRs > 0 || selectedTier !== 'standard' || tipAmount > 0)
+                    ? <>Confirm Booking · <s className="opacity-60 text-sm">₹{q?.total}</s> ₹{finalDisplayPrice}</>
+                    : <>Confirm Booking · ₹{finalDisplayPrice || '—'}</>
                   }
                 </>
               )}
             </motion.button>
+            </>
           )}
         </div>
       </div>
 
     </div>
     </PageTransition>
+
+    {/* ── Rapido-style worker matching overlay ──────────────────────── */}
+    <AnimatePresence>
+      {(creating || showOverlay) && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.35 }}
+          className="fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #0c0a1e 100%)' }}
+        >
+          {/* Stars */}
+          <div className="absolute inset-0 pointer-events-none">
+            {STARS.map(s => (
+              <motion.div
+                key={s.id}
+                className="absolute rounded-full bg-white"
+                style={{ left: `${s.left}%`, top: `${s.top}%`, width: s.size, height: s.size }}
+                animate={{ opacity: [0.15, 0.9, 0.15] }}
+                transition={{ duration: s.dur, repeat: Infinity, delay: s.delay }}
+              />
+            ))}
+          </div>
+
+          {/* Radar + orbit zone */}
+          <div className="relative flex items-center justify-center" style={{ width: 300, height: 300 }}>
+
+            {/* Pulsing radar rings */}
+            {[70, 120, 170, 220].map((r, i) => (
+              <motion.div
+                key={i}
+                className="absolute rounded-full border"
+                style={{
+                  width: r, height: r,
+                  borderColor: matchFound ? 'rgba(34,197,94,0.35)' : 'rgba(99,102,241,0.25)',
+                }}
+                animate={matchFound
+                  ? { scale: [1, 3.5], opacity: [0.7, 0], transition: { duration: 0.7, delay: i * 0.08 } }
+                  : { scale: [1, 1.18, 1], opacity: [0.55, 0.06, 0.55] }
+                }
+                transition={!matchFound ? { duration: 2.2, repeat: Infinity, delay: i * 0.45 } : undefined}
+              />
+            ))}
+
+            {/* Orbiting workers */}
+            <AnimatePresence>
+              {!matchFound && (
+                <motion.div
+                  exit={{ opacity: 0, scale: 0.5 }}
+                  className="absolute inset-0 flex items-center justify-center"
+                >
+                  {/* Single rotating container so all icons orbit together */}
+                  <motion.div
+                    className="absolute inset-0 flex items-center justify-center"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
+                  >
+                    {[0, 90, 180, 270].map((deg, i) => (
+                      <div
+                        key={i}
+                        className="absolute"
+                        style={{ transform: `rotate(${deg}deg) translateX(125px)` }}
+                      >
+                        {/* Counter-rotate so emoji stays upright */}
+                        <motion.div
+                          animate={{ rotate: -360 }}
+                          transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
+                          className="text-2xl drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]"
+                        >
+                          {i % 2 === 0 ? '🛵' : '🏍️'}
+                        </motion.div>
+                      </div>
+                    ))}
+                  </motion.div>
+
+                  {/* Trailing glow dots on orbit path */}
+                  <motion.div
+                    className="absolute rounded-full border border-indigo-400/20"
+                    style={{ width: 250, height: 250 }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Center service icon */}
+            <motion.div
+              className={`relative z-10 w-20 h-20 rounded-2xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}
+              animate={matchFound
+                ? { scale: [1, 1.25, 1], rotate: [0, 8, -8, 0] }
+                : { scale: [1, 1.05, 1] }
+              }
+              transition={matchFound
+                ? { duration: 0.5 }
+                : { duration: 2, repeat: Infinity }
+              }
+              style={{ boxShadow: `0 0 48px ${meta.accent}55, 0 0 16px ${meta.accent}33` }}
+            >
+              <AnimatePresence mode="wait">
+                {matchFound ? (
+                  <motion.div
+                    key="check"
+                    initial={{ scale: 0, rotate: -30 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                  >
+                    <CheckCircle size={36} className="text-white" strokeWidth={2.5} />
+                  </motion.div>
+                ) : (
+                  <motion.div key="icon">
+                    <ServiceIcon size={32} strokeWidth={2} className="text-white" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </div>
+
+          {/* Status text */}
+          <AnimatePresence mode="wait">
+            {matchFound ? (
+              <motion.div
+                key="found"
+                initial={{ opacity: 0, scale: 0.75, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                className="text-center mt-2 px-6"
+              >
+                <p className="text-2xl font-black text-white mb-1">Worker found! 🎉</p>
+                <p className="text-sm font-semibold text-green-400">On the way to your location…</p>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="searching"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-center mt-2 px-6"
+              >
+                <p className="text-xl font-black text-white">Finding your worker…</p>
+                <p className="text-sm text-white/45 mt-1">
+                  {meta.label} · {nearbyData?.count ? `${nearbyData.count} workers nearby` : 'Scanning nearby workers'}
+                </p>
+                {/* Animated dots */}
+                <div className="flex justify-center gap-2 mt-4">
+                  {[0, 1, 2].map(i => (
+                    <motion.div
+                      key={i}
+                      className="w-2.5 h-2.5 rounded-full bg-indigo-400"
+                      animate={{ opacity: [0.25, 1, 0.25], scale: [0.75, 1.3, 0.75] }}
+                      transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.32 }}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Live status pill */}
+          <AnimatePresence>
+            {!matchFound && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ delay: 0.5 }}
+                className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full ring-1 ring-white/10 mt-2"
+              >
+                <motion.div className="w-1.5 h-1.5 rounded-full bg-green-400"
+                  animate={{ scale: [1, 1.6, 1], opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 0.9, repeat: Infinity }} />
+                <span className="text-[11px] font-bold text-white/70">Matching with nearby workers</span>
+                {liveBoost > 0 && (
+                  <span className="text-[11px] font-black text-orange-400 ml-1">+₹{liveBoost} boost active</span>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        {/* ── Live Boost Bottom Sheet ── */}
+        <AnimatePresence>
+          {!matchFound && (
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320, delay: 1.8 }}
+              className="absolute bottom-0 left-0 right-0 rounded-t-[28px] overflow-hidden"
+              style={{ background: 'rgba(15,18,30,0.97)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              {/* Heat gradient bar at top */}
+              <motion.div
+                className="h-1 w-full rounded-full"
+                animate={{ scaleX: liveBoost > 0 ? 1 : 0.3, opacity: liveBoost > 0 ? 1 : 0.3 }}
+                style={{
+                  transformOrigin: 'left',
+                  background: liveBoost >= 100 ? 'linear-gradient(90deg,#f97316,#ef4444,#dc2626)'
+                    : liveBoost >= 50 ? 'linear-gradient(90deg,#fb923c,#f97316)'
+                    : liveBoost >= 20 ? 'linear-gradient(90deg,#fbbf24,#fb923c)'
+                    : 'rgba(255,255,255,0.15)',
+                }}
+              />
+
+              <div className="px-5 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <motion.div
+                      animate={liveBoost > 0 ? {
+                        rotate: [-8, 8, -6, 6, 0],
+                        scale: [1, 1.2, 1],
+                      } : {}}
+                      transition={{ duration: 0.5 }}
+                    >
+                      <Flame
+                        size={20}
+                        strokeWidth={2}
+                        className={liveBoost >= 100 ? 'text-red-400' : liveBoost >= 50 ? 'text-orange-400' : liveBoost >= 20 ? 'text-amber-400' : 'text-white/30'}
+                      />
+                    </motion.div>
+                    <div>
+                      <p className="text-sm font-black text-white leading-none">
+                        {liveBoost >= 100 ? 'On fire — top priority!' : liveBoost >= 50 ? 'Heating up fast' : liveBoost >= 20 ? 'Boosted' : 'Boost to get matched faster'}
+                      </p>
+                      <p className="text-[10px] text-white/40 mt-0.5">
+                        {liveBoost > 0 ? `₹${liveBoost} tip — workers see your boosted offer` : 'Higher tip → workers prioritise your job'}
+                      </p>
+                    </div>
+                  </div>
+                  {liveBoost > 0 && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full"
+                      style={{ background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.3)' }}
+                    >
+                      <Zap size={11} strokeWidth={2.5} className="text-orange-400" />
+                      <span className="text-[11px] font-black text-orange-400">+₹{liveBoost}</span>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Boost pills */}
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  {[0, 10, 20, 50, 100].map((amt) => {
+                    const active = liveBoost === amt;
+                    const isNone = amt === 0;
+                    return (
+                      <motion.button
+                        key={amt}
+                        onClick={async () => {
+                          setLiveBoost(amt);
+                          if (activeOrderId && amt > 0) {
+                            try {
+                              await sendTip({ orderId: activeOrderId, amountPaise: amt * 100 }).unwrap();
+                              setBoostSent(true);
+                              try { navigator.vibrate?.([30, 20, 60]); } catch {}
+                            } catch { /* best-effort */ }
+                          }
+                        }}
+                        whileTap={{ scale: 0.88 }}
+                        animate={active ? {
+                          scale: [1, 1.12, 1.04],
+                          transition: { type: 'spring', stiffness: 500, damping: 18 },
+                        } : { scale: 1 }}
+                        className="relative h-11 rounded-2xl flex flex-col items-center justify-center font-black text-sm transition-all overflow-hidden"
+                        style={{
+                          background: active
+                            ? (isNone ? 'linear-gradient(135deg,#1e293b,#334155)' : 'linear-gradient(135deg,#ea580c,#f97316)')
+                            : 'rgba(255,255,255,0.06)',
+                          border: active ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                          color: active ? 'white' : 'rgba(255,255,255,0.5)',
+                          boxShadow: active && !isNone ? '0 4px 20px rgba(249,115,22,0.45)' : 'none',
+                        }}
+                      >
+                        {/* Ripple on select */}
+                        {active && (
+                          <motion.div
+                            initial={{ scale: 0, opacity: 0.6 }}
+                            animate={{ scale: 3, opacity: 0 }}
+                            transition={{ duration: 0.5 }}
+                            className="absolute inset-0 rounded-2xl"
+                            style={{ background: isNone ? 'rgba(255,255,255,0.15)' : 'rgba(251,146,60,0.4)' }}
+                          />
+                        )}
+                        <span className="relative z-10 text-[11px] leading-none">
+                          {isNone ? 'None' : `+₹${amt}`}
+                        </span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+
+                {/* Speed indicator */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ background: 'linear-gradient(90deg,#fb923c,#ef4444)' }}
+                      animate={{ width: `${Math.min(100, (liveBoost / 100) * 100)}%` }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-white/40 shrink-0">
+                    {liveBoost >= 100 ? 'Max speed' : liveBoost >= 50 ? 'Fast match' : liveBoost >= 20 ? 'Boosted' : 'Standard'}
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }

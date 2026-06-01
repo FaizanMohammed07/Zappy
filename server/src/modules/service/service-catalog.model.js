@@ -14,7 +14,7 @@ const serviceCatalogSchema = new mongoose.Schema(
     code: { type: String, required: true, unique: true, lowercase: true, index: true },
     name: { type: String, required: true },
     icon: String,
-    category: { type: String, enum: ['vehicle', 'home', 'helper', 'beauty', 'other'], required: true },
+    category: { type: String, enum: ['vehicle', 'home', 'helper', 'beauty', 'mobile', 'construction', 'other'], required: true },
 
     description: String,
     estimatedDurationMinutes: { type: Number, required: true, default: 30 },

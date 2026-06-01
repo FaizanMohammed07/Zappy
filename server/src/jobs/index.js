@@ -1,5 +1,9 @@
 const { Queue, QueueEvents } = require('bullmq');
 const { createBullConnection } = require('../config/redis');
+const EventEmitter = require('events');
+
+// BullMQ's internal Bus attaches many listeners — raise the limit to suppress warning
+EventEmitter.defaultMaxListeners = 25;
 
 const connection = createBullConnection();
 

@@ -16,7 +16,17 @@ const TYPE_OPTIONS = [
   { value: 'loyalty',     label: 'Loyalty Reward' },
 ];
 
-const SERVICES = ['all','electrical','plumbing','ac_repair','carpenter','helper','puncture','cleaning','painting'];
+const SERVICES = [
+  'all',
+  // Home
+  'electrical','plumbing','ac_repair','carpenter','helper','cleaning','painting','delivery','laundry','beauty','gardening','security','appliance','internet',
+  // Mobile
+  'screen_replacement','battery_replacement','charging_issue','speaker_mic_issue','software_issue','water_damage_check',
+  // Construction
+  'mason',
+  // Vehicle
+  'puncture','battery_jump_start','fuel_delivery','bike_wash','car_wash','minor_roadside_repair',
+];
 
 const EMPTY_FORM = {
   code: '', name: '', description: '', type: 'flat',

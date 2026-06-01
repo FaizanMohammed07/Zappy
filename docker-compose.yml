@@ -74,6 +74,21 @@ services:
       redis:
         condition: service_healthy
 
+  stale-order-worker:
+    build: ./server
+    restart: unless-stopped
+    env_file: ./server/.env
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/hyperlocal
+      - REDIS_URL=redis://redis:6379
+    command: ["node", "src/jobs/stale-order.worker.js"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   client:
     build:
       context: ./client

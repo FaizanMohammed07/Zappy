@@ -71,4 +71,56 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-module.exports = { listServices, getService, getInvoice, getWorkerHeatmap };
+/* ── Admin: list all services (incl. inactive) ── */
+async function adminListServices(req, res, next) {
+  try {
+    const services = await ServiceCatalog.find({}).sort({ category: 1, sortOrder: 1, name: 1 }).lean();
+    res.json({ services });
+  } catch (err) { next(err); }
+}
+
+/* ── Admin: update a service's pricing + meta ── */
+async function adminUpdateService(req, res, next) {
+  try {
+    const { code } = req.params;
+    const {
+      name, description,
+      priceRangeMinRs, priceRangeMaxRs,
+      estimatedDurationMinutes,
+      isActive,
+    } = req.body;
+
+    const update = {};
+    if (name                    != null) update.name = name;
+    if (description             != null) update.description = description;
+    if (priceRangeMinRs         != null) update.priceRangeMinPaise = Math.round(Number(priceRangeMinRs) * 100);
+    if (priceRangeMaxRs         != null) update.priceRangeMaxPaise = Math.round(Number(priceRangeMaxRs) * 100);
+    if (estimatedDurationMinutes != null) update.estimatedDurationMinutes = Number(estimatedDurationMinutes);
+    if (isActive                != null) update.isActive = Boolean(isActive);
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const svc = await ServiceCatalog.findOneAndUpdate(
+      { code: code.toLowerCase() },
+      { $set: update },
+      { new: true }
+    ).lean();
+    if (!svc) return res.status(404).json({ error: 'Service not found' });
+    res.json({ service: svc });
+  } catch (err) { next(err); }
+}
+
+async function adminServiceActiveOrderCount(req, res, next) {
+  try {
+    const Order = require('../order/order.model');
+    const count = await Order.countDocuments({
+      service: req.params.code.toLowerCase(),
+      status: { $in: ['created', 'searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'] },
+    });
+    res.json({ code: req.params.code, activeOrderCount: count });
+  } catch (err) { next(err); }
+}
+
+module.exports = { listServices, getService, getInvoice, getWorkerHeatmap, adminListServices, adminUpdateService, adminServiceActiveOrderCount };

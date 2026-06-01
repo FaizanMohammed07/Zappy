@@ -4,12 +4,14 @@ const ctrl = require('./dispute.controller');
 const Dispute = require('./dispute.model');
 const { authenticate, requireRole } = require('../../middlewares/auth');
 const { validate } = require('../../middlewares/validate');
+const { disputeLimiter } = require('../../middlewares/rateLimit');
 
 const router = express.Router();
 
 router.post(
   '/',
   authenticate,
+  disputeLimiter,
   validate(Joi.object({
     orderId: Joi.string().hex().length(24).required(),
     category: Joi.string().valid(...Dispute.CATEGORIES).required(),

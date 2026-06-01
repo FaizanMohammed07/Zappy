@@ -1,24 +1,51 @@
 /**
- * Sanitize request inputs against NoSQL operator injection.
- *
- * Without this, a JSON body like { "phone": { "$gt": "" } } can turn
- * User.findOne({ phone }) into a "find any user" query.
- *
- * We strip keys starting with '$' and keys containing '.' (dotted path traversal)
- * from body, query, and params. This is safer than replacing the characters —
- * legitimate client code never sends these keys.
+ * Sanitize request inputs against:
+ *   1. NoSQL operator injection — strip keys starting with '$' or containing '.'
+ *   2. Prototype pollution — strip __proto__, constructor, prototype keys (#76)
+ *   3. HTML/script injection — strip HTML tags from user-facing text fields
+ *   4. Excessive nesting — cap recursion depth to prevent DoS via deeply nested JSON
  */
 
 const FORBIDDEN_KEY = /^\$|\./;
 
-function sanitize(obj) {
+// Prototype pollution vectors — must never appear as object keys.
+const PROTOTYPE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+const MAX_DEPTH = 15; // reject objects nested deeper than 15 levels
+
+// Fields whose string values should be HTML-stripped.
+const HTML_STRIP_FIELDS = new Set([
+  'description', 'review', 'reason', 'name', 'address', 'landmark',
+  'flatNumber', 'notes', 'unitDetails', 'caption', 'text', 'message',
+  'subject', 'body', 'title', 'content',
+]);
+
+const HTML_TAG_RE = /<[^>]*>/g;
+
+function stripHtml(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(HTML_TAG_RE, '').trim();
+}
+
+function sanitize(obj, depth = 0) {
   if (!obj || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(sanitize);
+  // Depth cap — reject bomb payloads silently (#76)
+  if (depth > MAX_DEPTH) return {};
+  if (Array.isArray(obj)) return obj.map((v) => sanitize(v, depth + 1));
 
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
+    // Block NoSQL operators
     if (FORBIDDEN_KEY.test(k)) continue;
-    out[k] = v && typeof v === 'object' ? sanitize(v) : v;
+    // Block prototype pollution (#76)
+    if (PROTOTYPE_KEYS.has(k)) continue;
+    if (typeof v === 'string' && HTML_STRIP_FIELDS.has(k)) {
+      out[k] = stripHtml(v);
+    } else if (v && typeof v === 'object') {
+      out[k] = sanitize(v, depth + 1);
+    } else {
+      out[k] = v;
+    }
   }
   return out;
 }

@@ -1,0 +1,53 @@
+{
+  "lastScanned": "2026-05-20",
+  "implementationStatus": "COMPLETE",
+  "stack": {
+    "backend": "Node.js + Express + Mongoose + Redis (ioredis) + BullMQ + Socket.io",
+    "frontend": "React 18 + Vite + Redux Toolkit + RTK Query + Tailwind CSS + Framer Motion",
+    "database": "MongoDB Atlas",
+    "infra": ["AWS S3", "Google Maps", "Razorpay", "Firebase FCM", "Redis Cloud"]
+  },
+  "appBoundaries": {
+    "userApp": "port 5173, routes: / /home /services /book/:service /orders /profile /wallet /plans",
+    "workerApp": "port 5173, routes: /worker /worker/jobs/:id /worker/kyc",
+    "adminPanel": "port 5173, route: /{ADMIN_LOGIN_SLUG}/dashboard",
+    "apiServer": "port 4000"
+  },
+  "services": {
+    "original": ["puncture", "plumbing", "electrical", "helper", "carpenter", "ac_repair", "cleaning", "painting"],
+    "mobile": ["screen_replacement", "battery_replacement", "charging_issue", "speaker_mic_issue", "software_issue", "water_damage_check"],
+    "construction": ["mason", "electrician (=electrical)", "plumber (=plumbing)", "carpenter (existing)", "painter (=painting)"],
+    "vehicle": ["battery_jump_start", "fuel_delivery", "bike_wash", "car_wash", "minor_roadside_repair", "puncture (existing)"]
+  },
+  "verticalPricingRoutes": {
+    "getAll":        "GET /{slug}/verticals",
+    "getOne":        "GET /{slug}/verticals/:vertical",
+    "update":        "PUT /{slug}/verticals/:vertical",
+    "addSparePart":  "POST /{slug}/verticals/mobile/spare-parts",
+    "editSparePart": "PATCH /{slug}/verticals/mobile/spare-parts/:id",
+    "removePart":    "DELETE /{slug}/verticals/mobile/spare-parts/:id"
+  },
+  "newOrderFields": {
+    "deviceBrand":   "enum [Apple,Samsung,OnePlus,Xiaomi,Vivo,Oppo,Others] — mobile only",
+    "deviceModel":   "String — mobile only (e.g. iPhone 15 Pro)",
+    "serviceMode":   "enum [doorstep,pickup] — mobile only",
+    "vehicleType":   "enum [bike,scooter,car] — vehicle only",
+    "pricingModel":  "enum [standard,hourly,project] — construction only",
+    "estimatedHours":"Number — construction hourly only"
+  },
+  "pricingRouting": {
+    "mobile services":       "calculateMobilePrice() — inspection + labor + spare parts + urgent surcharge",
+    "mason":                 "calculateConstructionPrice() — visit + hourly/project + urgent %",
+    "vehicle services":      "calculateVehiclePrice() — base visit + distance + emergency + night surcharge",
+    "standard services":     "calculatePrice() — base + distance + time + platform × surge"
+  },
+  "adminPanel": {
+    "newTab": "Service Verticals (Layers icon) → Services.jsx",
+    "tabs": ["mobile (spare parts + fees)", "construction (visit/hourly/markup)", "vehicle (visit/distance/emergency/night)"]
+  },
+  "seeded": {
+    "serviceCatalog": 12,
+    "verticalConfigs": 3,
+    "spareParts": 18
+  }
+}

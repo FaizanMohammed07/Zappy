@@ -149,7 +149,8 @@
   }
 
   .btn-icon {
-    @apply inline-flex items-center justify-center rounded-xl w-10 h-10 cursor-pointer
+    /* 44×44px minimum touch target (WCAG 2.5.5 / Apple HIG). Was 40×40. (#68) */
+    @apply inline-flex items-center justify-center rounded-xl w-11 h-11 cursor-pointer
            transition-all duration-200 ease-out
            active:scale-95 hover:brightness-95;
     will-change: transform;
@@ -239,7 +240,8 @@
   }
 
   .bottom-nav-item {
-    @apply flex flex-col items-center justify-center gap-1 py-1 rounded-xl
+    /* min-h-[44px] ensures the tap target meets the 44px WCAG minimum. (#68) */
+    @apply flex flex-col items-center justify-center gap-1 py-2 min-h-[44px] rounded-xl
            text-[10px] font-semibold text-slate-400 tracking-wide
            transition-all duration-200 ease-out
            hover:text-slate-600 hover:bg-slate-50
@@ -284,6 +286,34 @@
   /* ---- Safe padding ---- */
   .safe-pb {
     padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Tablet landscape: constrain single-column content width (#69) ─────────
+   At 768–1024px in landscape, a full-width single-column layout stretches
+   uncomfortably wide. Cap content and centre it, like the desktop layout. */
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) {
+  .page-container,
+  .max-w-lg {
+    max-width: 640px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
+/* ── prefers-reduced-motion: disable CSS keyframe animations (#67) ──────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton {
+    animation: none;
+    background: #E2E8F0;
   }
 }
 

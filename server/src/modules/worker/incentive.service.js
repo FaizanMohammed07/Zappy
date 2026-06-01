@@ -60,18 +60,58 @@ async function getRatingBonusConfig() {
   try { return { ...DEFAULT_RATING_BONUS, ...JSON.parse(raw) }; } catch { return DEFAULT_RATING_BONUS; }
 }
 
+// Minimum lifetime rating required to receive milestone bonuses.
+// Workers who game fake completions tend to get poor ratings or no ratings.
+// Below this threshold, milestones are deferred until rating improves.
+const MILESTONE_MIN_RATING = 3.5;
+
+// Minimum number of rated jobs before the milestone unlocks.
+// Prevents fresh accounts with 0 ratings (all fake completions) from collecting.
+const MILESTONE_MIN_RATED_JOBS = 3;
+
 /**
  * Called from order.service.workerComplete (best-effort, non-blocking).
  * Checks if the worker just hit a milestone and credits if so.
  *
+ * Quality gate: milestone only credits if worker's lifetime rating >= 3.5
+ * and they have at least 3 rated jobs. This blocks bonus farming via
+ * 60-second fake completions (which receive no user rating or 1-star ratings).
+ *
  * @param {object} p
  * @param {ObjectId} p.workerId
- * @param {number}   p.completedJobs  Worker's new total (post-increment)
+ * @param {number}   p.completedJobs   Worker's new total (post-increment)
+ * @param {number}   [p.workerRating]  Worker's current rolling rating
+ * @param {string}   [p.orderId]       For logging
  */
-async function onJobCompleted({ workerId, completedJobs }) {
+async function onJobCompleted({ workerId, completedJobs, workerRating, orderId }) {
   const milestones = await getMilestones();
   const hit = milestones.find((m) => m.jobs === completedJobs);
   if (!hit) return null;
+
+  // Quality gate — defer milestone if rating is too low or too few rated jobs.
+  // Use a deferred-milestone Redis key so if rating improves later, the milestone
+  // can still be claimed (admin triggers the sweep).
+  if (workerRating != null && workerRating < MILESTONE_MIN_RATING) {
+    await redis.set(
+      `incentive:deferred:${workerId}:${hit.jobs}`,
+      JSON.stringify({ jobs: hit.jobs, bonusPaise: hit.bonusPaise, deferredAt: new Date().toISOString() }),
+      'EX', 90 * 86400 // hold for 90 days
+    );
+    logger.warn(
+      { workerId, milestone: hit.jobs, workerRating, orderId },
+      'Milestone deferred — worker rating below threshold'
+    );
+    // Notify worker so they understand why they didn't get the bonus
+    notificationService.notify({
+      recipient: { kind: 'worker', id: workerId },
+      type: 'account_warning',
+      title: `Milestone #${hit.jobs} pending`,
+      body: `Your ₹${hit.bonusPaise / 100} milestone bonus is held until your rating reaches ${MILESTONE_MIN_RATING}. Currently: ${workerRating.toFixed(1)}`,
+      deepLink: '/worker',
+      data: { milestone: hit.jobs },
+    }).catch(() => {});
+    return null;
+  }
 
   const idempotencyKey = `incentive:milestone:${workerId}:${hit.jobs}`;
 

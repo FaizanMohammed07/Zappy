@@ -153,16 +153,26 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
   ]);
 
   // WORKER_PRO subscription effects — Pro workers get a score boost so they
-  // surface higher on equal-distance ties. Reads cached subscription data,
-  // so this batched lookup is cheap.
+  // surface higher on equal-distance ties.
+  // Cached in Redis with a 60s TTL so 100 concurrent dispatches in the same
+  // zone don't each issue N individual lookups (#61/#64).
   const subscriptionService = require('../subscription/subscription.service');
-  const proBoosts = await Promise.all(
+  const boostEntries = await Promise.all(
     ids.map(async (id) => {
-      const effects = await subscriptionService.getEffects({ kind: 'worker', id });
-      return [id, Number(effects.proBoost) || 0];
+      const cacheKey = `geo:sub:boost:${id}`;
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached !== null) return [id, Number(cached)];
+        const fx = await subscriptionService.getEffects({ kind: 'worker', id });
+        const boost = Number(fx.proBoost) || 0;
+        await redis.set(cacheKey, String(boost), 'EX', 60); // 60s TTL
+        return [id, boost];
+      } catch {
+        return [id, 0];
+      }
     })
   );
-  const boostMap = new Map(proBoosts);
+  const boostMap = new Map(boostEntries);
 
   const ratingMap = new Map(ratings.map((r) => [String(r._id), r]));
   const scored = filtered
@@ -184,11 +194,24 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
 
       // Score: lower is better. Distance dominates, rating tie-breaks, Pro boost
       // subtracts, penalty history adds (degrades rank).
+      //
+      // Fairness jitter: when workers are at the same location (distanceKm < 0.05,
+      // e.g. 500 workers in a warehouse or same pin), pure distance gives no
+      // differentiation and the same top-N are always notified first.
+      // We inject a small random perturbation (±0.05, max ~5% of a 1-star rating
+      // difference) so the broadcast rotates across the equal-distance pool.
+      // High-penalty workers are still reliably pushed to the back.
+      const SAME_LOCATION_THRESHOLD_KM = 0.05;
+      const fairnessJitter = f.distanceKm < SAME_LOCATION_THRESHOLD_KM
+        ? (Math.random() - 0.5) * 0.1
+        : 0;
+
       const score = f.distanceKm * 10
         - (w.rating || 0) * 0.5
         - Math.log1p(w.completedJobs) * 0.1
         - proBoost
-        + penaltyScore;
+        + penaltyScore
+        + fairnessJitter;
       return { ...f, score };
     })
     .sort((a, b) => a.score - b.score);

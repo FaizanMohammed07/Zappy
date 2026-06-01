@@ -7,6 +7,7 @@ const { validate } = require('../../middlewares/validate');
 const router = express.Router();
 
 router.get('/', ctrl.getConfig);
+router.get('/surge-info', authenticate, ctrl.getSurgeInfo);
 
 module.exports = router;
 

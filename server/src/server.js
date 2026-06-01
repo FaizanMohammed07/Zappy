@@ -7,8 +7,54 @@ const { initSockets } = require('./sockets');
 const { ensureAdminSeeded } = require('./modules/admin/admin.seed');
 const { seedPlans } = require('./modules/subscription/plan.seed');
 
+/**
+ * Startup reconciliation: reset workers who are marked unavailable but whose
+ * current order has already reached a terminal state (completed/cancelled/failed).
+ * This handles crashes or restarts that left worker state inconsistent.
+ */
+async function reconcileWorkers() {
+  try {
+    const Worker = require('./modules/worker/worker.model');
+    const Order = require('./modules/order/order.model');
+    const geoService = require('./modules/worker/geo.service');
+
+    const TERMINAL_STATUSES = ['completed', 'cancelled', 'failed'];
+
+    const stuckWorkers = await Worker.find({
+      isAvailable: false,
+      currentOrderId: { $ne: null },
+    }).select('_id currentOrderId').lean();
+
+    if (stuckWorkers.length === 0) {
+      logger.info('[RECONCILE] No stuck workers found');
+      return;
+    }
+
+    logger.info({ count: stuckWorkers.length }, '[RECONCILE] Checking stuck workers');
+
+    let resetCount = 0;
+    for (const worker of stuckWorkers) {
+      const order = await Order.findById(worker.currentOrderId).select('status').lean();
+      if (!order || TERMINAL_STATUSES.includes(order.status)) {
+        await Worker.updateOne(
+          { _id: worker._id },
+          { $set: { isAvailable: true, currentOrderId: null } },
+        );
+        await geoService.setAvailability(String(worker._id), true);
+        resetCount++;
+        logger.info({ workerId: worker._id, orderId: worker.currentOrderId, orderStatus: order?.status || 'missing' }, '[RECONCILE] Worker reset');
+      }
+    }
+
+    logger.info({ checked: stuckWorkers.length, reset: resetCount }, '[RECONCILE] Worker reconciliation complete');
+  } catch (err) {
+    logger.error({ err: err.message }, '[RECONCILE] Worker reconciliation failed — continuing startup');
+  }
+}
+
 async function start() {
   await connectMongo();
+  await reconcileWorkers();
   await ensureAdminSeeded();
   await seedPlans();
 

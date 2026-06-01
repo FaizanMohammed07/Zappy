@@ -6,19 +6,25 @@ import {
   ArrowLeft, Phone, MessageCircle, Star, CheckCircle,
   Clock, MapPin, AlertCircle, Loader2, ShieldCheck, RefreshCw,
   Zap, X, ChevronRight, AlertTriangle, Wallet, HeadphonesIcon, FileText,
+  Repeat2, Flame,
 } from 'lucide-react';
-import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation } from '../services/api';
-import { useOrderSocket } from '../hooks/useSocket';
+import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery, useSendTipMutation } from '../services/api';
+import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
 import { selectOrder, setActiveOrder } from '../modules/order/orderSlice';
 import { selectAuth } from '../modules/auth/authSlice';
 import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
 import PageTransition from '../components/common/PageTransition';
 import MicroStatusPanel from '../components/tracking/MicroStatusPanel';
+import TipCard from '../components/tracking/TipCard';
+import PriceRevisionCard from '../components/tracking/PriceRevisionCard';
+import WarrantyCard from '../components/tracking/WarrantyCard';
 import SmartMatchSheet from '../components/tracking/SmartMatchSheet';
 import ETABanner from '../components/tracking/ETABanner';
 import QuickRebook from '../components/tracking/QuickRebook';
 import { staggerContainer, fadeInUp } from '../lib/animations';
 import toast from 'react-hot-toast';
+import CashbackCelebration from '../components/rewards/CashbackCelebration';
+import { useGetWalletQuery } from '../services/api';
 
 const CANCEL_REASONS = [
   { id: 'changed_mind',      label: 'Changed my mind' },
@@ -47,11 +53,16 @@ export default function OrderTrackingPage() {
   const { data, isLoading, refetch } = useGetOrderQuery(id, { pollingInterval: 10000 });
   const [cancelOrder, { isLoading: cancelling }] = useCancelOrderMutation();
   const [rateOrder] = useRateOrderMutation();
+  const [sendTip] = useSendTipMutation();
+  const [liveBoost, setLiveBoost]             = useState(0);
   const [showCancel, setShowCancel]           = useState(false);
   const [cancelReason, setCancelReason]       = useState('');
   const [showMatchSheet, setShowMatchSheet]   = useState(false);
+  const [cashbackPop, setCashbackPop]         = useState(null); // { amountPaise }
+  const completionShownRef = useRef(false);
   const matchShownRef = useRef(false);
   const liveOrder = useSelector(selectOrder);
+  const { data: walletData } = useGetWalletQuery();
 
   // Fetch cancel fee preview whenever cancel sheet is open
   const { data: cancelPreview, isFetching: previewLoading } = useGetCancelPreviewQuery(id, {
@@ -66,10 +77,36 @@ export default function OrderTrackingPage() {
   }, [order?._id, dispatch]); // eslint-disable-line
 
   useOrderSocket(order?._id);
+  const socketStatus = useSocketStatus();
 
   const status = liveOrder.activeOrderId === order?._id
     ? liveOrder.status || order?.status
     : order?.status;
+
+  // Price revision — poll during in_progress / arrived (status is now defined)
+  const { data: revisionData } = useGetPriceRevisionQuery(id, {
+    skip: !['in_progress', 'arrived'].includes(status),
+    pollingInterval: 5000,
+  });
+  const pendingRevision = revisionData?.revision;
+
+  /* Show cashback celebration once when order first hits 'completed' */
+  useEffect(() => {
+    if (status === 'completed' && order?._id && !completionShownRef.current) {
+      completionShownRef.current = true;
+      // Small delay so the order UI settles first
+      const t = setTimeout(() => {
+        const total = order?.pricing?.total || 0;
+        // Estimate cashback: 5% of order total (server decides exact amount,
+        // but showing the approximation gives immediate delight)
+        const estimated = Math.round(total * 5); // 5% in paise (total is in rupees)
+        if (estimated >= 100) { // only show if ≥ ₹1
+          setCashbackPop({ amountPaise: estimated });
+        }
+      }, 1200);
+      return () => clearTimeout(t);
+    }
+  }, [status, order?._id]); // eslint-disable-line
 
   /* Show SmartMatchSheet exactly once when worker first assigned */
   useEffect(() => {
@@ -152,7 +189,37 @@ export default function OrderTrackingPage() {
 
   return (
     <PageTransition>
+    {/* Cashback celebration popup — fires once after order completes */}
+    {cashbackPop && (
+      <CashbackCelebration
+        amountPaise={cashbackPop.amountPaise}
+        totalEarnedPaise={walletData?.wallet?.lifetimeCreditedPaise}
+        onClose={() => setCashbackPop(null)}
+      />
+    )}
     <div className="min-h-screen pb-28" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
+
+      {/* Socket degraded banner — shown when live updates are interrupted */}
+      <AnimatePresence>
+        {socketStatus !== 'connected' && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold ${
+              socketStatus === 'offline' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'
+            }`}>
+              <Loader2 size={12} className="animate-spin shrink-0" />
+              {socketStatus === 'offline'
+                ? 'Live updates unavailable — showing last known state'
+                : 'Reconnecting live updates…'}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Premium header */}
       <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
@@ -196,6 +263,149 @@ export default function OrderTrackingPage() {
               transition={{ duration: 0.25 }}
             >
               <MicroStatusPanel active liveMessage={liveOrder.dispatchMessage} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Live Boost card — shown while searching ─────────────────── */}
+        <AnimatePresence>
+          {['created', 'searching'].includes(status) && (
+            <motion.div
+              key="boost-card"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ delay: 0.5, type: 'spring', damping: 22, stiffness: 280 }}
+              className="rounded-2xl overflow-hidden"
+              style={{ background: 'linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%)', boxShadow: '0 8px 32px rgba(15,23,42,0.18)' }}
+            >
+              {/* Heat bar */}
+              <motion.div
+                className="h-1"
+                animate={{ scaleX: liveBoost > 0 ? 1 : 0.25 }}
+                style={{
+                  transformOrigin: 'left',
+                  background: liveBoost >= 100 ? 'linear-gradient(90deg,#f97316,#ef4444)'
+                    : liveBoost >= 50 ? 'linear-gradient(90deg,#fb923c,#f97316)'
+                    : liveBoost >= 10 ? 'linear-gradient(90deg,#fbbf24,#fb923c)'
+                    : 'rgba(255,255,255,0.08)',
+                }}
+              />
+
+              <div className="px-4 pt-4 pb-5">
+                {/* Header row */}
+                <div className="flex items-center justify-between mb-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <motion.div
+                      key={liveBoost}
+                      animate={liveBoost > 0 ? { rotate: [-10, 10, -6, 6, 0], scale: [1, 1.3, 1] } : {}}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <Flame
+                        size={18} strokeWidth={2}
+                        className={liveBoost >= 100 ? 'text-red-400' : liveBoost >= 50 ? 'text-orange-400' : liveBoost >= 10 ? 'text-amber-400' : 'text-white/25'}
+                      />
+                    </motion.div>
+                    <div>
+                      <p className="text-sm font-black text-white leading-tight">
+                        {liveBoost >= 100 ? 'On fire — top priority!' : liveBoost >= 50 ? 'Heating up fast' : liveBoost > 0 ? 'Boosted' : 'Boost to get matched faster'}
+                      </p>
+                      <p className="text-[10px] text-white/40 mt-0.5">
+                        {liveBoost > 0 ? `Workers see +₹${liveBoost} on your offer` : 'Tip a worker to jump the queue'}
+                      </p>
+                    </div>
+                  </div>
+                  <AnimatePresence mode="wait">
+                    {liveBoost > 0 && (
+                      <motion.div
+                        key={liveBoost}
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full"
+                        style={{ background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.3)' }}
+                      >
+                        <Zap size={10} strokeWidth={2.5} className="text-orange-400" />
+                        <span className="text-[11px] font-black text-orange-400">+₹{liveBoost}</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Boost amount pills */}
+                <div className="grid grid-cols-5 gap-2 mb-3.5">
+                  {[0, 10, 20, 50, 100].map((amt) => {
+                    const active = liveBoost === amt;
+                    const isNone = amt === 0;
+                    return (
+                      <motion.button
+                        key={amt}
+                        onClick={async () => {
+                          const prev = liveBoost;
+                          setLiveBoost(amt);
+                          if (amt > 0) {
+                            try {
+                              await sendTip({ orderId: id, amountPaise: amt * 100 }).unwrap();
+                              try { navigator.vibrate?.([40, 30, 80, 30, 120]); } catch {}
+                              // Crazy confirmation toast
+                              const msgs = [
+                                `+₹${amt} boost sent! Workers are seeing your higher offer now`,
+                                `Your offer just jumped to ₹${(order?.pricing?.total || 0) + amt} — workers will race to accept!`,
+                                amt >= 100
+                                  ? `Max boost! You're #1 priority in the queue`
+                                  : amt >= 50
+                                  ? `Hot offer! Nearby workers just got notified of your boost`
+                                  : `Boosted! Workers who ignored you may now accept`,
+                              ];
+                              toast.success(msgs[Math.floor(Math.random() * msgs.length)], {
+                                duration: 3500,
+                                style: { background: '#0f172a', color: '#fb923c', fontWeight: 700, border: '1px solid rgba(251,146,60,0.3)' },
+                                icon: amt >= 50 ? '🔥' : '⚡',
+                              });
+                            } catch { /* best-effort */ }
+                          }
+                        }}
+                        whileTap={{ scale: 0.85 }}
+                        animate={active ? { scale: [1, 1.13, 1.04], transition: { type: 'spring', stiffness: 500, damping: 18 } } : { scale: 1 }}
+                        className="relative h-11 rounded-2xl flex items-center justify-center font-black text-[12px] overflow-hidden"
+                        style={{
+                          background: active ? (isNone ? 'linear-gradient(135deg,#334155,#1e293b)' : 'linear-gradient(135deg,#c2410c,#f97316)') : 'rgba(255,255,255,0.07)',
+                          border: active ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                          color: active ? 'white' : 'rgba(255,255,255,0.45)',
+                          boxShadow: active && !isNone ? '0 4px 18px rgba(249,115,22,0.45)' : 'none',
+                        }}
+                      >
+                        {active && (
+                          <motion.div
+                            initial={{ scale: 0, opacity: 0.7 }}
+                            animate={{ scale: 3, opacity: 0 }}
+                            transition={{ duration: 0.5 }}
+                            className="absolute inset-0 rounded-2xl"
+                            style={{ background: isNone ? 'rgba(255,255,255,0.12)' : 'rgba(251,146,60,0.35)' }}
+                          />
+                        )}
+                        <span className="relative z-10">{isNone ? 'None' : `+₹${amt}`}</span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+
+                {/* Speed bar */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ background: 'linear-gradient(90deg,#fb923c,#ef4444)' }}
+                      animate={{ width: `${Math.min(100, liveBoost)}%` }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-white/35 shrink-0 w-20 text-right">
+                    {liveBoost >= 100 ? 'Max speed' : liveBoost >= 50 ? 'Fast match' : liveBoost >= 10 ? 'Boosted' : 'Standard speed'}
+                  </span>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -469,6 +679,60 @@ export default function OrderTrackingPage() {
               <HeadphonesIcon size={15} strokeWidth={2} className="text-violet-600" />
               Get Help
             </button>
+          </motion.div>
+        )}
+
+        {/* Book Same Worker Again — shown after completion when a worker exists */}
+        {status === 'completed' && order.workerId && (
+          <motion.div variants={fadeInUp}>
+            <motion.button
+              onClick={() => nav(`/book/${order.service}?preferredWorker=${order.workerId}`)}
+              whileTap={{ scale: 0.97 }}
+              className="w-full h-14 rounded-2xl text-white font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-lg"
+              style={{
+                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
+              }}
+            >
+              <Repeat2 size={18} strokeWidth={2.5} />
+              Book {order.workerName ? order.workerName.split(' ')[0] : 'Same Worker'} Again
+            </motion.button>
+          </motion.div>
+        )}
+
+        {/* Price Revision Alert — shown during in_progress when worker requests */}
+        {pendingRevision && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0 }}
+          >
+            <PriceRevisionCard
+              revision={{ ...pendingRevision, orderId: id }}
+              onResolved={() => refetch()}
+            />
+          </motion.div>
+        )}
+
+        {/* Warranty card — shown after completion */}
+        {status === 'completed' && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <WarrantyCard orderId={id} />
+          </motion.div>
+        )}
+
+        {/* Tip card — shown after completion */}
+        {status === 'completed' && !order.userRating && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <TipCard orderId={id} onDone={refetch} />
           </motion.div>
         )}
 

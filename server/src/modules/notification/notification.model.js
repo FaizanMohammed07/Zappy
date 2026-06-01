@@ -12,6 +12,7 @@ const mongoose = require('mongoose');
  */
 
 const TYPES = [
+  // Order lifecycle
   'order_placed',
   'worker_assigned',
   'worker_on_the_way',
@@ -21,16 +22,27 @@ const TYPES = [
   'order_cancelled',
   'order_failed',
   'rating_request',
+  // Worker safety + special events
+  'worker_wellness',
+  'worker_sos',
+  // Trust / reporting
+  'report_received',
+  // Subscriptions + wallet
   'subscription_activated',
   'subscription_expiring',
   'wallet_credited',
   'cashback_received',
   'referral_reward',
+  // KYC
   'kyc_approved',
   'kyc_rejected',
+  'kyc_suspended',
+  // Disputes + support
   'dispute_response',
   'chat_message',
+  // Platform-wide
   'promotional',
+  'system_alert',
 ];
 
 const notificationSchema = new mongoose.Schema(

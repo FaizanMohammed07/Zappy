@@ -4,9 +4,9 @@
  */
 require('dotenv').config();
 const { connectMongo } = require('../src/config/mongo');
-const User = require('../src/models/User');
-const Worker = require('../src/models/Worker');
-const geoService = require('../src/services/geo.service');
+const User = require('../src/modules/user/user.model');
+const Worker = require('../src/modules/worker/worker.model');
+const geoService = require('../src/modules/worker/geo.service');
 const { signToken } = require('../src/modules/auth/auth.service');
 
 const CENTER = { lat: 17.4485, lng: 78.3908 }; // HITEC City
@@ -63,7 +63,8 @@ function jitter(coord, radiusKm = 3) {
       { upsert: true, new: true }
     );
     workers.push(w);
-    await geoService.markOnline(w);
+    // Register worker in Redis geo index so dispatch can find them
+    await geoService.markOnline(w).catch(() => {});
   }
 
   // Print tokens for quick API testing

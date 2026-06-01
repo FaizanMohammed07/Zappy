@@ -1,55 +1,386 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Navigation, MapPin, FileText, BadgeIndianRupee,
   KeyRound, Loader2, CheckCircle2, MessageCircle, Phone, Image as ImageIcon,
-  Camera, X, Upload, CheckCircle,
+  Camera, X, CheckCircle, Zap, AlertCircle, Timer, TimerOff, Play, Pause,
+  ClipboardCheck, ShieldCheck, Car, Wrench,
 } from 'lucide-react';
 import {
   useGetOrderQuery,
   useWorkerStartTripMutation, useWorkerArriveMutation,
   useWorkerStartServiceMutation, useWorkerCompleteMutation,
   usePresignUploadMutation,
+  useGetConstructionTimerQuery,
+  useStartConstructionTimerMutation,
+  usePauseConstructionTimerMutation,
+  useResumeConstructionTimerMutation,
+  useStopConstructionTimerMutation,
+  useGetPhoneHealthReportQuery,
+  useSubmitPhoneHealthReportMutation,
+  useGetVehicleHealthReportQuery,
+  useSubmitVehicleHealthReportMutation,
+  useWorkerReportNoResponseMutation,
+  useWorkerReportPartUnavailableMutation,
 } from '../services/api';
-import { useOrderSocket } from '../hooks/useSocket';
+import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { selectOrder } from '../modules/order/orderSlice';
 import { selectAuth } from '../modules/auth/authSlice';
 import { getSocket } from '../services/socket';
 import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
+import SOSButton from '../components/worker/SOSButton';
+import ServiceChecklistPanel from '../components/worker/ServiceChecklistPanel';
 import toast from 'react-hot-toast';
 
 const STATUS_CONFIG = {
-  assigned:    { label: 'Assigned',     cls: 'chip-blue'    },
-  on_the_way:  { label: 'On the Way',   cls: 'chip-blue'    },
-  arrived:     { label: 'Arrived',      cls: 'chip-accent'  },
-  in_progress: { label: 'In Progress',  cls: 'chip-success' },
-  completed:   { label: 'Completed',    cls: 'chip-success' },
-  cancelled:   { label: 'Cancelled',    cls: 'chip-red'     },
+  assigned:    { label: 'Assigned',    color: 'bg-blue-500/15 text-blue-300 ring-blue-500/30',    dot: 'bg-blue-400'    },
+  on_the_way:  { label: 'On the Way', color: 'bg-indigo-500/15 text-indigo-300 ring-indigo-500/30', dot: 'bg-indigo-400' },
+  arrived:     { label: 'Arrived',    color: 'bg-amber-500/15 text-amber-300 ring-amber-500/30',   dot: 'bg-amber-400'  },
+  in_progress: { label: 'In Progress',color: 'bg-green-500/15 text-green-300 ring-green-500/30',   dot: 'bg-green-400'  },
+  completed:   { label: 'Completed',  color: 'bg-green-500/15 text-green-300 ring-green-500/30',   dot: 'bg-green-400'  },
+  cancelled:   { label: 'Cancelled',  color: 'bg-red-500/15 text-red-300 ring-red-500/30',         dot: 'bg-red-400'    },
 };
 
 const ACTIVE_STATUSES = new Set(['assigned', 'on_the_way', 'arrived', 'in_progress']);
+
+const PHONE_SERVICES = new Set(['screen_replacement', 'battery_replacement', 'charging_issue', 'speaker_mic_issue', 'software_issue', 'water_damage_check']);
+const VEHICLE_SERVICES = new Set(['puncture', 'battery_jump_start', 'fuel_delivery', 'bike_wash', 'car_wash', 'minor_roadside_repair']);
+const CONSTRUCTION_SERVICES = new Set(['mason', 'plumbing', 'electrical', 'carpenter', 'painting']);
+
+/* ── Construction Timer Panel ── */
+function ConstructionTimerPanel({ orderId }) {
+  const { data: timerData, refetch } = useGetConstructionTimerQuery(orderId, { pollingInterval: 5000 });
+  const [startTimer,  { isLoading: starting }]  = useStartConstructionTimerMutation();
+  const [pauseTimer,  { isLoading: pausing }]   = usePauseConstructionTimerMutation();
+  const [resumeTimer, { isLoading: resuming }]  = useResumeConstructionTimerMutation();
+  const [stopTimer,   { isLoading: stopping }]  = useStopConstructionTimerMutation();
+
+  const timer = timerData?.timer;
+
+  async function handleStart() {
+    try { await startTimer({ orderId }).unwrap(); refetch(); toast.success('Timer started'); }
+    catch (err) { toast.error(err.data?.error || 'Failed to start timer'); }
+  }
+  async function handlePause() {
+    try { await pauseTimer({ orderId }).unwrap(); refetch(); }
+    catch (err) { toast.error(err.data?.error || 'Failed'); }
+  }
+  async function handleResume() {
+    try { await resumeTimer({ orderId }).unwrap(); refetch(); }
+    catch (err) { toast.error(err.data?.error || 'Failed'); }
+  }
+  async function handleStop() {
+    if (!window.confirm('Stop the billing timer? Customer will be charged for elapsed time.')) return;
+    try { await stopTimer({ orderId }).unwrap(); refetch(); toast.success('Timer stopped'); }
+    catch (err) { toast.error(err.data?.error || 'Failed'); }
+  }
+
+  const isRunning = timer?.status === 'running';
+  const isPaused  = timer?.status === 'paused';
+  const isStopped = timer?.status === 'stopped';
+
+  return (
+    <div className="card ring-1 ring-blue-100 bg-blue-50 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center">
+          <Timer size={14} strokeWidth={2} className="text-blue-700" />
+        </div>
+        <div className="flex-1">
+          <p className="text-xs font-extrabold text-blue-900 uppercase tracking-wide">Hourly Job Timer</p>
+          <p className="text-[10px] text-blue-500 font-medium">Customer sees live cost</p>
+        </div>
+        {timer && (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            isRunning ? 'bg-green-100 text-green-700' :
+            isPaused  ? 'bg-amber-100 text-amber-700' :
+            isStopped ? 'bg-slate-100 text-slate-600' : ''
+          }`}>
+            {isRunning ? '● Running' : isPaused ? '⏸ Paused' : '■ Done'}
+          </span>
+        )}
+      </div>
+
+      {timer ? (
+        <>
+          <div className="flex items-center justify-between bg-white rounded-xl px-4 py-3">
+            <div>
+              <p className="text-[10px] text-slate-400 font-medium">Elapsed</p>
+              <p className="text-xl font-black text-slate-800">{timer.elapsedHoursLabel}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-slate-400 font-medium">Running Cost</p>
+              <p className="text-xl font-black text-green-700">₹{timer.runningCostRupees}</p>
+            </div>
+          </div>
+          {!isStopped && (
+            <div className="flex gap-2">
+              {isRunning && (
+                <button onClick={handlePause} disabled={pausing}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-100 text-amber-800 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  <Pause size={13} /> {pausing ? 'Pausing…' : 'Pause Break'}
+                </button>
+              )}
+              {isPaused && (
+                <button onClick={handleResume} disabled={resuming}
+                  className="flex-1 py-2.5 rounded-xl bg-green-100 text-green-800 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  <Play size={13} /> {resuming ? 'Resuming…' : 'Resume'}
+                </button>
+              )}
+              <button onClick={handleStop} disabled={stopping}
+                className="flex-1 py-2.5 rounded-xl bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50">
+                <TimerOff size={13} /> {stopping ? 'Stopping…' : 'Stop & Bill'}
+              </button>
+            </div>
+          )}
+          {isStopped && (
+            <div className="bg-white rounded-xl px-4 py-3 text-center">
+              <p className="text-xs text-slate-400">Final billable amount</p>
+              <p className="text-2xl font-black text-green-700">₹{Math.round((timer.totalPaiseFinal || 0) / 100)}</p>
+            </div>
+          )}
+        </>
+      ) : (
+        <button onClick={handleStart} disabled={starting}
+          className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+          <Play size={15} /> {starting ? 'Starting…' : 'Start Billing Timer'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── Vehicle Health Panel ── */
+function VehicleHealthPanel({ orderId }) {
+  const { data: existingReport } = useGetVehicleHealthReportQuery(orderId);
+  const [submitReport, { isLoading }] = useSubmitVehicleHealthReportMutation();
+  const [presign] = usePresignUploadMutation();
+  const [submitted, setSubmitted] = useState(!!existingReport?.report);
+  const [reportType, setReportType] = useState('pre_damage');
+  const [photos, setPhotos] = useState([]); // [{area, photoUrl}]
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+
+  if (submitted || existingReport?.report) {
+    return (
+      <div className="card bg-green-50 ring-1 ring-green-100 flex items-center gap-3">
+        <ShieldCheck size={16} className="text-green-600" />
+        <div>
+          <p className="text-sm font-bold text-green-800">Vehicle report submitted</p>
+          <p className="text-xs text-green-600">Pre-damage / health documented</p>
+        </div>
+      </div>
+    );
+  }
+
+  async function capturePhoto(area) {
+    if (!fileRef.current) return;
+    fileRef.current.dataset.area = area;
+    fileRef.current.click();
+  }
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    const area = e.target.dataset.area || 'front';
+    if (!file) return;
+    e.target.value = '';
+    setUploading(true);
+    try {
+      const { uploadUrl, key } = await presign({ folder: 'vehicle-health', contentType: file.type || 'image/jpeg' }).unwrap();
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'image/jpeg' } });
+      setPhotos(prev => [...prev, { area, photoUrl: `s3:${key}` }]);
+      toast.success(`${area} photo uploaded`);
+    } catch {
+      toast.error('Photo upload failed');
+    } finally { setUploading(false); }
+  }
+
+  async function handleSubmit() {
+    if (reportType === 'pre_damage' && photos.length === 0) {
+      toast.error('Take at least 1 pre-damage photo'); return;
+    }
+    try {
+      await submitReport({ orderId, reportType, preDamageDocs: photos }).unwrap();
+      setSubmitted(true);
+      toast.success('Vehicle report submitted');
+    } catch (err) { toast.error(err.data?.error || 'Failed'); }
+  }
+
+  const AREAS = ['front', 'rear', 'left', 'right', 'top', 'interior'];
+
+  return (
+    <div className="card ring-1 ring-cyan-100 bg-cyan-50 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-xl bg-cyan-100 flex items-center justify-center">
+          <Car size={14} strokeWidth={2} className="text-cyan-700" />
+        </div>
+        <div>
+          <p className="text-xs font-extrabold text-cyan-900 uppercase tracking-wide">Vehicle Health Report</p>
+          <p className="text-[10px] text-cyan-500 font-medium">Document pre-damage before service</p>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        {[{ v: 'pre_damage', l: 'Pre-damage' }, { v: 'tyre', l: 'Tyre' }, { v: 'battery', l: 'Battery' }].map(t => (
+          <button key={t.v} onClick={() => setReportType(t.v)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${reportType === t.v ? 'bg-cyan-600 text-white' : 'bg-white text-cyan-700 ring-1 ring-cyan-200'}`}>
+            {t.l}
+          </button>
+        ))}
+      </div>
+
+      {reportType === 'pre_damage' && (
+        <>
+          <p className="text-[10px] text-cyan-600 font-medium">Tap an area to photograph it</p>
+          <div className="grid grid-cols-3 gap-2">
+            {AREAS.map(area => {
+              const taken = photos.find(p => p.area === area);
+              return (
+                <button key={area} onClick={() => capturePhoto(area)}
+                  className={`py-2 rounded-xl text-xs font-bold capitalize transition ${taken ? 'bg-green-100 text-green-700 ring-1 ring-green-200' : 'bg-white text-cyan-700 ring-1 ring-cyan-200'}`}>
+                  {taken ? '✓ ' : ''}{area}
+                </button>
+              );
+            })}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
+        </>
+      )}
+
+      {reportType === 'battery' && (
+        <div className="bg-white rounded-xl p-3">
+          <p className="text-xs text-slate-500 mb-1">Battery report will be submitted with order details from the server</p>
+        </div>
+      )}
+
+      <button onClick={handleSubmit} disabled={isLoading || uploading}
+        className="w-full py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+        {isLoading || uploading ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+        {uploading ? 'Uploading…' : isLoading ? 'Submitting…' : 'Submit Vehicle Report'}
+      </button>
+    </div>
+  );
+}
+
+/* ── Phone Health Certificate Panel ── */
+function PhoneHealthPanel({ orderId }) {
+  const { data: existing } = useGetPhoneHealthReportQuery(orderId);
+  const [submit, { isLoading }] = useSubmitPhoneHealthReportMutation();
+  const [submitted, setSubmitted] = useState(!!existing?.report);
+
+  const COMPONENTS = [
+    { key: 'screen', label: 'Screen & Touch' },
+    { key: 'battery', label: 'Battery' },
+    { key: 'camera', label: 'Camera' },
+    { key: 'audio', label: 'Speaker / Mic' },
+    { key: 'connectivity', label: 'WiFi / BT / SIM' },
+    { key: 'charging', label: 'Charging Port' },
+    { key: 'buttons', label: 'Buttons' },
+  ];
+  const [results, setResults] = useState(() =>
+    Object.fromEntries(COMPONENTS.map(c => [c.key, 'pass']))
+  );
+
+  if (submitted || existing?.report) {
+    const r = existing?.report;
+    return (
+      <div className="card bg-green-50 ring-1 ring-green-100">
+        <div className="flex items-center gap-3">
+          <ClipboardCheck size={18} className="text-green-600" />
+          <div>
+            <p className="text-sm font-bold text-green-800">Health Certificate Generated</p>
+            {r && <p className="text-xs text-green-600">Score: {r.overallScore}% · Grade: {r.grade} · ID: {r.certificateId}</p>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function setResult(key, value) {
+    setResults(prev => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSubmit() {
+    const components = Object.fromEntries(
+      COMPONENTS.map(c => [c.key, { status: results[c.key] }])
+    );
+    try {
+      await submit({ orderId, components, partsReplaced: [] }).unwrap();
+      setSubmitted(true);
+      toast.success('Health certificate generated!');
+    } catch (err) { toast.error(err.data?.error || 'Failed'); }
+  }
+
+  return (
+    <div className="card ring-1 ring-purple-100 bg-purple-50 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center">
+          <Wrench size={14} strokeWidth={2} className="text-purple-700" />
+        </div>
+        <div>
+          <p className="text-xs font-extrabold text-purple-900 uppercase tracking-wide">Post-Repair Health Check</p>
+          <p className="text-[10px] text-purple-500 font-medium">Test each component — generates warranty certificate</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {COMPONENTS.map(comp => (
+          <div key={comp.key} className="flex items-center justify-between bg-white rounded-xl px-3 py-2">
+            <span className="text-xs font-semibold text-slate-700">{comp.label}</span>
+            <div className="flex gap-1.5">
+              {['pass', 'fail', 'not_tested'].map(v => (
+                <button key={v} onClick={() => setResult(comp.key, v)}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-lg capitalize transition ${
+                    results[comp.key] === v
+                      ? v === 'pass' ? 'bg-green-500 text-white'
+                        : v === 'fail' ? 'bg-red-500 text-white'
+                        : 'bg-slate-400 text-white'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}>
+                  {v === 'not_tested' ? 'skip' : v}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={handleSubmit} disabled={isLoading}
+        className="w-full py-2.5 rounded-xl bg-purple-600 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+        {isLoading ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />}
+        {isLoading ? 'Generating…' : 'Generate Health Certificate'}
+      </button>
+    </div>
+  );
+}
 
 export default function WorkerJobPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { accessToken: token } = useSelector(selectAuth);
-  const { data, refetch } = useGetOrderQuery(id);
+  const { data, isLoading, isError, refetch } = useGetOrderQuery(id, { skip: !token || !id });
   const [startTrip,    { isLoading: starting }]        = useWorkerStartTripMutation();
   const [arrive,       { isLoading: arriving }]         = useWorkerArriveMutation();
   const [startService, { isLoading: startingService }]  = useWorkerStartServiceMutation();
   const [complete,     { isLoading: completing }]       = useWorkerCompleteMutation();
   const [presign]                                        = usePresignUploadMutation();
+  const [reportNoResponse, { isLoading: reportingNoResponse }] = useWorkerReportNoResponseMutation();
+  const [reportPartUnavailable, { isLoading: reportingPart }]  = useWorkerReportPartUnavailableMutation();
   const [otp, setOtp]                     = useState('');
   const [myLocation, setMyLocation]       = useState(null);
-  const [proofPhotos, setProofPhotos]     = useState([]); // [{ preview, url, uploading }]
-  const [uploading, setUploading]         = useState(false);
+  const [proofPhotos, setProofPhotos]     = useState([]);
+  const [showNoResponseConfirm, setShowNoResponseConfirm]   = useState(false);
+  const [showPartUnavailableForm, setShowPartUnavailableForm] = useState(false);
+  const [partName, setPartName]           = useState('');
   const photoInputRef                     = useRef(null);
+  const otpInputRef                       = useRef(null);
   const watchCancelRef                    = useRef(null);
   const lastSentRef                       = useRef(0);
 
   useOrderSocket(id);
+  const socketStatus = useSocketStatus();
   const live = useSelector(selectOrder);
   const { watch } = useGeolocation();
 
@@ -58,85 +389,82 @@ export default function WorkerJobPage() {
     ? live.activeOrderId === order._id ? live.status || order.status : order.status
     : null;
 
+  const isPhone        = order && PHONE_SERVICES.has(order.service);
+  const isVehicle      = order && VEHICLE_SERVICES.has(order.service);
+  const isConstruction = order && CONSTRUCTION_SERVICES.has(order.service);
+  const isHourly       = isConstruction && order.pricingModel === 'hourly';
+
   /* ── Continuous location stream while job is active ── */
   useEffect(() => {
     if (!status || !ACTIVE_STATUSES.has(status) || !token) return;
-
     const socket = getSocket(token);
-
     watchCancelRef.current = watch(
       (pos) => {
         setMyLocation({ lat: pos.lat, lng: pos.lng });
         const now = Date.now();
-        if (now - lastSentRef.current < 4000) return; // throttle to ~1/4s
+        if (now - lastSentRef.current < 4000) return;
         lastSentRef.current = now;
         socket.emit('worker:location', { lat: pos.lat, lng: pos.lng, orderId: id });
       },
       (err) => console.warn('[WorkerJobPage] geolocation watch error', err),
     );
-
-    return () => {
-      watchCancelRef.current?.();
-      watchCancelRef.current = null;
-    };
+    return () => { watchCancelRef.current?.(); watchCancelRef.current = null; };
   }, [status, token, id, watch]);
 
-  // Must be above the early return — hook call order must be stable across renders
   const handlePhotoCapture = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
-
-    if (proofPhotos.length >= 3) {
-      toast.error('Maximum 3 photos allowed');
-      return;
-    }
+    if (proofPhotos.length >= 3) { toast.error('Maximum 3 photos allowed'); return; }
 
     const preview = URL.createObjectURL(file);
     const photoId = Date.now();
-    setProofPhotos((prev) => [...prev, { id: photoId, preview, url: null, uploading: true }]);
+    setProofPhotos((prev) => [...prev, { id: photoId, preview, key: null, uploading: true }]);
 
     try {
-      // Try S3 presign upload
-      const { uploadUrl, key } = await presign({
-        folder: 'order-proof',
-        contentType: file.type || 'image/jpeg',
-      }).unwrap();
-
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type || 'image/jpeg' },
-      });
-
-      // Store the bare S3 key. The order controller resolves it to a fresh
-      // presigned download URL on every fetch, so the customer always sees the image.
-      setProofPhotos((prev) =>
-        prev.map((p) => p.id === photoId ? { ...p, key, uploading: false } : p)
-      );
+      const { uploadUrl, key } = await presign({ folder: 'order-proof', contentType: file.type || 'image/jpeg' }).unwrap();
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'image/jpeg' } });
+      setProofPhotos((prev) => prev.map((p) => p.id === photoId ? { ...p, key, uploading: false } : p));
     } catch {
-      // Dev fallback: store a sentinel so the photo is submitted without a real key
-      setProofPhotos((prev) =>
-        prev.map((p) => p.id === photoId ? { ...p, key: null, uploading: false } : p)
-      );
+      /* S3 failed — mark with error so we can block completion */
+      setProofPhotos((prev) => prev.map((p) => p.id === photoId ? { ...p, key: null, uploading: false, error: true } : p));
+      toast.error('Photo upload failed — retake the photo');
     }
   }, [proofPhotos.length, presign]);
 
-  if (!order) {
+  /* ── Loading / error states ── */
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
-        <Loader2 size={28} className="text-zappy-600 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={28} className="text-indigo-400 animate-spin" />
+          <p className="text-white/40 text-sm font-medium">Loading job…</p>
+        </div>
       </div>
     );
   }
 
-  const chipCfg = STATUS_CONFIG[status] || { label: status, cls: 'chip-neutral' };
-  const [lng, lat] = order.pickupLocation.coordinates;
-  const pickup = { lat, lng };
+  if (isError || !order) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}>
+        <AlertCircle size={36} className="text-red-400" />
+        <p className="text-white font-bold text-center">Could not load job details</p>
+        <button onClick={() => refetch()} className="px-6 py-2.5 rounded-xl bg-indigo-500 text-white font-bold text-sm">Retry</button>
+        <button onClick={() => nav('/worker')} className="text-white/40 text-sm">Back to Dashboard</button>
+      </div>
+    );
+  }
+
+  /* ── Safe coordinate access ── */
+  const coords = order.pickupLocation?.coordinates;
+  const pickup = coords ? { lat: coords[1], lng: coords[0] } : null;
+
+  const chipCfg = STATUS_CONFIG[status] || { label: status, color: 'bg-slate-500/15 text-slate-300 ring-slate-500/30', dot: 'bg-slate-400' };
   const terminal = ['completed', 'cancelled', 'failed'].includes(status);
 
   function openNavigation() {
-    const dest = `${lat},${lng}`;
+    if (!pickup) return;
+    const dest = `${pickup.lat},${pickup.lng}`;
     const url = /iPhone|iPad|iPod/i.test(navigator.userAgent)
       ? `maps://maps.apple.com/?daddr=${dest}&dirflg=d`
       : `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
@@ -147,14 +475,13 @@ export default function WorkerJobPage() {
     try {
       const res = await fetch(`/api/orders/${id}/call`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
+      if (!res.ok) { toast.error('Call service unavailable'); return; }
       const d = await res.json();
       if (d.proxyNumber) window.location.href = `tel:${d.proxyNumber}`;
       else toast.error('Call service unavailable');
-    } catch {
-      toast.error('Could not start call');
-    }
+    } catch { toast.error('Could not start call'); }
   }
 
   async function onStartTrip() {
@@ -166,7 +493,7 @@ export default function WorkerJobPage() {
     catch (err) { toast.error(err.data?.error || 'Failed'); }
   }
   async function onStartService() {
-    if (!/^\d{4}$/.test(otp)) { toast.error('Enter the 4-digit OTP from the customer'); return; }
+    if (!/^\d{6}$/.test(otp)) { toast.error('Enter the 6-digit OTP from the customer'); return; }
     try { await startService({ id, otp }).unwrap(); toast.success('Service started'); refetch(); }
     catch (err) { toast.error(err.data?.error || 'Invalid OTP'); }
   }
@@ -175,96 +502,171 @@ export default function WorkerJobPage() {
     setProofPhotos((prev) => prev.filter((p) => p.id !== photoId));
   }
 
+  /* Only photos that successfully uploaded to S3 are accepted */
+  const validPhotos = proofPhotos.filter((p) => !p.uploading && p.key && !p.error);
+
   async function onComplete() {
     if (proofPhotos.some((p) => p.uploading)) {
-      toast.error('Please wait for photos to finish uploading');
-      return;
+      toast.error('Please wait for photos to finish uploading'); return;
     }
-    // Use S3 key for persistence; fall back to preview blob for dev (key is null)
-    const readyPhotos = proofPhotos.filter((p) => !p.uploading && (p.key || p.preview));
-    if (readyPhotos.length === 0) {
-      toast.error('Please take at least 1 proof-of-work photo');
-      return;
+    const failed = proofPhotos.filter((p) => p.error);
+    if (failed.length > 0) {
+      toast.error('Some photos failed to upload. Remove them and retake.'); return;
+    }
+    if (validPhotos.length === 0) {
+      toast.error('Please take at least 1 proof-of-work photo'); return;
     }
     try {
-      await complete({ id, completionPhotos: readyPhotos.map((p) => p.key || p.preview) }).unwrap();
+      await complete({ id, completionPhotos: validPhotos.map((p) => p.key) }).unwrap();
       toast.success('Job completed!');
       nav('/worker', { replace: true });
-    }
-    catch (err) { toast.error(err.data?.error || 'Failed'); }
+    } catch (err) { toast.error(err.data?.error || 'Failed'); }
   }
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] pb-28">
+    <div className="min-h-screen pb-56" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #f8fafc 200px)' }}>
+
+      {/* Socket degraded banner */}
+      <AnimatePresence>
+        {socketStatus !== 'connected' && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden relative z-50"
+          >
+            <div className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold ${
+              socketStatus === 'offline' ? 'bg-red-600' : 'bg-amber-500'
+            } text-white`}>
+              <Loader2 size={12} className="animate-spin shrink-0" />
+              {socketStatus === 'offline'
+                ? 'Live connection lost — location updates paused'
+                : 'Reconnecting…'}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
-      <header className="page-header">
-        <div className="page-header-inner">
-          <button onClick={() => nav('/worker')} className="back-btn">
-            <ArrowLeft size={18} strokeWidth={2.5} />
-          </button>
+      <header className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e3a5f 100%)' }}>
+        <motion.div
+          className="absolute right-0 top-0 w-40 h-40 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%)', filter: 'blur(30px)' }}
+          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <div className="relative max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
+          <motion.button onClick={() => nav('/worker')}
+            className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center shrink-0"
+            whileTap={{ scale: 0.92 }}>
+            <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
+          </motion.button>
           <div className="flex-1 min-w-0">
-            <p className="t-label">Active Job</p>
-            <p className="font-semibold text-[#0F172A] capitalize truncate">
-              {order.service.replace(/_/g, ' ')}
-            </p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Active Job</p>
+            <p className="font-black text-white capitalize truncate leading-tight">{order.service.replace(/_/g, ' ')}</p>
           </div>
-          <span className={`chip ${chipCfg.cls}`}>{chipCfg.label}</span>
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ring-1 ${chipCfg.color}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${chipCfg.dot} animate-pulse`} />
+            {chipCfg.label}
+          </motion.div>
         </div>
+        <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       </header>
 
-      <div className="max-w-lg mx-auto px-4 pt-4 space-y-3">
+      <div className="max-w-lg mx-auto px-4 pt-4 space-y-3 pb-2">
 
-        {/* Live map — worker location + route to pickup */}
-        <LiveTrackingMap
-          pickup={pickup}
-          workerLocation={myLocation}
-          service={order.service}
-          height="38vh"
-        />
+        {/* Live map */}
+        {pickup && (
+          <LiveTrackingMap pickup={pickup} workerLocation={myLocation} service={order.service} height="38vh" />
+        )}
 
-        {/* Pickup location + navigation */}
-        <div className="card">
-          <div className="flex items-start gap-3 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
-              <MapPin size={15} strokeWidth={2} className="text-blue-600" />
+        {/* Location + navigation */}
+        {order.pickupLocation?.address && (
+          <div className="card">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
+                <MapPin size={15} strokeWidth={2} className="text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <p className="t-label mb-1">Customer Location</p>
+                <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">{order.pickupLocation.address}</p>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="t-label mb-1">Customer Location</p>
-              <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">
-                {order.pickupLocation.address}
-              </p>
-            </div>
+            {pickup && (
+              <button onClick={openNavigation} className="btn-secondary w-full gap-2">
+                <Navigation size={14} strokeWidth={2} />Open Navigation
+              </button>
+            )}
           </div>
-          <button onClick={openNavigation} className="btn-secondary w-full gap-2">
-            <Navigation size={14} strokeWidth={2} />
-            Open Navigation
-          </button>
-        </div>
+        )}
 
         {/* Contact customer */}
         {!terminal && (
           <div className="card flex items-center gap-3">
             <div className="flex-1">
               <p className="t-label mb-0.5">Customer</p>
-              <p className="text-sm font-semibold text-[#0F172A]">
-                {order.userName || 'Customer'}
-              </p>
+              <p className="text-sm font-semibold text-[#0F172A]">{order.userName || 'Customer'}</p>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={callCustomer}
-                className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"
-                aria-label="Call customer"
-              >
+              <button onClick={callCustomer}
+                className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center" aria-label="Call customer">
                 <Phone size={16} strokeWidth={2} className="text-green-600" />
               </button>
-              <button
-                onClick={() => nav(`/orders/${id}/chat`)}
-                className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"
-                aria-label="Chat with customer"
-              >
+              <button onClick={() => nav(`/orders/${id}/chat`)}
+                className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center" aria-label="Chat with customer">
                 <MessageCircle size={16} strokeWidth={2} className="text-blue-600" />
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Vertical-specific job details */}
+        {(order.deviceBrand || order.vehicleType || order.serviceMode || order.pricingModel) && (
+          <div className="card">
+            <p className="t-label mb-3">Job Details</p>
+            <div className="space-y-2">
+              {order.deviceBrand && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Phone Brand</span>
+                  <span className="font-semibold text-slate-800">{order.deviceBrand}</span>
+                </div>
+              )}
+              {order.deviceModel && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Model</span>
+                  <span className="font-semibold text-slate-800">{order.deviceModel}</span>
+                </div>
+              )}
+              {order.serviceMode && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Service Mode</span>
+                  <span className={`font-bold px-2 py-0.5 rounded-lg text-xs ${order.serviceMode === 'doorstep' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
+                    {order.serviceMode === 'doorstep' ? '🏠 Doorstep' : '📦 Pickup'}
+                  </span>
+                </div>
+              )}
+              {order.vehicleType && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Vehicle</span>
+                  <span className="font-semibold text-slate-800 capitalize">
+                    {order.vehicleType === 'bike' ? '🏍️' : order.vehicleType === 'scooter' ? '🛵' : '🚗'} {order.vehicleType}
+                  </span>
+                </div>
+              )}
+              {order.pricingModel && order.pricingModel !== 'standard' && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Billing Model</span>
+                  <span className="font-bold text-slate-800 capitalize">{order.pricingModel}</span>
+                </div>
+              )}
+              {order.estimatedHours && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Est. Hours</span>
+                  <span className="font-semibold text-slate-800">{order.estimatedHours}h</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -284,7 +686,7 @@ export default function WorkerJobPage() {
           </div>
         )}
 
-        {/* Attached images */}
+        {/* Customer photos */}
         {order.images?.length > 0 && (
           <div className="card">
             <div className="flex items-center gap-2 mb-3">
@@ -296,11 +698,8 @@ export default function WorkerJobPage() {
             <div className="grid grid-cols-3 gap-2">
               {order.images.map((url, i) => (
                 <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                  <img
-                    src={url}
-                    alt={`Issue photo ${i + 1}`}
-                    className="w-full aspect-square object-cover rounded-xl ring-1 ring-slate-100 hover:ring-blue-300 transition"
-                  />
+                  <img src={url} alt={`Issue photo ${i + 1}`}
+                    className="w-full aspect-square object-cover rounded-xl ring-1 ring-slate-100 hover:ring-blue-300 transition" />
                 </a>
               ))}
             </div>
@@ -308,168 +707,344 @@ export default function WorkerJobPage() {
         )}
 
         {/* Earnings */}
-        <div className="card flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
-            <BadgeIndianRupee size={15} strokeWidth={2} className="text-green-600" />
+        <motion.div className="relative rounded-2xl overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)', boxShadow: '0 8px 32px rgba(6,78,59,0.4)' }}
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: 'radial-gradient(ellipse at 80% 20%, rgba(52,211,153,0.2) 0%, transparent 60%)' }} />
+          <div className="relative flex items-center gap-4 p-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/15">
+              <BadgeIndianRupee size={22} strokeWidth={1.75} className="text-emerald-300" />
+            </div>
+            <div className="flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300/60 mb-0.5">Your Earnings</p>
+              <p className="text-3xl font-black text-white">₹{order.pricing?.total || '—'}</p>
+            </div>
+            {status === 'completed' && (
+              <span className="text-xs font-bold text-emerald-300 bg-emerald-300/10 ring-1 ring-emerald-400/30 px-3 py-1 rounded-full">Paid ✓</span>
+            )}
           </div>
-          <div className="flex-1">
-            <p className="t-label mb-0.5">Your Earnings</p>
-            <p className="text-2xl font-extrabold text-[#0F172A]">₹{order.pricing?.total}</p>
-          </div>
-          {status === 'completed' && (
-            <span className="text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
-              Paid
-            </span>
-          )}
-        </div>
+        </motion.div>
 
         {/* OTP input */}
-        {status === 'arrived' && (
-          <div className="card bg-amber-50 ring-1 ring-amber-200">
-            <div className="flex items-center gap-2 mb-3">
-              <KeyRound size={14} strokeWidth={2} className="text-amber-700" />
-              <p className="text-xs font-bold text-amber-800 uppercase tracking-wide">
-                Ask customer for the 4-digit OTP
-              </p>
-            </div>
-            <input
-              className="input tracking-[0.6em] text-center text-2xl font-extrabold bg-white"
-              placeholder="- - - -"
-              inputMode="numeric"
-              maxLength={4}
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              autoFocus
-            />
-          </div>
-        )}
-
-        {/* Proof of work photo upload — mandatory before completing */}
-        {status === 'in_progress' && (
-          <div className="card ring-1 ring-violet-100 bg-violet-50">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
-                <Camera size={13} strokeWidth={2} className="text-violet-700" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-extrabold text-violet-900 uppercase tracking-wide">
-                  Proof of Work Photo
-                </p>
-                <p className="text-[10px] text-violet-500 font-medium mt-0.5">
-                  Required — min 1 photo before completing
-                </p>
-              </div>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                proofPhotos.filter(p => !p.uploading).length > 0
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-violet-100 text-violet-600'
-              }`}>
-                {proofPhotos.filter(p => !p.uploading).length}/3
-              </span>
-            </div>
-
-            {/* Photo grid */}
-            {proofPhotos.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {proofPhotos.map((photo) => (
-                  <div key={photo.id} className="relative aspect-square">
-                    <img
-                      src={photo.preview}
-                      alt="Proof"
-                      className="w-full h-full object-cover rounded-xl ring-1 ring-violet-200"
-                    />
-                    {photo.uploading ? (
-                      <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
-                        <Loader2 size={16} className="text-white animate-spin" />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="absolute top-1 right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                          <CheckCircle size={11} strokeWidth={3} className="text-white" />
-                        </div>
-                        <button
-                          onClick={() => removePhoto(photo.id)}
-                          className="absolute top-1 left-1 w-5 h-5 bg-black/50 rounded-full flex items-center justify-center"
-                        >
-                          <X size={10} strokeWidth={3} className="text-white" />
-                        </button>
-                      </>
-                    )}
+        <AnimatePresence>
+          {status === 'arrived' && (
+            <motion.div initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}
+              className="relative rounded-2xl overflow-hidden p-4"
+              style={{ background: 'linear-gradient(135deg, #451a03 0%, #78350f 100%)', boxShadow: '0 8px 32px rgba(120,53,15,0.4)' }}>
+              <div className="absolute inset-0 pointer-events-none"
+                style={{ background: 'radial-gradient(ellipse at 80% 10%, rgba(251,191,36,0.15) 0%, transparent 60%)' }} />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-400/20 flex items-center justify-center">
+                    <KeyRound size={15} strokeWidth={2} className="text-amber-300" />
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Camera button */}
-            {proofPhotos.length < 3 && (
-              <>
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handlePhotoCapture}
-                />
-                <button
-                  onClick={() => photoInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-violet-300 text-violet-700 font-semibold text-sm hover:bg-violet-100 transition active:scale-95"
-                >
-                  <Camera size={16} strokeWidth={2} />
-                  {proofPhotos.length === 0 ? 'Take Photo' : 'Add Another'}
+                  <div>
+                    <p className="text-xs font-extrabold text-amber-200 uppercase tracking-widest">Customer OTP</p>
+                    <p className="text-[10px] text-amber-300/50 font-medium mt-0.5">Ask the customer for their 6-digit code</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-center mb-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} onClick={() => otpInputRef.current?.focus()}
+                      className={`flex-1 aspect-square max-w-[52px] rounded-2xl flex items-center justify-center text-xl font-black border-2 transition-all cursor-text ${
+                        otp[i]
+                          ? 'bg-amber-400/25 border-amber-400 text-white shadow-lg shadow-amber-500/20'
+                          : 'bg-white/5 border-white/12 text-white/20'
+                      }`}>
+                      {otp[i] ? '●' : '–'}
+                    </div>
+                  ))}
+                </div>
+                <input ref={otpInputRef} className="w-full opacity-0 h-1 absolute" inputMode="numeric"
+                  maxLength={6} value={otp} autoFocus
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                <button className="w-full mt-3 py-3 rounded-xl bg-white/5 border border-white/10 text-amber-200/60 text-xs font-semibold"
+                  onClick={() => otpInputRef.current?.focus()}>
+                  Tap here → enter OTP
                 </button>
-              </>
-            )}
-          </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Vertical-specific panels (shown during in_progress) ── */}
+        {status === 'in_progress' && (
+          <>
+            {/* Construction: live hourly timer */}
+            {isHourly && <ConstructionTimerPanel orderId={order._id} />}
+
+            {/* Vehicle: pre-damage / health documentation */}
+            {isVehicle && <VehicleHealthPanel orderId={order._id} />}
+
+            {/* Service checklist for all verticals */}
+            <ServiceChecklistPanel orderId={order._id} service={order.service}
+              onChecked={(ids) => console.log('[Checklist] Completed:', ids)} />
+
+            {/* Proof of work photo upload */}
+            <motion.div
+              className="rounded-2xl overflow-hidden"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              style={{
+                background: validPhotos.length > 0
+                  ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+                  : 'linear-gradient(135deg, #faf5ff, #f3e8ff)',
+                border: validPhotos.length > 0
+                  ? '1px solid rgba(34,197,94,0.25)'
+                  : '1px solid rgba(139,92,246,0.2)',
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+                <motion.div
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                    validPhotos.length > 0 ? 'bg-green-100' : 'bg-violet-100'
+                  }`}
+                  animate={validPhotos.length === 0 ? {
+                    boxShadow: ['0 0 0 0px rgba(139,92,246,0.3)', '0 0 0 8px rgba(139,92,246,0)', '0 0 0 0px rgba(139,92,246,0)']
+                  } : {}}
+                  transition={{ duration: 2.5, repeat: Infinity }}
+                >
+                  {validPhotos.length > 0
+                    ? <CheckCircle size={20} strokeWidth={2} className="text-green-600" />
+                    : <Camera size={20} strokeWidth={1.75} className="text-violet-600" />
+                  }
+                </motion.div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-extrabold ${validPhotos.length > 0 ? 'text-green-800' : 'text-violet-900'}`}>
+                    {validPhotos.length > 0 ? 'Proof photos ready' : 'Add proof-of-work photos'}
+                  </p>
+                  <p className={`text-[11px] font-medium mt-0.5 ${validPhotos.length > 0 ? 'text-green-600' : 'text-violet-500'}`}>
+                    {validPhotos.length > 0
+                      ? `${validPhotos.length} photo${validPhotos.length > 1 ? 's' : ''} uploaded — you can add ${3 - proofPhotos.length} more`
+                      : 'Minimum 1 photo required before marking complete'}
+                  </p>
+                </div>
+                {/* Counter pill */}
+                <div className={`px-2.5 py-1 rounded-full text-xs font-extrabold shrink-0 ${
+                  validPhotos.length >= 1 ? 'bg-green-500 text-white' : 'bg-violet-200 text-violet-700'
+                }`}>
+                  {validPhotos.length}/3
+                </div>
+              </div>
+
+              {/* Photo grid */}
+              {proofPhotos.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+                  {proofPhotos.map((photo) => (
+                    <div key={photo.id} className="relative aspect-square">
+                      <img src={photo.preview} alt="Proof"
+                        className={`w-full h-full object-cover rounded-2xl ${
+                          photo.error ? 'ring-2 ring-red-400' : photo.uploading ? 'ring-2 ring-violet-300' : 'ring-2 ring-green-400'
+                        }`}
+                        style={{ boxShadow: photo.error ? '0 4px 12px rgba(239,68,68,0.25)' : '0 4px 12px rgba(0,0,0,0.12)' }}
+                      />
+                      {photo.uploading ? (
+                        <div className="absolute inset-0 bg-black/50 rounded-2xl flex flex-col items-center justify-center gap-1">
+                          <Loader2 size={18} className="text-white animate-spin" />
+                          <p className="text-[9px] text-white font-bold">Uploading…</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow ${
+                            photo.error ? 'bg-red-500' : 'bg-green-500'
+                          }`}>
+                            {photo.error
+                              ? <X size={10} strokeWidth={3} className="text-white" />
+                              : <CheckCircle size={11} strokeWidth={3} className="text-white" />
+                            }
+                          </div>
+                          <button onClick={() => removePhoto(photo.id)}
+                            className="absolute top-1.5 left-1.5 w-5 h-5 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center">
+                            <X size={9} strokeWidth={3} className="text-white" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add photo button */}
+              {proofPhotos.length < 3 && (
+                <div className="px-4 pb-4">
+                  <input ref={photoInputRef} type="file" accept="image/*" capture="environment"
+                    className="hidden" onChange={handlePhotoCapture} />
+                  <button 
+                    onClick={() => photoInputRef.current?.click()}
+                    className="w-full py-3 rounded-xl bg-white text-violet-700 font-bold text-sm ring-1 ring-violet-200 flex items-center justify-center gap-2"
+                  >
+                    <Camera size={17} strokeWidth={2} />
+                    <span>{proofPhotos.length === 0 ? 'Take Proof Photo' : 'Add Another Photo'}</span>
+                    {proofPhotos.length === 0 && (
+                      <span className="ml-1 text-[10px] font-black bg-red-500 text-white px-1.5 py-0.5 rounded-full">Required</span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </motion.div>
+
+            {/* Phone: health certificate — shown after proof photo so worker finishes work first */}
+            {isPhone && <PhoneHealthPanel orderId={order._id} />}
+          </>
         )}
       </div>
 
       {/* Fixed action bar */}
-      <div className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 safe-pb">
-        <div className="max-w-lg mx-auto px-4 pt-3 pb-2">
+      <div className="fixed bottom-0 inset-x-0"
+        style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(16px)', boxShadow: '0 -8px 32px rgba(0,0,0,0.08)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+        <div className="max-w-lg mx-auto px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+
           {status === 'assigned' && (
-            <button onClick={onStartTrip} disabled={starting} className="btn-primary w-full">
-              {starting
-                ? <><Loader2 size={15} className="animate-spin" /> Starting…</>
-                : <><Navigation size={15} strokeWidth={2.5} /> Start Trip to Customer</>}
-            </button>
+            <motion.button onClick={onStartTrip} disabled={starting}
+              className="w-full relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-black text-base disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #4f46e5 100%)', boxShadow: '0 8px 24px rgba(79,70,229,0.4)' }}
+              whileTap={{ scale: 0.98 }}>
+              {starting ? <><Loader2 size={18} className="animate-spin" /> Starting…</> : <><Navigation size={18} strokeWidth={2.5} /> Start Trip to Customer</>}
+            </motion.button>
           )}
+
           {status === 'on_the_way' && (
-            <button onClick={onArrive} disabled={arriving} className="btn-primary w-full">
-              {arriving
-                ? <><Loader2 size={15} className="animate-spin" /> Updating…</>
-                : <><MapPin size={15} strokeWidth={2.5} /> I&apos;ve Arrived</>}
-            </button>
+            <motion.button onClick={onArrive} disabled={arriving}
+              className="w-full relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-black text-base disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)', boxShadow: '0 8px 24px rgba(217,119,6,0.4)' }}
+              whileTap={{ scale: 0.98 }}>
+              {arriving ? <><Loader2 size={18} className="animate-spin" /> Updating…</> : <><MapPin size={18} strokeWidth={2.5} /> I've Arrived</>}
+            </motion.button>
           )}
+
+          {/* ── No-response panel (#73): shown if worker has been arrived >3 min ── */}
           {status === 'arrived' && (
-            <button onClick={onStartService} disabled={startingService} className="btn-success w-full">
-              {startingService
-                ? <><Loader2 size={15} className="animate-spin" /> Verifying…</>
-                : <><KeyRound size={15} strokeWidth={2.5} /> Verify OTP &amp; Start Service</>}
-            </button>
-          )}
-          {status === 'in_progress' && (
-            <div className="space-y-2">
-              {proofPhotos.filter(p => p.url).length === 0 && (
-                <p className="text-center text-xs font-semibold text-amber-600 bg-amber-50 py-2 rounded-xl">
-                  Take at least 1 proof photo above to complete
-                </p>
+            <div className="rounded-2xl bg-amber-950/60 ring-1 ring-amber-800/40 p-4 space-y-3">
+              <p className="text-[11px] font-bold text-amber-300 uppercase tracking-widest">Customer not responding?</p>
+              {!showNoResponseConfirm ? (
+                <button
+                  onClick={() => setShowNoResponseConfirm(true)}
+                  className="w-full py-2.5 rounded-xl bg-amber-800/50 text-amber-200 text-sm font-bold ring-1 ring-amber-700/40"
+                >
+                  Report no response — cancel penalty-free
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-200/70">
+                    You'll receive ₹35 arrival compensation. Customer is charged ₹50. This is reviewed by support.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await reportNoResponse(id).unwrap();
+                          toast.success('Reported. Arrival compensation credited.');
+                          nav('/worker');
+                        } catch (err) {
+                          toast.error(err?.data?.error || 'Failed — try again');
+                        }
+                        setShowNoResponseConfirm(false);
+                      }}
+                      disabled={reportingNoResponse}
+                      className="flex-1 py-2.5 rounded-xl bg-red-700 text-white text-sm font-bold disabled:opacity-50"
+                    >
+                      {reportingNoResponse ? 'Sending…' : 'Confirm — No Response'}
+                    </button>
+                    <button onClick={() => setShowNoResponseConfirm(false)} className="px-4 py-2.5 rounded-xl bg-white/5 text-white/50 text-sm">
+                      Back
+                    </button>
+                  </div>
+                </div>
               )}
-              <button
-                onClick={onComplete}
-                disabled={completing || proofPhotos.filter(p => p.url).length === 0 || proofPhotos.some(p => p.uploading)}
-                className="btn-success w-full"
-              >
-                {completing
-                  ? <><Loader2 size={15} className="animate-spin" /> Completing…</>
-                  : <><CheckCircle2 size={15} strokeWidth={2.5} /> Mark Job Complete</>}
-              </button>
             </div>
           )}
+
+          {status === 'arrived' && (
+            <motion.button onClick={onStartService} disabled={startingService || otp.length < 6}
+              className="w-full rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-black text-base disabled:opacity-50"
+              style={{
+                background: otp.length === 6 ? 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)' : 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                boxShadow: otp.length === 6 ? '0 8px 24px rgba(22,163,74,0.4)' : 'none',
+              }}
+              whileTap={{ scale: 0.98 }}>
+              {startingService ? <><Loader2 size={18} className="animate-spin" /> Verifying…</> : <><KeyRound size={18} strokeWidth={2.5} /> Verify OTP & Start Service</>}
+            </motion.button>
+          )}
+
+          {status === 'in_progress' && (
+            <div className="space-y-2">
+              {validPhotos.length === 0 && (
+                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="text-center text-xs font-bold text-amber-700 bg-amber-50 ring-1 ring-amber-200 py-2.5 rounded-xl">
+                  📷 Take at least 1 proof photo above to complete
+                </motion.p>
+              )}
+              <motion.button onClick={onComplete}
+                disabled={completing || validPhotos.length === 0 || proofPhotos.some(p => p.uploading)}
+                className="w-full relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-black text-base disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', boxShadow: '0 8px 24px rgba(22,163,74,0.4)' }}
+                whileTap={{ scale: 0.98 }}>
+                <div className="absolute inset-0 opacity-20 pointer-events-none"
+                  style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent)', animation: 'shimmer 2s ease-in-out infinite' }} />
+                {completing ? <><Loader2 size={18} className="animate-spin" /> Completing…</> : <><Zap size={18} strokeWidth={2.5} /> Mark Job Complete</>}
+              </motion.button>
+
+              {/* ── Part Unavailable (#71): electronics/repair verticals ── */}
+              {(isPhone || order?.service?.includes('repair') || order?.service?.includes('replacement')) && (
+                <div className="rounded-2xl bg-slate-800/60 ring-1 ring-slate-700/40 p-4 space-y-2">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Spare part issue?</p>
+                  {!showPartUnavailableForm ? (
+                    <button onClick={() => setShowPartUnavailableForm(true)}
+                      className="w-full py-2.5 rounded-xl bg-slate-700/50 text-slate-300 text-sm font-bold ring-1 ring-slate-600/40">
+                      Part unavailable — close with diagnostic fee
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-400">You'll receive ₹150 diagnostic fee. Customer refunded the rest.</p>
+                      <input
+                        value={partName}
+                        onChange={(e) => setPartName(e.target.value)}
+                        placeholder="Part name (e.g. iPhone 12 screen)"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-700 text-white text-sm placeholder:text-slate-500 outline-none"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            if (!partName.trim()) { toast.error('Enter the part name'); return; }
+                            try {
+                              await reportPartUnavailable({ id, partName: partName.trim(), notes: '' }).unwrap();
+                              toast.success('Reported. ₹150 diagnostic fee credited.');
+                              nav('/worker');
+                            } catch (err) { toast.error(err?.data?.error || 'Failed'); }
+                          }}
+                          disabled={reportingPart}
+                          className="flex-1 py-2.5 rounded-xl bg-orange-700 text-white text-sm font-bold disabled:opacity-50"
+                        >
+                          {reportingPart ? 'Submitting…' : 'Confirm Unavailable'}
+                        </button>
+                        <button onClick={() => setShowPartUnavailableForm(false)} className="px-4 py-2.5 rounded-xl bg-white/5 text-white/50 text-sm">
+                          Back
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {terminal && (
-            <button onClick={() => nav('/worker')} className="btn-secondary w-full">
-              Back to Dashboard
-            </button>
+            <motion.button onClick={() => nav('/worker')}
+              className="w-full rounded-2xl py-4 flex items-center justify-center gap-2.5 font-black text-base"
+              style={{ background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', color: '#0f172a' }}
+              whileTap={{ scale: 0.98 }}>
+              <ArrowLeft size={18} strokeWidth={2.5} />Back to Dashboard
+            </motion.button>
+          )}
+
+          {!terminal && (
+            <div className="mt-2">
+              <SOSButton orderId={order._id} lat={myLocation?.lat} lng={myLocation?.lng} service={order?.service} />
+            </div>
           )}
         </div>
       </div>

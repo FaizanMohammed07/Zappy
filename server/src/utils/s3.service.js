@@ -22,12 +22,29 @@ async function getUploadUrl({ folder, contentType, userId }) {
     Key: key,
     ContentType: contentType,
   });
-  const url = await getSignedUrl(s3, cmd, { expiresIn: 300 });
-  return { uploadUrl: url, key };
+  try {
+    const url = await getSignedUrl(s3, cmd, { expiresIn: 300 });
+    return { uploadUrl: url, key };
+  } catch (err) {
+    // S3/network down — surface a clear message instead of a 500 (#93)
+    throw Object.assign(
+      new Error('File upload service is temporarily unavailable. Please try again in a moment.'),
+      { status: 503, code: 'S3_UNAVAILABLE', cause: err.message }
+    );
+  }
 }
 
 async function getDownloadUrl(key) {
-  const cmd = new GetObjectCommand({ Bucket: config.aws.bucket, Key: key });
+  // Force Content-Disposition: attachment so browsers download rather than render. (#80)
+  // This prevents a renamed-script-as-image from executing if somehow it gets uploaded.
+  // ContentType override to application/octet-stream is the belt-and-suspenders guarantee.
+  const filename = key.split('/').pop();
+  const cmd = new GetObjectCommand({
+    Bucket: config.aws.bucket,
+    Key:    key,
+    ResponseContentDisposition: `attachment; filename="${filename}"`,
+    ResponseContentType:        'application/octet-stream',
+  });
   return getSignedUrl(s3, cmd, { expiresIn: 300 });
 }
 

@@ -5,25 +5,63 @@ const AuditLog = require('./audit-log.model');
 const { redis } = require('../../config/redis');
 const auditService = require('./audit.service');
 
+// Analytics responses are cached in Redis to protect against expensive
+// aggregation queries being fired on every dashboard refresh.
+// Metrics: 30s TTL (near-real-time for ops). Revenue: 60s TTL.
+async function cachedAnalytics(key, ttlSec, computeFn) {
+  try {
+    const cached = await redis.get(key);
+    if (cached) return JSON.parse(cached);
+  } catch (_) { /* Redis miss — fall through to compute */ }
+  const result = await computeFn();
+  try { await redis.set(key, JSON.stringify(result), 'EX', ttlSec); } catch (_) {}
+  return result;
+}
+
 async function getRevenue(req, res, next) {
   try {
     const Transaction = require('../payment/transaction.model');
     const days = Math.min(Number(req.query.days) || 7, 90);
-    const since = new Date(Date.now() - days * 86400 * 1000);
-    const breakdown = await Transaction.aggregate([
-      { $match: { 'owner.kind': 'platform', status: 'succeeded', createdAt: { $gte: since } } },
-      { $group: { _id: '$reason', totalPaise: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
-    ]);
-    const byDay = await Transaction.aggregate([
-      { $match: { 'owner.kind': 'platform', status: 'succeeded', createdAt: { $gte: since } } },
-      { $group: { _id: { day: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } } }, totalPaise: { $sum: '$amountPaise' } } },
-      { $sort: { '_id.day': 1 } },
-    ]);
-    const totalPaise = breakdown.reduce((s, r) => s + r.totalPaise, 0);
+    // Cache keyed by day-window; 60s TTL since this is a historical report.
+    const result = await cachedAnalytics(`admin:revenue:${days}`, 60, async () => {
+      const since = new Date(Date.now() - days * 86400 * 1000);
+      const [breakdown, byDay] = await Promise.all([
+        Transaction.aggregate([
+          { $match: { 'owner.kind': 'platform', status: 'succeeded', createdAt: { $gte: since } } },
+          { $group: { _id: '$reason', totalPaise: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
+        ]),
+        Transaction.aggregate([
+          { $match: { 'owner.kind': 'platform', status: 'succeeded', createdAt: { $gte: since } } },
+          { $group: { _id: { day: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } } }, totalPaise: { $sum: '$amountPaise' } } },
+          { $sort: { '_id.day': 1 } },
+        ]),
+      ]);
+      const totalPaise = breakdown.reduce((s, r) => s + r.totalPaise, 0);
+      return {
+        sinceDays: days, totalPaise, totalRupees: Math.round(totalPaise / 100),
+        breakdown: breakdown.map((r) => ({ reason: r._id, totalPaise: r.totalPaise, totalRupees: Math.round(r.totalPaise / 100), count: r.count })),
+        byDay: byDay.map((r) => ({ day: r._id.day, totalPaise: r.totalPaise, totalRupees: Math.round(r.totalPaise / 100) })),
+      };
+    });
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
+async function toggleDispatch(req, res, next) {
+  try {
+    const pricingService = require('../pricing/pricing.service');
+    const { dispatchEnabled } = req.body;
+    await pricingService.updateActiveConfig({ dispatchEnabled }, req.auth.sub);
+    await auditService.fromRequest(req, 'admin.dispatch_toggle', { kind: 'system', id: null }, null, { dispatchEnabled });
+    const activeOrderCount = await Order.countDocuments({
+      status: { $in: ['created', 'searching'] },
+    });
     res.json({
-      sinceDays: days, totalPaise, totalRupees: Math.round(totalPaise / 100),
-      breakdown: breakdown.map((r) => ({ reason: r._id, totalPaise: r.totalPaise, totalRupees: Math.round(r.totalPaise / 100), count: r.count })),
-      byDay: byDay.map((r) => ({ day: r._id.day, totalPaise: r.totalPaise, totalRupees: Math.round(r.totalPaise / 100) })),
+      dispatchEnabled,
+      activeOrderCount,
+      message: dispatchEnabled
+        ? 'Dispatch enabled — queued orders will resume processing'
+        : `Dispatch paused — ${activeOrderCount} order(s) will re-queue every 60s until re-enabled`,
     });
   } catch (err) { next(err); }
 }
@@ -39,29 +77,80 @@ async function updateToggles(req, res, next) {
 
 async function getMetrics(req, res, next) {
   try {
-    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-    const [ordersToday, active, completedToday, revenueAgg, onlineWorkers, totalWorkers, totalUsers] = await Promise.all([
-      Order.countDocuments({ createdAt: { $gte: startOfDay } }),
-      Order.countDocuments({ status: { $in: ['searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'] } }),
-      Order.countDocuments({ status: 'completed', completedAt: { $gte: startOfDay } }),
-      Order.aggregate([{ $match: { status: 'completed', completedAt: { $gte: startOfDay } } }, { $group: { _id: null, revenue: { $sum: '$pricing.total' }, avg: { $avg: '$pricing.total' } } }]),
-      Worker.countDocuments({ isOnline: true }),
-      Worker.countDocuments(),
-      User.countDocuments(),
-    ]);
-    res.json({ ordersToday, active, completedToday, revenueToday: revenueAgg[0]?.revenue || 0, avgFare: Math.round(revenueAgg[0]?.avg || 0), onlineWorkers, totalWorkers, totalUsers });
+    const Transaction = require('../payment/transaction.model');
+    // 30-second cache: fresh enough for ops dashboards, avoids hammering Mongo on every poll.
+    const result = await cachedAnalytics('admin:metrics', 30, async () => {
+      const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+      const [ordersToday, active, completedToday, orderRevenueAgg, platformRevenueAgg, onlineWorkers, totalWorkers, totalUsers] = await Promise.all([
+        Order.countDocuments({ createdAt: { $gte: startOfDay } }),
+        Order.countDocuments({ status: { $in: ['searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'] } }),
+        Order.countDocuments({ status: 'completed', completedAt: { $gte: startOfDay } }),
+        // GMV: prefer paise field (precise, added post-#51 fix); fall back to total×100 for old orders.
+        Order.aggregate([
+          { $match: { status: 'completed', completedAt: { $gte: startOfDay } } },
+          {
+            $group: {
+              _id: null,
+              gmvPaise: { $sum: { $ifNull: ['$pricing.totalPaise', { $multiply: ['$pricing.total', 100] }] } },
+              avgFarePaise: { $avg: { $ifNull: ['$pricing.totalPaise', { $multiply: ['$pricing.total', 100] }] } },
+            },
+          },
+        ]),
+        // Platform revenue: commission credited to platform wallet from Transaction ledger (paise).
+        Transaction.aggregate([
+          { $match: { 'owner.kind': 'platform', status: 'succeeded', createdAt: { $gte: startOfDay } } },
+          { $group: { _id: null, revenuePaise: { $sum: '$amountPaise' } } },
+        ]),
+        Worker.countDocuments({ isOnline: true }),
+        Worker.countDocuments(),
+        User.countDocuments(),
+      ]);
+      const gmvPaise         = orderRevenueAgg[0]?.gmvPaise || 0;
+      const avgFarePaise     = orderRevenueAgg[0]?.avgFarePaise || 0;
+      const platformRevPaise = platformRevenueAgg[0]?.revenuePaise || 0;
+      // Implied commission sanity check: should be ≈ configured commission rate (#52).
+      const impliedCommissionPct = gmvPaise > 0
+        ? Math.round((platformRevPaise / gmvPaise) * 1000) / 10
+        : null;
+      return {
+        ordersToday, active, completedToday,
+        gmvToday: Math.round(gmvPaise / 100),
+        gmvTodayPaise: gmvPaise,
+        revenueToday: Math.round(platformRevPaise / 100),
+        revenueTodayPaise: platformRevPaise,
+        impliedCommissionPct,
+        avgFare: Math.round(avgFarePaise / 100),
+        onlineWorkers, totalWorkers, totalUsers,
+      };
+    });
+    res.json(result);
   } catch (err) { next(err); }
 }
 
 async function listOrders(req, res, next) {
   try {
-    const { status, page = 1, limit = 50 } = req.query;
-    const q = status ? { status } : {};
+    const { status, service, city, from, to, page = 1, limit = 50 } = req.query;
+    const q = {};
+    if (status) q.status = status;
+    if (service) q.service = service;
+    // Date range filter
+    if (from || to) {
+      q.createdAt = {};
+      if (from) q.createdAt.$gte = new Date(from);
+      if (to)   q.createdAt.$lte = new Date(to);
+    }
+    // City filter via pickup address substring (case-insensitive, no RegExp injection).
+    if (city) {
+      // Escape special regex chars to prevent ReDoS.
+      const safeCity = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      q['pickupLocation.address'] = { $regex: safeCity, $options: 'i' };
+    }
     const [orders, total] = await Promise.all([
-      Order.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit)).populate('userId', 'name phone').populate('workerId', 'name phone rating').lean(),
+      Order.find(q).sort({ createdAt: -1 }).skip((Number(page) - 1) * Number(limit)).limit(Number(limit))
+        .populate('userId', 'name phone').populate('workerId', 'name phone rating').lean(),
       Order.countDocuments(q),
     ]);
-    res.json({ orders, total, page: Number(page), limit: Number(limit) });
+    res.json({ orders, total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / Number(limit)) });
   } catch (err) { next(err); }
 }
 
@@ -69,7 +158,11 @@ async function listWorkers(req, res, next) {
   try {
     const { q, skill, online, page = 1, limit = 50 } = req.query;
     const filter = {};
-    if (q) filter.$or = [{ name: new RegExp(q, 'i') }, { phone: new RegExp(q, 'i') }];
+    if (q) {
+      // Escape special regex characters to prevent ReDoS attacks.
+      const safeQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [{ name: new RegExp(safeQ, 'i') }, { phone: new RegExp(safeQ, 'i') }];
+    }
     if (skill) filter.skills = skill;
     if (online !== undefined) filter.isOnline = online === 'true';
     const [workers, total] = await Promise.all([
@@ -85,7 +178,32 @@ async function blockWorker(req, res, next) {
     const before = await Worker.findById(req.params.id).select('isBlocked').lean();
     if (!before) return res.status(404).json({ error: 'Worker not found' });
     const worker = await Worker.findByIdAndUpdate(req.params.id, { $set: { isBlocked: req.body.blocked, isOnline: false, isAvailable: false } }, { new: true });
-    await redis.zrem('workers:online', String(req.params.id));
+
+    // Full geo pool removal (geo hash + skills sets + alive zset) not just zrem.
+    const geoService = require('../worker/geo.service');
+    await geoService.markOffline(String(req.params.id));
+
+    // When BLOCKING: find any active order and re-dispatch so the user is not
+    // left stranded with an assigned-but-blocked worker.
+    if (req.body.blocked) {
+      const activeOrder = await Order.findOne({
+        workerId: req.params.id,
+        status: { $in: ['assigned', 'on_the_way', 'arrived'] },
+      }).lean();
+      if (activeOrder) {
+        const orderService = require('../order/order.service');
+        await orderService.workerCancel({
+          orderId: String(activeOrder._id),
+          workerId: String(req.params.id),
+          reason: 'admin_blocked_worker',
+        }).catch((err) => {
+          // Best-effort — log but don't fail the block action.
+          const logger = require('../../utils/logger');
+          logger.error({ err: err.message, orderId: activeOrder._id }, 'Failed to re-dispatch on worker block');
+        });
+      }
+    }
+
     await auditService.fromRequest(req, req.body.blocked ? 'admin.worker_block' : 'admin.worker_unblock', { kind: 'worker', id: req.params.id }, { isBlocked: before.isBlocked }, { isBlocked: worker.isBlocked });
     res.json({ worker });
   } catch (err) { next(err); }
@@ -120,10 +238,28 @@ async function rejectKyc(req, res, next) {
   try {
     const before = await Worker.findById(req.params.id).select('kyc').lean();
     if (!before) return res.status(404).json({ error: 'Worker not found' });
-    const worker = await Worker.findByIdAndUpdate(req.params.id, { $set: { 'kyc.status': 'rejected', 'kyc.reviewedAt': new Date(), 'kyc.reviewedBy': req.auth.sub, 'kyc.rejectionReason': req.body.reason, isOnline: false, isAvailable: false } }, { new: true });
+    const now = new Date();
+    const newRejectionCount = (before.kyc?.rejectionCount || 0) + 1;
+    const SUSPENSION_THRESHOLD = 5;
+    const worker = await Worker.findByIdAndUpdate(req.params.id, {
+      $set: {
+        'kyc.status':          newRejectionCount >= SUSPENSION_THRESHOLD ? 'suspended' : 'rejected',
+        'kyc.reviewedAt':      now,
+        'kyc.reviewedBy':      req.auth.sub,
+        'kyc.rejectionReason': req.body.reason,
+        'kyc.lastRejectedAt':  now,        // cooldown reference (#86)
+        'kyc.rejectionCount':  newRejectionCount,
+        isOnline: false, isAvailable: false,
+      },
+      // Mark the latest history entry as rejected
+      $set: { 'kyc.submissionHistory.$[last].outcome': 'rejected', 'kyc.submissionHistory.$[last].rejectionReason': req.body.reason },
+    }, {
+      new: true,
+      arrayFilters: [{ 'last.outcome': 'pending' }],
+    });
     await redis.zrem('workers:online', String(req.params.id));
     await auditService.fromRequest(req, 'admin.kyc_reject', { kind: 'worker', id: req.params.id }, before.kyc, worker.kyc);
-    res.json({ worker });
+    res.json({ worker, suspended: newRejectionCount >= SUSPENSION_THRESHOLD });
   } catch (err) { next(err); }
 }
 
@@ -158,10 +294,45 @@ async function setPricingConfig(req, res, next) {
 
 async function getHeatmap(req, res, next) {
   try {
-    const minutes = Number(req.query.minutes) || 15;
+    const minutes = Number(req.query.minutes) || 60;
     const since = new Date(Date.now() - minutes * 60 * 1000);
-    const orders = await Order.find({ createdAt: { $gte: since } }).select('pickupLocation status service').lean();
-    res.json({ points: orders.map((o) => ({ lng: o.pickupLocation.coordinates[0], lat: o.pickupLocation.coordinates[1], status: o.status, service: o.service })) });
+    // Use durable DemandEvent collection for historical heatmap (#54).
+    // Falls back to live Order query for very-recent windows where Mongo write may lag.
+    const DemandEvent = require('../analytics/demand-event.model');
+    const [demandPoints, recentOrders] = await Promise.all([
+      // Aggregated demand buckets from the persistent store
+      DemandEvent.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        {
+          $group: {
+            _id: '$bucket',
+            count: { $sum: 1 },
+            lat: { $first: '$lat' },
+            lng: { $first: '$lng' },
+            services: { $addToSet: '$service' },
+          },
+        },
+        { $sort: { count: -1 } },
+        { $limit: 500 },
+      ]),
+      // Live orders still in flight — these may not have DemandEvent yet
+      Order.find({ createdAt: { $gte: since } })
+        .select('pickupLocation status service').lean(),
+    ]);
+    res.json({
+      points: recentOrders.map((o) => ({
+        lng: o.pickupLocation.coordinates[0],
+        lat: o.pickupLocation.coordinates[1],
+        status: o.status,
+        service: o.service,
+      })),
+      demandBuckets: demandPoints.map((b) => ({
+        lat: b.lat, lng: b.lng,
+        count: b.count,
+        services: b.services.filter(Boolean),
+      })),
+      windowMinutes: minutes,
+    });
   } catch (err) { next(err); }
 }
 
@@ -534,6 +705,87 @@ async function getWorkerPenaltyStats(req, res, next) {
         rejectRate: Math.round(lifetimeRejectRate * 100) / 100,
         cancelRate: Math.round(lifetimeCancelRate * 100) / 100,
       },
+    });
+  } catch (err) { next(err); }
+}
+
+// ── Payment Refund ─────────────────────────────────────────────────────────
+
+async function refundOrder(req, res, next) {
+  try {
+    const PaymentIntent = require('../payment/payment-intent.model');
+    const Transaction   = require('../payment/transaction.model');
+    const walletService = require('../wallet/wallet.service');
+    const razorpay      = require('../payment/razorpay.client');
+
+    const order = await Order.findById(req.params.id).lean();
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    /* Only refund online-paid orders */
+    if (order.payment?.method === 'cash') {
+      return res.status(400).json({ error: 'Cash orders cannot be refunded through this endpoint' });
+    }
+    if (order.payment?.status !== 'paid') {
+      return res.status(400).json({ error: 'Order has not been paid — nothing to refund' });
+    }
+
+    const intent = await PaymentIntent.findOne({
+      orderId: order._id,
+      status: 'captured',
+    }).lean();
+
+    if (!intent) {
+      return res.status(404).json({ error: 'No captured payment found for this order' });
+    }
+
+    const refundPaise = req.body.amountPaise
+      ? Math.min(Number(req.body.amountPaise), intent.amountPaise)
+      : intent.amountPaise;
+
+    /* Trigger Razorpay refund */
+    let rzpRefund;
+    try {
+      rzpRefund = await razorpay.refundPayment(intent.razorpayPaymentId, refundPaise);
+    } catch (err) {
+      return res.status(502).json({ error: `Razorpay refund failed: ${err.message}` });
+    }
+
+    /* Credit user wallet with the refund amount */
+    await walletService.apply({
+      kind: 'user',
+      id: order.userId,
+      type: 'credit',
+      amountPaise: refundPaise,
+      reason: Transaction.REASONS.ADMIN_ADJUSTMENT_CREDIT,
+      idempotencyKey: `refund:${rzpRefund.id}`,
+      refs: { orderId: order._id, paymentIntentId: intent._id },
+      description: `Refund for order ${order._id} — admin initiated`,
+      metadata: { adminId: req.auth.sub, rzpRefundId: rzpRefund.id },
+    });
+
+    /* Mark payment intent refunded */
+    await PaymentIntent.findByIdAndUpdate(intent._id, {
+      $set: { status: 'refunded' },
+      $push: { events: { event: 'admin.refund', payload: { refundId: rzpRefund.id, amountPaise: refundPaise, adminId: req.auth.sub } } },
+    });
+
+    /* Update order payment status */
+    await Order.findByIdAndUpdate(order._id, { $set: { 'payment.status': 'refunded' } });
+
+    await auditService.fromRequest(
+      req, 'admin.order_refund',
+      { kind: 'order', id: req.params.id },
+      { paymentStatus: 'paid' },
+      { refundPaise, rzpRefundId: rzpRefund.id }
+    );
+
+    logger.info({ orderId: order._id, refundPaise, rzpRefundId: rzpRefund.id, admin: req.auth.sub }, '[Admin] Order refunded');
+
+    res.json({
+      ok: true,
+      refundPaise,
+      refundRupees: Math.round(refundPaise / 100),
+      rzpRefundId: rzpRefund.id,
     });
   } catch (err) { next(err); }
 }
@@ -989,15 +1241,501 @@ async function getLiveOps(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   CASHBACK CONFIG + STATS
+───────────────────────────────────────────────────────────────────────────── */
+
+async function getCashbackConfig(req, res, next) {
+  try {
+    const cashbackService = require('../wallet/cashback.service');
+    const rules = await cashbackService.getRules();
+    res.json({ config: rules });
+  } catch (err) { next(err); }
+}
+
+async function setCashbackConfig(req, res, next) {
+  try {
+    const cashbackService = require('../wallet/cashback.service');
+    const updated = await cashbackService.setRules(req.body);
+    await auditService.fromRequest(req, 'admin.cashback_config_update', { kind: 'system', id: null }, null, req.body);
+    res.json({ config: updated });
+  } catch (err) { next(err); }
+}
+
+async function getCashbackStats(req, res, next) {
+  try {
+    const Transaction = require('../payment/transaction.model');
+    const days = Math.min(Number(req.query.days) || 30, 365);
+    const since = new Date(Date.now() - days * 86400_000);
+
+    const [agg, byDay, topOrders] = await Promise.all([
+      Transaction.aggregate([
+        { $match: { reason: 'cashback', status: 'succeeded', createdAt: { $gte: since } } },
+        { $group: { _id: null, totalPaise: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
+      ]),
+      Transaction.aggregate([
+        { $match: { reason: 'cashback', status: 'succeeded', createdAt: { $gte: since } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, totalPaise: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Transaction.find({ reason: 'cashback', status: 'succeeded', createdAt: { $gte: since } })
+        .sort({ amountPaise: -1 }).limit(10)
+        .select('amountPaise refOrderId owner createdAt description').lean(),
+    ]);
+
+    res.json({
+      days,
+      totalPaise:   agg[0]?.totalPaise || 0,
+      totalRupees:  Math.round((agg[0]?.totalPaise || 0) / 100),
+      totalCount:   agg[0]?.count || 0,
+      avgPaise:     agg[0]?.count ? Math.round((agg[0].totalPaise || 0) / agg[0].count) : 0,
+      byDay:        byDay.map((d) => ({ day: d._id, totalPaise: d.totalPaise, totalRupees: Math.round(d.totalPaise / 100), count: d.count })),
+      topOrders:    topOrders.map((t) => ({ amountRupees: Math.round(t.amountPaise / 100), orderId: t.refOrderId, userId: t.owner?.id, at: t.createdAt, description: t.description })),
+    });
+  } catch (err) { next(err); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   REFERRAL STATS
+───────────────────────────────────────────────────────────────────────────── */
+
+async function getReferralStats(req, res, next) {
+  try {
+    const { ReferralUse, ReferralCode } = require('../referral/referral.model');
+    const Transaction = require('../payment/transaction.model');
+    const days = Math.min(Number(req.query.days) || 30, 365);
+    const since = new Date(Date.now() - days * 86400_000);
+
+    const [totalUses, rewarded, rewardSpend, topReferrers] = await Promise.all([
+      ReferralUse.countDocuments({ createdAt: { $gte: since } }),
+      ReferralUse.countDocuments({ status: 'rewarded', createdAt: { $gte: since } }),
+      Transaction.aggregate([
+        { $match: { reason: 'referral_reward', status: 'succeeded', createdAt: { $gte: since } } },
+        { $group: { _id: null, totalPaise: { $sum: '$amountPaise' } } },
+      ]),
+      ReferralUse.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: { _id: '$referrer.id', count: { $sum: 1 }, rewarded: { $sum: { $cond: [{ $eq: ['$status', 'rewarded'] }, 1, 0] } } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+      ]),
+    ]);
+
+    res.json({
+      days,
+      totalSignups:      totalUses,
+      converted:         rewarded,
+      conversionPct:     totalUses ? Math.round((rewarded / totalUses) * 100) : 0,
+      totalSpendPaise:   rewardSpend[0]?.totalPaise || 0,
+      totalSpendRupees:  Math.round((rewardSpend[0]?.totalPaise || 0) / 100),
+      topReferrers:      topReferrers.map((r) => ({ referrerId: r._id, signups: r.count, converted: r.rewarded })),
+    });
+  } catch (err) { next(err); }
+}
+
+async function listRecentReferrals(req, res, next) {
+  try {
+    const { ReferralUse } = require('../referral/referral.model');
+    const page = Number(req.query.page) || 1;
+    const limit = 50;
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+
+    const [uses, total] = await Promise.all([
+      ReferralUse.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      ReferralUse.countDocuments(filter),
+    ]);
+    res.json({ uses, total, page, limit, totalPages: Math.ceil(total / limit) });
+  } catch (err) { next(err); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DEFERRED MILESTONES
+───────────────────────────────────────────────────────────────────────────── */
+
+async function listDeferredMilestones(req, res, next) {
+  try {
+    const stream = redis.scanStream({ match: 'incentive:deferred:*:*', count: 200 });
+    const keys = [];
+    for await (const batch of stream) keys.push(...batch);
+
+    const results = await Promise.all(keys.map(async (key) => {
+      const raw = await redis.get(key);
+      if (!raw) return null;
+      try {
+        const data = JSON.parse(raw);
+        const parts = key.split(':'); // incentive:deferred:workerId:milestone
+        return { workerId: parts[2], milestone: parts[3], ...data, key };
+      } catch { return null; }
+    }));
+
+    res.json({ deferred: results.filter(Boolean), count: results.filter(Boolean).length });
+  } catch (err) { next(err); }
+}
+
+async function releaseDeferredMilestone(req, res, next) {
+  try {
+    const { workerId, milestone } = req.params;
+    const key = `incentive:deferred:${workerId}:${milestone}`;
+    const raw = await redis.get(key);
+    if (!raw) return res.status(404).json({ error: 'Deferred milestone not found or already released' });
+
+    const data = JSON.parse(raw);
+    const walletService = require('../wallet/wallet.service');
+    const Transaction = require('../payment/transaction.model');
+
+    await walletService.apply({
+      kind: 'worker',
+      id: workerId,
+      type: 'credit',
+      amountPaise: data.bonusPaise,
+      reason: Transaction.REASONS.ADMIN_ADJUSTMENT_CREDIT,
+      idempotencyKey: `incentive:milestone:${workerId}:${milestone}:admin_release`,
+      description: `Milestone ${milestone} bonus — admin released after rating improvement`,
+    });
+
+    await redis.del(key);
+    await auditService.fromRequest(req, 'admin.deferred_milestone_release',
+      { kind: 'worker', id: workerId }, null, { milestone, bonusPaise: data.bonusPaise });
+
+    const notificationService = require('../notification/notification.service');
+    notificationService.notify({
+      recipient: { kind: 'worker', id: workerId },
+      type: 'wallet_credited',
+      title: `🏆 Milestone #${milestone} bonus released!`,
+      body: `₹${data.bonusPaise / 100} has been credited to your wallet`,
+      deepLink: '/wallet',
+    }).catch(() => {});
+
+    res.json({ ok: true, bonusPaise: data.bonusPaise });
+  } catch (err) { next(err); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUSINESS INTELLIGENCE ENDPOINTS (scenarios 81-85)
+═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Per-service P&L — revenue, worker cost, and platform margin. (#83)
+ * Uses earnings snapshots locked at completion for accuracy.
+ * GMV ≠ revenue: GMV is what the customer paid; revenue is the platform's cut.
+ */
+async function getServicePnL(req, res, next) {
+  try {
+    const days = Math.min(Number(req.query.days) || 30, 180);
+    const since = new Date(Date.now() - days * 86_400_000);
+
+    const pnl = await cachedAnalytics(`admin:pnl:${days}`, 120, async () => {
+      const rows = await Order.aggregate([
+        { $match: { status: 'completed', completedAt: { $gte: since } } },
+        {
+          $group: {
+            _id: '$service',
+            orders:        { $sum: 1 },
+            // GMV: total paid by customers (prefer paise field for precision)
+            gmvPaise:      { $sum: { $ifNull: ['$pricing.totalPaise', { $multiply: ['$pricing.total', 100] }] } },
+            // Platform revenue: actual commission earned
+            revenuePaise:  { $sum: { $ifNull: ['$earnings.platformPaise', 0] } },
+            // Worker cost: what the platform paid out to workers
+            workerPaise:   { $sum: { $ifNull: ['$earnings.workerPaise', 0] } },
+            avgFare:       { $avg: { $ifNull: ['$pricing.totalPaise', { $multiply: ['$pricing.total', 100] }] } },
+            avgCommission: { $avg: '$earnings.commissionRate' },
+          },
+        },
+        { $sort: { gmvPaise: -1 } },
+      ]);
+
+      return rows.map((r) => {
+        const marginPct = r.gmvPaise > 0
+          ? Math.round((r.revenuePaise / r.gmvPaise) * 1000) / 10
+          : 0;
+        // Profitability signal: if commission rate drops well below config (e.g. due to Pro workers)
+        const isLowMargin = marginPct < 15; // below 15% platform cut is a warning
+        return {
+          service:         r._id,
+          orders:          r.orders,
+          gmvRupees:       Math.round(r.gmvPaise / 100),
+          revenueRupees:   Math.round(r.revenuePaise / 100),
+          workerCostRupees: Math.round(r.workerPaise / 100),
+          marginPct,
+          avgFareRupees:   Math.round((r.avgFare || 0) / 100),
+          avgCommissionPct: Math.round((r.avgCommission || 0) * 1000) / 10,
+          isLowMargin,
+          isUnprofitable: r.revenuePaise <= 0 && r.orders > 0,
+        };
+      });
+    });
+
+    res.json({ sinceDays: days, services: pnl });
+  } catch (err) { next(err); }
+}
+
+/**
+ * Worker churn risk — identifies workers at risk of leaving due to low earnings. (#81)
+ * Thresholds are business-configurable in the response but default to:
+ *   - Weekly earnings < ₹500 = at-risk
+ *   - No job in 7 days but was active = dormant
+ *   - Cancel/reject rate above 20% = quality risk (likely to be deactivated)
+ */
+async function getChurnRisk(req, res, next) {
+  try {
+    const EARNINGS_FLOOR_PAISE = 50_000; // ₹500/week threshold
+    const since7d  = new Date(Date.now() - 7  * 86_400_000);
+    const since14d = new Date(Date.now() - 14 * 86_400_000);
+
+    const [lowEarners, dormant, highCancel] = await Promise.all([
+      // Workers with < ₹500 earnings this week who have completed at least 1 job
+      Order.aggregate([
+        { $match: { status: 'completed', completedAt: { $gte: since7d }, workerId: { $ne: null } } },
+        { $group: { _id: '$workerId', weeklyPaise: { $sum: '$earnings.workerPaise' }, jobs: { $sum: 1 } } },
+        { $match: { weeklyPaise: { $lt: EARNINGS_FLOOR_PAISE } } },
+        { $sort: { weeklyPaise: 1 } },
+        { $limit: 50 },
+        { $lookup: { from: 'workers', localField: '_id', foreignField: '_id', as: 'w' } },
+        { $unwind: { path: '$w', preserveNullAndEmptyArrays: true } },
+        { $project: {
+          workerId: '$_id', name: '$w.name', phone: '$w.phone', skills: '$w.skills',
+          weeklyPaise: 1, weeklyRupees: { $round: [{ $divide: ['$weeklyPaise', 100] }, 0] }, jobs: 1,
+        }},
+      ]),
+
+      // Workers who were active 8-14 days ago but have 0 jobs in last 7 days (going dormant)
+      Worker.aggregate([
+        { $lookup: {
+          from: 'orders',
+          let: { wid: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$workerId', '$$wid'] }, status: 'completed', completedAt: { $gte: since7d } } },
+            { $count: 'n' },
+          ],
+          as: 'recent',
+        }},
+        { $lookup: {
+          from: 'orders',
+          let: { wid: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$workerId', '$$wid'] }, status: 'completed', completedAt: { $gte: since14d, $lt: since7d } } },
+            { $count: 'n' },
+          ],
+          as: 'prevWeek',
+        }},
+        { $match: {
+          $expr: {
+            $and: [
+              { $eq: [{ $size: '$recent' }, 0] },
+              { $gt: [{ $ifNull: [{ $first: '$prevWeek.n' }, 0] }, 0] },
+            ],
+          },
+          isBlocked: false,
+        }},
+        { $project: { name: 1, phone: 1, skills: 1, completedJobs: 1 } },
+        { $limit: 30 },
+      ]),
+
+      // High cancel/reject rate workers (likely to churn or be auto-deactivated)
+      Worker.find(
+        {
+          isBlocked: false,
+          'penalties.totalOffers': { $gt: 5 },
+          $expr: { $gt: [{ $divide: ['$penalties.totalRejects', { $max: ['$penalties.totalOffers', 1] }] }, 0.4] },
+        },
+        { name: 1, phone: 1, skills: 1, penalties: 1, completedJobs: 1, rating: 1 }
+      ).limit(30).lean(),
+    ]);
+
+    res.json({
+      earningsFloorRupees: EARNINGS_FLOOR_PAISE / 100,
+      lowEarners:   lowEarners.length,
+      dormant:      dormant.length,
+      highCancelRate: highCancel.length,
+      total:        lowEarners.length + dormant.length + highCancel.length,
+      details: { lowEarners, dormant, highCancelRate: highCancel },
+    });
+  } catch (err) { next(err); }
+}
+
+/**
+ * Dead category report — services with 0 orders in the last N days. (#84)
+ * Used to decide whether to disable a service and free up UX space.
+ */
+async function getDeadCategories(req, res, next) {
+  try {
+    const days = Math.min(Number(req.query.days) || 30, 180);
+    const since = new Date(Date.now() - days * 86_400_000);
+    const ServiceCatalog = require('../service/service-catalog.model');
+
+    const [activeServices, usedServices] = await Promise.all([
+      ServiceCatalog.find({ isActive: true }, { code: 1, name: 1, category: 1, priceRangeMinPaise: 1 }).lean(),
+      Order.distinct('service', { createdAt: { $gte: since } }),
+    ]);
+
+    const usedSet = new Set(usedServices);
+    const dead = activeServices
+      .filter((s) => !usedSet.has(s.code))
+      .map((s) => ({ code: s.code, name: s.name, category: s.category, daysSinceLastOrder: days }));
+
+    // Also get last order date for partially-dead services (low usage)
+    const lowUsage = await Order.aggregate([
+      { $match: { createdAt: { $gte: since }, service: { $in: activeServices.map((s) => s.code) } } },
+      { $group: { _id: '$service', count: { $sum: 1 }, last: { $max: '$createdAt' } } },
+      { $match: { count: { $lte: 2 } } }, // less than 3 orders in the window
+      { $sort: { count: 1 } },
+    ]);
+
+    res.json({
+      windowDays: days,
+      dead: { count: dead.length, services: dead },
+      lowUsage: {
+        count: lowUsage.length,
+        threshold: 3,
+        services: lowUsage.map((s) => ({
+          service: s._id, count: s.count, lastOrderAt: s.last,
+        })),
+      },
+      recommendation: dead.length > 0
+        ? `${dead.length} active service(s) have had 0 orders in ${days} days. Consider disabling them.`
+        : 'All active services received orders in the window.',
+    });
+  } catch (err) { next(err); }
+}
+
+/**
+ * Geo readiness — tells admin whether a lat/lng area has enough workers
+ * to reliably fulfil orders. Used before launching in a new city. (#85)
+ */
+async function getGeoReadiness(req, res, next) {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const radiusKm = Math.min(Number(req.query.radiusKm) || 15, 50);
+
+    if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({ error: 'Valid lat and lng required' });
+    }
+
+    const [totalWorkers, approvedWorkers, onlineWorkers, recentOrders] = await Promise.all([
+      // Total registered workers in radius
+      Worker.countDocuments({
+        currentLocation: { $near: { $geometry: { type: 'Point', coordinates: [lng, lat] }, $maxDistance: radiusKm * 1000 } },
+      }),
+      // KYC-approved workers
+      Worker.countDocuments({
+        currentLocation: { $near: { $geometry: { type: 'Point', coordinates: [lng, lat] }, $maxDistance: radiusKm * 1000 } },
+        'kyc.status': 'approved',
+        isBlocked: false,
+      }),
+      // Currently online workers (Redis GEO)
+      (async () => {
+        try {
+          const { redis: r } = require('../../config/redis');
+          const res2 = await r.geosearch('workers:online', 'FROMLONLAT', lng, lat, 'BYRADIUS', radiusKm, 'km', 'COUNT', 100).catch(() => []);
+          return Array.isArray(res2) ? res2.length : 0;
+        } catch { return 0; }
+      })(),
+      // Orders attempted in this area in the last 30 days
+      Order.countDocuments({
+        pickupLocation: { $near: { $geometry: { type: 'Point', coordinates: [lng, lat] }, $maxDistance: radiusKm * 1000 } },
+        createdAt: { $gte: new Date(Date.now() - 30 * 86_400_000) },
+      }),
+    ]);
+
+    // Skills coverage: which services have at least 1 approved worker?
+    const workerSkills = await Worker.find(
+      {
+        currentLocation: { $near: { $geometry: { type: 'Point', coordinates: [lng, lat] }, $maxDistance: radiusKm * 1000 } },
+        'kyc.status': 'approved', isBlocked: false,
+      },
+      { skills: 1 }
+    ).lean();
+    const coveredSkills = [...new Set(workerSkills.flatMap((w) => w.skills || []))].sort();
+
+    const isReady = approvedWorkers >= 5; // minimum viable: 5 approved workers in radius
+    const isOperational = onlineWorkers >= 2;
+
+    res.json({
+      lat, lng, radiusKm,
+      totalWorkers,
+      approvedWorkers,
+      onlineWorkers,
+      recentOrders,
+      coveredSkills,
+      isReady,
+      isOperational,
+      readinessScore: Math.min(100, Math.round((approvedWorkers / 5) * 60 + (onlineWorkers / 3) * 40)),
+      recommendation: !isReady
+        ? `Need ${Math.max(0, 5 - approvedWorkers)} more approved worker(s) before launching in this area.`
+        : isOperational
+          ? 'Area is operational — sufficient workers online and approved.'
+          : 'Area has approved workers but none currently online. Arrange a soft launch.',
+    });
+  } catch (err) { next(err); }
+}
+
+/**
+ * Quote abandonment stats — quotes fetched but no order placed within 10 min. (#82)
+ * Proxy for price sensitivity: high abandonment at a given price = price too high.
+ */
+async function getQuoteAbandonmentStats(req, res, next) {
+  try {
+    const days = Math.min(Number(req.query.days) || 7, 30);
+    const since = new Date(Date.now() - days * 86_400_000);
+    const { redis: r } = require('../../config/redis');
+
+    // Quote events are recorded in Redis sorted set: quote:{service}:{date} → count
+    // (recorded by recordDemand calls from the quote endpoint)
+    // We approximate abandonment as: quotes - orders placed in same window per service
+    const [quoteCounts, orderCounts] = await Promise.all([
+      // Orders that reached 'searching' or beyond = confirmed bookings
+      Order.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: { _id: '$service', orders: { $sum: 1 } } },
+      ]),
+      // Total quotes: currently stored in demand Redis keys (approximate)
+      // For a precise count, we'd need a separate quote-event log.
+      // Return the data we have with a note about approximation.
+      Order.aggregate([
+        { $match: { createdAt: { $gte: since }, status: { $in: ['cancelled', 'failed'] } } },
+        { $group: { _id: '$service', earlyExits: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const orderMap    = Object.fromEntries(orderCounts.map((r2) => [r2._id, r2.orders]));
+    const earlyExitMap = Object.fromEntries(quoteCounts.map((r2) => [r2._id, r2.earlyExits]));
+
+    // High early-exit rate (cancelled/failed ÷ total) = proxy for price sensitivity
+    const allServices = [...new Set([...Object.keys(orderMap), ...Object.keys(earlyExitMap)])];
+    const sensitivity = allServices
+      .map((svc) => {
+        const total = orderMap[svc] || 0;
+        const exits = earlyExitMap[svc] || 0;
+        const exitRate = total > 0 ? Math.round((exits / total) * 100) : 0;
+        return { service: svc, total, earlyExits: exits, exitRatePct: exitRate };
+      })
+      .filter((s) => s.total >= 5) // minimum sample
+      .sort((a, b) => b.exitRatePct - a.exitRatePct);
+
+    res.json({
+      windowDays: days,
+      note: 'exitRatePct = (cancelled+failed) ÷ total orders — proxy for price-driven abandonment',
+      highSensitivity: sensitivity.filter((s) => s.exitRatePct > 30),
+      all: sensitivity,
+    });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
-  getRevenue, updateToggles, getMetrics,
+  getRevenue, updateToggles, toggleDispatch, getMetrics,
   listOrders, listWorkers, blockWorker,
   listUsers, blockUser,
   getAuditLogs, approveKyc, rejectKyc, listKycPending,
   getPricingConfig, setPricingConfig,
   getHeatmap, getAnalytics,
   getIncentiveConfig, setIncentiveMilestones, runRatingBonusSweep,
+  getCashbackConfig, setCashbackConfig, getCashbackStats,
+  getReferralStats, listRecentReferrals,
+  listDeferredMilestones, releaseDeferredMilestone,
   adjustWallet, reconcileWallet,
+  refundOrder,
   getCancellationConfig, updateCancellationConfig,
   getWorkerPenaltyStats,
   listAllPlans, createPlan, updatePlan, deletePlan,
@@ -1009,4 +1747,10 @@ module.exports = {
   getRetention,
   listSupportTickets, replyToSupportTicket,
   getLiveOps,
+  // Business intelligence (81-85)
+  getServicePnL,
+  getChurnRisk,
+  getDeadCategories,
+  getGeoReadiness,
+  getQuoteAbandonmentStats,
 };

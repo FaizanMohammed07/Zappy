@@ -7,6 +7,7 @@ const auditService = require('../admin/audit.service');
 const cancellationService = require('../order/cancellation.service');
 
 const SLA_HOURS = 24;
+const MAX_DISPUTES_PER_30_DAYS = 3; // max claims per user in a rolling 30-day window
 
 async function open({ orderId, raisedBy, category, description, evidenceUrls = [] }) {
   const order = await Order.findById(orderId).lean();
@@ -30,6 +31,38 @@ async function open({ orderId, raisedBy, category, description, evidenceUrls = [
     throw Object.assign(new Error('Dispute window is 7 days from completion'), {
       status: 409, code: 'DISPUTE_WINDOW_EXPIRED',
     });
+  }
+
+  // One active dispute per order per raiser — blocks opening 10 disputes on same order.
+  const existingOnOrder = await Dispute.findOne({
+    orderId,
+    'raisedBy.id': raisedBy.id,
+    status: { $in: ['open', 'under_review'] },
+  }).lean();
+  if (existingOnOrder) {
+    throw Object.assign(
+      new Error('You already have an open dispute on this order.'),
+      { status: 409, code: 'DISPUTE_ALREADY_OPEN', disputeId: String(existingOnOrder._id) }
+    );
+  }
+
+  // Rolling 30-day rate limit per claimant — blocks mass fake refund campaigns.
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400_000);
+  const recentCount = await Dispute.countDocuments({
+    'raisedBy.id': raisedBy.id,
+    createdAt: { $gte: thirtyDaysAgo },
+  });
+  if (recentCount >= MAX_DISPUTES_PER_30_DAYS) {
+    throw Object.assign(
+      new Error(`Maximum ${MAX_DISPUTES_PER_30_DAYS} disputes per 30 days. Contact support for urgent matters.`),
+      { status: 429, code: 'DISPUTE_RATE_LIMIT' }
+    );
+  }
+
+  // Increment lifetime dispute counter on user model for admin risk scoring
+  if (raisedBy.kind === 'user') {
+    const User = require('../user/user.model');
+    User.updateOne({ _id: raisedBy.id }, { $inc: { 'abuse.totalDisputes': 1 } }).catch(() => {});
   }
 
   // The other party

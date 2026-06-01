@@ -39,7 +39,45 @@ const pricingConfigSchema = new mongoose.Schema(
     // Commission (workers' platform cut)
     commissionRate: { type: Number, default: 0.30, min: 0, max: 0.5 }, // 30%
 
-    isActive: { type: Boolean, default: false, index: true }, // exactly one active
+    // ── Dispatch kill-switch ─────────────────────────────────────────────────
+    // When false, the dispatch worker re-queues all jobs with a 60s delay instead
+    // of processing them. Admin can re-enable to drain the queue normally.
+    dispatchEnabled: { type: Boolean, default: true },
+
+    // ── Dispatch / worker behaviour ──────────────────────────────────────────
+    // Force-assign bonus credited to workers who get auto-assigned (no voluntary accept)
+    forceAssignBonusPaise: { type: Number, default: 1500 },        // ₹15
+    // Dispatch reject-rate threshold — above this → worker auto-offline
+    workerAutoOfflineRejectRate: { type: Number, default: 0.70 },   // 70%
+    // Dispatch reject-rate early-warning threshold
+    workerRejectWarnRate: { type: Number, default: 0.50 },          // 50%
+    // Dispatch scoring weights
+    rejectRatePenaltyWeight: { type: Number, default: 3.0 },
+    cancelRatePenaltyWeight: { type: Number, default: 5.0 },
+    // Minimum worker rating to appear in dispatch
+    minWorkerRating: { type: Number, default: 3.0 },
+
+    // ── Stale order watchdog ─────────────────────────────────────────────────
+    staleNudgeMinutes: { type: Number, default: 5 },         // nudge after X min assigned
+    staleRedispatchMinutes: { type: Number, default: 10 },   // re-dispatch after X min
+    staleOtwAlertMinutes: { type: Number, default: 20 },     // on_the_way alert after X min
+
+    // ── Tip caps ─────────────────────────────────────────────────────────────
+    tipMaxPaise: { type: Number, default: 50000 },           // ₹500 max tip
+    tipOptions: { type: [Number], default: [20, 50, 100] },  // quick tip buttons (₹)
+
+    // ── Referral rewards ─────────────────────────────────────────────────────
+    referralReferrerBonusPaise: { type: Number, default: 15000 },  // ₹150 for referring
+    referralRefereeBonusPaise: { type: Number, default: 5000 },    // ₹50 for new user
+
+    // ── Earned wage advance ──────────────────────────────────────────────────
+    earnedWageAdvanceEnabled: { type: Boolean, default: true },
+    earnedWageAdvanceRate: { type: Number, default: 0.80 },    // worker can withdraw 80%
+
+    // ── Emergency fund ───────────────────────────────────────────────────────
+    emergencyFundContributionRate: { type: Number, default: 0.005 }, // 0.5% of commission
+
+    isActive: { type: Boolean, default: false }, // exactly one active — unique index below
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     notes: String,

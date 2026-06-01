@@ -38,13 +38,50 @@ function familyKey(userId, family) {
   return `rt:${userId}:${family}`;
 }
 
+// Maximum concurrent active sessions per role.
+// Workers are capped at 3 (phone + tablet + emergency backup).
+// Users are capped at 5 (more forgiving — family sharing, multiple browsers).
+// Admins are capped at 2 (security).
+const MAX_SESSIONS = { worker: 3, user: 5, admin: 2 };
+
 /**
  * Issue a NEW token pair (fresh login).
+ * Enforces per-role session limits: if the user already has MAX_SESSIONS
+ * active families, the oldest one is revoked (sliding window keeps the most
+ * recent N logins active).
  */
 async function issueTokenPair({ sub, role, phone, email }) {
   const family = crypto.randomBytes(8).toString('hex');
   const gen = 0;
   const tokenId = crypto.randomBytes(16).toString('hex');
+
+  // Enforce session cap: scan all families for this user, evict oldest if over limit.
+  const maxSessions = MAX_SESSIONS[role] ?? 5;
+  try {
+    const existingKeys = [];
+    const stream = redis.scanStream({ match: `rt:${sub}:*`, count: 50 });
+    for await (const batch of stream) existingKeys.push(...batch);
+
+    if (existingKeys.length >= maxSessions) {
+      // Fetch TTLs to find the oldest family (lowest remaining TTL = issued earliest)
+      const ttlPipe = redis.pipeline();
+      existingKeys.forEach((k) => ttlPipe.ttl(k));
+      const ttlResults = await ttlPipe.exec();
+      // Sort by TTL ascending (lowest TTL = expires soonest = was issued first)
+      const keysWithTtl = existingKeys
+        .map((k, i) => ({ key: k, ttl: ttlResults[i][1] ?? 0 }))
+        .sort((a, b) => a.ttl - b.ttl);
+      // Evict enough to stay under limit
+      const toEvict = keysWithTtl.slice(0, existingKeys.length - maxSessions + 1);
+      if (toEvict.length > 0) {
+        await redis.del(...toEvict.map((e) => e.key));
+        logger.info({ sub, role, evicted: toEvict.length }, 'Session cap: evicted oldest families');
+      }
+    }
+  } catch (err) {
+    // Session cap failure is non-fatal — login still succeeds.
+    logger.warn({ err: err.message, sub }, 'Session cap scan failed');
+  }
 
   const accessToken = signAccessToken({ sub, role, phone, email });
   const refreshToken = jwt.sign(

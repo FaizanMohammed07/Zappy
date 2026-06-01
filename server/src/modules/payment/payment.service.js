@@ -238,8 +238,29 @@ async function capturePayment({ razorpayOrderId, razorpayPaymentId, amountPaise,
     }
     return { ok: true, action: 'applied', purpose: intent.purpose };
   } catch (err) {
-    logger.error({ err: err.message, razorpayPaymentId, purpose: intent.purpose }, 'Side-effect application failed');
-    // Leave appliedAt set; admin retry path can be added if needed.
+    // Side-effect failed after payment was captured. Money exists in Razorpay
+    // but our side-effects (wallet credit, subscription activation) didn't apply.
+    // Mark the PaymentIntent for admin reconciliation and alert ops. (#95/#96)
+    logger.error({ err: err.message, razorpayPaymentId, purpose: intent.purpose }, '[PAYMENT] Side-effect failed — marking for reconciliation');
+    await PaymentIntent.updateOne(
+      { razorpayOrderId: intent.razorpayOrderId },
+      {
+        $set: {
+          reconciliationRequired: true,
+          reconciliationReason: err.message,
+          reconciliationAt: new Date(),
+        },
+      }
+    ).catch(() => {});
+    // Alert admin ops room
+    const { redis: r } = require('../../config/redis');
+    r.publish('notification:admin:ops', JSON.stringify({
+      type: 'payment_reconciliation_required',
+      title: '⚠️ Payment needs reconciliation',
+      body: `${purpose} · ₹${(intent.amountPaise / 100).toFixed(0)} · ${razorpayPaymentId}`,
+      data: { razorpayPaymentId, razorpayOrderId: intent.razorpayOrderId, purpose: intent.purpose, err: err.message },
+      urgent: true,
+    })).catch(() => {});
     throw err;
   }
 }

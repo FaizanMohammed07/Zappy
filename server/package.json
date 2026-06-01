@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "worker:dispatch": "node src/jobs/dispatch.worker.js",
     "worker:notifications": "node src/jobs/notifications.worker.js",
+    "worker:stale": "node src/jobs/stale-order.worker.js",
     "test": "jest --detectOpenHandles --forceExit",
     "test:watch": "jest --watch",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
@@ -21,12 +22,15 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.670.0",
     "@aws-sdk/s3-request-presigner": "^3.670.0",
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.21.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
+    "firebase-admin": "^13.10.0",
     "helmet": "^8.0.0",
     "ioredis": "^5.4.1",
     "joi": "^17.13.3",
@@ -37,7 +41,6 @@
     "pino-pretty": "^11.3.0",
     "rate-limit-redis": "^4.2.0",
     "socket.io": "^4.8.1",
-    "@socket.io/redis-adapter": "^8.3.0",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
@@ -49,8 +52,12 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "setupFilesAfterEach": ["<rootDir>/tests/teardown.js"],
-    "testMatch": ["<rootDir>/tests/**/*.test.js"],
+    "setupFilesAfterEach": [
+      "<rootDir>/tests/teardown.js"
+    ],
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.js"
+    ],
     "testTimeout": 30000,
     "maxWorkers": 1
   }
