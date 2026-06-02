@@ -154,25 +154,28 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
 
   // WORKER_PRO subscription effects — Pro workers get a score boost so they
   // surface higher on equal-distance ties.
-  // Cached in Redis with a 60s TTL so 100 concurrent dispatches in the same
-  // zone don't each issue N individual lookups (#61/#64).
+  // One MGET fetches all cached boost values in a single Redis round-trip.
+  // Only the cache-miss IDs issue a DB lookup (batched via Promise.all).
   const subscriptionService = require('../subscription/subscription.service');
-  const boostEntries = await Promise.all(
-    ids.map(async (id) => {
-      const cacheKey = `geo:sub:boost:${id}`;
+  const cacheKeys = ids.map((id) => `geo:sub:boost:${id}`);
+  let cachedBoosts;
+  try { cachedBoosts = await redis.mget(...cacheKeys); } catch { cachedBoosts = ids.map(() => null); }
+
+  const missIds = ids.filter((_, i) => cachedBoosts[i] === null);
+  const missBoosts = await Promise.all(
+    missIds.map(async (id) => {
       try {
-        const cached = await redis.get(cacheKey);
-        if (cached !== null) return [id, Number(cached)];
         const fx = await subscriptionService.getEffects({ kind: 'worker', id });
         const boost = Number(fx.proBoost) || 0;
-        await redis.set(cacheKey, String(boost), 'EX', 60); // 60s TTL
+        await redis.set(`geo:sub:boost:${id}`, String(boost), 'EX', 60);
         return [id, boost];
-      } catch {
-        return [id, 0];
-      }
+      } catch { return [id, 0]; }
     })
   );
-  const boostMap = new Map(boostEntries);
+  const missMap = new Map(missBoosts);
+  const boostMap = new Map(
+    ids.map((id, i) => [id, cachedBoosts[i] !== null ? Number(cachedBoosts[i]) : (missMap.get(id) || 0)])
+  );
 
   const ratingMap = new Map(ratings.map((r) => [String(r._id), r]));
   const scored = filtered

@@ -49,32 +49,54 @@ async function loadThresholds() {
 }
 
 /* ─── Main sweep ────────────────────────────────────────────── */
+// One DB round-trip fetches ALL stale orders across every active status.
+// JS splits them by status — 5 queries → 1.
 
 async function sweep() {
   const now = new Date();
 
+  // Use the shortest threshold (ASSIGNED_NUDGE_MIN) so no doc is missed.
+  const earliestThreshold = new Date(now - Math.min(
+    ASSIGNED_NUDGE_MIN,
+    SEARCHING_STALE_MIN,
+    OTW_ALERT_MIN,
+    ARRIVED_STALE_MIN,
+    60 // in_progress 1-hour nudge
+  ) * 60 * 1000);
+
+  const staleOrders = await Order.find({
+    status: { $in: ['assigned', 'searching', 'on_the_way', 'arrived', 'in_progress'] },
+    updatedAt: { $lt: earliestThreshold },
+  })
+    .select('_id status userId workerId service pricing pickupLocation statusHistory dispatch updatedAt')
+    .lean();
+
+  if (!staleOrders.length) return;
+
+  const byStatus = {
+    assigned:    [],
+    searching:   [],
+    on_the_way:  [],
+    arrived:     [],
+    in_progress: [],
+  };
+  for (const o of staleOrders) byStatus[o.status]?.push(o);
+
   await Promise.all([
-    handleStaleAssigned(now),
-    handleStaleSearching(now),
-    handleStaleOnTheWay(now),
-    handleStaleArrived(now),
-    handleStaleInProgress(now),
+    handleStaleAssigned(now,    byStatus.assigned),
+    handleStaleSearching(now,   byStatus.searching),
+    handleStaleOnTheWay(now,    byStatus.on_the_way),
+    handleStaleArrived(now,     byStatus.arrived),
+    handleStaleInProgress(now,  byStatus.in_progress),
   ]);
 }
 
 /* ── 1. Assigned orders where worker never started the trip ── */
 
-async function handleStaleAssigned(now) {
-  const nudgeThreshold     = new Date(now - ASSIGNED_NUDGE_MIN * 60 * 1000);
+async function handleStaleAssigned(now, stale) {
+  const nudgeThreshold      = new Date(now - ASSIGNED_NUDGE_MIN * 60 * 1000);
   const redispatchThreshold = new Date(now - ASSIGNED_REDISPATCH_MIN * 60 * 1000);
-
-  // Find all assigned orders older than nudge threshold
-  const stale = await Order.find({
-    status: 'assigned',
-    updatedAt: { $lt: nudgeThreshold },
-  })
-    .select('_id userId workerId service pricing pickupLocation statusHistory dispatch updatedAt')
-    .lean();
+  stale = stale.filter((o) => new Date(o.updatedAt) < nudgeThreshold);
 
   for (const order of stale) {
     const assignedEntry = [...(order.statusHistory || [])]
@@ -208,15 +230,9 @@ async function redispatchFromAssigned(order) {
 
 /* ── 2. Orders stuck in searching (dispatch job dead/crashed) ── */
 
-async function handleStaleSearching(now) {
+async function handleStaleSearching(now, stale) {
   const threshold = new Date(now - SEARCHING_STALE_MIN * 60 * 1000);
-
-  const stale = await Order.find({
-    status: 'searching',
-    updatedAt: { $lt: threshold },
-  })
-    .select('_id updatedAt')
-    .lean();
+  stale = stale.filter((o) => new Date(o.updatedAt) < threshold);
 
   for (const order of stale) {
     const orderId = String(order._id);
@@ -244,15 +260,9 @@ async function handleStaleSearching(now) {
 
 /* ── 3. On-the-way too long (worker GPS off or stuck) ── */
 
-async function handleStaleOnTheWay(now) {
+async function handleStaleOnTheWay(now, stale) {
   const threshold = new Date(now - OTW_ALERT_MIN * 60 * 1000);
-
-  const stale = await Order.find({
-    status: 'on_the_way',
-    updatedAt: { $lt: threshold },
-  })
-    .select('_id userId workerId service updatedAt')
-    .lean();
+  stale = stale.filter((o) => new Date(o.updatedAt) < threshold);
 
   for (const order of stale) {
     const orderId = String(order._id);
@@ -288,15 +298,9 @@ async function handleStaleOnTheWay(now) {
 
 /* ── 4. Arrived but OTP never entered (worker present but service not started) ── */
 
-async function handleStaleArrived(now) {
+async function handleStaleArrived(now, stale) {
   const threshold = new Date(now - ARRIVED_STALE_MIN * 60 * 1000);
-
-  const stale = await Order.find({
-    status: 'arrived',
-    updatedAt: { $lt: threshold },
-  })
-    .select('_id userId workerId service updatedAt dispatch')
-    .lean();
+  stale = stale.filter((o) => new Date(o.updatedAt) < threshold);
 
   for (const order of stale) {
     const orderId = String(order._id);
@@ -368,17 +372,9 @@ async function handleStaleArrived(now) {
 
 /* ── 5. In-progress too long — worker abandoned the job ── */
 
-async function handleStaleInProgress(now) {
-  const nudgeThreshold  = new Date(now - 60 * 60 * 1000);    // 1 hour: nudge
-  const adminThreshold  = new Date(now - IN_PROGRESS_MAX_MIN * 60 * 1000); // 3 hours: admin alert
-
-  // Nudge first
-  const longRunning = await Order.find({
-    status: 'in_progress',
-    updatedAt: { $lt: nudgeThreshold },
-  })
-    .select('_id userId workerId service updatedAt')
-    .lean();
+async function handleStaleInProgress(now, stale) {
+  const nudgeThreshold = new Date(now - 60 * 60 * 1000);
+  const longRunning = stale.filter((o) => new Date(o.updatedAt) < nudgeThreshold);
 
   const notificationService = require('../modules/notification/notification.service');
 

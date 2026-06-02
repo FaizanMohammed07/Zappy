@@ -33,7 +33,7 @@ async function getRules() {
 async function setRules(patch) {
   const current = await getRules();
   const next = { ...current, ...patch };
-  await redis.set('config:cashback', JSON.stringify(next));
+  await redis.set('config:cashback', JSON.stringify(next), 'EX', 86400);
   return next;
 }
 

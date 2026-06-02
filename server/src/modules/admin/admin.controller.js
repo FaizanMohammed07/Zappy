@@ -286,7 +286,7 @@ async function setPricingConfig(req, res, next) {
   try {
     const beforeRaw = await redis.get('config:pricing');
     const before = beforeRaw ? JSON.parse(beforeRaw) : {};
-    await redis.set('config:pricing', JSON.stringify(req.body));
+    await redis.set('config:pricing', JSON.stringify(req.body), 'EX', 86400);
     await auditService.fromRequest(req, 'admin.pricing_config_update', { kind: 'system', id: null }, before, req.body);
     res.json({ ok: true, config: req.body });
   } catch (err) { next(err); }
@@ -1043,7 +1043,7 @@ async function setFeatureFlag(req, res, next) {
     const raw = await redis.get(FLAG_KEY);
     const flags = { ...DEFAULT_FLAGS, ...(raw ? JSON.parse(raw) : {}) };
     flags[flag] = Boolean(enabled);
-    await redis.set(FLAG_KEY, JSON.stringify(flags));
+    await redis.set(FLAG_KEY, JSON.stringify(flags), 'EX', 86400);
     await auditService.fromRequest(req, 'admin.feature_flag_update', { kind: 'system', id: null }, null, { flag, enabled });
     res.json({ flags });
   } catch (err) { next(err); }

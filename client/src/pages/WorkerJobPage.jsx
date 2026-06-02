@@ -52,7 +52,7 @@ const CONSTRUCTION_SERVICES = new Set(['mason', 'plumbing', 'electrical', 'carpe
 
 /* ── Construction Timer Panel ── */
 function ConstructionTimerPanel({ orderId }) {
-  const { data: timerData, refetch } = useGetConstructionTimerQuery(orderId, { pollingInterval: 5000 });
+  const { data: timerData, refetch } = useGetConstructionTimerQuery(orderId, { pollingInterval: 15000 });
   const [startTimer,  { isLoading: starting }]  = useStartConstructionTimerMutation();
   const [pauseTimer,  { isLoading: pausing }]   = usePauseConstructionTimerMutation();
   const [resumeTimer, { isLoading: resuming }]  = useResumeConstructionTimerMutation();

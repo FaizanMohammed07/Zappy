@@ -50,7 +50,8 @@ export default function OrderTrackingPage() {
   const nav = useNavigate();
   const dispatch = useDispatch();
   const { accessToken: token } = useSelector(selectAuth);
-  const { data, isLoading, refetch } = useGetOrderQuery(id, { pollingInterval: 10000 });
+  // Socket delivers real-time state; REST poll is a safety net for missed events.
+  const { data, isLoading, refetch } = useGetOrderQuery(id, { pollingInterval: 30000 });
   const [cancelOrder, { isLoading: cancelling }] = useCancelOrderMutation();
   const [rateOrder] = useRateOrderMutation();
   const [sendTip] = useSendTipMutation();
@@ -86,7 +87,7 @@ export default function OrderTrackingPage() {
   // Price revision — poll during in_progress / arrived (status is now defined)
   const { data: revisionData } = useGetPriceRevisionQuery(id, {
     skip: !['in_progress', 'arrived'].includes(status),
-    pollingInterval: 5000,
+    pollingInterval: 15000,
   });
   const pendingRevision = revisionData?.revision;
 
