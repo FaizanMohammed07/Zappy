@@ -5,6 +5,7 @@ import {
   useAdminChurnRiskQuery,
   useAdminDeadCategoriesQuery,
   useAdminQuoteAbandonmentQuery,
+  useAdminGeoReadinessQuery,
 } from '../../services/api';
 
 function Card({ children, className = '' }) {
