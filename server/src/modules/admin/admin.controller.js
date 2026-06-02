@@ -295,44 +295,45 @@ async function setPricingConfig(req, res, next) {
 async function getHeatmap(req, res, next) {
   try {
     const minutes = Number(req.query.minutes) || 60;
-    const since = new Date(Date.now() - minutes * 60 * 1000);
-    // Use durable DemandEvent collection for historical heatmap (#54).
-    // Falls back to live Order query for very-recent windows where Mongo write may lag.
-    const DemandEvent = require('../analytics/demand-event.model');
-    const [demandPoints, recentOrders] = await Promise.all([
-      // Aggregated demand buckets from the persistent store
-      DemandEvent.aggregate([
-        { $match: { createdAt: { $gte: since } } },
-        {
-          $group: {
-            _id: '$bucket',
-            count: { $sum: 1 },
-            lat: { $first: '$lat' },
-            lng: { $first: '$lng' },
-            services: { $addToSet: '$service' },
+    // 30s cache keyed by window size — heatmap visual doesn't need sub-second freshness.
+    // Two uncached aggregations polled at 30s = expensive at scale.
+    const result = await cachedAnalytics(`admin:heatmap:${minutes}`, 30, async () => {
+      const since = new Date(Date.now() - minutes * 60 * 1000);
+      const DemandEvent = require('../analytics/demand-event.model');
+      const [demandPoints, recentOrders] = await Promise.all([
+        DemandEvent.aggregate([
+          { $match: { createdAt: { $gte: since } } },
+          {
+            $group: {
+              _id: '$bucket',
+              count: { $sum: 1 },
+              lat: { $first: '$lat' },
+              lng: { $first: '$lng' },
+              services: { $addToSet: '$service' },
+            },
           },
-        },
-        { $sort: { count: -1 } },
-        { $limit: 500 },
-      ]),
-      // Live orders still in flight — these may not have DemandEvent yet
-      Order.find({ createdAt: { $gte: since } })
-        .select('pickupLocation status service').lean(),
-    ]);
-    res.json({
-      points: recentOrders.map((o) => ({
-        lng: o.pickupLocation.coordinates[0],
-        lat: o.pickupLocation.coordinates[1],
-        status: o.status,
-        service: o.service,
-      })),
-      demandBuckets: demandPoints.map((b) => ({
-        lat: b.lat, lng: b.lng,
-        count: b.count,
-        services: b.services.filter(Boolean),
-      })),
-      windowMinutes: minutes,
+          { $sort: { count: -1 } },
+          { $limit: 500 },
+        ]),
+        Order.find({ createdAt: { $gte: since } })
+          .select('pickupLocation status service').lean(),
+      ]);
+      return {
+        points: recentOrders.map((o) => ({
+          lng: o.pickupLocation.coordinates[0],
+          lat: o.pickupLocation.coordinates[1],
+          status: o.status,
+          service: o.service,
+        })),
+        demandBuckets: demandPoints.map((b) => ({
+          lat: b.lat, lng: b.lng,
+          count: b.count,
+          services: b.services.filter(Boolean),
+        })),
+        windowMinutes: minutes,
+      };
     });
+    res.json(result);
   } catch (err) { next(err); }
 }
 
@@ -423,7 +424,13 @@ async function blockUser(req, res, next) {
 async function getAnalytics(req, res, next) {
   try {
     const Transaction = require('../payment/transaction.model');
-    const days     = Math.min(Number(req.query.days) || 30, 180);
+    const days = Math.min(Number(req.query.days) || 30, 180);
+
+    // 5-minute cache — 10 parallel aggregations on potentially millions of Order docs.
+    // Admin analytics is historical data; 5-min staleness is acceptable.
+    const cached = await redis.get(`admin:analytics:${days}`).catch(() => null);
+    if (cached) { try { return res.json(JSON.parse(cached)); } catch { /* fall through */ } }
+
     const now      = Date.now();
     const since    = new Date(now - days * 86_400_000);
     const prevSince = new Date(now - days * 2 * 86_400_000); // previous period for comparison
@@ -614,7 +621,9 @@ async function getAnalytics(req, res, next) {
       })),
       weeklySignups: { users: userSignups, workers: workerSignups },
       orderFunnel: funnelMap,
-    });
+    };
+    redis.set(`admin:analytics:${days}`, JSON.stringify(payload), 'EX', 300).catch(() => {});
+    res.json(payload);
   } catch (err) { next(err); }
 }
 
@@ -1204,40 +1213,45 @@ async function replyToSupportTicket(req, res, next) {
 
 async function getLiveOps(req, res, next) {
   try {
-    const [activeOrders, workerIds] = await Promise.all([
-      Order.find({ status: { $in: ['searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'] } })
-        .select('_id status service pickupLocation createdAt workerId')
-        .lean(),
-      redis.zrange('workers:online', 0, 199),
-    ]);
+    // 10s cache — admin live-ops map updates fast enough at 10s; the full
+    // Order.find() of all active orders is expensive at scale (~100+ docs × 30s poll).
+    const result = await cachedAnalytics('admin:liveops', 10, async () => {
+      const [activeOrders, workerIds] = await Promise.all([
+        Order.find({ status: { $in: ['searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'] } })
+          .select('_id status service pickupLocation createdAt workerId')
+          .lean(),
+        redis.zrange('workers:online', 0, 199),
+      ]);
 
-    let workerLocations = [];
-    if (workerIds.length > 0) {
-      const positions = await redis.geopos('workers:online', ...workerIds);
-      positions.forEach((pos, i) => {
-        if (pos && pos[0] != null) {
-          workerLocations.push({ id: workerIds[i], lng: parseFloat(pos[0]), lat: parseFloat(pos[1]) });
-        }
-      });
-    }
+      let workerLocations = [];
+      if (workerIds.length > 0) {
+        const positions = await redis.geopos('workers:online', ...workerIds);
+        positions.forEach((pos, i) => {
+          if (pos && pos[0] != null) {
+            workerLocations.push({ id: workerIds[i], lng: parseFloat(pos[0]), lat: parseFloat(pos[1]) });
+          }
+        });
+      }
 
-    const byStatus = {};
-    for (const o of activeOrders) byStatus[o.status] = (byStatus[o.status] || 0) + 1;
+      const byStatus = {};
+      for (const o of activeOrders) byStatus[o.status] = (byStatus[o.status] || 0) + 1;
 
-    res.json({
-      activeOrders: activeOrders.map(o => ({
-        _id: o._id,
-        status: o.status,
-        service: o.service,
-        lat: o.pickupLocation?.coordinates?.[1] ?? null,
-        lng: o.pickupLocation?.coordinates?.[0] ?? null,
-        createdAt: o.createdAt,
-        hasWorker: !!o.workerId,
-      })),
-      workerLocations,
-      counts: { total: activeOrders.length, byStatus, onlineWorkers: workerIds.length },
-      checkedAt: new Date().toISOString(),
+      return {
+        activeOrders: activeOrders.map(o => ({
+          _id: o._id,
+          status: o.status,
+          service: o.service,
+          lat: o.pickupLocation?.coordinates?.[1] ?? null,
+          lng: o.pickupLocation?.coordinates?.[0] ?? null,
+          createdAt: o.createdAt,
+          hasWorker: !!o.workerId,
+        })),
+        workerLocations,
+        counts: { total: activeOrders.length, byStatus, onlineWorkers: workerIds.length },
+        checkedAt: new Date().toISOString(),
+      };
     });
+    res.json(result);
   } catch (err) { next(err); }
 }
 

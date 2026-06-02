@@ -22,8 +22,13 @@
 const { redis } = require('../../config/redis');
 const logger = require('../../utils/logger');
 
-const PICKUP_KEY = (orderId) => `order:pickup:${orderId}`;
+const PICKUP_KEY      = (orderId) => `order:pickup:${orderId}`;
 const ARRIVING_SOON_KEY = (orderId) => `order:arriving_soon_sent:${orderId}`;
+// Throttle ETA broadcasts to once per 5s per order.
+// Location updates arrive every 1s; sub-second ETA precision is meaningless.
+const ETA_THROTTLE_KEY = (orderId) => `eta:throttle:${orderId}`;
+const ETA_THROTTLE_SEC = 5;
+
 const URBAN_SPEED_KMH = 25;
 const ARRIVING_SOON_THRESHOLD_KM = 0.5; // 500 m
 
@@ -58,6 +63,11 @@ async function cacheOrderPickup(orderId, lat, lng) {
  * @param {object} p.orderUserId  — needed to address the arriving_soon push
  */
 async function computeAndBroadcast({ orderId, workerId, workerLat, workerLng, orderUserId }) {
+  // Throttle: skip if we already broadcast an ETA for this order within the last 5s.
+  // Location events arrive every 1s; ~5s refresh is plenty for a "3 min away" ticker.
+  const throttled = await redis.set(ETA_THROTTLE_KEY(orderId), '1', 'EX', ETA_THROTTLE_SEC, 'NX');
+  if (throttled !== 'OK') return;
+
   const raw = await redis.get(PICKUP_KEY(orderId));
   if (!raw) return; // order not in on_the_way state yet
 

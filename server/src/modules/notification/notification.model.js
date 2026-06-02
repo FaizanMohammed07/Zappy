@@ -49,10 +49,10 @@ const notificationSchema = new mongoose.Schema(
   {
     recipient: {
       kind: { type: String, enum: ['user', 'worker'], required: true },
-      id: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+      id: { type: mongoose.Schema.Types.ObjectId, required: true },
     },
 
-    type: { type: String, enum: TYPES, required: true, index: true },
+    type: { type: String, enum: TYPES, required: true },
     title: { type: String, required: true },
     body: String,
 

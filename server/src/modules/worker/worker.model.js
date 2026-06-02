@@ -11,7 +11,8 @@ const workerSchema = new mongoose.Schema(
     skills: {
       type: [String],
       required: true,
-      index: true, // ['puncture', 'plumbing', 'electrical', 'helper', 'carpenter']
+      // No single-field index — dispatch uses Redis skill sets (hot path) or the
+      // compound {isOnline,isAvailable,skills} index (Mongo fallback). Redundant index dropped.
     },
     rating: { type: Number, default: 5, min: 0, max: 5 },
     totalJobs: { type: Number, default: 0 },

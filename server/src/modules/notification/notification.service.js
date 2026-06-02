@@ -68,14 +68,19 @@ async function notify({ recipient, type, title, body, data = {}, deepLink, sms =
     JSON.stringify(payload)
   );
 
-  // 3. Push notification — backgrounded apps need this
-  notificationsQueue.add('push', {
-    notificationId: String(doc._id),
-    recipient,
-    title,
-    body,
-    data: { ...data, deepLink, type },
-  }).catch((err) => logger.error({ err: err.message }, 'Push enqueue failed'));
+  // 3. Push notification — skip if recipient is actively connected via socket.
+  // Online users already receive the notification via the socket pub/sub above.
+  // FCM costs money per send; skipping for live sessions saves ~30-60% of pushes.
+  const isOnline = await redis.get(`presence:${recipient.kind}:${recipient.id}`).catch(() => null);
+  if (!isOnline) {
+    notificationsQueue.add('push', {
+      notificationId: String(doc._id),
+      recipient,
+      title,
+      body,
+      data: { ...data, deepLink, type },
+    }).catch((err) => logger.error({ err: err.message }, 'Push enqueue failed'));
+  }
 
   // 4. SMS — only for high-stakes events
   if (sms || SMS_TYPES.has(type)) {

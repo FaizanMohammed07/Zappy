@@ -129,7 +129,9 @@ export default function WorkerDashboard() {
   const worker   = useSelector(selectWorker);
   const { accessToken: token } = useSelector(selectAuth);
 
-  const { data: meData, refetch: refetchMe } = useGetWorkerMeQuery(undefined, { pollingInterval: 15000, skip: !token });
+  // 60s poll — profile/availability rarely changes mid-session; socket events drive
+  // job-offer state changes, so there's no user-visible lag from a slower REST poll.
+  const { data: meData, refetch: refetchMe } = useGetWorkerMeQuery(undefined, { pollingInterval: 60000, skip: !token });
   const { data: todayData }   = useGetEarningsQuery('today',  { skip: !token });
   const { data: weekData }    = useGetEarningsQuery('week',   { skip: !token });
   const { data: kycData }     = useGetKycStatusQuery(undefined, { skip: !token });
