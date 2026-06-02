@@ -64,6 +64,12 @@ export default function Pricing() {
     referralReferrerBonusRs: 150,
     referralRefereeBonusRs: 50,
   });
+  const [boost, setBoost] = useState({
+    boostEnabled: true,
+    boostMaxRs: 200,
+    boostOptions: '10,20,30,50,100',
+    boostDispatchWeight: 1.5,
+  });
   const [wallet, setWallet] = useState({
     earnedWageAdvanceEnabled: true,
     earnedWageAdvanceRate: 80,
@@ -103,6 +109,12 @@ export default function Pricing() {
     setTips({
       tipMaxRs:    (p.tipMaxPaise ?? 50000) / 100,
       tipOptions:  (p.tipOptions  ?? [20, 50, 100]).join(','),
+    });
+    setBoost({
+      boostEnabled:        p.boostEnabled        ?? true,
+      boostMaxRs:          (p.boostMaxPaise       ?? 20000) / 100,
+      boostOptions:        (p.boostOptions        ?? [10, 20, 30, 50, 100]).join(','),
+      boostDispatchWeight: p.boostDispatchWeight  ?? 1.5,
     });
     setReferral({
       referralReferrerBonusRs: (p.referralReferrerBonusPaise ?? 15000) / 100,
@@ -307,10 +319,48 @@ export default function Pricing() {
         </div>
       </Card>
 
+      {/* ── Offer Boost Controls ── */}
+      <Card className="p-6">
+        <div className="flex items-start justify-between mb-1">
+          <h3 className="text-sm font-bold text-slate-700">Offer Boost Settings</h3>
+          <Toggle
+            value={boost.boostEnabled}
+            onChange={(v) => setBoost(p => ({ ...p, boostEnabled: v }))}
+            label={boost.boostEnabled ? 'Enabled' : 'Disabled'}
+          />
+        </div>
+        <p className="text-xs text-slate-400 mb-4">
+          Customers can optionally increase worker incentive during the searching phase.
+          100% of the boost amount goes to worker earnings. Higher boost = workers more likely to accept.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <FormRow label="Max Boost (₹)" hint="Maximum boost a customer can apply per order">
+            <Input type="number" value={boost.boostMaxRs} step="10" min="0"
+              onChange={(e) => setBoost(p => ({ ...p, boostMaxRs: Number(e.target.value) }))} />
+          </FormRow>
+          <FormRow label="Boost Options (₹, comma-separated)" hint="e.g. 10,20,30,50,100">
+            <Input type="text" value={boost.boostOptions}
+              onChange={(e) => setBoost(p => ({ ...p, boostOptions: e.target.value }))} />
+          </FormRow>
+          <FormRow label="Dispatch Weight Multiplier" hint="1.5 = ₹10 boost subtracts 15 from score (lower = better)">
+            <Input type="number" value={boost.boostDispatchWeight} step="0.1" min="1" max="10"
+              onChange={(e) => setBoost(p => ({ ...p, boostDispatchWeight: Number(e.target.value) }))} />
+          </FormRow>
+        </div>
+        <div className="mt-5">
+          <SaveBtn loading={saving} onClick={() => saveSection({
+            boostEnabled:        boost.boostEnabled,
+            boostMaxPaise:       Math.round(boost.boostMaxRs * 100),
+            boostOptions:        boost.boostOptions.split(',').map(Number).filter(Boolean),
+            boostDispatchWeight: boost.boostDispatchWeight,
+          })} />
+        </div>
+      </Card>
+
       {/* ── Tip Controls ── */}
       <Card className="p-6">
-        <h3 className="text-sm font-bold text-slate-700 mb-1">Tip Settings</h3>
-        <p className="text-xs text-slate-400 mb-4">Control what customers can tip workers.</p>
+        <h3 className="text-sm font-bold text-slate-700 mb-1">Post-Service Tip Settings</h3>
+        <p className="text-xs text-slate-400 mb-4">Tips sent after service completion (voice note + credit).</p>
         <div className="grid sm:grid-cols-2 gap-4">
           <FormRow label="Max Tip (₹)" hint="Maximum tip a customer can give">
             <Input type="number" value={tips.tipMaxRs} step="50" min="0"

@@ -3,7 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { selectAuth } from '../modules/auth/authSlice';
 import { getSocket, disconnectSocket } from '../services/socket';
 import {
-  setStatus, setWorkerLocation, setWorkerInfo, clearActiveOrder, setEta, setDispatchMessage,
+  setStatus, setWorkerLocation, setWorkerInfo, clearActiveOrder, setEta,
+  setDispatchMessage, setWorkersNotified, setDispatchBoost,
 } from '../modules/order/orderSlice';
 import toast from 'react-hot-toast';
 
@@ -112,30 +113,49 @@ export function useOrderSocket(orderId, callbacks = {}) {
     const onChat = (msg) => callbacks.onChatMessage?.(msg);
 
     const onDispatchUpdate = (p) => {
-      if (p?.message) dispatch(setDispatchMessage({ message: p.message }));
+      if (p?.message) dispatch(setDispatchMessage({
+        message:    p.message,
+        radiusKm:   p.radiusKm,
+        radiusLabel: p.radiusLabel,
+        step:        p.step,
+        totalSteps:  p.totalSteps,
+        elapsedSec:  p.elapsedSec,
+      }));
     };
 
-    socket.on('order.status',          onStatus);
-    socket.on('order.assigned',        onAssigned);
-    socket.on('worker.location',       onLocation);
-    socket.on('eta.update',            onEta);
-    socket.on('order.failed',          onFailed);
-    socket.on('order.cancelled',       onCancelled);
-    socket.on('chat.message',          onChat);
-    socket.on('order.dispatch_update', onDispatchUpdate);
+    const onWorkersNotified = (p) => {
+      dispatch(setWorkersNotified({ count: p?.count ?? 0, radiusKm: p?.radiusKm }));
+    };
+
+    const onBoost = (p) => {
+      if (p?.amountPaise != null) dispatch(setDispatchBoost({ amountPaise: p.amountPaise }));
+    };
+
+    socket.on('order.status',            onStatus);
+    socket.on('order.assigned',          onAssigned);
+    socket.on('worker.location',         onLocation);
+    socket.on('eta.update',              onEta);
+    socket.on('order.failed',            onFailed);
+    socket.on('order.cancelled',         onCancelled);
+    socket.on('chat.message',            onChat);
+    socket.on('order.dispatch_update',   onDispatchUpdate);
+    socket.on('order.workers_notified',  onWorkersNotified);
+    socket.on('offer.boosted',           onBoost);
 
     return () => {
       socket.emit('order:unsubscribe', { orderId });
       socket.off('connect',            subscribe);
       socket.off('server:rooms_reset', subscribe);
-      socket.off('order.status',          onStatus);
-      socket.off('order.assigned',        onAssigned);
-      socket.off('worker.location',       onLocation);
-      socket.off('eta.update',            onEta);
-      socket.off('order.failed',          onFailed);
-      socket.off('order.cancelled',       onCancelled);
-      socket.off('chat.message',          onChat);
-      socket.off('order.dispatch_update', onDispatchUpdate);
+      socket.off('order.status',            onStatus);
+      socket.off('order.assigned',          onAssigned);
+      socket.off('worker.location',         onLocation);
+      socket.off('eta.update',              onEta);
+      socket.off('order.failed',            onFailed);
+      socket.off('order.cancelled',         onCancelled);
+      socket.off('chat.message',            onChat);
+      socket.off('order.dispatch_update',   onDispatchUpdate);
+      socket.off('order.workers_notified',  onWorkersNotified);
+      socket.off('offer.boosted',           onBoost);
     };
   }, [orderId, token, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 }

@@ -219,9 +219,16 @@ export default function WorkerDashboard() {
 
   // offer socket + alert
   const handleOffer = useCallback((offer) => {
-    dispatch(setOffer(offer));
+    // Map boostAmountPaise → boostedBy (rupees) so the boost badge renders immediately
+    // even if the customer boosted before dispatch started broadcasting.
+    const enriched = offer.boostAmountPaise > 0
+      ? { ...offer, boostedBy: Math.round(offer.boostAmountPaise / 100) }
+      : offer;
+    dispatch(setOffer(enriched));
+    // Stronger vibration pattern for boosted offers (distinct from standard)
+    const isBoosted = (offer.boostAmountPaise ?? 0) > 0;
     playOfferAlert();
-    try { navigator.vibrate?.([200, 100, 200]); } catch {}
+    try { navigator.vibrate?.(isBoosted ? [100, 50, 150, 50, 250, 50, 150] : [200, 100, 200]); } catch {}
   }, [dispatch]);
 
   // offer taken by another worker — dismiss popup immediately
@@ -1474,9 +1481,22 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
                 <p className="font-black text-slate-900 text-lg capitalize leading-tight">
                   {offer.service.replace(/_/g, ' ')}
                 </p>
-                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full ring-1 ring-indigo-100">
-                  Exclusive to you
-                </span>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  {offer.boostedBy ? (
+                    <motion.span
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="flex items-center gap-1 text-[10px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full ring-1 ring-orange-200"
+                    >
+                      <Flame size={9} strokeWidth={2.5} />
+                      Priority Request
+                    </motion.span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full ring-1 ring-indigo-100">
+                      Exclusive to you
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <motion.button

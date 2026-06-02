@@ -207,19 +207,30 @@ async function processDispatchJob(job) {
         },
       }).catch(() => {});
 
+      // Notify user-side UI: workers have been found and notified at this step.
+      const boostAmountPaise = order.pricing?.tipPaise || 0;
+      const boostedTotal = order.pricing?.boostedTotal || order.pricing?.total || 0;
+      await emitToOrderRoom(order._id, 'order.workers_notified', {
+        count:          batchWorkers.length,
+        radiusKm,
+        boostAmountPaise,
+      });
+
       // Publish offers + enqueue notifications in parallel batches.
       // addBulk is a single Redis transaction vs N individual LPUSH calls. (#62)
       const orderPayload = {
-        _id:           String(order._id),
-        service:       order.service,
-        pickupAddress: order.pickupLocation.address,
-        pickupCoords:  order.pickupLocation.coordinates,
-        price:         order.pricing.total,
-        distanceKm:    order.pricing?.distanceKm
+        _id:             String(order._id),
+        service:         order.service,
+        pickupAddress:   order.pickupLocation.address,
+        pickupCoords:    order.pickupLocation.coordinates,
+        price:           boostedTotal,          // workers see boosted price
+        basePrice:       order.pricing?.total || 0,
+        boostAmountPaise,                        // explicit boost so worker UI can highlight it
+        distanceKm:      order.pricing?.distanceKm
           ? parseFloat(order.pricing.distanceKm).toFixed(1)
           : null,
-        etaMinutes:    order.pricing?.etaMinutes || null,
-        expiresAt:     expiresAt.toISOString(),
+        etaMinutes:      order.pricing?.etaMinutes || null,
+        expiresAt:       expiresAt.toISOString(),
       };
 
       const pubMessages = batchWorkers.map((workerId) =>

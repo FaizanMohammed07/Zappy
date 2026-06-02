@@ -6,7 +6,7 @@ import {
   ArrowLeft, Phone, MessageCircle, Star, CheckCircle,
   Clock, MapPin, AlertCircle, Loader2, ShieldCheck, RefreshCw,
   Zap, X, ChevronRight, AlertTriangle, Wallet, HeadphonesIcon, FileText,
-  Repeat2, Flame,
+  Repeat2,
 } from 'lucide-react';
 import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery, useSendTipMutation } from '../services/api';
 import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
@@ -14,8 +14,9 @@ import { selectOrder, setActiveOrder } from '../modules/order/orderSlice';
 import { selectAuth } from '../modules/auth/authSlice';
 import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
 import PageTransition from '../components/common/PageTransition';
-import MicroStatusPanel from '../components/tracking/MicroStatusPanel';
+import DispatchProgressPanel from '../components/tracking/DispatchProgressPanel';
 import TipCard from '../components/tracking/TipCard';
+import BoostOfferCard from '../components/tracking/BoostOfferCard';
 import PriceRevisionCard from '../components/tracking/PriceRevisionCard';
 import WarrantyCard from '../components/tracking/WarrantyCard';
 import SmartMatchSheet from '../components/tracking/SmartMatchSheet';
@@ -55,7 +56,6 @@ export default function OrderTrackingPage() {
   const [cancelOrder, { isLoading: cancelling }] = useCancelOrderMutation();
   const [rateOrder] = useRateOrderMutation();
   const [sendTip] = useSendTipMutation();
-  const [liveBoost, setLiveBoost]             = useState(0);
   const [showCancel, setShowCancel]           = useState(false);
   const [cancelReason, setCancelReason]       = useState('');
   const [showMatchSheet, setShowMatchSheet]   = useState(false);
@@ -253,160 +253,36 @@ export default function OrderTrackingPage() {
         animate="animate"
       >
 
-        {/* Searching — MicroStatusPanel replaces basic spinner */}
+        {/* Searching — real dispatch progress panel */}
         <AnimatePresence>
           {['created', 'searching'].includes(status) && (
             <motion.div
-              key="micro-status"
+              key="dispatch-progress"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
             >
-              <MicroStatusPanel active liveMessage={liveOrder.dispatchMessage} />
+              <DispatchProgressPanel />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── Live Boost card — shown while searching ─────────────────── */}
+        {/* ── Boost offer card — shown during searching ─────────────────── */}
         <AnimatePresence>
           {['created', 'searching'].includes(status) && (
             <motion.div
               key="boost-card"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={{ delay: 0.5, type: 'spring', damping: 22, stiffness: 280 }}
-              className="rounded-2xl overflow-hidden"
-              style={{ background: 'linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%)', boxShadow: '0 8px 32px rgba(15,23,42,0.18)' }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ delay: 0.4, type: 'spring', damping: 24, stiffness: 300 }}
             >
-              {/* Heat bar */}
-              <motion.div
-                className="h-1"
-                animate={{ scaleX: liveBoost > 0 ? 1 : 0.25 }}
-                style={{
-                  transformOrigin: 'left',
-                  background: liveBoost >= 100 ? 'linear-gradient(90deg,#f97316,#ef4444)'
-                    : liveBoost >= 50 ? 'linear-gradient(90deg,#fb923c,#f97316)'
-                    : liveBoost >= 10 ? 'linear-gradient(90deg,#fbbf24,#fb923c)'
-                    : 'rgba(255,255,255,0.08)',
-                }}
+              <BoostOfferCard
+                orderId={id}
+                baseTotal={order?.pricing?.total || 0}
+                sendTip={sendTip}
               />
-
-              <div className="px-4 pt-4 pb-5">
-                {/* Header row */}
-                <div className="flex items-center justify-between mb-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <motion.div
-                      key={liveBoost}
-                      animate={liveBoost > 0 ? { rotate: [-10, 10, -6, 6, 0], scale: [1, 1.3, 1] } : {}}
-                      transition={{ duration: 0.4 }}
-                    >
-                      <Flame
-                        size={18} strokeWidth={2}
-                        className={liveBoost >= 100 ? 'text-red-400' : liveBoost >= 50 ? 'text-orange-400' : liveBoost >= 10 ? 'text-amber-400' : 'text-white/25'}
-                      />
-                    </motion.div>
-                    <div>
-                      <p className="text-sm font-black text-white leading-tight">
-                        {liveBoost >= 100 ? 'On fire — top priority!' : liveBoost >= 50 ? 'Heating up fast' : liveBoost > 0 ? 'Boosted' : 'Boost to get matched faster'}
-                      </p>
-                      <p className="text-[10px] text-white/40 mt-0.5">
-                        {liveBoost > 0 ? `Workers see +₹${liveBoost} on your offer` : 'Tip a worker to jump the queue'}
-                      </p>
-                    </div>
-                  </div>
-                  <AnimatePresence mode="wait">
-                    {liveBoost > 0 && (
-                      <motion.div
-                        key={liveBoost}
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0, opacity: 0 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-full"
-                        style={{ background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.3)' }}
-                      >
-                        <Zap size={10} strokeWidth={2.5} className="text-orange-400" />
-                        <span className="text-[11px] font-black text-orange-400">+₹{liveBoost}</span>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Boost amount pills */}
-                <div className="grid grid-cols-5 gap-2 mb-3.5">
-                  {[0, 10, 20, 50, 100].map((amt) => {
-                    const active = liveBoost === amt;
-                    const isNone = amt === 0;
-                    return (
-                      <motion.button
-                        key={amt}
-                        onClick={async () => {
-                          const prev = liveBoost;
-                          setLiveBoost(amt);
-                          if (amt > 0) {
-                            try {
-                              await sendTip({ orderId: id, amountPaise: amt * 100 }).unwrap();
-                              try { navigator.vibrate?.([40, 30, 80, 30, 120]); } catch {}
-                              // Crazy confirmation toast
-                              const msgs = [
-                                `+₹${amt} boost sent! Workers are seeing your higher offer now`,
-                                `Your offer just jumped to ₹${(order?.pricing?.total || 0) + amt} — workers will race to accept!`,
-                                amt >= 100
-                                  ? `Max boost! You're #1 priority in the queue`
-                                  : amt >= 50
-                                  ? `Hot offer! Nearby workers just got notified of your boost`
-                                  : `Boosted! Workers who ignored you may now accept`,
-                              ];
-                              toast.success(msgs[Math.floor(Math.random() * msgs.length)], {
-                                duration: 3500,
-                                style: { background: '#0f172a', color: '#fb923c', fontWeight: 700, border: '1px solid rgba(251,146,60,0.3)' },
-                                icon: amt >= 50 ? '🔥' : '⚡',
-                              });
-                            } catch { /* best-effort */ }
-                          }
-                        }}
-                        whileTap={{ scale: 0.85 }}
-                        animate={active ? { scale: [1, 1.13, 1.04], transition: { type: 'spring', stiffness: 500, damping: 18 } } : { scale: 1 }}
-                        className="relative h-11 rounded-2xl flex items-center justify-center font-black text-[12px] overflow-hidden"
-                        style={{
-                          background: active ? (isNone ? 'linear-gradient(135deg,#334155,#1e293b)' : 'linear-gradient(135deg,#c2410c,#f97316)') : 'rgba(255,255,255,0.07)',
-                          border: active ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                          color: active ? 'white' : 'rgba(255,255,255,0.45)',
-                          boxShadow: active && !isNone ? '0 4px 18px rgba(249,115,22,0.45)' : 'none',
-                        }}
-                      >
-                        {active && (
-                          <motion.div
-                            initial={{ scale: 0, opacity: 0.7 }}
-                            animate={{ scale: 3, opacity: 0 }}
-                            transition={{ duration: 0.5 }}
-                            className="absolute inset-0 rounded-2xl"
-                            style={{ background: isNone ? 'rgba(255,255,255,0.12)' : 'rgba(251,146,60,0.35)' }}
-                          />
-                        )}
-                        <span className="relative z-10">{isNone ? 'None' : `+₹${amt}`}</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-
-                {/* Speed bar */}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: 'linear-gradient(90deg,#fb923c,#ef4444)' }}
-                      animate={{ width: `${Math.min(100, liveBoost)}%` }}
-                      transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-                    />
-                  </div>
-                  <span className="text-[10px] font-bold text-white/35 shrink-0 w-20 text-right">
-                    {liveBoost >= 100 ? 'Max speed' : liveBoost >= 50 ? 'Fast match' : liveBoost >= 10 ? 'Boosted' : 'Standard speed'}
-                  </span>
-                </div>
-              </div>
             </motion.div>
           )}
         </AnimatePresence>

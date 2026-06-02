@@ -66,6 +66,17 @@ const pricingConfigSchema = new mongoose.Schema(
     tipMaxPaise: { type: Number, default: 50000 },           // ₹500 max tip
     tipOptions: { type: [Number], default: [20, 50, 100] },  // quick tip buttons (₹)
 
+    // ── Offer Boost (pre-acceptance incentive) ────────────────────────────────
+    // Boost is the optional pre-acceptance incentive shown during searching phase.
+    // 100% of boost goes to worker earnings. Admin controls amounts, max, and
+    // whether the feature is enabled at all.
+    boostEnabled:         { type: Boolean, default: true },
+    boostOptions:         { type: [Number], default: [10, 20, 30, 50, 100] }, // ₹ options shown in UI
+    boostMaxPaise:        { type: Number, default: 20000 },   // ₹200 max boost per order
+    // dispatch weight: higher boost → higher priority score in dispatch scoring
+    // Value of 1.0 = no effect; 2.0 = ₹10 boost counts as 20 in scoring
+    boostDispatchWeight:  { type: Number, default: 1.5, min: 1.0, max: 10.0 },
+
     // ── Referral rewards ─────────────────────────────────────────────────────
     referralReferrerBonusPaise: { type: Number, default: 15000 },  // ₹150 for referring
     referralRefereeBonusPaise: { type: Number, default: 5000 },    // ₹50 for new user

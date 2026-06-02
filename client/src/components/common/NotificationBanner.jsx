@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, BellOff } from 'lucide-react';
-import { useNotificationPermission, FIREBASE_CONFIGURED } from '../../hooks/useFCM';
+import { useNotificationPermission, FIREBASE_CONFIGURED } from '../../hooks/useFCM.jsx';
 
 export default function NotificationBanner() {
   const perm = useNotificationPermission();
