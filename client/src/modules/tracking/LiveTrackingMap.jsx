@@ -1,96 +1,198 @@
 import { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, MapPin, Navigation } from 'lucide-react';
 
 const TOKEN          = import.meta.env.VITE_MAPBOX_TOKEN || '';
 const ROUTE_COOLDOWN = 8000;
-const LERP_DURATION  = 2600;
-const TRAIL_MAX      = 12;       // positions kept in speed trail
-const DRAW_DURATION  = 1400;     // ms for route draw animation
+const LERP_DURATION  = 2400;
+const TRAIL_MAX      = 14;
+const DRAW_DURATION  = 1200;
 
-/* ─── Service colours ───────────────────────────────────────────── */
+/* ─── Gen-Z neon service palette ───────────────────────────────── */
 const SVC_COLORS = {
-  electrical: '#F59E0B',
-  plumbing:   '#3B82F6',
-  ac_repair:  '#06B6D4',
-  carpenter:  '#F97316',
-  helper:     '#22C55E',
-  puncture:   '#94A3B8',
-  cleaning:   '#A855F7',
-  painting:   '#EC4899',
+  electrical:           '#FFE66D',
+  plumbing:             '#4ECDC4',
+  ac_repair:            '#45B7D1',
+  carpenter:            '#FF9F43',
+  helper:               '#48DBFB',
+  puncture:             '#FF6B6B',
+  bike_wash:            '#26de81',
+  bike_chain_issue:     '#fd9644',
+  bike_brake_issue:     '#fc5c65',
+  bike_battery_issue:   '#45aaf2',
+  car_wash:             '#2bcbba',
+  car_puncture:         '#FF6B6B',
+  battery_jump_start:   '#FFD32A',
+  cleaning:             '#C77DFF',
+  painting:             '#FF85A1',
+  screen_replacement:   '#5352ed',
+  battery_replacement:  '#eccc68',
+  software_issue:       '#70a1ff',
+  water_damage:         '#1e90ff',
 };
 
-/* ─── CSS injection ─────────────────────────────────────────────── */
+const DEFAULT_COLOR = '#FF6B6B';
+
+function svcColor(service) {
+  return SVC_COLORS[service] || DEFAULT_COLOR;
+}
+
+/* ─── CSS keyframes (injected once) ────────────────────────────── */
 function ensureStyles() {
   if (document.getElementById('lt2-styles')) return;
   const s = document.createElement('style');
   s.id = 'lt2-styles';
   s.textContent = `
     @keyframes lt2-pulse-a {
-      0%   { transform:scale(1);   opacity:.55; }
-      100% { transform:scale(2.6); opacity:0;   }
+      0%   { transform:scale(1);   opacity:.65; }
+      100% { transform:scale(2.9); opacity:0;   }
     }
     @keyframes lt2-pulse-b {
       0%   { transform:scale(1);   opacity:.35; }
-      100% { transform:scale(3.4); opacity:0;   }
+      100% { transform:scale(4.0); opacity:0;   }
     }
     @keyframes lt2-glow {
-      0%,100% { box-shadow:0 0 8px 3px var(--wc,#10B981)60; }
-      50%      { box-shadow:0 0 18px 7px var(--wc,#10B981)90; }
+      0%,100% { filter:drop-shadow(0 0 6px var(--wc,#FF6B6B)) drop-shadow(0 0 14px var(--wc,#FF6B6B)88); }
+      50%      { filter:drop-shadow(0 0 10px var(--wc,#FF6B6B)) drop-shadow(0 0 26px var(--wc,#FF6B6B)cc); }
     }
     @keyframes lt2-skeleton {
       0%,100% { opacity:.4; }
       50%      { opacity:.75; }
     }
-    .lt2-skeleton { animation:lt2-skeleton 1.5s ease-in-out infinite; }
+    @keyframes lt2-arrived-ring {
+      0%   { transform:scale(1);   opacity:.8; }
+      100% { transform:scale(2.2); opacity:0;  }
+    }
+    .lt2-skeleton { animation:lt2-skeleton 1.6s ease-in-out infinite; }
   `;
   document.head.appendChild(s);
 }
 
-/* ─── Pickup marker ─────────────────────────────────────────────── */
+/* ─── Top-down bike SVG (Rapido style) ─────────────────────────── */
+function getBikeSvg(color) {
+  return `<svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- front wheel -->
+    <ellipse cx="15" cy="4.5" rx="2.8" ry="4" fill="#0f172a"/>
+    <!-- rear wheel -->
+    <ellipse cx="15" cy="25.5" rx="2.8" ry="4" fill="#0f172a"/>
+    <!-- frame -->
+    <rect x="12.2" y="7.5" width="5.6" height="15" rx="2.8" fill="#1e293b"/>
+    <!-- rider helmet (top view) -->
+    <circle cx="15" cy="13.5" r="5" fill="${color}"/>
+    <circle cx="15" cy="13.5" r="2.4" fill="rgba(255,255,255,0.55)"/>
+    <!-- handlebar line -->
+    <path d="M8 9 C10.5 7.5 12.5 7 15 7 C17.5 7 19.5 7.5 22 9" stroke="#334155" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+    <!-- speed accent dots -->
+    <circle cx="11" cy="20" r="1" fill="${color}" opacity="0.5"/>
+    <circle cx="19" cy="20" r="1" fill="${color}" opacity="0.5"/>
+  </svg>`;
+}
+
+/* ─── Destination pin (red — user's location) ───────────────────── */
 function makePickupEl() {
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'width:36px;height:44px;filter:drop-shadow(0 4px 14px rgba(37,99,235,.55))';
+  wrap.style.cssText = 'width:40px;height:52px;filter:drop-shadow(0 6px 18px rgba(239,68,68,.7))';
   wrap.innerHTML = `
-    <svg width="36" height="44" viewBox="0 0 36 44" fill="none">
-      <path d="M18 0C8.059 0 0 8.059 0 18C0 31.5 18 44 18 44C18 44 36 31.5 36 18C36 8.059 27.941 0 18 0Z" fill="#2563EB"/>
-      <circle cx="18" cy="18" r="7" fill="white"/>
-      <circle cx="18" cy="18" r="3.5" fill="#2563EB"/>
+    <svg width="40" height="52" viewBox="0 0 40 52" fill="none">
+      <defs>
+        <radialGradient id="pgr" cx="40%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#FF6B6B"/>
+          <stop offset="100%" stop-color="#EF4444"/>
+        </radialGradient>
+      </defs>
+      <path d="M20 0C8.954 0 0 8.954 0 20C0 36.5 20 52 20 52C20 52 40 36.5 40 20C40 8.954 31.046 0 20 0Z" fill="url(#pgr)"/>
+      <circle cx="20" cy="20" r="9" fill="white" opacity="0.95"/>
+      <circle cx="20" cy="20" r="4.5" fill="#EF4444"/>
     </svg>`;
   return wrap;
 }
 
-/* ─── Worker marker (double pulse + glow) ───────────────────────── */
-function makeWorkerEl(service) {
+/* ─── Bike marker (worker) with direction rotation ──────────────── */
+function makeWorkerEl(service, bearing = 0) {
   ensureStyles();
-  const color = SVC_COLORS[service] || '#10B981';
+  const color = svcColor(service);
   const wrap  = document.createElement('div');
-  wrap.style.cssText = 'position:relative;width:26px;height:26px';
+  // no background — bike floats directly on the map
+  wrap.style.cssText = 'position:relative;width:56px;height:56px;';
+
   wrap.innerHTML = `
+    <!-- outer bloom ring -->
     <div style="
+      position:absolute;inset:-14px;border-radius:50%;
+      background:${color}35;z-index:1;
+      animation:lt2-pulse-a 2.2s ease-out infinite;
+    "></div>
+    <!-- wider softer ring -->
+    <div style="
+      position:absolute;inset:-22px;border-radius:50%;
+      background:${color}18;z-index:0;
+      animation:lt2-pulse-b 2.4s ease-out infinite .65s;
+    "></div>
+    <!-- bike icon — no background, neon glow animates via keyframe -->
+    <div class="lt2-bike-rot" style="
       --wc:${color};
-      width:26px;height:26px;border-radius:50%;
-      background:${color};border:3px solid rgba(255,255,255,.9);
-      box-shadow:0 2px 10px ${color}80;
-      position:relative;z-index:3;
+      position:absolute;inset:0;z-index:3;
+      display:flex;align-items:center;justify-content:center;
+      transform:rotate(${bearing}deg);
+      transition:transform 1.1s cubic-bezier(.25,.46,.45,.94);
       animation:lt2-glow 2.2s ease-in-out infinite;
-    "></div>
-    <div style="
-      position:absolute;inset:-7px;border-radius:50%;
-      background:${color}45;z-index:2;
-      animation:lt2-pulse-a 2s ease-out infinite;
-    "></div>
-    <div style="
-      position:absolute;inset:-12px;border-radius:50%;
-      background:${color}20;z-index:1;
-      animation:lt2-pulse-b 2s ease-out infinite .55s;
-    "></div>`;
+    ">
+      ${getBikeSvg(color)}
+    </div>`;
+
+  wrap._setBearing = (b) => {
+    const el = wrap.querySelector('.lt2-bike-rot');
+    if (el) el.style.transform = `rotate(${b}deg)`;
+  };
+
   return wrap;
 }
 
-/* ─── Smooth LERP ───────────────────────────────────────────────── */
+/* ─── Arrived marker (pulsing ring at pickup, no white bg) ─────── */
+function makeArrivedEl(service) {
+  ensureStyles();
+  const color = svcColor(service);
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;width:60px;height:60px;';
+  wrap.innerHTML = `
+    <div style="
+      position:absolute;inset:-10px;border-radius:50%;
+      border:2.5px solid ${color};opacity:.65;
+      animation:lt2-arrived-ring 1.6s ease-out infinite;
+    "></div>
+    <div style="
+      position:absolute;inset:-18px;border-radius:50%;
+      border:2px solid ${color};opacity:.35;
+      animation:lt2-arrived-ring 1.6s ease-out infinite .5s;
+    "></div>
+    <div style="
+      position:absolute;inset:0;z-index:3;
+      display:flex;align-items:center;justify-content:center;
+      filter:drop-shadow(0 0 10px ${color}cc) drop-shadow(0 0 22px ${color}66);
+    ">
+      ${getBikeSvg(color)}
+    </div>`;
+  return wrap;
+}
+
+/* ─── Bearing (heading) calculation ─────────────────────────────── */
+function calcBearing(from, to) {
+  const toRad = d => d * Math.PI / 180;
+  const dLng  = toRad(to.lng - from.lng);
+  const lat1  = toRad(from.lat);
+  const lat2  = toRad(to.lat);
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+/* ─── Smooth position LERP + bearing update ─────────────────────── */
 function animateMarkerTo(marker, from, to) {
+  const bearing = calcBearing(from, to);
+  const el = marker.getElement();
+  el._setBearing?.(bearing);
+
   let startTs = null;
   function frame(now) {
     if (!startTs) startTs = now;
@@ -105,25 +207,25 @@ function animateMarkerTo(marker, from, to) {
   requestAnimationFrame(frame);
 }
 
-/* ─── fitBounds ─────────────────────────────────────────────────── */
+/* ─── Auto-fit bounds ────────────────────────────────────────────── */
 function fitBounds(map, pickup, worker) {
   if (!pickup) return;
   if (!worker) {
-    map.easeTo({ center: [pickup.lng, pickup.lat], zoom: 15, duration: 800 });
+    map.easeTo({ center: [pickup.lng, pickup.lat], zoom: 16, duration: 800 });
     return;
   }
   const bounds = new mapboxgl.LngLatBounds()
     .extend([pickup.lng, pickup.lat])
     .extend([worker.lng, worker.lat]);
   map.fitBounds(bounds, {
-    padding:  { top: 100, bottom: 120, left: 70, right: 70 },
-    maxZoom:  16,
+    padding:  { top: 80, bottom: 100, left: 60, right: 60 },
+    maxZoom:  17,
     duration: 900,
     easing:   t => 1 - Math.pow(1 - t, 4),
   });
 }
 
-/* ─── Route draw animation ──────────────────────────────────────── */
+/* ─── Animated route draw ────────────────────────────────────────── */
 function animateRouteDraw(map, st, allCoords) {
   if (st.routeAnimFrame) cancelAnimationFrame(st.routeAnimFrame);
   const total = allCoords.length;
@@ -150,7 +252,7 @@ function animateRouteDraw(map, st, allCoords) {
   st.routeAnimFrame = requestAnimationFrame(frame);
 }
 
-/* ─── Route fetch ───────────────────────────────────────────────── */
+/* ─── Route fetch (Mapbox Directions) ───────────────────────────── */
 async function fetchRoute(map, st, from, to) {
   if (!TOKEN) return;
   const now = Date.now();
@@ -169,12 +271,11 @@ async function fetchRoute(map, st, from, to) {
   } catch { /* non-critical */ }
 }
 
-/* ─── Speed trail update ────────────────────────────────────────── */
+/* ─── Speed trail ────────────────────────────────────────────────── */
 function updateTrail(map, st, pos) {
   st.trailPositions.push({ ...pos, t: Date.now() });
   if (st.trailPositions.length > TRAIL_MAX) st.trailPositions.shift();
   if (!map.getSource('trail')) return;
-  const now = Date.now();
   const features = st.trailPositions.map((p, i) => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
@@ -186,10 +287,10 @@ function updateTrail(map, st, pos) {
 /* ════════════════════════════════════════════════════════════════
    Component
 ════════════════════════════════════════════════════════════════ */
-export default function LiveTrackingMap({ pickup, workerLocation, service, height = '60vh' }) {
+export default function LiveTrackingMap({ pickup, workerLocation, service, status, height = '60vh' }) {
   const containerRef = useRef(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [mapError, setMapError] = useState(false);
+  const [mapReady,  setMapReady]  = useState(false);
+  const [mapError,  setMapError]  = useState(false);
 
   const sr = useRef({
     map:            null,
@@ -220,84 +321,67 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
 
     const map = new mapboxgl.Map({
       container:          containerRef.current,
-      style:              'mapbox://styles/mapbox/streets-v12',
+      style:              'mapbox://styles/mapbox/navigation-night-v1',
       center:             initCenter,
-      zoom:               14,
+      zoom:               16,
       attributionControl: false,
       logoPosition:       'bottom-left',
     });
     st.map = map;
 
-    // Zoom + compass controls
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
     map.on('load', () => {
-      /* ── Route source (lineMetrics required for gradient) ── */
+      /* ── Route source (lineMetrics = gradient along length) ── */
       map.addSource('route', {
         type:        'geojson',
         lineMetrics: true,
         data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } },
       });
 
-      /* outer glow */
+      /* wide outer neon glow */
       map.addLayer({
-        id:     'route-glow',
-        type:   'line', source: 'route',
+        id: 'route-glow', type: 'line', source: 'route',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-width':   16,
-          'line-blur':    8,
-          'line-opacity': 0.28,
+          'line-width': 20, 'line-blur': 14, 'line-opacity': 0.45,
           'line-gradient': [
             'interpolate', ['linear'], ['line-progress'],
-            0,   '#6366F1',
-            0.5, '#3B82F6',
-            1,   '#06B6D4',
+            0, '#FF6B6B', 0.4, '#C77DFF', 0.7, '#4ECDC4', 1, '#45B7D1',
           ],
         },
       });
-      /* casing — white border for contrast on light map */
+      /* white casing for contrast */
       map.addLayer({
-        id:     'route-casing',
-        type:   'line', source: 'route',
+        id: 'route-casing', type: 'line', source: 'route',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-width':   9,
-          'line-color':   '#ffffff',
-          'line-opacity': 0.9,
-        },
+        paint: { 'line-width': 10, 'line-color': '#ffffff', 'line-opacity': 0.15 },
       });
-      /* core */
+      /* neon core */
       map.addLayer({
-        id:     'route-core',
-        type:   'line', source: 'route',
+        id: 'route-core', type: 'line', source: 'route',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-width':   5,
-          'line-opacity': 1,
+          'line-width': 5, 'line-opacity': 1,
           'line-gradient': [
             'interpolate', ['linear'], ['line-progress'],
-            0,   '#6366F1',
-            0.5, '#3B82F6',
-            1,   '#06B6D4',
+            0, '#FF6B6B', 0.4, '#C77DFF', 0.7, '#4ECDC4', 1, '#45B7D1',
           ],
         },
       });
 
-      /* ── Speed trail source ── */
+      /* ── Speed trail dots ── */
       map.addSource('trail', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       });
       map.addLayer({
-        id:     'trail-dots',
-        type:   'circle',
-        source: 'trail',
+        id: 'trail-dots', type: 'circle', source: 'trail',
         paint: {
-          'circle-radius': ['interpolate', ['linear'], ['get', 'age'], 0, 2.5, 1, 5.5],
-          'circle-color':  SVC_COLORS[service] || '#10B981',
-          'circle-opacity': ['interpolate', ['linear'], ['get', 'age'], 0, 0, 0.6, 0.25, 1, 0.55],
-          'circle-blur':   0.4,
+          'circle-radius':  ['interpolate', ['linear'], ['get', 'age'], 0, 2, 1, 6],
+          'circle-color':   svcColor(service),
+          'circle-opacity': ['interpolate', ['linear'], ['get', 'age'], 0, 0, 0.5, 0.2, 1, 0.6],
+          'circle-blur':    0.5,
         },
       });
 
@@ -311,7 +395,8 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
           .setLngLat([p.lng, p.lat]).addTo(map);
       }
       if (w) {
-        st.workerMarker = new mapboxgl.Marker({ element: makeWorkerEl(st.workerService) })
+        const el = makeWorkerEl(st.workerService);
+        st.workerMarker = new mapboxgl.Marker({ element: el })
           .setLngLat([w.lng, w.lat]).addTo(map);
         st.prevWorkerPos = w;
       }
@@ -360,7 +445,8 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
       const from = st.prevWorkerPos || workerLocation;
       animateMarkerTo(st.workerMarker, from, workerLocation);
     } else {
-      st.workerMarker = new mapboxgl.Marker({ element: makeWorkerEl(st.workerService) })
+      const el = makeWorkerEl(st.workerService);
+      st.workerMarker = new mapboxgl.Marker({ element: el })
         .setLngLat([workerLocation.lng, workerLocation.lat]).addTo(st.map);
     }
     st.prevWorkerPos = workerLocation;
@@ -373,7 +459,7 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
     }
   }, [workerLocation]);
 
-  /* ── Worker marker colour when service changes ── */
+  /* ── Service colour change → rebuild worker marker ── */
   useEffect(() => {
     const st = sr.current;
     st.workerService = service || null;
@@ -381,43 +467,106 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, heigh
     const pos = st.pendingWorker;
     if (!pos) return;
     st.workerMarker.remove();
-    st.workerMarker = new mapboxgl.Marker({ element: makeWorkerEl(service) })
+    const el = makeWorkerEl(service);
+    st.workerMarker = new mapboxgl.Marker({ element: el })
       .setLngLat([pos.lng, pos.lat]).addTo(st.map);
-    /* also update trail dot colour */
     if (st.map.getLayer('trail-dots')) {
-      st.map.setPaintProperty('trail-dots', 'circle-color', SVC_COLORS[service] || '#10B981');
+      st.map.setPaintProperty('trail-dots', 'circle-color', svcColor(service));
     }
   }, [service]);
 
   /* ── Render ── */
   if (!TOKEN || mapError) {
     return (
-      <div style={{ height }} className="rounded-2xl bg-slate-50 ring-1 ring-slate-200 flex flex-col items-center justify-center gap-2">
-        <AlertCircle size={20} className="text-slate-400" />
-        <span className="text-sm font-medium text-slate-500">
+      <div style={{ height }} className="rounded-2xl bg-slate-900 ring-1 ring-slate-700 flex flex-col items-center justify-center gap-2">
+        <AlertCircle size={20} className="text-slate-500" />
+        <span className="text-sm font-medium text-slate-400">
           {!TOKEN ? 'Map token not configured' : 'Map temporarily unavailable'}
         </span>
       </div>
     );
   }
 
+  const isArrived   = status === 'arrived';
+  const isOnTheWay  = status === 'on_the_way';
+  const isSearching = !status || status === 'searching' || status === 'created';
+  const color       = svcColor(service);
+
   return (
-    <div style={{ height }} className="relative rounded-2xl overflow-hidden ring-1 ring-slate-200 bg-slate-100">
+    <div style={{ height }} className="relative rounded-2xl overflow-hidden ring-1 ring-white/10 bg-slate-900">
+      {/* Skeleton shimmer while map tiles load */}
       {!mapReady && (
-        <div className="lt2-skeleton absolute inset-0 bg-slate-100 z-10 rounded-2xl flex items-center justify-center">
+        <div className="lt2-skeleton absolute inset-0 z-10 rounded-2xl flex items-center justify-center"
+             style={{ background: 'linear-gradient(135deg,#0f172a,#1e1b4b)' }}>
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center ring-1 ring-slate-300">
-              <div className="w-5 h-5 rounded-full bg-blue-400" />
+            <div className="w-12 h-12 rounded-full flex items-center justify-center ring-2 ring-white/10"
+                 style={{ background: `${color}25` }}>
+              <div className="w-6 h-6 rounded-full" style={{ background: color }} />
             </div>
-            <div className="w-28 h-2 rounded-full bg-slate-200" />
+            <div className="w-32 h-2 rounded-full bg-white/10" />
           </div>
         </div>
       )}
+
       <div
         ref={containerRef}
         className="w-full h-full"
         style={{ opacity: mapReady ? 1 : 0, transition: 'opacity 0.5s ease' }}
       />
+
+      {/* ── Bottom gradient fade (Rapido-style depth) ── */}
+      {mapReady && (
+        <div className="absolute bottom-0 inset-x-0 h-20 pointer-events-none z-10"
+             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
+      )}
+
+      {/* ── Status pill overlay ── */}
+      {mapReady && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none whitespace-nowrap">
+          {isArrived && (
+            <div
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-xs font-extrabold shadow-2xl"
+              style={{
+                background: 'linear-gradient(135deg,#059669,#10b981)',
+                boxShadow:  '0 4px 20px rgba(16,185,129,.55), 0 0 0 1px rgba(255,255,255,.15)',
+              }}
+            >
+              <MapPin size={13} strokeWidth={2.5} />
+              Worker is at your location
+            </div>
+          )}
+          {isOnTheWay && workerLocation && (
+            <div
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-white text-xs font-bold shadow-2xl"
+              style={{
+                background: 'rgba(15,23,42,0.85)',
+                backdropFilter: 'blur(12px)',
+                boxShadow: `0 4px 20px rgba(0,0,0,.4), 0 0 0 1px ${color}40`,
+              }}
+            >
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: color }} />
+              Live tracking · on the way
+            </div>
+          )}
+          {isSearching && (
+            <div
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-white/75 text-xs font-semibold"
+              style={{ background: 'rgba(15,23,42,0.72)', backdropFilter: 'blur(8px)' }}
+            >
+              <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: color }} />
+              Your service location
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Top-right service color badge (brand accent) ── */}
+      {mapReady && workerLocation && (
+        <div
+          className="absolute top-3 right-12 z-20 w-2.5 h-2.5 rounded-full pointer-events-none"
+          style={{ background: color, boxShadow: `0 0 8px 3px ${color}80` }}
+        />
+      )}
     </div>
   );
 }

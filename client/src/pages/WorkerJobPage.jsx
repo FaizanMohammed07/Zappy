@@ -46,6 +46,21 @@ const STATUS_CONFIG = {
 
 const ACTIVE_STATUSES = new Set(['assigned', 'on_the_way', 'arrived', 'in_progress']);
 
+/* Maximum distance (metres) the worker must be within to tap "I've Arrived".
+   100 m accounts for urban GPS drift (typical phone accuracy is ±10–30 m).
+   If you want stricter enforcement, lower this value. */
+const ARRIVED_GEOFENCE_M = 100;
+
+function haversineMeters(a, b) {
+  const R     = 6_371_000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat  = toRad(b.lat - a.lat);
+  const dLng  = toRad(b.lng - a.lng);
+  const s     = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
 const PHONE_SERVICES = new Set(['screen_replacement', 'battery_replacement', 'charging_issue', 'speaker_mic_issue', 'software_issue', 'water_damage_check']);
 const VEHICLE_SERVICES = new Set(['puncture', 'battery_jump_start', 'fuel_delivery', 'bike_wash', 'car_wash', 'minor_roadside_repair']);
 const CONSTRUCTION_SERVICES = new Set(['mason', 'plumbing', 'electrical', 'carpenter', 'painting']);
@@ -489,6 +504,19 @@ export default function WorkerJobPage() {
     catch (err) { toast.error(err.data?.error || 'Failed'); }
   }
   async function onArrive() {
+    if (!myLocation) {
+      toast.error('GPS not available — enable location and try again');
+      return;
+    }
+    if (!pickup) {
+      toast.error('Customer location unavailable');
+      return;
+    }
+    const distM = haversineMeters(myLocation, pickup);
+    if (distM > ARRIVED_GEOFENCE_M) {
+      toast.error(`You're ${Math.round(distM)} m away — move within ${ARRIVED_GEOFENCE_M} m to mark arrived`);
+      return;
+    }
     try { await arrive(id).unwrap(); toast.success('Marked as arrived'); refetch(); }
     catch (err) { toast.error(err.data?.error || 'Failed'); }
   }
@@ -907,14 +935,85 @@ export default function WorkerJobPage() {
             </motion.button>
           )}
 
-          {status === 'on_the_way' && (
-            <motion.button onClick={onArrive} disabled={arriving}
-              className="w-full relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-black text-base disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)', boxShadow: '0 8px 24px rgba(217,119,6,0.4)' }}
-              whileTap={{ scale: 0.98 }}>
-              {arriving ? <><Loader2 size={18} className="animate-spin" /> Updating…</> : <><MapPin size={18} strokeWidth={2.5} /> I've Arrived</>}
-            </motion.button>
-          )}
+          {status === 'on_the_way' && (() => {
+            const distM   = myLocation && pickup ? haversineMeters(myLocation, pickup) : null;
+            const withinFence = distM !== null && distM <= ARRIVED_GEOFENCE_M;
+            // Progress 0→1 as distance drops from 300m → 0m (feels responsive)
+            const progress = distM !== null ? Math.max(0, Math.min(1, 1 - distM / 300)) : 0;
+            const pct      = Math.round(progress * 100);
+
+            return (
+              <div className="space-y-2">
+                {/* Proximity indicator — only while GPS is available */}
+                {distM !== null && (
+                  <div className={`rounded-2xl px-4 py-3 flex items-center gap-3 transition-colors ${
+                    withinFence
+                      ? 'bg-green-50 ring-1 ring-green-200'
+                      : 'bg-amber-50 ring-1 ring-amber-200'
+                  }`}>
+                    {/* Arc progress ring */}
+                    <div className="relative w-10 h-10 shrink-0">
+                      <svg width="40" height="40" viewBox="0 0 40 40" className="-rotate-90">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="#e2e8f0" strokeWidth="4" />
+                        <circle
+                          cx="20" cy="20" r="16" fill="none"
+                          stroke={withinFence ? '#16a34a' : '#d97706'}
+                          strokeWidth="4"
+                          strokeLinecap="round"
+                          strokeDasharray={`${2 * Math.PI * 16}`}
+                          strokeDashoffset={`${2 * Math.PI * 16 * (1 - progress)}`}
+                          style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.4s ease' }}
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black"
+                            style={{ color: withinFence ? '#16a34a' : '#d97706' }}>
+                        {pct}%
+                      </span>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {withinFence ? (
+                        <>
+                          <p className="text-sm font-extrabold text-green-800">You're at the location!</p>
+                          <p className="text-xs text-green-600 font-medium">{Math.round(distM)} m · tap to confirm arrival</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-extrabold text-amber-800">
+                            {Math.round(distM)} m away
+                          </p>
+                          <p className="text-xs text-amber-600 font-medium">
+                            Get within {ARRIVED_GEOFENCE_M} m to enable arrived
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    <MapPin size={16} strokeWidth={2}
+                      className={withinFence ? 'text-green-600 shrink-0' : 'text-amber-500 shrink-0'} />
+                  </div>
+                )}
+
+                {/* Arrived button — locked until inside geofence */}
+                <motion.button
+                  onClick={onArrive}
+                  disabled={arriving || !withinFence}
+                  className="w-full relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-black text-base transition-all"
+                  style={withinFence
+                    ? { background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', boxShadow: '0 8px 24px rgba(22,163,74,0.45)' }
+                    : { background: 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)', opacity: 0.7 }
+                  }
+                  whileTap={withinFence ? { scale: 0.98 } : {}}>
+                  {arriving
+                    ? <><Loader2 size={18} className="animate-spin" /> Updating…</>
+                    : withinFence
+                    ? <><CheckCircle2 size={18} strokeWidth={2.5} /> I've Arrived</>
+                    : <><MapPin size={18} strokeWidth={2.5} /> {distM !== null ? `${Math.round(distM)} m away` : 'Waiting for GPS…'}</>
+                  }
+                </motion.button>
+              </div>
+            );
+          })()}
 
           {/* ── No-response panel (#73): shown if worker has been arrived >3 min ── */}
           {status === 'arrived' && (

@@ -28,7 +28,16 @@ async function updateLocation(req, res, next) {
   try {
     await workerService.updateLocation({ workerId: req.auth.sub, lat: req.body.lat, lng: req.body.lng, orderId: req.body.orderId });
     res.json({ ok: true });
-  } catch (err) { next(err); }
+  } catch (err) {
+    // Location update is best-effort — Redis outages should not block the worker app.
+    // Return 200 so the client doesn't retry-spam; log the failure server-side.
+    if (err?.name === 'ReplyError' || err?.code === 'ECONNREFUSED' || err?.code === 'ENOTFOUND') {
+      const logger = require('../../utils/logger');
+      logger.warn({ workerId: req.auth.sub, err: err.message }, '[LOCATION] Redis unavailable — location update skipped');
+      return res.json({ ok: true, degraded: true });
+    }
+    next(err);
+  }
 }
 
 async function getEarnings(req, res, next) {
@@ -89,39 +98,43 @@ async function getDemandZones(req, res, next) {
     }
 
     const { redis } = require('../../config/redis');
+    const logger = require('../../utils/logger');
 
     const zones = await Promise.all(
       DEMAND_ZONE_SEEDS.map(async (zone) => {
         const bucket = `${zone.lat.toFixed(2)}:${zone.lng.toFixed(2)}`;
-        const [demand, supply] = await Promise.all([
-          redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
-          redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0),
-        ]);
+        let demand = 0, supply = 0;
+        try {
+          [demand, supply] = await Promise.all([
+            redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
+            redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0),
+          ]);
+        } catch (redisErr) {
+          // Redis unavailable — fall back to zero counts (renders as "low" demand)
+          logger.warn({ bucket, err: redisErr.message }, '[DEMAND_ZONES] Redis unavailable — using fallback values');
+        }
 
         const distKm = haversineKm(lat, lng, zone.lat, zone.lng);
 
-        // Demand level based on demand/supply ratio
         let level;
         if (supply === 0 && demand > 0) level = 'very_high';
         else if (demand === 0 && supply === 0) level = 'low';
         else {
           const ratio = demand / Math.max(supply, 1);
-          if (ratio >= 3)    level = 'very_high';
+          if (ratio >= 3)        level = 'very_high';
           else if (ratio >= 1.5) level = 'high';
           else if (ratio >= 0.5) level = 'medium';
           else                   level = 'low';
         }
 
-        // Estimated wait: fewer workers + more demand → shorter wait
         const waitMin = supply === 0
           ? (demand > 0 ? '<2' : '10+')
-          : Math.max(1, Math.round(distKm / 20 * 60)); // rough travel time
+          : Math.max(1, Math.round(distKm / 20 * 60));
 
         return { name: zone.name, distKm: parseFloat(distKm.toFixed(1)), level, demand, supply, waitMin };
       })
     );
 
-    // Sort by distance, filter within 15 km, skip "low" that are far away
     const nearby = zones
       .filter((z) => z.distKm <= 15)
       .sort((a, b) => a.distKm - b.distKm)

@@ -69,7 +69,7 @@ async function getOne(req, res, next) {
     const Worker = require('../worker/worker.model');
     const [user, worker] = await Promise.all([
       User.findById(order.userId).select('name').lean(),
-      order.workerId ? Worker.findById(order.workerId).select('name rating completedJobs').lean() : null,
+      order.workerId ? Worker.findById(order.workerId).select('name rating completedJobs currentLocation').lean() : null,
     ]);
     if (user)   order.userName   = user.name   || null;
     if (worker) {
@@ -78,6 +78,13 @@ async function getOne(req, res, next) {
       // order.workerRating on the Order schema is the rating the worker gave the user.
       // Null during active orders, so populate from the worker's own profile rating.
       if (order.workerRating == null) order.workerRating = worker.rating || null;
+      // Expose worker's last known GPS position so the tracking map can be seeded on
+      // page load / refresh without waiting for the first socket location event.
+      const ACTIVE = ['assigned', 'on_the_way', 'arrived', 'in_progress'];
+      if (ACTIVE.includes(order.status) && worker.currentLocation?.coordinates?.length === 2) {
+        const [wLng, wLat] = worker.currentLocation.coordinates;
+        order.workerCurrentLocation = { lat: wLat, lng: wLng };
+      }
     }
 
     // Resolve completion photo keys/paths to fresh presigned S3 URLs (valid 2h).

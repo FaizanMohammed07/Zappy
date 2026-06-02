@@ -64,6 +64,16 @@ if (cfg.apiKey && cfg.projectId && cfg.messagingSenderId) {
   });
 }
 
+// Handle messages from the main thread (e.g. skipWaiting from build tooling).
+// Returning true from a message handler tells Chrome to expect a sendResponse
+// callback — if we don't call it, Chrome logs "message channel closed" errors.
+// This listener handles known messages synchronously (no return value → no open channel).
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+  }
+});
+
 // Tap on background notification — navigate to deepLink
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

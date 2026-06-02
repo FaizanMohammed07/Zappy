@@ -6,17 +6,17 @@ import {
   ArrowLeft, Phone, MessageCircle, Star, CheckCircle,
   Clock, MapPin, AlertCircle, Loader2, ShieldCheck, RefreshCw,
   Zap, X, ChevronRight, AlertTriangle, Wallet, HeadphonesIcon, FileText,
-  Repeat2,
+  Repeat2, CheckCircle2, UserCheck, HelpCircle,
 } from 'lucide-react';
-import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery, useSendTipMutation } from '../services/api';
+import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery } from '../services/api';
 import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
-import { selectOrder, setActiveOrder } from '../modules/order/orderSlice';
+import { selectOrder, setActiveOrder, setWorkerLocation } from '../modules/order/orderSlice';
 import { selectAuth } from '../modules/auth/authSlice';
 import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
 import PageTransition from '../components/common/PageTransition';
-import DispatchProgressPanel from '../components/tracking/DispatchProgressPanel';
+
 import TipCard from '../components/tracking/TipCard';
-import BoostOfferCard from '../components/tracking/BoostOfferCard';
+
 import PriceRevisionCard from '../components/tracking/PriceRevisionCard';
 import WarrantyCard from '../components/tracking/WarrantyCard';
 import SmartMatchSheet from '../components/tracking/SmartMatchSheet';
@@ -55,15 +55,29 @@ export default function OrderTrackingPage() {
   const { data, isLoading, refetch } = useGetOrderQuery(id, { pollingInterval: 30000 });
   const [cancelOrder, { isLoading: cancelling }] = useCancelOrderMutation();
   const [rateOrder] = useRateOrderMutation();
-  const [sendTip] = useSendTipMutation();
+
   const [showCancel, setShowCancel]           = useState(false);
   const [cancelReason, setCancelReason]       = useState('');
   const [showMatchSheet, setShowMatchSheet]   = useState(false);
   const [cashbackPop, setCashbackPop]         = useState(null); // { amountPaise }
   const completionShownRef = useRef(false);
-  const matchShownRef = useRef(false);
+  const matchShownRef      = useRef(false);
   const liveOrder = useSelector(selectOrder);
   const { data: walletData } = useGetWalletQuery();
+
+  // ── Worker-arrived confirmation flow ──────────────────────────────────────
+  // OTP is only revealed after the user explicitly confirms the worker is present.
+  // sessionStorage key persists the confirmation across same-session refreshes.
+  const ssKey = `wc:${id}`;
+  const [workerConfirmed,         setWorkerConfirmed]         = useState(() => {
+    try { return sessionStorage.getItem(ssKey) === '1'; } catch { return false; }
+  });
+  const [showArrivedSheet,        setShowArrivedSheet]        = useState(false);
+  const [confirmCountdown,        setConfirmCountdown]        = useState(90);
+  const [workerNotHereMode,       setWorkerNotHereMode]       = useState(false);
+  const countdownRef = useRef(null);
+  // Track the last status we showed the sheet for so we don't show it twice
+  const arrivedShownRef = useRef(workerConfirmed);
 
   // Fetch cancel fee preview whenever cancel sheet is open
   const { data: cancelPreview, isFetching: previewLoading } = useGetCancelPreviewQuery(id, {
@@ -74,15 +88,55 @@ export default function OrderTrackingPage() {
   const order = data?.order;
 
   useEffect(() => {
-    if (order) dispatch(setActiveOrder({ orderId: order._id, status: order.status }));
+    if (!order) return;
+    dispatch(setActiveOrder({ orderId: order._id, status: order.status }));
+    // Seed the map immediately from the REST response so the worker dot shows on
+    // page load / hard refresh without waiting for the next socket location event.
+    if (order.workerCurrentLocation) {
+      dispatch(setWorkerLocation(order.workerCurrentLocation));
+    }
   }, [order?._id, dispatch]); // eslint-disable-line
 
-  useOrderSocket(order?._id);
-  const socketStatus = useSocketStatus();
-
+  // Derive status early so the effects below can read it without a TDZ error.
+  // liveOrder comes from the socket; order comes from REST. Socket wins when active.
   const status = liveOrder.activeOrderId === order?._id
     ? liveOrder.status || order?.status
     : order?.status;
+
+  // Show confirmation sheet once when worker first marks arrived
+  useEffect(() => {
+    if (status !== 'arrived' || workerConfirmed || arrivedShownRef.current) return;
+    arrivedShownRef.current = true;
+    setShowArrivedSheet(true);
+    setConfirmCountdown(90);
+    setWorkerNotHereMode(false);
+  }, [status, workerConfirmed]);
+
+  // Auto-confirm countdown — if user ignores the sheet for 90 s the OTP is revealed
+  useEffect(() => {
+    if (!showArrivedSheet) { clearInterval(countdownRef.current); return; }
+    countdownRef.current = setInterval(() => {
+      setConfirmCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(countdownRef.current);
+          confirmWorkerArrived();
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(countdownRef.current);
+  }, [showArrivedSheet]); // eslint-disable-line
+
+  function confirmWorkerArrived() {
+    setWorkerConfirmed(true);
+    setShowArrivedSheet(false);
+    try { sessionStorage.setItem(ssKey, '1'); } catch {}
+    toast.success('OTP revealed — share it with your worker to start');
+  }
+
+  useOrderSocket(order?._id);
+  const socketStatus = useSocketStatus();
 
   // Price revision — poll during in_progress / arrived (status is now defined)
   const { data: revisionData } = useGetPriceRevisionQuery(id, {
@@ -253,40 +307,6 @@ export default function OrderTrackingPage() {
         animate="animate"
       >
 
-        {/* Searching — real dispatch progress panel */}
-        <AnimatePresence>
-          {['created', 'searching'].includes(status) && (
-            <motion.div
-              key="dispatch-progress"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
-              <DispatchProgressPanel />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Boost offer card — shown during searching ─────────────────── */}
-        <AnimatePresence>
-          {['created', 'searching'].includes(status) && (
-            <motion.div
-              key="boost-card"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ delay: 0.4, type: 'spring', damping: 24, stiffness: 300 }}
-            >
-              <BoostOfferCard
-                orderId={id}
-                baseTotal={order?.pricing?.total || 0}
-                sendTip={sendTip}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Failed state */}
         {status === 'failed' && (
           <motion.div variants={fadeInUp} className="card bg-red-50 ring-1 ring-red-100">
@@ -384,8 +404,14 @@ export default function OrderTrackingPage() {
         <motion.div variants={fadeInUp}>
           <LiveTrackingMap
             pickup={pickup}
-            workerLocation={liveOrder.workerLocation}
+            workerLocation={
+              // When arrived and no socket location yet, pin the worker dot at the
+              // pickup coordinate so the map always shows "someone is here".
+              liveOrder.workerLocation ||
+              (status === 'arrived' && pickup ? pickup : null)
+            }
             service={order.service}
+            status={status}
             height="38vh"
           />
         </motion.div>
@@ -437,50 +463,81 @@ export default function OrderTrackingPage() {
           </div>
         </motion.div>
 
-        {/* OTP card — shown below progress stepper once a worker is assigned */}
+        {/* OTP card ─────────────────────────────────────────────────────────
+            • assigned / on_the_way → show OTP upfront (worker hasn't arrived yet,
+              user can have it ready)
+            • arrived → only reveal after user confirms worker is present
+            • in_progress → hide (service already started)                      */}
         <AnimatePresence>
-          {['assigned', 'on_the_way', 'arrived'].includes(status) && order.otp && (
-            <motion.div
-              key="otp-card"
-              initial={{ opacity: 0, scale: 0.95, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: 'spring', damping: 20, stiffness: 260 }}
-              className="rounded-2xl overflow-hidden"
-              style={{
-                background: status === 'arrived'
-                  ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)'
-                  : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                boxShadow: status === 'arrived'
-                  ? '0 8px 28px rgba(124,58,237,0.35)'
-                  : '0 8px 24px rgba(245,158,11,0.3)',
-              }}
-            >
-              {/* Header row */}
-              <div className="px-4 pt-4 pb-2 flex items-center gap-2">
-                <ShieldCheck size={15} strokeWidth={2} className="text-white/80" />
-                <p className="text-xs font-extrabold text-white/80 uppercase tracking-widest">
-                  {status === 'arrived' ? 'Worker is here — share your OTP' : 'Your Service OTP'}
-                </p>
-              </div>
-
-              {/* Digit boxes */}
-              <div className="flex justify-center gap-3 px-4 pb-3">
-                {String(order.otp).split('').map((digit, i) => (
-                  <div
-                    key={i}
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                    style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(6px)' }}
-                  >
-                    <span className="text-4xl font-black text-white tracking-tight">{digit}</span>
+          {order.otp && (
+            // arrived but not yet confirmed → show a "waiting for your confirmation" placeholder
+            status === 'arrived' && !workerConfirmed ? (
+              <motion.div
+                key="otp-pending"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="rounded-2xl overflow-hidden ring-1 ring-violet-200"
+                style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}
+              >
+                <div className="px-4 py-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
+                    <HelpCircle size={18} strokeWidth={2} className="text-violet-600" />
                   </div>
-                ))}
-              </div>
-
-              <p className="text-[11px] text-white/70 text-center font-semibold pb-4 px-4">
-                Tell this code to your worker to start the service
-              </p>
-            </motion.div>
+                  <div className="flex-1">
+                    <p className="text-sm font-extrabold text-violet-900">Confirm the worker is here</p>
+                    <p className="text-xs text-violet-500 mt-0.5">Your OTP will appear once you confirm</p>
+                  </div>
+                  <button
+                    onClick={() => setShowArrivedSheet(true)}
+                    className="px-3 py-1.5 rounded-xl bg-violet-600 text-white text-xs font-bold"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              // Show OTP when: not-arrived statuses OR arrived+confirmed
+              ['assigned', 'on_the_way'].includes(status) || (status === 'arrived' && workerConfirmed)
+            ) && (
+              <motion.div
+                key="otp-card"
+                initial={{ opacity: 0, scale: 0.95, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ type: 'spring', damping: 20, stiffness: 260 }}
+                className="rounded-2xl overflow-hidden"
+                style={{
+                  background: status === 'arrived'
+                    ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)'
+                    : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  boxShadow: status === 'arrived'
+                    ? '0 8px 28px rgba(124,58,237,0.35)'
+                    : '0 8px 24px rgba(245,158,11,0.3)',
+                }}
+              >
+                <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+                  <ShieldCheck size={15} strokeWidth={2} className="text-white/80" />
+                  <p className="text-xs font-extrabold text-white/80 uppercase tracking-widest">
+                    {status === 'arrived' ? 'Worker is here — share your OTP' : 'Your Service OTP'}
+                  </p>
+                </div>
+                <div className="flex justify-center gap-3 px-4 pb-3">
+                  {String(order.otp).split('').map((digit, i) => (
+                    <div
+                      key={i}
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                      style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(6px)' }}
+                    >
+                      <span className="text-4xl font-black text-white tracking-tight">{digit}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-white/70 text-center font-semibold pb-4 px-4">
+                  Tell this code to your worker to start the service
+                </p>
+              </motion.div>
+            )
           )}
         </AnimatePresence>
 
@@ -787,6 +844,151 @@ export default function OrderTrackingPage() {
             worker={workerForSheet}
             onDismiss={() => setShowMatchSheet(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Worker-arrived confirmation sheet ───────────────────────────────
+          Slides up when worker marks arrived. User must confirm before OTP shows.
+          Auto-confirms after 90 s (countdown visible) so the service isn't blocked
+          if the user is slow to respond or the app is backgrounded.               */}
+      <AnimatePresence>
+        {showArrivedSheet && (
+          <motion.div
+            className="fixed inset-0 z-50 flex flex-col justify-end"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Backdrop */}
+            <motion.div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => {/* do nothing — must tap a button */}}
+            />
+
+            <motion.div
+              className="relative bg-white rounded-t-[32px] pb-[max(1.75rem,env(safe-area-inset-bottom))]"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+            >
+              {/* Drag pill */}
+              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-5" />
+
+              {/* Worker avatar + headline */}
+              <div className="flex flex-col items-center px-6 pb-2">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white font-black text-xl mb-3 shadow-lg"
+                     style={{ boxShadow: '0 8px 24px rgba(124,58,237,0.4)' }}>
+                  {(order.workerName || 'W').slice(0, 2).toUpperCase()}
+                </div>
+                <p className="text-xl font-black text-[#0F172A] text-center leading-tight">
+                  Is {order.workerName ? order.workerName.split(' ')[0] : 'your worker'} at your door?
+                </p>
+                <p className="text-sm text-slate-400 mt-1.5 text-center">
+                  They've marked themselves as arrived. Confirm so your OTP unlocks.
+                </p>
+              </div>
+
+              {/* Auto-confirm countdown ring */}
+              <div className="flex flex-col items-center mt-4 mb-5">
+                <div className="relative w-16 h-16">
+                  <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90">
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="#f1f5f9" strokeWidth="5" />
+                    <circle
+                      cx="32" cy="32" r="26" fill="none"
+                      stroke="#7c3aed"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 26}`}
+                      strokeDashoffset={`${2 * Math.PI * 26 * (1 - confirmCountdown / 90)}`}
+                      style={{ transition: 'stroke-dashoffset 1s linear' }}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-sm font-black text-violet-700">
+                    {confirmCountdown}s
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-2 font-medium">
+                  OTP auto-reveals in {confirmCountdown} s
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="px-5 space-y-3">
+                {!workerNotHereMode ? (
+                  <>
+                    {/* YES — confirm arrived */}
+                    <motion.button
+                      onClick={confirmWorkerArrived}
+                      whileTap={{ scale: 0.97 }}
+                      className="w-full h-14 rounded-2xl text-white font-extrabold text-base flex items-center justify-center gap-2.5"
+                      style={{
+                        background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
+                        boxShadow: '0 8px 24px rgba(124,58,237,0.4)',
+                      }}
+                    >
+                      <CheckCircle2 size={20} strokeWidth={2.5} />
+                      Yes, they're here — show OTP
+                    </motion.button>
+
+                    {/* NO — worker not here */}
+                    <button
+                      onClick={() => {
+                        clearInterval(countdownRef.current);
+                        setWorkerNotHereMode(true);
+                      }}
+                      className="w-full h-12 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                    >
+                      No, they haven't arrived yet
+                    </button>
+                  </>
+                ) : (
+                  /* Worker-not-here panel */
+                  <div className="rounded-2xl bg-red-50 ring-1 ring-red-100 p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle size={18} strokeWidth={2} className="text-red-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-extrabold text-red-800">Worker hasn't arrived?</p>
+                        <p className="text-xs text-red-500 mt-0.5">
+                          Call them first — sometimes GPS delay causes an early ping.
+                          If they're genuinely not there, report it.
+                        </p>
+                      </div>
+                    </div>
+
+                    {order.workerId && (
+                      <button
+                        onClick={callWorker}
+                        className="w-full h-11 rounded-xl bg-green-600 text-white text-sm font-bold flex items-center justify-center gap-2"
+                      >
+                        <Phone size={15} strokeWidth={2} /> Call Worker
+                      </button>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setWorkerNotHereMode(false)}
+                        className="flex-1 h-10 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Dismiss sheet but don't confirm — user can re-open via placeholder card
+                          setShowArrivedSheet(false);
+                          setWorkerNotHereMode(false);
+                          toast('Sheet closed — tap "Confirm" when ready', { icon: '⏳' });
+                        }}
+                        className="flex-1 h-10 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold"
+                      >
+                        Wait & check later
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

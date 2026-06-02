@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { selectAuth } from '../modules/auth/authSlice';
 import {
@@ -48,8 +48,24 @@ export function useFCM() {
   const [registerUserToken]   = useRegisterDeviceTokenMutation();
   const [registerWorkerToken] = useRegisterWorkerDeviceTokenMutation();
 
+  // Keep mutation fns in a ref — RTK Query returns new references on every render,
+  // but the underlying function is stable. Putting them in a ref prevents them from
+  // being deps of useCallback and causing init() to be recreated every render.
+  const mutationsRef = useRef({ registerUserToken, registerWorkerToken, role });
+  useEffect(() => { mutationsRef.current = { registerUserToken, registerWorkerToken, role }; });
+
+  // True once FCM is fully initialized. Reset to false on logout (token → null → token).
+  // This prevents re-registration on every token rotation (15-min refreshes).
+  const hasInit = useRef(false);
+
   const init = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken) {
+      // User logged out — allow re-init on next login.
+      hasInit.current = false;
+      return;
+    }
+    // Already initialized this session — skip (covers token refreshes & visibility events).
+    if (hasInit.current) return;
 
     if (!FIREBASE_CONFIGURED) {
       setPermState('not_configured');
@@ -82,7 +98,7 @@ export function useFCM() {
       setPermState('granted');
 
       // 2. Register service worker — pass Firebase config as URL params so the SW
-      //    doesn't need to hardcode credentials (fixes the security/flexibility issue).
+      //    doesn't need to hardcode credentials.
       let swReg;
       try {
         const swParams = new URLSearchParams({
@@ -130,13 +146,16 @@ export function useFCM() {
         return;
       }
 
-      // 5. Register with backend
-      const register = role === 'worker' ? registerWorkerToken : registerUserToken;
+      // 5. Register with backend — read current role/fns from ref (stable, no re-render deps)
+      const { role: currentRole, registerWorkerToken: regWorker, registerUserToken: regUser } = mutationsRef.current;
+      const register = currentRole === 'worker' ? regWorker : regUser;
       await register({ token: fcmToken }).unwrap().catch((err) => {
         if (import.meta.env.DEV) console.warn('[FCM] Token registration failed:', err);
       });
 
-      if (import.meta.env.DEV) console.info('[FCM] ✅ Push notifications ready. Token registered.');
+      // Mark as initialized — prevents all future calls from re-running until logout.
+      hasInit.current = true;
+      if (import.meta.env.DEV) console.info('[FCM] Push notifications ready. Token registered.');
 
       // 6. Foreground message handler — show toast when app is open
       onMessage(messaging, (payload) => {
@@ -175,12 +194,15 @@ export function useFCM() {
         console.error('[FCM] Init error:', err?.code || err?.message);
       }
     }
-  }, [accessToken, role, registerUserToken, registerWorkerToken]);
+  // Only re-run when the user logs in/out (accessToken presence changes).
+  // Token refreshes do NOT re-trigger because hasInit guards against them.
+  }, [accessToken]);
 
   useEffect(() => {
     init();
 
-    // Re-init when tab becomes visible (user may have granted permission in settings)
+    // Re-check when tab becomes visible — only runs init if not yet initialized
+    // (e.g., user granted permission in browser settings while tab was in background).
     function onVisibility() {
       if (document.visibilityState === 'visible') init();
     }
