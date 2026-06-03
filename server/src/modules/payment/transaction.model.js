@@ -25,11 +25,15 @@ const REASONS = {
   ORDER_PAYMENT: 'order_payment',
   WITHDRAWAL: 'withdrawal',
   ADMIN_ADJUSTMENT_DEBIT: 'admin_adjustment_debit',
+  CANCELLATION_FEE: 'cancellation_fee',       // debit from user for cancelling
 
   // Platform-side bookkeeping (principal=platform)
   PLATFORM_COMMISSION: 'platform_commission',
   PLATFORM_FEE: 'platform_fee',
   SUBSCRIPTION_REVENUE: 'subscription_revenue',
+
+  // Worker Cancellation Shield Fund
+  SHIELD_PAYOUT: 'shield_payout',             // weekly fund payout credited to worker
 };
 
 const transactionSchema = new mongoose.Schema(

@@ -66,7 +66,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -190,8 +190,12 @@ export const api = createApi({
       query: (id) => ({ url: `/orders/${id}/reject`, method: 'POST' }),
     }),
     workerStartTrip: b.mutation({
-      query: (id) => ({ url: `/orders/${id}/start-trip`, method: 'POST' }),
-      invalidatesTags: (r, e, id) => [{ type: 'Order', id }],
+      query: ({ id, lat, lng } = {}) => ({
+        url: `/orders/${id}/start-trip`,
+        method: 'POST',
+        body: lat != null && lng != null ? { lat, lng } : {},
+      }),
+      invalidatesTags: (r, e, a) => [{ type: 'Order', id: a?.id ?? a }],
     }),
     workerArrive: b.mutation({
       query: (id) => ({ url: `/orders/${id}/arrived`, method: 'POST' }),
@@ -233,7 +237,10 @@ export const api = createApi({
     // --- Admin ---
     adminMetrics: b.query({ query: () => adminApiPath('/metrics'), providesTags: ['AdminMetrics'] }),
     adminOrders: b.query({
-      query: ({ status, page = 1 } = {}) => ({ url: adminApiPath('/orders'), params: { status, page } }),
+      query: ({ status, page = 1, reconciliationRequired } = {}) => ({
+        url: adminApiPath('/orders'),
+        params: { status, page, ...(reconciliationRequired && { reconciliationRequired: 'true' }) },
+      }),
     }),
     adminWorkers: b.query({
       query: ({ q, skill, online, page = 1 } = {}) => ({
@@ -727,7 +734,11 @@ export const api = createApi({
 
     // --- Tip ---
     sendTip: b.mutation({
-      query: ({ orderId, amountPaise }) => ({ url: `/orders/${orderId}/tip`, method: 'POST', body: { amountPaise } }),
+      query: ({ orderId, amountPaise, voiceNoteUrl, message }) => ({
+        url: `/orders/${orderId}/tip`,
+        method: 'POST',
+        body: { amountPaise, ...(voiceNoteUrl && { voiceNoteUrl }), ...(message && { message }) },
+      }),
       invalidatesTags: (r, e, a) => [{ type: 'Order', id: a.orderId }],
     }),
 
@@ -770,6 +781,44 @@ export const api = createApi({
     getReferralHistory: b.query({
       query: () => '/referrals/history',
       providesTags: ['Referral'],
+    }),
+
+    // --- Admin: Worker Cancellation Shield Fund ---
+    adminShieldSummary: b.query({
+      query: () => adminApiPath('/shield/summary'),
+      providesTags: ['ShieldFund'],
+    }),
+    adminShieldWeeks: b.query({
+      query: ({ page = 1, status } = {}) => ({ url: adminApiPath('/shield/weeks'), params: { page, ...(status && { status }) } }),
+      providesTags: ['ShieldFund'],
+    }),
+    adminShieldWeekPayouts: b.query({
+      query: (weekId) => adminApiPath(`/shield/weeks/${weekId}/payouts`),
+      providesTags: (r, e, weekId) => [{ type: 'ShieldFund', id: weekId }],
+    }),
+    adminShieldFees: b.query({
+      query: ({ page = 1, status, userId } = {}) => ({ url: adminApiPath('/shield/fees'), params: { page, ...(status && { status }), ...(userId && { userId }) } }),
+      providesTags: ['ShieldFund'],
+    }),
+    adminShieldPendingSummary: b.query({
+      query: () => adminApiPath('/shield/pending-summary'),
+      providesTags: ['ShieldFund'],
+    }),
+    adminShieldFeeSchedule: b.query({
+      query: () => adminApiPath('/shield/fee-schedule'),
+      providesTags: ['ShieldFund'],
+    }),
+    adminShieldUpdateFeeSchedule: b.mutation({
+      query: (body) => ({ url: adminApiPath('/shield/fee-schedule'), method: 'PUT', body }),
+      invalidatesTags: ['ShieldFund'],
+    }),
+    adminShieldTriggerPayout: b.mutation({
+      query: () => ({ url: adminApiPath('/shield/trigger-payout'), method: 'POST' }),
+      invalidatesTags: ['ShieldFund'],
+    }),
+    adminShieldWriteOffFee: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/shield/fees/${id}/write-off`), method: 'POST' }),
+      invalidatesTags: ['ShieldFund'],
     }),
   }),
 });
@@ -964,4 +1013,14 @@ export const {
   useAdminUpdateSparePartMutation,
   useAdminRemoveSparePartMutation,
   useAdminRefundOrderMutation,
+  // Shield Fund
+  useAdminShieldSummaryQuery,
+  useAdminShieldWeeksQuery,
+  useAdminShieldWeekPayoutsQuery,
+  useAdminShieldFeesQuery,
+  useAdminShieldPendingSummaryQuery,
+  useAdminShieldFeeScheduleQuery,
+  useAdminShieldTriggerPayoutMutation,
+  useAdminShieldWriteOffFeeMutation,
+  useAdminShieldUpdateFeeScheduleMutation,
 } = api;

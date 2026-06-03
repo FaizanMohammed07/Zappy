@@ -72,6 +72,47 @@ Config priority: in-process 5s cache → Redis (60s TTL) → MongoDB PricingConf
 - Worker no-show: workerNoShowPenaltyPaise debited + penalty score hit
 - LateWorkerCancelMultiplier: penalty multiplied if cancel < threshold before scheduled
 
+## Worker Cancellation Shield Fund  (shield.service.js)
+User-cancellation fees are no longer paid directly to workers. They pool weekly and distribute proportionally.
+
+**Fee tiers** (repeat-behaviour aware, from ShieldConfig — admin-editable):
+| Stage      | 1st (30d) | 2nd (30d) | 3rd+ (30d) |
+|------------|-----------|-----------|------------|
+| searching  | ₹0 grace  | ₹15       | ₹25        |
+| assigned   | ₹20       | ₹30       | ₹40        |
+| on_the_way | ₹30       | ₹40       | ₹50        |
+| arrived    | ₹50       | ₹60       | ₹75        |
+
+First searching cancel ever = grace (₹0 + warning push). Not overrideable.
+
+**Collection flow:**
+1. Count user's cancelled orders in last 30 days → pick fee tier
+2. Try wallet debit (idempotency: `shield:fee:{orderId}`)
+3. Wallet insufficient → `collectionStatus = pending_next_order`
+4. On next createOrder: `collectPendingFees(userId, orderId)` collects all pending, adds to fund
+
+**Fund pool (ShieldFundWeek):**
+- Atomic `$inc` on `totalCollectedPaise` per fee collected
+- Split on payout: 85% workers, 15% platform (configurable via admin, stored on week doc)
+
+**Harm scores** (weight for proportional distribution):
+- searching=1, assigned=2, on_the_way=3, arrived=5
+- Stored per (weekId, workerId) in ShieldWorkerPayout via `$inc` upsert
+
+**Monday payout** (BullMQ cron `30 2 * * 1` = 08:00 IST):
+1. Find all ShieldFundWeek with `status=open, weekEnd < now`
+2. If total=0 → mark `skipped`
+3. Else: compute worker shares proportionally; last worker gets remainder (no rounding drift)
+4. `walletService.apply()` credit each worker, idempotency: `shield:payout:{weekId}:{workerId}`
+5. Push notification to each worker
+6. Mark week `paid_out`
+
+**Admin controls** (Revenue → Shield Fund):
+- View fund stats, weekly history, fee records, worker payouts
+- Editable fee schedule + harm scores + split % via `PUT /{slug}/shield/fee-schedule`
+- Manual payout trigger: `POST /{slug}/shield/trigger-payout`
+- Write off stale pending fees: `POST /{slug}/shield/fees/:id/write-off`
+
 ## Subscription Effects
 User subscriptions (USER_PREMIUM):
 - waivePlatformFee: platformFee = 0

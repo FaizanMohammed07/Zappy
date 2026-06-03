@@ -81,6 +81,14 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Booking tier — determines dispatch speed and price multiplier
+    tier: {
+      type: String,
+      enum: ['standard', 'priority', 'express'],
+      default: 'standard',
+      index: true,
+    },
+
     // Locations
     pickupLocation: {
       type: { type: String, enum: ['Point'], default: 'Point' },
@@ -105,9 +113,14 @@ const orderSchema = new mongoose.Schema(
       timeFee: Number,
       platformFee: Number,
       surgeMultiplier: { type: Number, default: 1 },
+      tierMultiplier:  { type: Number, default: 1 },  // tier price factor applied at booking
       subtotal: Number,
       total: Number,
       totalPaise: Number,           // precise paise value for revenue aggregation
+      tipPaise: Number,             // tip/boost amount in paise (100% to worker)
+      boostedTotal: Number,         // total + tip in rupees (what worker sees)
+      subtotalBeforeDiscount: Number, // pre-coupon total (for platform cost analytics)
+      discountPaise: Number,          // coupon discount in paise (platform absorbs this)
       currency: { type: String, default: 'INR' },
       snapshotCommissionRate: Number, // commission rate locked at creation — used at settlement
     },
@@ -139,6 +152,7 @@ const orderSchema = new mongoose.Schema(
       status: { type: String, enum: ['pending', 'paid', 'failed', 'refunded'], default: 'pending' },
       transactionId: String,
       paidAt: Date,
+      reconciliationRequired: { type: Boolean, default: false, index: true }, // needs manual ops review
     },
 
     // Earnings snapshot — set on completion, immutable after
@@ -168,6 +182,16 @@ const orderSchema = new mongoose.Schema(
     teamSize:          { type: Number, min: 1, max: 20, default: 1 },
     workerIds:         [{ type: mongoose.Schema.Types.ObjectId, ref: 'Worker' }],
 
+    // Trip timing — set when worker starts journey (on_the_way transition)
+    tripStartedAt:   { type: Date, default: null },
+    tripEtaMinutes:  { type: Number, default: null }, // computed ETA in minutes
+    tripDeadlineAt:  { type: Date, default: null },   // tripStartedAt + tripEtaMinutes
+    tripArrivedAt:   { type: Date, default: null },   // when arrived was marked
+    tripLateMinutes: { type: Number, default: null }, // minutes overdue (null = on time)
+
+    // Penalty — deducted from worker earnings if late
+    lateArrivalPenaltyPaise: { type: Number, default: 0 },
+
     // Diagnosis answers collected at booking time
     diagnosisAnswers: { type: mongoose.Schema.Types.Mixed, default: null },
     diagnosisUrgency: { type: String, enum: ['normal', 'high', 'urgent'], default: 'normal' },
@@ -192,6 +216,9 @@ const orderSchema = new mongoose.Schema(
     completedAt: Date,
     cancelledAt: Date,
     cancellationReason: String,
+
+    // Deferred cancellation fee from a previous order — shown as line item at checkout
+    pendingCancellationFeePaise: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

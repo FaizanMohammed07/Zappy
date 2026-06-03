@@ -8,6 +8,7 @@ import {
   FileText, LogOut, Menu, X, ChevronRight, FileCheck, Crown,
   Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
   HeadphonesIcon, Radio, Globe, Layers, Zap, Sparkles, TrendingUp,
+  Shield,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
 import { adminPath } from '../config/admin';
@@ -39,6 +40,7 @@ import Services from './admin/Services';
 import Rewards from './admin/Rewards';
 import BusinessIntelligence from './admin/BusinessIntelligence';
 import NotificationsAdmin from './admin/Notifications';
+import ShieldFund from './admin/ShieldFund';
 
 /* ─── Navigation groups ────────────────────────────────────────────────── */
 const NAV_GROUPS = [
@@ -59,10 +61,11 @@ const NAV_GROUPS = [
       { id: 'services',  label: 'Service Catalog',     icon: Layers },
       { id: 'plans',     label: 'Plans',               icon: Crown },
       { id: 'rewards',   label: 'Rewards',             icon: Sparkles },
-      { id: 'wallet',    label: 'Wallet',              icon: Wallet },
-      { id: 'payouts',   label: 'Payouts',             icon: CreditCard },
-      { id: 'promos',    label: 'Promo Codes',         icon: Ticket },
-      { id: 'ads',       label: 'Ad Campaigns',        icon: Megaphone },
+      { id: 'wallet',      label: 'Wallet',              icon: Wallet },
+      { id: 'payouts',     label: 'Payouts',             icon: CreditCard },
+      { id: 'shield',      label: 'Shield Fund',         icon: Shield },
+      { id: 'promos',      label: 'Promo Codes',         icon: Ticket },
+      { id: 'ads',         label: 'Ad Campaigns',        icon: Megaphone },
     ],
   },
   {
@@ -103,7 +106,7 @@ const SECTION_MAP = {
   kyc: AdminKycReview, pricing: Pricing, services: Services, wallet: AdminWallet,
   disputes: Disputes, payouts: Payouts, analytics: Analytics, business: BusinessIntelligence, notifications: NotificationsAdmin, heatmap: Heatmap,
   incentives: Incentives, cancellation: Cancellation, ads: Ads, promos: Promos,
-  rewards: Rewards,
+  rewards: Rewards, shield: ShieldFund,
   audit: Audit, plans: AdminPlans, liveops: LiveOps, alerts: Alerts,
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
 };

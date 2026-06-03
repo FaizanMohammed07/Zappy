@@ -118,6 +118,15 @@
 | GET | /retention | admin | Retention cohorts |
 | GET/POST | /support | admin | Support tickets |
 | GET/POST/PATCH/DELETE | /plans | admin | Subscription plans |
-| GET/PUT | /verticals/:vertical | admin | Vertical pricing configs (NEW) |
-| POST | /verticals/mobile/spare-parts | admin | Add spare part pricing (NEW) |
-| DELETE | /verticals/mobile/spare-parts/:id | admin | Remove spare part (NEW) |
+| GET/PUT | /verticals/:vertical | admin | Vertical pricing configs |
+| POST | /verticals/mobile/spare-parts | admin | Add spare part pricing |
+| DELETE | /verticals/mobile/spare-parts/:id | admin | Remove spare part |
+| GET | /shield/summary | admin | Fund stats + current week |
+| GET | /shield/weeks | admin | Weekly fund history (paginated) |
+| GET | /shield/weeks/:weekId/payouts | admin | Worker payouts for a week |
+| GET | /shield/fees | admin | Fee records (filterable by status/user) |
+| GET | /shield/pending-summary | admin | Total uncollected pending fees |
+| GET | /shield/fee-schedule | admin | Active fee schedule + harm scores + split |
+| PUT | /shield/fee-schedule | admin | Update fee schedule / harm scores / split % |
+| POST | /shield/trigger-payout | admin | Manually run payout for all closed weeks |
+| POST | /shield/fees/:id/write-off | admin | Write off a stale pending fee |

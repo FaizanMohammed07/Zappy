@@ -62,11 +62,15 @@ async function start() {
   const server = http.createServer(app);
   initSockets(server);
 
-  /* ── Start dispatch worker in-process ──────────────────────────
-     No separate terminal needed. BullMQ Worker runs alongside
-     Express in the same Node.js process. In production you can
-     split this out, but for dev/single-node it's simpler here. */
+  /* ── Start all workers in-process ──────────────────────────────
+     No separate terminals needed. All three BullMQ workers run
+     alongside Express in the same Node.js process.
+     In production you can split them out into separate containers,
+     but for dev/single-node this is simpler. */
   startDispatchWorker();
+  startNotificationsWorker();
+  startStaleOrderWorker();
+  startShieldPayoutWorker();
 
   server.listen(config.port, () => {
     logger.info({ port: config.port, env: config.env }, 'API server listening');
@@ -116,6 +120,51 @@ function startDispatchWorker() {
     logger.info('[DISPATCH] Worker running in-process');
   } catch (err) {
     logger.error({ err: err.message }, '[DISPATCH] Failed to start worker — dispatch will not work');
+  }
+}
+
+function startNotificationsWorker() {
+  try {
+    const { Worker: BullWorker } = require('bullmq');
+    const { createBullConnection } = require('./config/redis');
+    const { QUEUES } = require('./jobs');
+    const { processJob } = require('./jobs/notifications.worker');
+
+    const worker = new BullWorker(
+      QUEUES.NOTIFICATIONS,
+      processJob,
+      { connection: createBullConnection(), concurrency: 5 },
+    );
+    worker.on('failed', (job, err) =>
+      logger.error({ jobId: job?.id, err: err.message }, '[NOTIFICATIONS] Job failed'),
+    );
+    worker.on('error', (err) =>
+      logger.error({ err: err.message }, '[NOTIFICATIONS] Worker error'),
+    );
+    logger.info('[NOTIFICATIONS] Worker running in-process');
+  } catch (err) {
+    logger.error({ err: err.message }, '[NOTIFICATIONS] Failed to start worker');
+  }
+}
+
+function startStaleOrderWorker() {
+  try {
+    const { sweep } = require('./jobs/stale-order.worker');
+    // Run sweep immediately on start, then every 2 minutes
+    sweep().catch((err) => logger.error({ err: err.message }, '[STALE] Initial sweep failed'));
+    setInterval(() => sweep().catch((err) => logger.error({ err: err.message }, '[STALE] Sweep failed')), 2 * 60 * 1000);
+    logger.info('[STALE] Stale-order watchdog running in-process (sweeps every 2 minutes)');
+  } catch (err) {
+    logger.error({ err: err.message }, '[STALE] Failed to start watchdog');
+  }
+}
+
+function startShieldPayoutWorker() {
+  try {
+    require('./jobs/shield-payout.worker');
+    logger.info('[SHIELD] Shield payout worker running in-process');
+  } catch (err) {
+    logger.error({ err: err.message }, '[SHIELD] Failed to start shield payout worker');
   }
 }
 

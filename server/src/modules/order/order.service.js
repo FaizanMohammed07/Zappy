@@ -17,9 +17,11 @@ const logger = require('../../utils/logger');
  * 4. Generate 4-digit OTP for on-site worker verification.
  * 5. Enqueue dispatch — the dispatcher takes it from here.
  */
+const TIER_MULTIPLIERS = { standard: 1.0, priority: 1.2, express: 1.4 };
+
 async function createOrder({ userId, service, subCategory, pickupLocation, dropLocation, description, images, scheduledAt, paymentMethod, priority, promoCode,
   deviceBrand, deviceModel, serviceMode, vehicleType, pricingModel, estimatedHours,
-  teamSize, diagnosisAnswers, diagnosisUrgency, quotedTotalRupees,
+  teamSize, diagnosisAnswers, diagnosisUrgency, quotedTotalRupees, tier, tipAmount,
 }) {
   // Dispatch queue depth circuit breaker — shed load before the queue backs up
   // and adds latency to ALL in-flight orders. (#62/#63)
@@ -93,8 +95,41 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
 
   let pricing = await pricingService.quote({ origin, dest, service, userId });
 
-  // Snapshot the commission rate that will apply at settlement so mid-order
-  // rate changes by admin don't retroactively alter worker payouts.
+  // Apply tier multiplier (standard 1.0×, priority 1.2×, express 1.4×).
+  // This must happen BEFORE surge protection so quotedTotalRupees comparison is apples-to-apples
+  // (client sends the tier-adjusted price as quotedTotalRupees).
+  const resolvedTier = TIER_MULTIPLIERS[tier] != null ? tier : 'standard';
+  const tierMultiplier = TIER_MULTIPLIERS[resolvedTier];
+  if (tierMultiplier > 1) {
+    const basePaise = pricing.paise?.total ?? Math.round((pricing.total || 0) * 100);
+    const tieredPaise = Math.round(basePaise * tierMultiplier);
+    pricing = {
+      ...pricing,
+      total: Math.round(tieredPaise / 100),
+      tierMultiplier,
+      paise: { ...(pricing.paise || {}), total: tieredPaise },
+    };
+  } else {
+    pricing = { ...pricing, tierMultiplier: 1.0 };
+  }
+
+  // Apply tip/boost to total (100% goes to worker).
+  const tipRupees = tipAmount > 0 ? Math.round(Number(tipAmount)) : 0;
+  const tipPaise  = tipRupees * 100;
+  if (tipPaise > 0) {
+    pricing = {
+      ...pricing,
+      total:     pricing.total + tipRupees,
+      tipPaise,
+      boostedTotal: pricing.total + tipRupees,
+      paise: { ...(pricing.paise || {}), total: (pricing.paise?.total ?? pricing.total * 100) + tipPaise },
+    };
+  }
+
+  // Commission rate snapshot is taken AFTER all discounts/surcharges are applied
+  // so the rate is locked against the final amount the customer actually pays.
+  // (Promo discount applied below will update totalPaise; this snapshot happens first
+  // to avoid a second async call — the RATE is what we're snapshotting, not the amount.)
   const earningPreview = await pricingService.calculateEarnings({
     totalPaise: Math.round((pricing.total || 0) * 100),
     workerId: null, // worker unknown yet; Pro discount applied separately at settlement
@@ -105,9 +140,8 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     snapshotCommissionRate: earningPreview.commissionRate,
   };
 
-  // Surge price protection: if the user was shown a quote and the fresh price
-  // has risen by more than 20%, reject. This prevents silent surge bait-and-switch.
-  // Only applies when quotedTotalRupees is provided (clients should always send it).
+  // Surge price protection: compare fresh tier-adjusted price vs what customer was shown.
+  // quotedTotalRupees from client already includes the tier markup.
   if (quotedTotalRupees != null && quotedTotalRupees > 0) {
     const freshTotal = pricing.total || 0;
     const priceIncreasePct = (freshTotal - quotedTotalRupees) / quotedTotalRupees;
@@ -140,9 +174,26 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
         orderTotalPaise: Math.round((pricing.total || 0) * 100),
         service,
       });
-      // Reduce total by discount amount
-      const discountRupees = appliedPromo.discountPaise / 100;
-      pricing = { ...pricing, total: Math.max(0, pricing.total - discountRupees) };
+      // Apply discount and switch to coupon commission rate.
+      // Platform absorbs the coupon marketing cost; worker keeps a larger share
+      // on coupon orders (15% vs 30% standard). This incentivises workers to
+      // accept coupon orders and keeps the math transparent.
+      const discountRupees  = appliedPromo.discountPaise / 100;
+      const discountedTotal = Math.max(0, pricing.total - discountRupees);
+
+      // Re-snapshot commission at the lower coupon rate
+      const cfg = await pricingService.getActiveConfig();
+      const couponRate = cfg.couponCommissionRate ?? 0.15;
+
+      pricing = {
+        ...pricing,
+        total:                  discountedTotal,
+        totalPaise:             Math.round(discountedTotal * 100),
+        subtotalBeforeDiscount: pricing.total,       // pre-discount (analytics)
+        discountPaise:          appliedPromo.discountPaise,
+        snapshotCommissionRate: couponRate,           // override with lower coupon rate
+        paise: { ...(pricing.paise || {}), total: Math.round(discountedTotal * 100) },
+      };
     } catch (err) {
       // Invalid promo codes are a soft fail — order proceeds at full price
       logger.warn({ userId, promoCode, err: err.message }, 'Promo code rejected at order creation');
@@ -152,6 +203,10 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
 
   const otp = crypto.randomInt(100000, 999999).toString();
 
+  // Check for any deferred cancellation fees from previous orders — will be collected after creation
+  const shieldService = require('./shield.service');
+  const { totalPaise: pendingCancellationFeePaise } = await shieldService.getPendingFee(userId).catch(() => ({ totalPaise: 0 }));
+
   const order = await orderRepo.create({
     userId,
     service,
@@ -160,6 +215,7 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     images: images || [],
     scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
     priority: isEmergency ? 'emergency' : 'normal',
+    tier: resolvedTier,
     pickupLocation: {
       type: 'Point',
       coordinates: [pickupLocation.lng, pickupLocation.lat],
@@ -195,7 +251,15 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     ...(teamSize && { teamSize: Math.min(Number(teamSize) || 1, 1) }),
     ...(diagnosisAnswers && { diagnosisAnswers }),
     ...(diagnosisUrgency && diagnosisUrgency !== 'normal' && { diagnosisUrgency }),
+    ...(pendingCancellationFeePaise > 0 && { pendingCancellationFeePaise }),
   });
+
+  // Collect deferred cancellation fees now that we have the orderId
+  if (pendingCancellationFeePaise > 0) {
+    shieldService.collectPendingFees(userId, order._id).catch((err) =>
+      logger.warn({ err: err.message, userId, orderId: order._id }, 'Deferred shield fee collection failed at order creation')
+    );
+  }
 
   // Record promo usage after order is persisted
   if (appliedPromo) {
@@ -215,7 +279,7 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     { orderId: String(order._id), attempt: 0 },
     {
       jobId: `order_${order._id}`,
-      priority: isEmergency ? 1 : 10,
+      priority: isEmergency ? 1 : resolvedTier === 'express' ? 2 : resolvedTier === 'priority' ? 5 : 10,
       delay: schedDelay,
     }
   );
@@ -283,14 +347,57 @@ async function rejectOffer({ orderId, workerId }) {
  * Worker transitions: assigned → on_the_way → arrived → in_progress → completed.
  * Each transition is guarded by the current status to prevent races.
  */
-async function workerStartTrip({ orderId, workerId }) {
+async function workerStartTrip({ orderId, workerId, workerLat, workerLng }) {
   const order = await guardedTransition(orderId, workerId, ['assigned'], 'on_the_way');
-  // Cache pickup coords so ETA service can compute without a Mongo hit
+
   if (order?.pickupLocation?.coordinates) {
-    const [lng, lat] = order.pickupLocation.coordinates;
+    const [pLng, pLat] = order.pickupLocation.coordinates;
     const etaService = require('../worker/eta.service');
-    etaService.cacheOrderPickup(String(order._id), lat, lng).catch(() => {});
+    etaService.cacheOrderPickup(String(order._id), pLat, pLng).catch(() => {});
+
+    // Compute ETA from worker's current GPS to pickup using haversine + 25 km/h urban speed.
+    // Store deadline on the order so penalty calculation is deterministic at arrival.
+    let tripEtaMinutes = null;
+    if (workerLat != null && workerLng != null) {
+      const { haversineKm } = require('../worker/maps.service');
+      const distKm = haversineKm({ lat: workerLat, lng: workerLng }, { lat: pLat, lng: pLng });
+      tripEtaMinutes = Math.max(1, Math.ceil((distKm / 25) * 60)); // 25 km/h urban average
+    }
+
+    const now = new Date();
+    const deadlineMs = tripEtaMinutes ? now.getTime() + tripEtaMinutes * 60_000 : null;
+
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        tripStartedAt:  now,
+        ...(tripEtaMinutes != null && { tripEtaMinutes }),
+        ...(deadlineMs    != null && { tripDeadlineAt: new Date(deadlineMs) }),
+      },
+    });
+
+    // Emit ETA to customer's order room so they see it immediately
+    if (tripEtaMinutes != null) {
+      const { emitToOrderRoom } = require('../../sockets/emit');
+      emitToOrderRoom(orderId, 'order.eta', { etaMinutes: tripEtaMinutes }).catch(() => {});
+    }
   }
+
+  // Notify worker: you have X minutes to arrive
+  if (order.tripEtaMinutes || order._doc?.tripEtaMinutes) {
+    const notificationService = require('../notification/notification.service');
+    const eta = order.tripEtaMinutes;
+    if (eta) {
+      notificationService.notify({
+        recipient: { kind: 'worker', id: workerId },
+        type: 'trip_started',
+        title: `Trip started — arrive in ${eta} min`,
+        body: `Customer is waiting. Arrive within ${eta} minutes to avoid a late-arrival deduction.`,
+        deepLink: `/worker/jobs/${orderId}`,
+        data: { orderId: String(orderId), etaMinutes: String(eta) },
+      }).catch(() => {});
+    }
+  }
+
   return order;
 }
 
@@ -328,7 +435,59 @@ async function workerArrive({ orderId, workerId, workerLat, workerLng }) {
       }
     }
   }
-  return guardedTransition(orderId, workerId, ['on_the_way'], 'arrived');
+  const arrivedOrder = await guardedTransition(orderId, workerId, ['on_the_way'], 'arrived');
+
+  // Record arrival time and compute late penalty
+  const arrivedAt = new Date();
+  const updates = { tripArrivedAt: arrivedAt };
+
+  // Fetch stored deadline + penalty rate
+  try {
+    const freshOrder = await Order.findById(orderId).select('tripDeadlineAt tripEtaMinutes').lean();
+    if (freshOrder?.tripDeadlineAt) {
+      const deadlineMs  = new Date(freshOrder.tripDeadlineAt).getTime();
+      const lateMs      = arrivedAt.getTime() - deadlineMs;
+      const cfg         = await pricingService.getActiveConfig();
+      const graceMs     = (cfg.lateArrivalGraceMinutes ?? 2) * 60_000;
+      const penaltyRate = cfg.lateArrivalPenaltyPaisePerMin ?? 200;
+
+      if (lateMs > graceMs && penaltyRate > 0) {
+        const lateMinutes   = Math.ceil((lateMs - graceMs) / 60_000);
+        const penaltyPaise  = lateMinutes * penaltyRate;
+        updates.tripLateMinutes           = lateMinutes;
+        updates.lateArrivalPenaltyPaise   = penaltyPaise;
+
+        logger.info({ orderId, workerId, lateMinutes, penaltyPaise }, '[ARRIVE] Late arrival — penalty will be deducted at settlement');
+
+        // Warn worker immediately
+        const notificationService = require('../notification/notification.service');
+        notificationService.notify({
+          recipient: { kind: 'worker', id: workerId },
+          type: 'late_arrival_penalty',
+          title: `Late by ${lateMinutes} min — ₹${Math.round(penaltyPaise / 100)} deducted`,
+          body: `You arrived ${lateMinutes} minute${lateMinutes > 1 ? 's' : ''} late. ₹${Math.round(penaltyPaise / 100)} will be deducted from this job's earnings.`,
+          deepLink: `/worker/jobs/${orderId}`,
+          data: { orderId: String(orderId), penaltyPaise: String(penaltyPaise), lateMinutes: String(lateMinutes) },
+        }).catch(() => {});
+
+        // Real-time socket alert to worker's job page
+        const { redis } = require('../../config/redis');
+        await redis.publish('order:event', JSON.stringify({
+          orderId: String(orderId),
+          event: 'order.late_penalty',
+          payload: { lateMinutes, penaltyPaise, penaltyRupees: Math.round(penaltyPaise / 100) },
+        }));
+      } else {
+        updates.tripLateMinutes = 0;
+        updates.lateArrivalPenaltyPaise = 0;
+      }
+    }
+  } catch (err) {
+    logger.warn({ orderId, err: err.message }, '[ARRIVE] Penalty calculation failed — skipping');
+  }
+
+  await Order.findByIdAndUpdate(orderId, { $set: updates });
+  return arrivedOrder;
 }
 
 async function workerStartService({ orderId, workerId, otp }) {
@@ -776,58 +935,14 @@ async function cancelByUser({ orderId, userId, reason }) {
     throw Object.assign(new Error('Too late to cancel — service is already in progress'), { status: 409 });
   }
 
-  // Cancellation fee policy
-  const cancellationService = require('./cancellation.service');
-  const { feePaise, reason: feeReason, workerCompensationPaise = 0 } = await cancellationService.calculateUserCancelFee(order);
-
-  if (feePaise > 0) {
-    const walletService = require('../wallet/wallet.service');
-    const Transaction = require('../payment/transaction.model');
-    try {
-      await walletService.apply({
-        kind: 'user',
-        id: userId,
-        type: 'debit',
-        amountPaise: feePaise,
-        reason: Transaction.REASONS.ADMIN_ADJUSTMENT_DEBIT,
-        idempotencyKey: `cancelfee:${orderId}`,
-        refs: { orderId },
-        description: `Cancellation fee — ${feeReason}`,
-      });
-      // Compensate worker based on how far they got
-      if (order.workerId && workerCompensationPaise > 0) {
-        await walletService.apply({
-          kind: 'worker',
-          id: order.workerId,
-          type: 'credit',
-          amountPaise: workerCompensationPaise,
-          reason: Transaction.REASONS.WORKER_EARNING,
-          idempotencyKey: `cancelcomp:${orderId}`,
-          refs: { orderId },
-          description: `Compensation — user cancelled (${order.status})`,
-        });
-      }
-    } catch (err) {
-      if (err.code === 'WALLET_INSUFFICIENT') {
-        // User has insufficient funds — the cancellation still proceeds (we don't
-        // hold the order hostage) but the revenue leak is recorded as a pending
-        // Transaction so admin can review and chase recovery if needed.
-        logger.warn({ orderId, userId, feePaise }, 'Cancellation fee not collected — user wallet empty');
-        Transaction.create({
-          type: 'debit',
-          owner: { kind: 'user', id: userId },
-          amountPaise: -feePaise,          // negative = uncollected debt (informational)
-          reason: Transaction.REASONS.ADMIN_ADJUSTMENT_DEBIT,
-          refOrderId: orderId,
-          idempotencyKey: `cancelfee:uncollected:${orderId}`,
-          description: `Cancellation fee uncollected (wallet empty) — ${feeReason}`,
-          status: 'reversed',             // marks it as a failed/pending debt for admin review
-        }).catch(() => {});
-      } else {
-        logger.warn({ orderId, userId, feePaise, err: err.message }, 'Cancellation fee collection error');
-      }
-    }
-  }
+  // Worker Cancellation Shield Fund — assess fee, collect or defer, add to weekly pool.
+  // Replaces the old direct worker compensation flow; workers now get paid every Monday.
+  const shieldService = require('./shield.service');
+  const { feePaise, isGrace, collectionStatus } = await shieldService.handleUserCancellation(order, userId).catch((err) => {
+    logger.error({ orderId, userId, err: err.message }, 'Shield fee assessment failed — continuing');
+    return { feePaise: 0, isGrace: false, collectionStatus: 'zero_fee' };
+  });
+  const workerCompensationPaise = 0; // workers receive compensation via the Monday fund payout, not directly
 
   const updated = await orderRepo.transitionStatus(
     orderId,
@@ -864,8 +979,8 @@ async function cancelByUser({ orderId, userId, reason }) {
         type:  'order_cancelled',
         title: '❌ Order cancelled by customer',
         body:  feePaise > 0
-          ? `You received ₹${Math.round((workerCompensationPaise || 0) / 100)} compensation`
-          : 'The customer cancelled before you arrived',
+          ? `A cancellation fee was charged. You'll receive your Shield Fund payout this Monday.`
+          : 'The customer cancelled before you arrived. Monday Shield Fund payout still applies.',
         deepLink: '/worker',
         data:  { orderId: String(orderId) },
       }).catch(() => {});
