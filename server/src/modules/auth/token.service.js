@@ -147,7 +147,10 @@ async function rotateTokenPair(presentedRefreshToken) {
     JSON.stringify({ currentGen: newGen, sub, role })
   );
 
-  return { accessToken, refreshToken };
+  // Include role so auth.controller can pass it to the client in the
+  // refresh response — lets the client restore full session state even
+  // when sessionStorage was cleared (browser closed and reopened).
+  return { accessToken, refreshToken, role };
 }
 
 /**

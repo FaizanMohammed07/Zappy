@@ -94,7 +94,7 @@ export default function ProfilePage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-[#F9FAFB] pb-24">
+      <div className="min-h-screen bg-[#F9FAFB] pb-40">
         <header className="page-header">
           <div className="page-header-inner">
             <h1 className="h-card flex-1">Profile</h1>

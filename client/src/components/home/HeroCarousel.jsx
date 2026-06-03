@@ -46,7 +46,6 @@ export default function HeroCarousel() {
   }, []);
 
   return (
-    {/* Tablet (md 768px): cap at 360px — prevents hero dominating landscape viewport. (#69) */}
     <div className="relative w-full h-[280px] sm:h-[350px] md:h-[360px] lg:h-[460px] xl:h-[520px] rounded-3xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
       <AnimatePresence mode="wait">
         <motion.div

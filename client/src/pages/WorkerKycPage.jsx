@@ -71,7 +71,7 @@ export default function WorkerKycPage() {
   const rejectionReason = data?.kyc?.rejectionReason;
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] pb-28">
+    <div className="min-h-screen bg-[#F9FAFB] pb-40">
       <header className="page-header">
         <div className="page-header-inner">
           <button onClick={() => nav('/worker')} className="back-btn">

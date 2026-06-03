@@ -72,7 +72,7 @@ export default function WalletPage() {
 
   return (
     <PageTransition>
-    <div className="min-h-screen bg-[#F9FAFB] pb-24">
+    <div className="min-h-screen bg-[#F9FAFB] pb-40">
       <header className="page-header">
         <div className="page-header-inner">
           <motion.button

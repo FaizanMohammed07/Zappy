@@ -173,17 +173,43 @@ function initSockets(httpServer) {
       // TTL matches socket lifetime expectation — cleans up automatically on disconnect
       await redis.set(prevKey, JSON.stringify({ lat, lng, ts: Date.now() }), 'EX', 300);
 
-      // Secondary check: if this worker has >1 active socket (multiple devices),
-      // log the active device count so ops can detect credential sharing.
+      // Multi-device detection: disconnect older sockets so only the most recent device
+      // receives offers. Prevents credential-sharing abuse and split-brain dispatch state.
       const workerSockets = await io.in(`worker:${id}`).allSockets().catch(() => new Set());
       if (workerSockets.size > 1) {
-        logger.info({ workerId: id, activeSockets: workerSockets.size }, '[MULTI_DEVICE] Worker active on multiple devices');
+        logger.info({ workerId: id, activeSockets: workerSockets.size }, '[MULTI_DEVICE] Worker active on multiple devices — disconnecting stale sockets');
+        for (const sid of workerSockets) {
+          if (sid !== socket.id) {
+            const staleSocket = io.sockets.sockets.get(sid);
+            if (staleSocket) {
+              staleSocket.emit('session:replaced', { reason: 'New login from another device' });
+              staleSocket.disconnect(true);
+            }
+          }
+        }
+      }
+
+      // Distance gate: skip broadcast for micro-movements < 5 metres (GPS noise).
+      // We still update the alive heartbeat and geo cache for freshness, but don't
+      // wake up the customer's map for a 2-metre jitter while the worker is parked.
+      const MIN_BROADCAST_METRES = 5;
+      let movedEnough = true;
+      if (prevRaw) {
+        try {
+          const prev = JSON.parse(prevRaw);
+          const R = 6371000;
+          const dLat = (lat - prev.lat) * Math.PI / 180;
+          const dLng = (lng - prev.lng) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(prev.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+          const distMetres = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          if (distMetres < MIN_BROADCAST_METRES) movedEnough = false;
+        } catch { /* allow */ }
       }
 
       // Update geo + alive heartbeat so freshness filter stays current
       await geoService.updateLocation(id, lng, lat);
 
-      if (orderId) {
+      if (orderId && movedEnough) {
         io.to(`order:${orderId}`).emit('worker.location', { lat, lng, at: Date.now() });
 
         // ETA + arriving-soon notification — non-blocking, only during on_the_way

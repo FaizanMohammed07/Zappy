@@ -39,7 +39,7 @@ export default function Pricing() {
     baseFee: 35, perKmFee: 12, perMinFee: 2, platformFee: 15, minFare: 60, surgeMaxMultiplier: 2.5,
   });
   const [toggles, setTogglesState] = useState({
-    surgeEnabled: true, surgeMaxCap: 2.5, commissionRate: 0.30,
+    surgeEnabled: true, surgeMaxCap: 2.5, commissionRate: 0.30, couponCommissionRate: 0.15,
   });
   const [dispatchEnabled, setDispatchEnabled] = useState(true);
   const [dispatchConfirm, setDispatchConfirm] = useState(false);
@@ -75,6 +75,16 @@ export default function Pricing() {
     earnedWageAdvanceRate: 80,
     emergencyFundContributionRate: 0.5,
   });
+  const [penalty, setPenalty] = useState({
+    lateArrivalPenaltyRsPerMin: 2,
+    lateArrivalGraceMinutes: 2,
+  });
+  const [tiers, setTiers] = useState({
+    tierMultiplierPriority:  1.2,
+    tierMultiplierExpress:   1.4,
+    tierExpressMaxSearchSec:  60,
+    tierPriorityMaxSearchSec: 120,
+  });
 
   useEffect(() => {
     const p = data?.pricing;
@@ -88,9 +98,10 @@ export default function Pricing() {
       surgeMaxMultiplier: p.surgeMaxCap ?? 2.5,
     });
     setTogglesState({
-      surgeEnabled:   p.surgeEnabled   ?? true,
-      surgeMaxCap:    p.surgeMaxCap    ?? 2.5,
-      commissionRate: p.commissionRate ?? 0.30,
+      surgeEnabled:         p.surgeEnabled         ?? true,
+      surgeMaxCap:          p.surgeMaxCap          ?? 2.5,
+      commissionRate:       p.commissionRate       ?? 0.30,
+      couponCommissionRate: p.couponCommissionRate ?? 0.15,
     });
     setDispatchEnabled(p.dispatchEnabled ?? true);
     setDispatch({
@@ -124,6 +135,16 @@ export default function Pricing() {
       earnedWageAdvanceEnabled:      p.earnedWageAdvanceEnabled      ?? true,
       earnedWageAdvanceRate:         Math.round((p.earnedWageAdvanceRate ?? 0.80) * 100),
       emergencyFundContributionRate: Math.round((p.emergencyFundContributionRate ?? 0.005) * 1000) / 10,
+    });
+    setPenalty({
+      lateArrivalPenaltyRsPerMin: Math.round((p.lateArrivalPenaltyPaisePerMin ?? 200) / 100),
+      lateArrivalGraceMinutes:    p.lateArrivalGraceMinutes ?? 2,
+    });
+    setTiers({
+      tierMultiplierPriority:  p.tierMultiplierPriority  ?? 1.2,
+      tierMultiplierExpress:   p.tierMultiplierExpress   ?? 1.4,
+      tierExpressMaxSearchSec:  Math.round((p.tierExpressMaxSearchMs  ?? 60000)  / 1000),
+      tierPriorityMaxSearchSec: Math.round((p.tierPriorityMaxSearchMs ?? 120000) / 1000),
     });
   }, [data]);
 
@@ -159,7 +180,12 @@ export default function Pricing() {
 
   async function saveToggles() {
     try {
-      await setToggles(toggles).unwrap();
+      await setToggles({
+        surgeEnabled:         toggles.surgeEnabled,
+        surgeMaxCap:          toggles.surgeMaxCap,
+        commissionRate:       toggles.commissionRate,
+        couponCommissionRate: toggles.couponCommissionRate,
+      }).unwrap();
       toast.success('Settings saved');
     } catch (err) {
       toast.error(err?.data?.error || 'Save failed');
@@ -200,11 +226,18 @@ export default function Pricing() {
             <Input type="number" value={toggles.surgeMaxCap} min="1" max="5" step="0.1"
               onChange={(e) => setTogglesState(p => ({ ...p, surgeMaxCap: Number(e.target.value) }))} />
           </FormRow>
-          <FormRow label="Commission Rate" hint="Platform cut — 0 to 50%">
+          <FormRow label="Standard Commission Rate" hint="Platform cut on regular orders — 0 to 50%">
             <div className="flex items-center gap-2">
               <Input type="number" value={toggles.commissionRate} min="0" max="0.5" step="0.01"
                 onChange={(e) => setTogglesState(p => ({ ...p, commissionRate: Number(e.target.value) }))} />
               <span className="text-base font-bold text-slate-700 w-12 shrink-0">{(toggles.commissionRate * 100).toFixed(0)}%</span>
+            </div>
+          </FormRow>
+          <FormRow label="Coupon Order Commission" hint="Lower cut when customer used a promo code — worker keeps more">
+            <div className="flex items-center gap-2">
+              <Input type="number" value={toggles.couponCommissionRate} min="0" max="0.5" step="0.01"
+                onChange={(e) => setTogglesState(p => ({ ...p, couponCommissionRate: Number(e.target.value) }))} />
+              <span className="text-base font-bold text-slate-700 w-12 shrink-0">{(toggles.couponCommissionRate * 100).toFixed(0)}%</span>
             </div>
           </FormRow>
         </div>
@@ -397,6 +430,87 @@ export default function Pricing() {
           <SaveBtn loading={saving} onClick={() => saveSection({
             referralReferrerBonusPaise: Math.round(referral.referralReferrerBonusRs * 100),
             referralRefereeBonusPaise:  Math.round(referral.referralRefereeBonusRs  * 100),
+          })} />
+        </div>
+      </Card>
+
+      {/* ── Late Arrival Penalty ── */}
+      <Card className="p-6 ring-2 ring-red-100">
+        <h3 className="text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
+          <span>⏱️</span> Late Arrival Penalty
+        </h3>
+        <p className="text-xs text-slate-400 mb-4">
+          Deducted from worker earnings when they arrive later than the ETA computed at trip start.
+          ETA = haversine distance ÷ 25 km/h urban speed. Grace period gives buffer for minor delays.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <FormRow label="Penalty per extra minute (₹)" hint="Amount deducted per minute overdue">
+            <Input type="number" value={penalty.lateArrivalPenaltyRsPerMin} step="1" min="0" max="50"
+              onChange={(e) => setPenalty(p => ({ ...p, lateArrivalPenaltyRsPerMin: Number(e.target.value) }))} />
+          </FormRow>
+          <FormRow label="Grace period (minutes)" hint="No penalty within this buffer after ETA">
+            <Input type="number" value={penalty.lateArrivalGraceMinutes} step="1" min="0" max="15"
+              onChange={(e) => setPenalty(p => ({ ...p, lateArrivalGraceMinutes: Number(e.target.value) }))} />
+          </FormRow>
+        </div>
+        <p className="text-[11px] text-slate-400 mt-3 bg-red-50 rounded-lg px-3 py-2">
+          Example: ETA = 8 min · Worker arrives in 12 min · Grace = 2 min → Late by 2 min → Deduct <strong>₹{penalty.lateArrivalPenaltyRsPerMin * 2}</strong>
+        </p>
+        <div className="mt-5">
+          <SaveBtn loading={saving} onClick={() => saveSection({
+            lateArrivalPenaltyPaisePerMin: Math.round(penalty.lateArrivalPenaltyRsPerMin * 100),
+            lateArrivalGraceMinutes:       penalty.lateArrivalGraceMinutes,
+          })} />
+        </div>
+      </Card>
+
+      {/* ── Service Tier Pricing ── */}
+      <Card className="p-6 ring-2 ring-indigo-100">
+        <h3 className="text-sm font-bold text-slate-700 mb-1">Service Tier Pricing</h3>
+        <p className="text-xs text-slate-400 mb-4">
+          Controls the price multiplier and maximum dispatch search time for Priority and Express bookings.
+          Standard is always 1.0×. Express guarantees worker assignment within the express search window.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {/* Priority */}
+          <div className="rounded-xl bg-amber-50 ring-1 ring-amber-200 p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">⭐</span>
+              <p className="text-sm font-black text-amber-800">Priority Tier</p>
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">4.5★+ workers</span>
+            </div>
+            <FormRow label="Price Multiplier" hint="e.g. 1.2 = 20% premium on base fare">
+              <Input type="number" value={tiers.tierMultiplierPriority} step="0.05" min="1" max="3"
+                onChange={(e) => setTiers(p => ({ ...p, tierMultiplierPriority: Number(e.target.value) }))} />
+            </FormRow>
+            <FormRow label="Max Search Window (sec)" hint="Force-assign after this many seconds">
+              <Input type="number" value={tiers.tierPriorityMaxSearchSec} step="30" min="60" max="600"
+                onChange={(e) => setTiers(p => ({ ...p, tierPriorityMaxSearchSec: Number(e.target.value) }))} />
+            </FormRow>
+          </div>
+          {/* Express */}
+          <div className="rounded-xl bg-indigo-50 ring-1 ring-indigo-200 p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">⚡</span>
+              <p className="text-sm font-black text-indigo-800">Express Tier</p>
+              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">Instant match</span>
+            </div>
+            <FormRow label="Price Multiplier" hint="e.g. 1.4 = 40% premium on base fare">
+              <Input type="number" value={tiers.tierMultiplierExpress} step="0.05" min="1" max="3"
+                onChange={(e) => setTiers(p => ({ ...p, tierMultiplierExpress: Number(e.target.value) }))} />
+            </FormRow>
+            <FormRow label="Max Search Window (sec)" hint="Force-assign after this many seconds (≤60 for true instant)">
+              <Input type="number" value={tiers.tierExpressMaxSearchSec} step="15" min="30" max="300"
+                onChange={(e) => setTiers(p => ({ ...p, tierExpressMaxSearchSec: Number(e.target.value) }))} />
+            </FormRow>
+          </div>
+        </div>
+        <div className="mt-5">
+          <SaveBtn loading={saving} onClick={() => saveSection({
+            tierMultiplierPriority:  tiers.tierMultiplierPriority,
+            tierMultiplierExpress:   tiers.tierMultiplierExpress,
+            tierExpressMaxSearchMs:  tiers.tierExpressMaxSearchSec  * 1000,
+            tierPriorityMaxSearchMs: tiers.tierPriorityMaxSearchSec * 1000,
           })} />
         </div>
       </Card>

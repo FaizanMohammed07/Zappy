@@ -32,7 +32,8 @@ let ASSIGNED_REDISPATCH_MIN = 10;
 let OTW_ALERT_MIN           = 20;
 const SEARCHING_STALE_MIN   = 6;   // always fixed — dispatch restart threshold
 const ARRIVED_STALE_MIN     = 15;  // worker marked arrived but never entered OTP — auto-cancel after 15 min
-const IN_PROGRESS_MAX_MIN   = 180; // 3 hours absolute max for any in_progress order
+const IN_PROGRESS_MAX_MIN      = 180;  // 3 hours → admin alert
+const IN_PROGRESS_ABANDON_MIN  = 1440; // 24 hours → auto-flag for reconciliation + mark failed
 
 async function loadThresholds() {
   try {
@@ -381,6 +382,25 @@ async function handleStaleInProgress(now, stale) {
   for (const order of longRunning) {
     const orderId = String(order._id);
     const minutesIn = Math.round((now - new Date(order.updatedAt)) / 60000);
+
+    if (minutesIn >= IN_PROGRESS_ABANDON_MIN) {
+      // 24+ hours: abandoned order — flag for reconciliation, do NOT auto-complete
+      // (could be ongoing commercial/event job). Alert admin + mark for review.
+      const alreadyFlagged = await redis.get(`stale:abandon:${orderId}`);
+      if (!alreadyFlagged) {
+        await redis.setex(`stale:abandon:${orderId}`, 86400, '1');
+        await Order.findByIdAndUpdate(orderId, {
+          $set: { 'payment.reconciliationRequired': true },
+        });
+        logger.error({ orderId, minutesIn }, '[STALE] IN_PROGRESS > 24h — flagged for manual reconciliation');
+        await redis.publish('order:event', JSON.stringify({
+          orderId,
+          event: 'order.admin_alert',
+          payload: { reason: 'abandoned_in_progress', minutesIn, message: 'Order stuck in_progress for 24+ hours — manual review required' },
+        }));
+      }
+      continue;
+    }
 
     if (minutesIn >= IN_PROGRESS_MAX_MIN) {
       // Admin alert — order has been in_progress for 3+ hours

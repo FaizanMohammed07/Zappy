@@ -1,9 +1,13 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const auditLogSchema = new mongoose.Schema(
   {
     actor: {
-      kind: { type: String, enum: ['admin', 'system', 'user', 'worker'], required: true },
+      kind: {
+        type: String,
+        enum: ["admin", "system", "user", "worker"],
+        required: true,
+      },
       id: { type: mongoose.Schema.Types.ObjectId },
       email: String,
     },
@@ -17,12 +21,12 @@ const auditLogSchema = new mongoose.Schema(
     ip: String,
     userAgent: String,
   },
-  { timestamps: { createdAt: 'at', updatedAt: false } }
+  { timestamps: { createdAt: "at", updatedAt: false } },
 );
 
-auditLogSchema.index({ 'actor.id': 1, at: -1 });
+auditLogSchema.index({ "actor.id": 1, at: -1 });
 auditLogSchema.index({ action: 1, at: -1 });
 // TTL: retain audit logs for 2 years
 auditLogSchema.index({ at: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 730 });
 
-module.exports = mongoose.model('AuditLog', auditLogSchema);
+module.exports = mongoose.model("AuditLog", auditLogSchema);

@@ -232,7 +232,197 @@ const DIAGNOSIS_FLOWS = {
     },
   ],
 
-  /* ── Carpenter ─────────────────────────────────────────────────── */
+  /* ── Car Puncture ─────────────────────────────────────────────── */
+  car_puncture: [
+    {
+      id: 'q1',
+      text: 'How many tyres are flat?',
+      type: 'single',
+      options: [
+        { id: '1', label: '1 tyre',   count: 1 },
+        { id: '2', label: '2 tyres',  count: 2 },
+        { id: '4', label: 'All flat', count: 4 },
+      ],
+    },
+    {
+      id: 'q2',
+      text: 'Where are you parked?',
+      type: 'single',
+      options: [
+        { id: 'safe',    label: 'Safe roadside / parking'                },
+        { id: 'traffic', label: 'Blocking traffic',    urgency: 'high'   },
+        { id: 'highway', label: 'On expressway/highway', urgency: 'urgent' },
+      ],
+    },
+  ],
+
+  /* ── Bike Breakdown ─────────────────────────────────────────── */
+  bike_breakdown: [
+    {
+      id: 'q1',
+      text: 'What is the main issue?',
+      type: 'single',
+      options: [
+        { id: 'engine',   label: 'Engine won\'t start',   tools: ['toolkit', 'multimeter'] },
+        { id: 'battery',  label: 'Battery dead',           tools: ['jump_cables']           },
+        { id: 'chain',    label: 'Chain snapped/slipped',  tools: ['chain_tool']            },
+        { id: 'brake',    label: 'Brakes not working',     urgency: 'urgent', tools: ['wrench'] },
+        { id: 'tyre',     label: 'Flat tyre',              tools: ['pump', 'patch']         },
+        { id: 'accident', label: 'Minor accident damage',  urgency: 'high'                  },
+      ],
+    },
+    {
+      id: 'q2',
+      text: 'Can you move the vehicle?',
+      type: 'single',
+      options: [
+        { id: 'yes', label: 'Yes, can push it aside'                   },
+        { id: 'no',  label: 'No — blocking road', urgency: 'high'      },
+      ],
+    },
+  ],
+
+  /* ── Car Breakdown ──────────────────────────────────────────── */
+  car_breakdown: [
+    {
+      id: 'q1',
+      text: 'What appears to be the issue?',
+      type: 'single',
+      options: [
+        { id: 'engine',   label: 'Engine won\'t start',     tools: ['toolkit', 'jump_cables'] },
+        { id: 'battery',  label: 'Battery/electrical issue', tools: ['multimeter', 'jump_cables'] },
+        { id: 'tyre',     label: 'Flat tyre',                tools: ['jack', 'wrench']        },
+        { id: 'overheat', label: 'Overheating',              urgency: 'high', tools: ['coolant'] },
+        { id: 'other',    label: 'Unknown / other'                                              },
+      ],
+    },
+    {
+      id: 'q2',
+      text: 'Where is the vehicle?',
+      type: 'single',
+      options: [
+        { id: 'road',    label: 'On normal road'                    },
+        { id: 'highway', label: 'On highway/expressway', urgency: 'urgent' },
+        { id: 'parking', label: 'Parking lot / safe area'           },
+      ],
+    },
+  ],
+
+  /* ── Battery Jump Start ─────────────────────────────────────── */
+  battery_jump_start: [
+    {
+      id: 'q1',
+      text: 'Vehicle type?',
+      type: 'single',
+      options: [
+        { id: 'hatchback', label: 'Hatchback / sedan'              },
+        { id: 'suv',       label: 'SUV / MUV'                      },
+        { id: 'truck',     label: 'Truck / commercial', baseMultiplier: 1.5 },
+      ],
+    },
+    {
+      id: 'q2',
+      text: 'Is the battery completely dead?',
+      type: 'single',
+      options: [
+        { id: 'dead',     label: 'Yes, nothing turns on',     urgency: 'high' },
+        { id: 'weak',     label: 'Cranks slowly but no start'                 },
+        { id: 'not_sure', label: 'Not sure'                                   },
+      ],
+    },
+  ],
+
+  /* ── Fuel Delivery ──────────────────────────────────────────── */
+  fuel_delivery: [
+    {
+      id: 'q1',
+      text: 'What fuel type?',
+      type: 'single',
+      options: [
+        { id: 'petrol', label: 'Petrol' },
+        { id: 'diesel', label: 'Diesel' },
+        { id: 'cng',    label: 'CNG'    },
+      ],
+    },
+    {
+      id: 'q2',
+      text: 'Where is the vehicle?',
+      type: 'single',
+      options: [
+        { id: 'road',    label: 'Normal road or lane'              },
+        { id: 'highway', label: 'Highway',    urgency: 'urgent'    },
+        { id: 'parking', label: 'Parking / compound'               },
+      ],
+    },
+  ],
+
+  /* ── Bike Battery Issue ─────────────────────────────────────── */
+  bike_battery_issue: [
+    {
+      id: 'q1',
+      text: 'What is the battery problem?',
+      type: 'single',
+      options: [
+        { id: 'dead',    label: 'Completely dead',           tools: ['multimeter']        },
+        { id: 'weak',    label: 'Drains quickly',            tools: ['multimeter']        },
+        { id: 'bulge',   label: 'Swollen/damaged battery',   urgency: 'high'              },
+        { id: 'replace', label: 'Want battery replacement',  tools: ['battery', 'wrench'] },
+      ],
+    },
+  ],
+
+  /* ── Commercial Emergency ───────────────────────────────────── */
+  commercial_emergency: [
+    {
+      id: 'q1',
+      text: 'Vehicle type?',
+      type: 'single',
+      options: [
+        { id: 'auto',  label: 'Auto rickshaw'               },
+        { id: 'van',   label: 'Van / mini truck'            },
+        { id: 'truck', label: 'Truck',    baseMultiplier: 1.5 },
+        { id: 'bus',   label: 'Bus',      baseMultiplier: 2.0 },
+      ],
+    },
+    {
+      id: 'q2',
+      text: 'Nature of emergency?',
+      type: 'single',
+      options: [
+        { id: 'breakdown', label: 'Breakdown',       urgency: 'high'   },
+        { id: 'tyre',      label: 'Flat tyre',       urgency: 'high'   },
+        { id: 'accident',  label: 'Minor accident',  urgency: 'urgent' },
+        { id: 'other',     label: 'Other'                               },
+      ],
+    },
+  ],
+
+  /* ── Bike Brake Issue ───────────────────────────────────────── */
+  bike_brake_issue: [
+    {
+      id: 'q1',
+      text: 'Which brakes are affected?',
+      type: 'single',
+      options: [
+        { id: 'front',  label: 'Front brake only'                        },
+        { id: 'rear',   label: 'Rear brake only'                         },
+        { id: 'both',   label: 'Both brakes', urgency: 'urgent', tools: ['wrench'] },
+      ],
+    },
+    {
+      id: 'q2',
+      text: 'What is the brake symptom?',
+      type: 'single',
+      options: [
+        { id: 'squeak',  label: 'Squeaking / noise'              },
+        { id: 'weak',    label: 'Weak / spongy braking'          },
+        { id: 'none',    label: 'No braking at all', urgency: 'urgent' },
+        { id: 'lever',   label: 'Lever/cable broken'             },
+      ],
+    },
+  ],
+
+  /* ── Carpenter ─────────────────────────────────────────────── */
   carpenter: [
     {
       id: 'q1',

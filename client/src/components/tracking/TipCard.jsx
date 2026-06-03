@@ -9,14 +9,12 @@ import { Mic, MicOff, Send, Gift, Loader2, CheckCircle2 } from 'lucide-react';
 import { useSendTipMutation, usePresignUploadMutation } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const PRESETS = [
-  { paise: 2000, label: '₹20' },
-  { paise: 5000, label: '₹50' },
-  { paise: 10000, label: '₹100' },
-  { paise: 20000, label: '₹200' },
-];
+const DEFAULT_TIP_OPTIONS_RS = [20, 50, 100, 200];
 
-export default function TipCard({ orderId, onDone }) {
+export default function TipCard({ orderId, onDone, tipOptions, tipMax }) {
+  const presets = (tipOptions ?? DEFAULT_TIP_OPTIONS_RS)
+    .filter(n => typeof n === 'number' && n > 0 && (!tipMax || n <= tipMax))
+    .map(n => ({ paise: n * 100, label: `₹${n}` }));
   const [selected,   setSelected]   = useState(null);
   const [recording,  setRecording]  = useState(false);
   const [audioBlob,  setAudioBlob]  = useState(null);
@@ -75,7 +73,7 @@ export default function TipCard({ orderId, onDone }) {
     }
 
     try {
-      await sendTip({ id: orderId, amountPaise: selected, voiceNoteUrl, message }).unwrap();
+      await sendTip({ orderId, amountPaise: selected, voiceNoteUrl, message }).unwrap();
       setSent(true);
       toast.success('Tip sent! Worker will love this 💝');
       setTimeout(() => onDone?.(), 2000);
@@ -112,7 +110,7 @@ export default function TipCard({ orderId, onDone }) {
 
       {/* Tip amount */}
       <div className="flex gap-2">
-        {PRESETS.map(p => (
+        {presets.map(p => (
           <button
             key={p.paise}
             onClick={() => setSelected(p.paise)}

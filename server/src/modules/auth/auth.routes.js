@@ -37,8 +37,9 @@ router.post(
   ctrl.loginAdmin
 );
 
-router.post('/refresh', authLimiter, validate(Joi.object({ refreshToken: Joi.string().required() })), ctrl.refresh);
-
-router.post('/logout', validate(Joi.object({ refreshToken: Joi.string().required() })), ctrl.logout);
+// No body validation — refresh token comes from httpOnly cookie (primary) or
+// body (legacy). Nothing meaningful to validate at the route level.
+router.post('/refresh', authLimiter, ctrl.refresh);
+router.post('/logout', ctrl.logout);
 
 module.exports = router;

@@ -37,7 +37,7 @@ export default function TrackPage() {
   if (activeOrder) return null;
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] pb-24">
+    <div className="min-h-screen bg-[#F9FAFB] pb-40">
       <header className="page-header">
         <div className="page-header-inner">
           <h1 className="h-card">Track Order</h1>

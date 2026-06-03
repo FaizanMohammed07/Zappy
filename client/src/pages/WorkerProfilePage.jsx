@@ -84,7 +84,7 @@ export default function WorkerProfilePage() {
   }
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #f8fafc 180px)' }}>
+    <div className="min-h-screen pb-40" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #f8fafc 180px)' }}>
 
       {/* ── Back button ─────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 px-4 pt-4 pb-2 flex items-center" style={{ background: 'transparent' }}>

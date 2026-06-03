@@ -99,9 +99,13 @@ const createOrderSchema = Joi.object({
   diagnosisUrgency: Joi.string().valid('normal', 'high', 'urgent').default('normal'),
   // Promo
   promoCode: Joi.string().max(30).allow('', null),
-  // Surge price protection: client sends the quoted total it showed the user.
+  // Surge price protection: client sends the tier-adjusted quoted total it showed the user.
   // Server rejects if fresh quote differs by more than 20% (surge changed).
   quotedTotalRupees: Joi.number().min(0).optional(),
+  // Booking tier — determines price multiplier and dispatch speed
+  tier: Joi.string().valid('standard', 'priority', 'express').default('standard'),
+  // Pre-acceptance tip/boost (₹, integer) — 100% credited to worker
+  tipAmount: Joi.number().integer().min(0).max(500).default(0),
 });
 
 const quoteSchema = Joi.object({

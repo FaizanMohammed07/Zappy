@@ -35,6 +35,115 @@ import SOSButton from '../components/worker/SOSButton';
 import ServiceChecklistPanel from '../components/worker/ServiceChecklistPanel';
 import toast from 'react-hot-toast';
 
+/* ── WorkerETACard — live countdown with penalty preview ───────────── */
+function WorkerETACard({ deadlineAt, etaMins }) {
+  const [secsLeft, setSecsLeft] = useState(() => Math.ceil((deadlineAt - Date.now()) / 1000));
+
+  useEffect(() => {
+    const tick = () => setSecsLeft(Math.ceil((deadlineAt - Date.now()) / 1000));
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [deadlineAt]);
+
+  const isLate     = secsLeft < 0;
+  const lateSecs   = isLate ? Math.abs(secsLeft) : 0;
+  const lateMinutes = Math.ceil(lateSecs / 60);
+  const penalty     = lateMinutes * 2; // ₹2/min — mirrors server default
+
+  const minsLeft  = Math.floor(Math.max(0, secsLeft) / 60);
+  const sLeft     = Math.max(0, secsLeft) % 60;
+  const deadlineStr = deadlineAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <motion.div
+      className="rounded-2xl overflow-hidden"
+      style={isLate
+        ? { background: 'linear-gradient(135deg,#1c0505,#7f1d1d)', border: '1.5px solid rgba(239,68,68,0.4)', boxShadow: '0 6px 24px rgba(239,68,68,0.3)' }
+        : secsLeft < 120
+          ? { background: 'linear-gradient(135deg,#1c0f00,#7c2d12)', border: '1.5px solid rgba(249,115,22,0.4)', boxShadow: '0 6px 24px rgba(249,115,22,0.25)' }
+          : { background: 'linear-gradient(135deg,#0f172a,#1e293b)', border: '1px solid rgba(99,102,241,0.25)', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }
+      }
+      animate={isLate ? { borderColor: ['rgba(239,68,68,0.4)', 'rgba(239,68,68,0.9)', 'rgba(239,68,68,0.4)'] } : {}}
+      transition={{ duration: 1, repeat: Infinity }}
+    >
+      {/* Top info row */}
+      <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <motion.span
+            className="text-lg"
+            animate={isLate ? { scale: [1, 1.2, 1], rotate: [-5, 5, -5, 0] } : { x: [0, 4, 0] }}
+            transition={{ duration: isLate ? 0.5 : 1.5, repeat: Infinity }}
+          >
+            {isLate ? '⚠️' : secsLeft < 120 ? '🔥' : '🛵'}
+          </motion.span>
+          <div>
+            <p className={`text-[12px] font-black ${isLate ? 'text-red-300' : secsLeft < 120 ? 'text-orange-300' : 'text-indigo-200'}`}>
+              {isLate ? `Late by ${lateMinutes} min — penalty active` : 'Arrive by deadline to avoid penalty'}
+            </p>
+            <p className="text-[10px] text-white/40 mt-0.5">
+              Deadline: {deadlineStr} · ₹2 per extra minute
+            </p>
+          </div>
+        </div>
+
+        {/* Penalty preview */}
+        {isLate && (
+          <motion.div
+            className="shrink-0 px-3 py-1.5 rounded-xl bg-red-500/20 text-right"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity }}
+          >
+            <p className="text-[9px] font-bold text-red-400 uppercase tracking-wide">Deducting</p>
+            <p className="text-base font-black text-red-300">-₹{penalty}</p>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Big countdown */}
+      <div className="px-4 pb-4 flex items-center gap-4">
+        {isLate ? (
+          <div className="flex-1">
+            <p className="text-xs text-red-400 font-bold mb-1">Overdue by</p>
+            <p className="text-3xl font-black text-red-300 tabular-nums">
+              {String(Math.floor(lateSecs / 60)).padStart(2, '0')}:{String(lateSecs % 60).padStart(2, '0')}
+            </p>
+          </div>
+        ) : (
+          <div className="flex-1">
+            <p className={`text-xs font-bold mb-1 ${secsLeft < 120 ? 'text-orange-400' : 'text-indigo-400'}`}>Time remaining</p>
+            <p className={`text-3xl font-black tabular-nums ${secsLeft < 120 ? 'text-orange-200' : 'text-white'}`}>
+              {String(minsLeft).padStart(2, '0')}:{String(sLeft).padStart(2, '0')}
+            </p>
+          </div>
+        )}
+
+        {/* ETA info */}
+        <div className="text-right shrink-0">
+          <p className="text-[10px] text-white/30 font-semibold uppercase tracking-wide">ETA distance</p>
+          <p className="text-sm font-bold text-white/60">{etaMins} min trip</p>
+        </div>
+      </div>
+
+      {/* Progress bar draining to zero */}
+      {!isLate && (
+        <div className="h-1 bg-white/10 mx-4 mb-3 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full rounded-full"
+            style={{
+              background: secsLeft < 120
+                ? 'linear-gradient(90deg,#ef4444,#f97316)'
+                : 'linear-gradient(90deg,#4f46e5,#818cf8)',
+              width: `${Math.max(0, (secsLeft / (etaMins * 60)) * 100)}%`,
+            }}
+            transition={{ duration: 0.9 }}
+          />
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 const STATUS_CONFIG = {
   assigned:    { label: 'Assigned',    color: 'bg-blue-500/15 text-blue-300 ring-blue-500/30',    dot: 'bg-blue-400'    },
   on_the_way:  { label: 'On the Way', color: 'bg-indigo-500/15 text-indigo-300 ring-indigo-500/30', dot: 'bg-indigo-400' },
@@ -413,12 +522,24 @@ export default function WorkerJobPage() {
   useEffect(() => {
     if (!status || !ACTIVE_STATUSES.has(status) || !token) return;
     const socket = getSocket(token);
+    let lastJobPos = null;
+    function jobHaverMetres(a, b) {
+      const R = 6371000;
+      const dLat = (b.lat - a.lat) * Math.PI / 180;
+      const dLng = (b.lng - a.lng) * Math.PI / 180;
+      const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    }
+
     watchCancelRef.current = watch(
       (pos) => {
         setMyLocation({ lat: pos.lat, lng: pos.lng });
         const now = Date.now();
-        if (now - lastSentRef.current < 4000) return;
+        const cur = { lat: pos.lat, lng: pos.lng };
+        const moved = !lastJobPos || jobHaverMetres(lastJobPos, cur) >= 10;
+        if (!moved || now - lastSentRef.current < 4000) return;
         lastSentRef.current = now;
+        lastJobPos = cur;
         socket.emit('worker:location', { lat: pos.lat, lng: pos.lng, orderId: id });
       },
       (err) => console.warn('[WorkerJobPage] geolocation watch error', err),
@@ -500,7 +621,11 @@ export default function WorkerJobPage() {
   }
 
   async function onStartTrip() {
-    try { await startTrip(id).unwrap(); toast.success('Trip started'); refetch(); }
+    try {
+      await startTrip({ id, lat: myLocation?.lat, lng: myLocation?.lng }).unwrap();
+      toast.success('Trip started — arrive on time to avoid penalties');
+      refetch();
+    }
     catch (err) { toast.error(err.data?.error || 'Failed'); }
   }
   async function onArrive() {
@@ -552,7 +677,7 @@ export default function WorkerJobPage() {
   }
 
   return (
-    <div className="min-h-screen pb-56" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #f8fafc 200px)' }}>
+    <div className="min-h-screen pb-[350px]" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #f8fafc 200px)' }}>
 
       {/* Socket degraded banner */}
       <AnimatePresence>
@@ -942,8 +1067,15 @@ export default function WorkerJobPage() {
             const progress = distM !== null ? Math.max(0, Math.min(1, 1 - distM / 300)) : 0;
             const pct      = Math.round(progress * 100);
 
+            // ETA countdown from trip deadline stored on order
+            const deadlineAt = order.tripDeadlineAt ? new Date(order.tripDeadlineAt) : null;
+            const etaMins    = order.tripEtaMinutes;
+
             return (
               <div className="space-y-2">
+
+                {/* ── ETA countdown card ─────────────────────────────── */}
+                {deadlineAt && <WorkerETACard deadlineAt={deadlineAt} etaMins={etaMins} />}
                 {/* Proximity indicator — only while GPS is available */}
                 {distM !== null && (
                   <div className={`rounded-2xl px-4 py-3 flex items-center gap-3 transition-colors ${

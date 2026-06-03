@@ -168,7 +168,7 @@ export default function ServicesPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen pb-24" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 160px)' }}>
+      <div className="min-h-screen pb-40" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 160px)' }}>
 
         {/* Premium Header */}
         <header className="sticky top-0 z-20 overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%)' }}>

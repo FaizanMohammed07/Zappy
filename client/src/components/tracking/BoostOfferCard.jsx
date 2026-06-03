@@ -18,23 +18,31 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, ChevronRight, X, ArrowRight, Flame, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const BOOST_OPTIONS = [
-  { amount: 10,  label: '+₹10',  emoji: '⚡' },
-  { amount: 20,  label: '+₹20',  emoji: '⚡' },
-  { amount: 30,  label: '+₹30',  emoji: '🔥' },
-  { amount: 50,  label: '+₹50',  emoji: '🔥' },
-  { amount: 100, label: '+₹100', emoji: '🚀' },
-];
+function buildOptions(amounts) {
+  return (amounts ?? [10, 20, 30, 50, 100]).map((n) => ({
+    amount: n,
+    label:  `+₹${n}`,
+    emoji:  n >= 100 ? '🚀' : n >= 30 ? '🔥' : '⚡',
+  }));
+}
 
-export default function BoostOfferCard({ orderId, baseTotal, sendTip }) {
+export default function BoostOfferCard({ orderId, baseTotal, sendTip, boostOptions, boostMax, boostEnabled = true }) {
+  if (!boostEnabled) return null;
   const [appliedBoost, setAppliedBoost] = useState(0);   // confirmed boosts
   const [pendingAmt, setPendingAmt]     = useState(null); // selected but unconfirmed
   const [confirming, setConfirming]     = useState(false);
+
+  const BOOST_OPTIONS  = buildOptions(boostOptions);
+  const maxBoostRs     = boostMax ?? 200;
 
   const totalWithBoost = baseTotal + appliedBoost;
   const newTotal       = pendingAmt ? baseTotal + appliedBoost + pendingAmt : null;
 
   function selectBoost(amt) {
+    if (appliedBoost + amt > maxBoostRs) {
+      toast.error(`Maximum boost is ₹${maxBoostRs}`);
+      return;
+    }
     setPendingAmt(amt);
     setConfirming(true);
   }

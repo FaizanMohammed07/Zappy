@@ -273,7 +273,7 @@ export default function ReferralPage() {
 
   return (
     <motion.div
-      className="min-h-screen bg-slate-950 text-white pb-28"
+      className="min-h-screen bg-slate-950 text-white pb-40"
       variants={pageVariants}
       initial="initial"
       animate="animate"

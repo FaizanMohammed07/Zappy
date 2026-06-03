@@ -44,23 +44,23 @@ const VEHICLE_HIGHLIGHTS = [
 /* ─── Service tile data ────────────────────────────────────────────────── */
 // Electronics Rescue — Mobile
 const PHONE_TILES = [
-  { key: 'screen_replacement',  name: 'Screen Fix',    Icon: Smartphone, grad: 'from-indigo-500 to-violet-600',  shadow: 'rgba(99,102,241,0.4)',  eta: '25 mins' },
-  { key: 'battery_replacement', name: 'Battery',       Icon: Battery,    grad: 'from-emerald-500 to-green-600',  shadow: 'rgba(16,185,129,0.35)', eta: '30 mins' },
-  { key: 'charging_issue',      name: 'Charging',      Icon: Bolt,       grad: 'from-yellow-500 to-amber-600',   shadow: 'rgba(245,158,11,0.4)',  eta: '20 mins' },
-  { key: 'camera_issue',        name: 'Camera',        Icon: Camera,     grad: 'from-pink-500 to-rose-600',      shadow: 'rgba(244,63,94,0.35)',  eta: null      },
-  { key: 'software_issue',      name: 'Software',      Icon: Cpu,        grad: 'from-red-500 to-rose-600',       shadow: 'rgba(239,68,68,0.35)', eta: null      },
-  { key: 'water_damage',        name: 'Water Damage',  Icon: Droplets,   grad: 'from-sky-500 to-blue-600',       shadow: 'rgba(14,165,233,0.35)',eta: null      },
-  { key: 'data_recovery',       name: 'Data Recovery', Icon: Layers,     grad: 'from-violet-500 to-purple-600',  shadow: 'rgba(139,92,246,0.35)',eta: null      },
+  { key: 'screen_replacement',  name: 'Screen Fix',    img: '/images/services/phone_screen.png',  eta: '25 mins' },
+  { key: 'battery_replacement', name: 'Battery',       img: '/images/services/phone_battery.png', eta: '30 mins' },
+  { key: 'charging_issue',      name: 'Charging',      img: '/images/services/phone_charging.png',eta: '20 mins' },
+  { key: 'camera_issue',        name: 'Camera',        img: '/images/services/phone_camera.png',  eta: null      },
+  { key: 'software_issue',      name: 'Software',      img: '/images/services/phone_software.png',eta: null      },
+  { key: 'water_damage',        name: 'Water Damage',  img: '/images/services/phone_water.png',   eta: null      },
+  { key: 'data_recovery',       name: 'Data Recovery', img: '/images/services/phone_data.png',    eta: null      },
 ];
 
 // Electronics Rescue — Laptop
 const LAPTOP_TILES = [
-  { key: 'laptop_slow',             name: 'Slow Laptop',    Icon: Laptop, grad: 'from-slate-600 to-slate-800',   eta: '45 mins' },
-  { key: 'laptop_ssd_upgrade',      name: 'SSD Upgrade',    Icon: Cpu,    grad: 'from-blue-600 to-indigo-700',   eta: null      },
-  { key: 'laptop_screen_issue',     name: 'Screen Repair',  Icon: MonitorSmartphone, grad: 'from-violet-500 to-purple-700', eta: null },
-  { key: 'laptop_virus_removal',    name: 'Virus Removal',  Icon: ShieldAlert, grad: 'from-red-500 to-rose-700', eta: null },
-  { key: 'laptop_data_recovery',    name: 'Data Recovery',  Icon: Layers, grad: 'from-emerald-500 to-teal-700',  eta: null      },
-  { key: 'laptop_charging_issue',   name: 'Charging Fix',   Icon: Bolt,   grad: 'from-amber-500 to-orange-600',  eta: '40 mins' },
+  { key: 'laptop_slow',             name: 'Slow Laptop',    img: '/images/services/laptop_slow.png',     eta: '45 mins' },
+  { key: 'laptop_ssd_upgrade',      name: 'SSD Upgrade',    img: '/images/services/laptop_ssd.png',      eta: null      },
+  { key: 'laptop_screen_issue',     name: 'Screen Repair',  img: '/images/services/laptop_screen.png',   eta: null      },
+  { key: 'laptop_virus_removal',    name: 'Virus Removal',  img: '/images/services/laptop_virus.png',    eta: null      },
+  { key: 'laptop_data_recovery',    name: 'Data Recovery',  img: '/images/services/laptop_data.png',     eta: null      },
+  { key: 'laptop_charging_issue',   name: 'Charging Fix',   img: '/images/services/laptop_charging.png', eta: '40 mins' },
 ];
 
 // Smart Devices
@@ -247,6 +247,31 @@ function CompactTile({ svc, nav }) {
   );
 }
 
+/* ─── Compact image tile ───────────────────────────────────────────────── */
+function CompactImageTile({ svc, nav }) {
+  const { key, name, img, eta } = svc;
+  return (
+    <motion.button onClick={() => nav(`/book/${key}`)} className="w-[84px] sm:w-[100px] md:w-[112px] lg:w-[120px] flex flex-col items-center gap-2 group shrink-0"
+      whileHover={{ y: -4 }} whileTap={{ scale: 0.94 }}>
+      <div className="w-full aspect-square rounded-2xl bg-slate-100 relative overflow-hidden shadow-sm group-hover:shadow-md transition-shadow">
+        <img src={img} alt={name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/20 to-transparent opacity-80" />
+        {eta && (
+          <div className="absolute top-2 right-2 z-10">
+            <div className="bg-black/50 backdrop-blur-md rounded-full px-1.5 py-0.5 flex items-center gap-1 border border-white/10">
+              <Clock size={7} className="text-white" />
+              <span className="text-[8px] font-black text-white">{eta}</span>
+            </div>
+          </div>
+        )}
+        <div className="absolute bottom-2 left-2 right-2 z-10 text-center">
+           <span className="text-[10px] sm:text-xs font-bold text-white leading-tight drop-shadow-md">{name}</span>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
 /* ─── Section header ───────────────────────────────────────────────────── */
 function SectionHeader({ title, badge, badgeColor = 'bg-indigo-50 text-indigo-600 ring-indigo-100', onSeeAll }) {
   return (
@@ -317,7 +342,7 @@ export default function HomePage() {
   return (
     <PageTransition>
       <IntroSplash />
-      <div className="min-h-screen pb-28 bg-white">
+      <div className="min-h-screen pb-40 bg-white">
 
         {/* ─── Premium Navbar ───────────────────────────────────────── */}
         <header className="sticky top-0 z-30 bg-white" style={{ boxShadow: '0 1px 0 0 #f1f5f9, 0 4px 20px rgba(0,0,0,0.05)' }}>
@@ -644,7 +669,7 @@ export default function HomePage() {
             <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
             <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#eef2ff,#f5f3ff)', border: '1px solid rgba(99,102,241,0.12)' }}>
               <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {PHONE_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+                {PHONE_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
               </motion.div>
             </div>
           </div>
@@ -654,7 +679,7 @@ export default function HomePage() {
             <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-600 ring-slate-200" onSeeAll={() => nav('/services')} />
             <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)', border: '1px solid rgba(100,116,139,0.15)' }}>
               <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {LAPTOP_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+                {LAPTOP_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
               </motion.div>
             </div>
           </div>

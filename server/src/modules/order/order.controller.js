@@ -87,28 +87,27 @@ async function getOne(req, res, next) {
       }
     }
 
-    // Resolve completion photo keys/paths to fresh presigned S3 URLs (valid 2h).
-    // Stored values may be bare S3 keys (e.g. "order-proof/uid/uuid") or legacy
-    // "/api/uploads/download/..." proxy paths — both are normalized here so the
-    // client always receives a directly loadable HTTPS URL.
+    // Resolve photo keys to fresh presigned S3 GET URLs (valid 2h).
+    // Applies to completionPhotos AND booking images (order-images/ keys).
+    const s3Service = require('../../utils/s3.service');
+
+    async function resolveUrls(arr) {
+      if (!arr?.length) return arr;
+      return Promise.all(arr.map(async (val) => {
+        if (!val) return val;
+        if (val.startsWith('https://')) return val;
+        const key = val.startsWith('/api/uploads/download/')
+          ? val.slice('/api/uploads/download/'.length)
+          : val;
+        try { return await s3Service.getDownloadUrl(key); } catch { return val; }
+      }));
+    }
+
     if (order.completionPhotos?.length) {
-      const s3Service = require('../../utils/s3.service');
-      order.completionPhotos = await Promise.all(
-        order.completionPhotos.map(async (val) => {
-          if (!val) return val;
-          // Already a full HTTPS URL (public bucket or previously resolved) — keep as-is
-          if (val.startsWith('https://')) return val;
-          // Strip legacy proxy prefix
-          const key = val.startsWith('/api/uploads/download/')
-            ? val.slice('/api/uploads/download/'.length)
-            : val;
-          try {
-            return await s3Service.getDownloadUrl(key);
-          } catch {
-            return val; // If S3 is unreachable, return original value rather than crashing
-          }
-        })
-      );
+      order.completionPhotos = await resolveUrls(order.completionPhotos);
+    }
+    if (order.images?.length) {
+      order.images = await resolveUrls(order.images);
     }
 
     res.json({ order });
@@ -187,7 +186,13 @@ async function rejectOffer(req, res, next) {
 
 async function startTrip(req, res, next) {
   try {
-    const order = await orderService.workerStartTrip({ orderId: req.params.id, workerId: req.auth.sub });
+    // Accept optional worker GPS from client for accurate ETA computation at trip start
+    const order = await orderService.workerStartTrip({
+      orderId:   req.params.id,
+      workerId:  req.auth.sub,
+      workerLat: req.body?.lat   != null ? parseFloat(req.body.lat)   : undefined,
+      workerLng: req.body?.lng   != null ? parseFloat(req.body.lng)   : undefined,
+    });
     res.json({ order });
   } catch (err) { next(err); }
 }

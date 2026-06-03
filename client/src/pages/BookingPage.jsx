@@ -13,13 +13,14 @@ import {
 } from 'lucide-react';
 import LocationPicker from '../modules/booking/LocationPicker';
 import SmartPricingPanel from '../components/booking/SmartPricingPanel';
+import BookingMapView from '../components/booking/BookingMapView';
 import SurgeInfoCard from '../components/booking/SurgeInfoCard';
 import DiagnosisFlow from '../components/booking/DiagnosisFlow';
 import {
   useLazyGetQuoteQuery, useCreateOrderMutation,
   usePresignUploadMutation, useLazyGetNearbyWorkersQuery,
   useValidatePromoMutation, useLazyGetSurgeInfoQuery,
-  useSendTipMutation,
+  useGetPricingConfigQuery,
 } from '../services/api';
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp } from '../lib/animations';
@@ -344,8 +345,6 @@ export default function BookingPage() {
   const [showOverlay,   setShowOverlay]   = useState(false); // overlay visible
   const [matchFound,    setMatchFound]    = useState(false); // "Worker found!" success state
   const [activeOrderId, setActiveOrderId] = useState(null);
-  const [liveBoost,     setLiveBoost]     = useState(0);    // tip selected during matching
-  const [boostSent,     setBoostSent]     = useState(false);
   const [diagnosisAnswers, setDiagnosisAnswers] = useState(null);
   const [showDiagnosis,    setShowDiagnosis]    = useState(false);
 
@@ -363,17 +362,19 @@ export default function BookingPage() {
   const nudgeTimer = useRef(null);
   const fileInputRef = useRef(null);
 
-  const [sendTip] = useSendTipMutation();
   const [fetchQuote,     { data: quoteData, isFetching: quoting }] = useLazyGetQuoteQuery();
   const [createOrder,    { isLoading: creating }]                  = useCreateOrderMutation();
   const [presignUpload]                                             = usePresignUploadMutation();
   const [fetchNearby,    { data: nearbyData }]                     = useLazyGetNearbyWorkersQuery();
   const [validatePromo,  { isLoading: validatingPromo }]           = useValidatePromoMutation();
   const [fetchSurge,     { data: surgeInfoData }]                  = useLazyGetSurgeInfoQuery();
+  const { data: pricingConfigData }                                 = useGetPricingConfigQuery();
+  const pricingConfig = pricingConfigData?.pricing ?? {};
 
   const meta         = SERVICE_META[service] || { label: service?.replace(/_/g, ' ') || 'Service', icon: Wrench, gradient: 'from-slate-500 to-slate-700', accent: '#64748b' };
   const ServiceIcon  = meta.icon;
   const subCategories = SERVICE_SUBCATEGORIES[service] || [];
+
   const q = quoteData?.quote;
   const hasSurge = q?.surgeMultiplier > 1;
 
@@ -414,16 +415,20 @@ export default function BookingPage() {
 
   async function uploadImage(file) {
     const id = Math.random().toString(36).slice(2);
-    setImages(prev => [...prev, { id, url: null, uploading: true }]);
+    // Use a local blob URL for instant preview while upload runs in background
+    const previewUrl = URL.createObjectURL(file);
+    setImages(prev => [...prev, { id, url: previewUrl, uploading: true }]);
     try {
-      const { url: presignedUrl, publicUrl } = await presignUpload({
-        filename: file.name,
+      const { uploadUrl, key } = await presignUpload({
+        folder: 'order-images',
         contentType: file.type,
-        purpose: 'order_image',
+        filename: file.name,
       }).unwrap();
-      await fetch(presignedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
-      setImages(prev => prev.map(img => img.id === id ? { id, url: publicUrl, uploading: false } : img));
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      // Store S3 key; order controller resolves it to a presigned GET URL on read
+      setImages(prev => prev.map(img => img.id === id ? { id, url: previewUrl, s3Key: key, uploading: false } : img));
     } catch {
+      URL.revokeObjectURL(previewUrl);
       setImages(prev => prev.filter(img => img.id !== id));
       toast.error('Image upload failed');
     }
@@ -472,7 +477,8 @@ export default function BookingPage() {
       : undefined;
     setPricingMode('locked');
     try {
-      const uploadedUrls = images.filter(i => i.url).map(i => i.url);
+      // Prefer the S3 key; fall back to URL (blob URLs are stripped server-side anyway)
+      const uploadedUrls = images.filter(i => i.s3Key || i.url).map(i => i.s3Key || i.url);
       const body = {
         service,
         subCategory: subCategory || undefined,
@@ -493,8 +499,9 @@ export default function BookingPage() {
         // Construction extras
         ...(isConstruction && { pricingModel }),
         ...(isConstruction && pricingModel === 'hourly' && { estimatedHours }),
-        // Surge price protection — server rejects if price jumped >20% since quote
-        quotedTotalRupees: quoteData?.quote?.total ?? undefined,
+        // Surge price protection — send tier-adjusted price so server compares apples-to-apples.
+        // Server will apply the same tier multiplier and reject if surge pushed price >20% higher.
+        quotedTotalRupees: tierPrice || undefined,
       };
       const r = await createOrder(body).unwrap();
       setActiveOrderId(r.order._id);
@@ -680,28 +687,11 @@ export default function BookingPage() {
           variants={fadeInUp}
         >
           {location && import.meta.env.VITE_MAPBOX_TOKEN && (
-            <div className="relative w-full h-32 overflow-hidden">
-              <img
-                src={
-                  `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/` +
-                  `pin-l+2563eb(${location.lng},${location.lat})/` +
-                  `${location.lng},${location.lat},14,0/600x200@2x` +
-                  `?access_token=${import.meta.env.VITE_MAPBOX_TOKEN}&attribution=false&logo=false`
-                }
-                alt="Service location map"
-                className="w-full h-full object-cover"
-              />
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-              {nearbyData?.count > 0 && (
-                <div className="absolute bottom-2.5 left-3 flex items-center gap-1.5 bg-white rounded-full px-3 py-1 shadow-md">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
-                  <span className="text-[11px] font-bold text-[#0F172A]">
-                    {nearbyData.count} worker{nearbyData.count === 1 ? '' : 's'} nearby
-                  </span>
-                </div>
-              )}
-            </div>
+            <BookingMapView
+              location={location}
+              workers={nearbyData?.workers ?? []}
+              service={service}
+            />
           )}
           <div className="flex items-center gap-3 px-4 py-3.5">
             <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-sm`}>
@@ -892,6 +882,7 @@ export default function BookingPage() {
               tipAmount={tipAmount}
               onTipChange={setTipAmount}
               promoDiscount={promoResult ? Math.round(promoResult.discountPaise / 100) : 0}
+              pricingConfig={pricingConfig}
             />
           ) : (
             <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
@@ -1502,145 +1493,11 @@ export default function BookingPage() {
                   animate={{ scale: [1, 1.6, 1], opacity: [0.5, 1, 0.5] }}
                   transition={{ duration: 0.9, repeat: Infinity }} />
                 <span className="text-[11px] font-bold text-white/70">Matching with nearby workers</span>
-                {liveBoost > 0 && (
-                  <span className="text-[11px] font-black text-orange-400 ml-1">+₹{liveBoost} boost active</span>
-                )}
               </motion.div>
             )}
           </AnimatePresence>
-        {/* ── Live Boost Bottom Sheet ── */}
-        <AnimatePresence>
-          {!matchFound && (
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 320, delay: 1.8 }}
-              className="absolute bottom-0 left-0 right-0 rounded-t-[28px] overflow-hidden"
-              style={{ background: 'rgba(15,18,30,0.97)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)' }}
-            >
-              {/* Heat gradient bar at top */}
-              <motion.div
-                className="h-1 w-full rounded-full"
-                animate={{ scaleX: liveBoost > 0 ? 1 : 0.3, opacity: liveBoost > 0 ? 1 : 0.3 }}
-                style={{
-                  transformOrigin: 'left',
-                  background: liveBoost >= 100 ? 'linear-gradient(90deg,#f97316,#ef4444,#dc2626)'
-                    : liveBoost >= 50 ? 'linear-gradient(90deg,#fb923c,#f97316)'
-                    : liveBoost >= 20 ? 'linear-gradient(90deg,#fbbf24,#fb923c)'
-                    : 'rgba(255,255,255,0.15)',
-                }}
-              />
 
-              <div className="px-5 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <motion.div
-                      animate={liveBoost > 0 ? {
-                        rotate: [-8, 8, -6, 6, 0],
-                        scale: [1, 1.2, 1],
-                      } : {}}
-                      transition={{ duration: 0.5 }}
-                    >
-                      <Flame
-                        size={20}
-                        strokeWidth={2}
-                        className={liveBoost >= 100 ? 'text-red-400' : liveBoost >= 50 ? 'text-orange-400' : liveBoost >= 20 ? 'text-amber-400' : 'text-white/30'}
-                      />
-                    </motion.div>
-                    <div>
-                      <p className="text-sm font-black text-white leading-none">
-                        {liveBoost >= 100 ? 'On fire — top priority!' : liveBoost >= 50 ? 'Heating up fast' : liveBoost >= 20 ? 'Boosted' : 'Boost to get matched faster'}
-                      </p>
-                      <p className="text-[10px] text-white/40 mt-0.5">
-                        {liveBoost > 0 ? `₹${liveBoost} tip — workers see your boosted offer` : 'Higher tip → workers prioritise your job'}
-                      </p>
-                    </div>
-                  </div>
-                  {liveBoost > 0 && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-full"
-                      style={{ background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.3)' }}
-                    >
-                      <Zap size={11} strokeWidth={2.5} className="text-orange-400" />
-                      <span className="text-[11px] font-black text-orange-400">+₹{liveBoost}</span>
-                    </motion.div>
-                  )}
-                </div>
-
-                {/* Boost pills */}
-                <div className="grid grid-cols-5 gap-2 mb-4">
-                  {[0, 10, 20, 50, 100].map((amt) => {
-                    const active = liveBoost === amt;
-                    const isNone = amt === 0;
-                    return (
-                      <motion.button
-                        key={amt}
-                        onClick={async () => {
-                          setLiveBoost(amt);
-                          if (activeOrderId && amt > 0) {
-                            try {
-                              await sendTip({ orderId: activeOrderId, amountPaise: amt * 100 }).unwrap();
-                              setBoostSent(true);
-                              try { navigator.vibrate?.([30, 20, 60]); } catch {}
-                            } catch { /* best-effort */ }
-                          }
-                        }}
-                        whileTap={{ scale: 0.88 }}
-                        animate={active ? {
-                          scale: [1, 1.12, 1.04],
-                          transition: { type: 'spring', stiffness: 500, damping: 18 },
-                        } : { scale: 1 }}
-                        className="relative h-11 rounded-2xl flex flex-col items-center justify-center font-black text-sm transition-all overflow-hidden"
-                        style={{
-                          background: active
-                            ? (isNone ? 'linear-gradient(135deg,#1e293b,#334155)' : 'linear-gradient(135deg,#ea580c,#f97316)')
-                            : 'rgba(255,255,255,0.06)',
-                          border: active ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                          color: active ? 'white' : 'rgba(255,255,255,0.5)',
-                          boxShadow: active && !isNone ? '0 4px 20px rgba(249,115,22,0.45)' : 'none',
-                        }}
-                      >
-                        {/* Ripple on select */}
-                        {active && (
-                          <motion.div
-                            initial={{ scale: 0, opacity: 0.6 }}
-                            animate={{ scale: 3, opacity: 0 }}
-                            transition={{ duration: 0.5 }}
-                            className="absolute inset-0 rounded-2xl"
-                            style={{ background: isNone ? 'rgba(255,255,255,0.15)' : 'rgba(251,146,60,0.4)' }}
-                          />
-                        )}
-                        <span className="relative z-10 text-[11px] leading-none">
-                          {isNone ? 'None' : `+₹${amt}`}
-                        </span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-
-                {/* Speed indicator */}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: 'linear-gradient(90deg,#fb923c,#ef4444)' }}
-                      animate={{ width: `${Math.min(100, (liveBoost / 100) * 100)}%` }}
-                      transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-                    />
-                  </div>
-                  <span className="text-[10px] font-bold text-white/40 shrink-0">
-                    {liveBoost >= 100 ? 'Max speed' : liveBoost >= 50 ? 'Fast match' : liveBoost >= 20 ? 'Boosted' : 'Standard'}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+          {/* Boost is on the Order Tracking page (/orders/:id) after redirect */}
         </motion.div>
       )}
     </AnimatePresence>

@@ -5,51 +5,29 @@ import {
   Users, Timer, Sparkles, Star, Flame, CheckCircle,
 } from 'lucide-react';
 
-/* ─── Service tiers ─────────────────────────────────────────────────────── */
-const TIERS = [
-  {
-    key:        'standard',
-    label:      'Standard',
-    desc:       'Available worker · any rating',
-    icon:       '🔧',
-    etaOffset:  0,
-    multiplier: 1.0,
-    badge:      null,
-    badgeCls:   '',
-    ring:       'ring-slate-200',
-    activeBg:   'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-    activeTxt:  'text-white',
-  },
-  {
-    key:        'priority',
-    label:      'Priority',
-    desc:       '4.5★+ rated workers only',
-    icon:       '⭐',
-    etaOffset:  -3,
-    multiplier: 1.2,
-    badge:      'Top Rated',
-    badgeCls:   'bg-amber-100 text-amber-700',
-    ring:       'ring-amber-200',
-    activeBg:   'linear-gradient(135deg, #92400e 0%, #b45309 100%)',
-    activeTxt:  'text-white',
-  },
-  {
-    key:        'express',
-    label:      'Express',
-    desc:       'Nearest worker, instant match',
-    icon:       '⚡',
-    etaOffset:  -6,
-    multiplier: 1.4,
-    badge:      'Quickest',
-    badgeCls:   'bg-indigo-100 text-indigo-700',
-    ring:       'ring-indigo-200',
-    activeBg:   'linear-gradient(135deg, #3730a3 0%, #4f46e5 100%)',
-    activeTxt:  'text-white',
-  },
-];
-
-/* ─── Boost amounts ──────────────────────────────────────────────────────── */
-const BOOSTS = [0, 10, 20, 50, 100];
+/* ─── Tier shape ─────────────────────────────────────────────────────────── */
+function buildTiers(priorityMult, expressMult) {
+  return [
+    {
+      key: 'standard', label: 'Standard', desc: 'Available worker · any rating',
+      icon: '🔧', etaOffset: 0, multiplier: 1.0,
+      badge: null, badgeCls: '', ring: 'ring-slate-200',
+      activeBg: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', activeTxt: 'text-white',
+    },
+    {
+      key: 'priority', label: 'Priority', desc: '4.5★+ rated workers only',
+      icon: '⭐', etaOffset: -3, multiplier: priorityMult,
+      badge: 'Top Rated', badgeCls: 'bg-amber-100 text-amber-700', ring: 'ring-amber-200',
+      activeBg: 'linear-gradient(135deg, #92400e 0%, #b45309 100%)', activeTxt: 'text-white',
+    },
+    {
+      key: 'express', label: 'Express', desc: 'Nearest worker, instant match',
+      icon: '⚡', etaOffset: -6, multiplier: expressMult,
+      badge: 'Quickest', badgeCls: 'bg-indigo-100 text-indigo-700', ring: 'ring-indigo-200',
+      activeBg: 'linear-gradient(135deg, #3730a3 0%, #4f46e5 100%)', activeTxt: 'text-white',
+    },
+  ];
+}
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 function workerCountFromEta(etaMinutes) {
@@ -99,11 +77,26 @@ export default function SmartPricingPanel({
   tipAmount = 0,
   onTipChange,
   promoDiscount = 0,
+  pricingConfig = {},
 }) {
-  const [expanded,  setExpanded]  = useState(false);
-  const [countdown, setCountdown] = useState(null);
-  const [burstId,   setBurstId]   = useState(0);
+  const [expanded,      setExpanded]      = useState(false);
+  const [countdown,     setCountdown]     = useState(null);
+  const [burstId,       setBurstId]       = useState(0);
+  const [pendingBoost,  setPendingBoost]  = useState(null);
+  const [boostConfirm,  setBoostConfirm]  = useState(false);
   const prevTipRef = useRef(tipAmount);
+
+  // Derive tier multipliers from admin config (fall back to defaults)
+  const TIERS = buildTiers(
+    pricingConfig.tierMultiplierPriority ?? 1.2,
+    pricingConfig.tierMultiplierExpress  ?? 1.4,
+  );
+
+  // Boost config from admin
+  const boostEnabled = pricingConfig.boostEnabled ?? true;
+  const BOOST_AMOUNTS = (pricingConfig.boostOptions ?? [10, 20, 30, 50, 100])
+    .filter(n => typeof n === 'number' && n > 0)
+    .slice(0, 5); // max 5 buttons fit the grid
 
   const hasSurge  = quote?.surgeMultiplier > 1;
   const sl        = hasSurge ? surgeLevel(quote.surgeMultiplier) : null;
@@ -145,6 +138,7 @@ export default function SmartPricingPanel({
   if (!quote) return null;
 
   return (
+    <>
     <div className="rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
 
       {/* ── Surge banner ─────────────────────────────────────────────── */}
@@ -301,7 +295,116 @@ export default function SmartPricingPanel({
           </div>
         )}
 
-        {/* Boost is now shown live during the matching overlay after order placement */}
+        {/* ── Worker Boost (Standard tier only, admin-enabled) ──────────── */}
+        {boostEnabled && selectedTier === 'standard' && mode !== 'locked' && (
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: tipAmount > 0
+                ? 'linear-gradient(160deg,#0f172a 0%,#1a1035 100%)'
+                : 'linear-gradient(160deg,#0f172a 0%,#18183a 100%)',
+              border: tipAmount > 0
+                ? '1px solid rgba(249,115,22,0.28)'
+                : '1px solid rgba(255,255,255,0.07)',
+              boxShadow: tipAmount > 0
+                ? '0 6px 28px rgba(249,115,22,0.15)'
+                : '0 4px 16px rgba(15,23,42,0.18)',
+            }}
+          >
+            {/* Active boost strip */}
+            {tipAmount > 0 && (
+              <motion.div
+                className="h-0.5"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                style={{ transformOrigin: 'left', background: 'linear-gradient(90deg,#f97316,#fbbf24)' }}
+              />
+            )}
+            <div className="px-4 pt-3.5 pb-4">
+              {/* Header row */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center"
+                    style={{ background: tipAmount > 0 ? 'rgba(249,115,22,0.15)' : 'rgba(99,102,241,0.12)' }}
+                  >
+                    {tipAmount > 0
+                      ? <Flame size={13} strokeWidth={2} className="text-orange-400" />
+                      : <Zap size={13} strokeWidth={2} className="text-indigo-400" />}
+                  </div>
+                  <div>
+                    <p className="text-[12px] font-black text-white leading-tight">
+                      {tipAmount > 0 ? `₹${tipAmount} boost added` : 'Speed up acceptance'}
+                    </p>
+                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
+                      {tipAmount > 0 ? '100% goes to the worker · attract faster' : 'Add incentive for workers to accept faster'}
+                    </p>
+                  </div>
+                </div>
+                {tipAmount > 0 && (
+                  <motion.button
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    onClick={() => { setPendingBoost(0); setBoostConfirm(true); }}
+                    className="text-[10px] font-bold px-2 py-1 rounded-full"
+                    style={{ background: 'rgba(239,68,68,0.12)', color: 'rgba(248,113,113,0.9)', border: '1px solid rgba(239,68,68,0.2)' }}
+                  >
+                    Remove
+                  </motion.button>
+                )}
+              </div>
+
+              {/* Boost amount buttons */}
+              <div className="grid grid-cols-5 gap-1.5">
+                {BOOST_AMOUNTS.map((amt) => {
+                  const isActive = tipAmount === amt;
+                  return (
+                    <motion.button
+                      key={amt}
+                      onClick={() => { setPendingBoost(amt); setBoostConfirm(true); }}
+                      whileTap={{ scale: 0.87 }}
+                      className="relative h-11 rounded-xl flex flex-col items-center justify-center gap-0.5 overflow-hidden"
+                      style={{
+                        background: isActive
+                          ? 'linear-gradient(135deg,#c2410c,#f97316)'
+                          : 'rgba(255,255,255,0.07)',
+                        border: isActive ? 'none' : '1px solid rgba(255,255,255,0.09)',
+                        boxShadow: isActive ? '0 3px 12px rgba(249,115,22,0.38)' : 'none',
+                      }}
+                      animate={isActive ? { boxShadow: ['0 0 0 0px rgba(249,115,22,0.4)', '0 0 0 6px rgba(249,115,22,0)', '0 0 0 0px rgba(249,115,22,0)'] } : {}}
+                      transition={isActive ? { duration: 1.8, repeat: Infinity } : {}}
+                    >
+                      <span className="text-[10px]">{amt >= 50 ? (amt === 100 ? '🚀' : '🔥') : '⚡'}</span>
+                      <span className="text-[11px] font-black leading-none" style={{ color: isActive ? 'white' : 'rgba(255,255,255,0.55)' }}>
+                        +₹{amt}
+                      </span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              {/* Active boost summary */}
+              <AnimatePresence>
+                {tipAmount > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden mt-3"
+                  >
+                    <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <div className="flex items-center gap-1.5">
+                        <Flame size={11} className="text-orange-400" />
+                        <span className="text-[11px] font-bold text-orange-300">Worker offer boosted</span>
+                      </div>
+                      <span className="text-[12px] font-black text-white">₹{baseTotal + tipAmount}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        )}
 
         {/* ── Price summary ─────────────────────────────────────────────── */}
         <div className="bg-slate-50 rounded-xl overflow-hidden ring-1 ring-slate-100">
@@ -381,5 +484,115 @@ export default function SmartPricingPanel({
 
       </div>
     </div>
+
+    {/* ── Boost confirmation bottom sheet ────────────────────────────────── */}
+    <AnimatePresence>
+      {boostConfirm && (
+        <motion.div
+          key="boost-confirm"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          {/* Backdrop */}
+          <motion.div
+            className="absolute inset-0"
+            style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setBoostConfirm(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          />
+
+          {/* Sheet */}
+          <motion.div
+            className="relative w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl overflow-hidden z-10"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+            style={{ background: 'linear-gradient(160deg,#0f172a 0%,#1a1035 100%)', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/15" />
+            </div>
+
+            <div className="px-6 pt-3 pb-8">
+              {pendingBoost === 0 ? (
+                /* Remove boost confirmation */
+                <>
+                  <p className="text-lg font-black text-white text-center mb-1">Remove ₹{tipAmount} boost?</p>
+                  <p className="text-[13px] text-white/45 text-center mb-6">Worker offer will return to ₹{baseTotal}.</p>
+                  <motion.button
+                    onClick={() => { onTipChange(0); setBoostConfirm(false); setPendingBoost(null); }}
+                    whileTap={{ scale: 0.96 }}
+                    className="w-full py-4 rounded-2xl font-black text-white text-[15px] mb-3"
+                    style={{ background: 'linear-gradient(135deg,#dc2626,#ef4444)', boxShadow: '0 4px 20px rgba(239,68,68,0.35)' }}
+                  >
+                    Yes, remove boost
+                  </motion.button>
+                </>
+              ) : (
+                /* Add boost confirmation */
+                <>
+                  <motion.div
+                    className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg,rgba(249,115,22,0.2),rgba(251,146,60,0.1))', border: '1px solid rgba(249,115,22,0.3)' }}
+                    animate={{ boxShadow: ['0 0 0 0px rgba(249,115,22,0.2)', '0 0 0 10px rgba(249,115,22,0)', '0 0 0 0px rgba(249,115,22,0)'] }}
+                    transition={{ duration: 1.8, repeat: Infinity }}
+                  >
+                    <Zap size={24} strokeWidth={2} className="text-orange-400" />
+                  </motion.div>
+                  <p className="text-lg font-black text-white text-center leading-tight mb-1">
+                    Add ₹{pendingBoost} worker boost?
+                  </p>
+                  <p className="text-[13px] text-white/45 text-center leading-relaxed mb-5">
+                    100% of this goes to the worker as extra earnings.
+                    Workers see the higher offer — much faster acceptance.
+                  </p>
+
+                  {/* Price breakdown */}
+                  <div className="rounded-xl px-4 py-3 mb-5 space-y-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div className="flex justify-between text-[12px]">
+                      <span className="text-white/40">Service price</span>
+                      <span className="text-white/65">₹{tierPrice}</span>
+                    </div>
+                    <div className="flex justify-between text-[12px] text-orange-400">
+                      <span className="flex items-center gap-1"><Zap size={10} strokeWidth={2.5} />Worker boost</span>
+                      <span className="font-bold">+₹{pendingBoost}</span>
+                    </div>
+                    <div className="h-px bg-white/08" />
+                    <div className="flex justify-between">
+                      <span className="text-[12px] text-white/50">New total</span>
+                      <motion.span key={tierPrice + pendingBoost} initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="text-[15px] font-black text-white">
+                        ₹{tierPrice + (pendingBoost || 0)}
+                      </motion.span>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    onClick={() => { onTipChange(pendingBoost); setBoostConfirm(false); setPendingBoost(null); }}
+                    whileTap={{ scale: 0.96 }}
+                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-white text-[15px] mb-3"
+                    style={{ background: 'linear-gradient(135deg,#ea580c,#f97316)', boxShadow: '0 4px 20px rgba(249,115,22,0.40)' }}
+                  >
+                    <Zap size={16} strokeWidth={2.5} />
+                    Add ₹{pendingBoost} boost
+                  </motion.button>
+                </>
+              )}
+
+              <button
+                onClick={() => { setBoostConfirm(false); setPendingBoost(null); }}
+                className="w-full py-3 rounded-2xl text-[13px] font-semibold text-white/40 hover:text-white/60 transition-colors"
+              >
+                {pendingBoost === 0 ? 'Keep boost' : 'Keep standard offer'}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }

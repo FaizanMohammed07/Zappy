@@ -81,8 +81,8 @@ async function refresh(req, res, next) {
     }
     const tokens = await authService.refresh(rt);
     setRtCookie(res, tokens.refreshToken);
-    // Only send access token in body — refresh token stays in cookie.
-    res.json({ accessToken: tokens.accessToken });
+    // Include role so clients can fully restore session without sessionStorage.
+    res.json({ accessToken: tokens.accessToken, role: tokens.role });
   } catch (err) { next(err); }
 }
 

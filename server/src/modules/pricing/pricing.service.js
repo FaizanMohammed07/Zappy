@@ -111,7 +111,9 @@ function toView(doc) {
     minFarePaise: doc.minFarePaise,
     surgeEnabled: doc.surgeEnabled,
     surgeMaxCap: doc.surgeMaxCap,
-    commissionRate: doc.commissionRate,
+    commissionRate:       doc.commissionRate       ?? 0.30,
+    couponCommissionRate: doc.couponCommissionRate ?? 0.15,
+    dispatchEnabled: doc.dispatchEnabled ?? true,   // missing → dispatch always appeared paused
     serviceOverrides: doc.serviceOverrides || [],
     // Dispatch & worker behaviour
     forceAssignBonusPaise:        doc.forceAssignBonusPaise        ?? 1500,
@@ -127,6 +129,11 @@ function toView(doc) {
     // Tip
     tipMaxPaise:                  doc.tipMaxPaise                  ?? 50000,
     tipOptions:                   doc.tipOptions                   ?? [20, 50, 100],
+    // Offer boost
+    boostEnabled:         doc.boostEnabled         ?? true,
+    boostMaxPaise:        doc.boostMaxPaise        ?? 20000,
+    boostOptions:         doc.boostOptions         ?? [10, 20, 30, 50, 100],
+    boostDispatchWeight:  doc.boostDispatchWeight  ?? 1.5,
     // Referral
     referralReferrerBonusPaise:   doc.referralReferrerBonusPaise   ?? 15000,
     referralRefereeBonusPaise:    doc.referralRefereeBonusPaise    ?? 5000,
@@ -135,6 +142,14 @@ function toView(doc) {
     earnedWageAdvanceRate:        doc.earnedWageAdvanceRate        ?? 0.80,
     // Emergency fund
     emergencyFundContributionRate: doc.emergencyFundContributionRate ?? 0.005,
+    // Late arrival penalty
+    lateArrivalPenaltyPaisePerMin: doc.lateArrivalPenaltyPaisePerMin ?? 200,
+    lateArrivalGraceMinutes:       doc.lateArrivalGraceMinutes       ?? 2,
+    // Service tiers
+    tierMultiplierPriority:  doc.tierMultiplierPriority  ?? 1.2,
+    tierMultiplierExpress:   doc.tierMultiplierExpress   ?? 1.4,
+    tierExpressMaxSearchMs:  doc.tierExpressMaxSearchMs  ?? 60000,
+    tierPriorityMaxSearchMs: doc.tierPriorityMaxSearchMs ?? 120000,
   };
 }
 
@@ -147,7 +162,8 @@ function envFallback() {
     minFarePaise: config.pricing.minFare * 100,
     surgeEnabled: true,
     surgeMaxCap: 2.5,
-    commissionRate: 0.30,
+    commissionRate:       0.30,
+    couponCommissionRate: 0.15,
     serviceOverrides: [
       // DISABLED (home/construction kept for reference, will be re-enabled via admin if needed)
       // { service: 'helper', multiplier: 0.9, minFarePaise: 10000 },
@@ -235,6 +251,19 @@ function envFallback() {
       { service: 'pet_vet_assist',    multiplier: 1.2, minFarePaise: 50000  },
       { service: 'pet_training_assist',multiplier: 1.1,minFarePaise: 60000  },
     ],
+    // Late arrival penalty
+    lateArrivalPenaltyPaisePerMin: 200,
+    lateArrivalGraceMinutes:       2,
+    // Offer boost
+    boostEnabled:        true,
+    boostMaxPaise:       20000,
+    boostOptions:        [10, 20, 30, 50, 100],
+    boostDispatchWeight: 1.5,
+    // Service tiers
+    tierMultiplierPriority:  1.2,
+    tierMultiplierExpress:   1.4,
+    tierExpressMaxSearchMs:  60000,
+    tierPriorityMaxSearchMs: 120000,
   };
 }
 

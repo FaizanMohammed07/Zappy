@@ -8,7 +8,8 @@ import {
   Zap, X, ChevronRight, AlertTriangle, Wallet, HeadphonesIcon, FileText,
   Repeat2, CheckCircle2, UserCheck, HelpCircle,
 } from 'lucide-react';
-import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery } from '../services/api';
+import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery, useGetPricingConfigQuery, useSendTipMutation } from '../services/api';
+import BoostOfferCard from '../components/tracking/BoostOfferCard';
 import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
 import { selectOrder, setActiveOrder, setWorkerLocation } from '../modules/order/orderSlice';
 import { selectAuth } from '../modules/auth/authSlice';
@@ -16,6 +17,8 @@ import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
 import PageTransition from '../components/common/PageTransition';
 
 import TipCard from '../components/tracking/TipCard';
+import StatusNotificationBanner from '../components/tracking/StatusNotificationBanner';
+import AnimatedETA from '../components/tracking/AnimatedETA';
 
 import PriceRevisionCard from '../components/tracking/PriceRevisionCard';
 import WarrantyCard from '../components/tracking/WarrantyCard';
@@ -64,6 +67,9 @@ export default function OrderTrackingPage() {
   const matchShownRef      = useRef(false);
   const liveOrder = useSelector(selectOrder);
   const { data: walletData } = useGetWalletQuery();
+  const { data: pricingConfigData } = useGetPricingConfigQuery();
+  const pricingConfig = pricingConfigData?.pricing ?? {};
+  const [sendTip] = useSendTipMutation();
 
   // ── Worker-arrived confirmation flow ──────────────────────────────────────
   // OTP is only revealed after the user explicitly confirms the worker is present.
@@ -139,9 +145,11 @@ export default function OrderTrackingPage() {
   const socketStatus = useSocketStatus();
 
   // Price revision — poll during in_progress / arrived (status is now defined)
+  // Price revision is socket-pushed when the worker requests it — poll at 30s only
+  // as a safety net for missed socket events. 15s was unnecessarily aggressive at scale.
   const { data: revisionData } = useGetPriceRevisionQuery(id, {
     skip: !['in_progress', 'arrived'].includes(status),
-    pollingInterval: 15000,
+    pollingInterval: 30000,
   });
   const pendingRevision = revisionData?.revision;
 
@@ -244,6 +252,15 @@ export default function OrderTrackingPage() {
 
   return (
     <PageTransition>
+    {/* ── Live status notification — fires on every status change ── */}
+    <StatusNotificationBanner
+      status={status}
+      workerName={order.workerName}
+      workerRating={order.workerRating || order.workerJobs ? (order.workerRating ?? null) : null}
+      workerJobs={order.workerJobs}
+      etaMinutes={liveOrder.etaMinutes}
+    />
+
     {/* Cashback celebration popup — fires once after order completes */}
     {cashbackPop && (
       <CashbackCelebration
@@ -252,7 +269,7 @@ export default function OrderTrackingPage() {
         onClose={() => setCashbackPop(null)}
       />
     )}
-    <div className="min-h-screen pb-28" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
+    <div className="min-h-screen pb-[280px]" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
 
       {/* Socket degraded banner — shown when live updates are interrupted */}
       <AnimatePresence>
@@ -379,23 +396,9 @@ export default function OrderTrackingPage() {
               </div>
             </div>
 
-            {/* ETA row */}
-            {['on_the_way', 'arrived'].includes(status) && (
-              <div className="px-4 py-3 flex items-center justify-between bg-blue-50/50">
-                <div className="flex items-center gap-2 text-slate-500">
-                  <Clock size={13} strokeWidth={2} className="text-blue-500" />
-                  <span className="text-xs font-semibold text-blue-700">
-                    {status === 'arrived' ? 'Worker has arrived' : 'Estimated arrival'}
-                  </span>
-                </div>
-                <span className="font-black text-blue-600 text-sm">
-                  {status === 'arrived'
-                    ? '📍 At your location'
-                    : liveOrder.etaMinutes != null
-                    ? `${liveOrder.etaMinutes} min`
-                    : 'Calculating…'}
-                </span>
-              </div>
+            {/* ETA row — animated for all active statuses */}
+            {['assigned', 'on_the_way', 'arrived'].includes(status) && (
+              <AnimatedETA etaMinutes={liveOrder.etaMinutes} status={status} />
             )}
           </motion.div>
         )}
@@ -464,14 +467,42 @@ export default function OrderTrackingPage() {
         </motion.div>
 
         {/* OTP card ─────────────────────────────────────────────────────────
-            • assigned / on_the_way → show OTP upfront (worker hasn't arrived yet,
-              user can have it ready)
-            • arrived → only reveal after user confirms worker is present
+            • assigned / on_the_way → hidden (show lock placeholder)
+            • arrived, not confirmed → show confirmation prompt
+            • arrived + confirmed → reveal OTP
             • in_progress → hide (service already started)                      */}
         <AnimatePresence>
           {order.otp && (
-            // arrived but not yet confirmed → show a "waiting for your confirmation" placeholder
-            status === 'arrived' && !workerConfirmed ? (
+            // assigned / on_the_way → show a locked placeholder so customer knows OTP is coming
+            ['assigned', 'on_the_way'].includes(status) ? (
+              <motion.div
+                key="otp-locked"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="rounded-2xl overflow-hidden ring-1 ring-slate-100"
+                style={{ background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)' }}
+              >
+                <div className="px-4 py-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0">
+                    <ShieldCheck size={18} strokeWidth={2} className="text-slate-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-extrabold text-slate-700">Service OTP — locked</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Revealed when your worker marks arrival</p>
+                  </div>
+                  {/* Blurred digit placeholders */}
+                  <div className="flex gap-1.5 shrink-0">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="w-7 h-8 rounded-lg bg-slate-200 flex items-center justify-center">
+                        <span className="text-sm font-black text-slate-300 blur-[3px]">•</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            ) : status === 'arrived' && !workerConfirmed ? (
+              // arrived but not yet confirmed → show confirmation prompt
               <motion.div
                 key="otp-pending"
                 initial={{ opacity: 0, y: 8 }}
@@ -496,10 +527,7 @@ export default function OrderTrackingPage() {
                   </button>
                 </div>
               </motion.div>
-            ) : (
-              // Show OTP when: not-arrived statuses OR arrived+confirmed
-              ['assigned', 'on_the_way'].includes(status) || (status === 'arrived' && workerConfirmed)
-            ) && (
+            ) : status === 'arrived' && workerConfirmed ? (
               <motion.div
                 key="otp-card"
                 initial={{ opacity: 0, scale: 0.95, y: 8 }}
@@ -537,7 +565,7 @@ export default function OrderTrackingPage() {
                   Tell this code to your worker to start the service
                 </p>
               </motion.div>
-            )
+            ) : null
           )}
         </AnimatePresence>
 
@@ -557,6 +585,20 @@ export default function OrderTrackingPage() {
             </p>
           </div>
         </motion.div>
+
+        {/* ── Boost card — shown while searching for a worker ───────────── */}
+        {status === 'searching' && (pricingConfig.boostEnabled ?? true) && (
+          <motion.div variants={fadeInUp}>
+            <BoostOfferCard
+              orderId={id}
+              baseTotal={order.pricing?.total || 0}
+              sendTip={sendTip}
+              boostOptions={pricingConfig.boostOptions}
+              boostMax={pricingConfig.boostMaxPaise ? Math.round(pricingConfig.boostMaxPaise / 100) : undefined}
+              boostEnabled={pricingConfig.boostEnabled ?? true}
+            />
+          </motion.div>
+        )}
 
         {/* Completion proof photos — shown to customer after job done */}
         {status === 'completed' && order.completionPhotos?.length > 0 && (
@@ -666,7 +708,12 @@ export default function OrderTrackingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <TipCard orderId={id} onDone={refetch} />
+            <TipCard
+              orderId={id}
+              onDone={refetch}
+              tipOptions={pricingConfig.tipOptions}
+              tipMax={pricingConfig.tipMaxPaise ? Math.round(pricingConfig.tipMaxPaise / 100) : undefined}
+            />
           </motion.div>
         )}
 

@@ -9,28 +9,53 @@ import App from './App';
 import './styles/index.css';
 
 /**
+ * Decode a JWT payload without verifying the signature.
+ * Safe here because we only use the payload to restore UI state — the server
+ * validates the token cryptographically on every protected API call.
+ */
+function jwtPayload(token) {
+  try {
+    const [, b64] = token.split('.');
+    const json = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json);
+  } catch { return null; }
+}
+
+/**
  * On page load / refresh the access token is gone (memory-only).
  * Hit /auth/refresh — the httpOnly RT cookie is sent automatically.
  * If it's valid we get a fresh access token and the session is restored silently.
- * If not (cookie expired, revoked) the user lands on the login page. (#78)
+ * If not (cookie expired/revoked/closed-browser) the user lands on the login page.
+ *
+ * Role is decoded from the access token itself so the session is fully restored
+ * even after the browser is closed (sessionStorage is cleared but the RT cookie
+ * survives for 30 days). (#78)
  */
 async function restoreSession() {
   try {
     const res = await fetch('/api/auth/refresh', {
       method: 'POST',
-      credentials: 'include', // send the httpOnly cookie
+      credentials: 'include',            // sends the httpOnly RT cookie
       headers: { 'Content-Type': 'application/json' },
+      body: '{}',                        // empty JSON body so Express parses req.body correctly
     });
     if (!res.ok) return;
     const data = await res.json();
     if (data.accessToken) {
-      const profile = (() => {
+      // Role from server response (primary) or JWT decode (fallback).
+      // Both survive browser close — no dependency on sessionStorage.
+      const claims  = jwtPayload(data.accessToken);
+      const role    = data.role ?? claims?.role ?? null;
+
+      // Merge with any cached profile (name/avatar) if still in sessionStorage
+      const cached  = (() => {
         try { return JSON.parse(sessionStorage.getItem('zappy_profile_v2')); } catch { return null; }
       })();
+
       store.dispatch(setAuth({
         accessToken: data.accessToken,
-        profile: profile,
-        role: profile?.role ?? null,
+        profile: cached ?? { sub: claims?.sub },
+        role,
       }));
     }
   } catch { /* network error — remain logged out */ }

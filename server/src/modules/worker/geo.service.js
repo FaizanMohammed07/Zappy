@@ -24,8 +24,11 @@ async function markOnline(worker) {
   pipe.hset(AVAIL_HASH_KEY, String(_id), isAvailable ? '1' : '0');
   pipe.zadd(ALIVE_ZSET_KEY, now, String(_id)); // heartbeat
   for (const skill of skills) pipe.sadd(`${SKILLS_SET_PREFIX}${skill}`, String(_id));
-  pipe.expire(ONLINE_GEO_KEY, 3600);
-  pipe.expire(ALIVE_ZSET_KEY, 3600);
+  // 10-minute TTL: workers:alive heartbeat re-registers every ~30s via location update,
+  // so any worker silent for >10 min is genuinely offline. 1-hour TTL caused stale
+  // phantom workers to appear in dispatch searches after ungraceful disconnects.
+  pipe.expire(ONLINE_GEO_KEY, 600);
+  pipe.expire(ALIVE_ZSET_KEY, 600);
   await pipe.exec();
 }
 

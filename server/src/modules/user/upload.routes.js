@@ -16,21 +16,31 @@ const CONTENT_TYPE_EXTS = {
   'image/webp':       ['.webp'],
   'image/heic':       ['.heic'],
   'application/pdf':  ['.pdf'],
+  // Audio — voice tip notes recorded in-browser
+  'audio/webm':       ['.webm'],
+  'audio/mp4':        ['.mp4', '.m4a'],
+  'audio/ogg':        ['.ogg', '.oga'],
 };
+
+// Audio content types skip the extension check (browser blobs have no extension)
+const AUDIO_TYPES = new Set(['audio/webm', 'audio/mp4', 'audio/ogg']);
 
 router.post(
   '/presign',
   authenticate,
   validate(Joi.object({
-    folder: Joi.string().valid('kyc', 'profile', 'order-proof', 'vehicle-health', 'completion-photos').required(),
+    folder: Joi.string().valid(
+      'kyc', 'profile', 'order-proof', 'vehicle-health',
+      'completion-photos', 'order-images', 'voice-tips'
+    ).required(),
     contentType: Joi.string().valid(...Object.keys(CONTENT_TYPE_EXTS)).required(),
     // Optional original filename — used for extension validation only; never stored.
     filename: Joi.string().max(260).optional().allow('', null),
   })),
   (req, res, next) => {
-    // Extension guard: if a filename is provided, its extension must match contentType. (#80)
     const { filename, contentType } = req.body;
-    if (filename) {
+    // Audio blobs recorded in-browser have no filename — skip extension check.
+    if (filename && !AUDIO_TYPES.has(contentType)) {
       const ext = ('.' + filename.split('.').pop()).toLowerCase();
       const allowed = CONTENT_TYPE_EXTS[contentType] || [];
       if (!allowed.includes(ext)) {

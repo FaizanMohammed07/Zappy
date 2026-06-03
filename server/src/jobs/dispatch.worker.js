@@ -107,9 +107,23 @@ async function processDispatchJob(job) {
   // Decrement zone counter when this job exits (success or failure).
   const releaseZoneSlot = () => redis.decr(zoneKey).catch(() => {});
   try {
-  const radiusSteps  = config.dispatch.radiusSteps;
-  const stepWindowMs = config.dispatch.stepWindowMs;
-  const minSearchMs  = config.dispatch.minSearchMs;   // 5 minutes
+  const radiusSteps = config.dispatch.radiusSteps;
+
+  // Tier-aware dispatch windows.
+  // Express: 15s per step, 60s total before force-assign (worker within 1 min guaranteed).
+  // Priority: 25s per step, 2 min total.
+  // Standard: config default (35s per step, 5 min total).
+  const orderTier = order.tier || 'standard';
+  const stepWindowMs = orderTier === 'express'
+    ? 15000
+    : orderTier === 'priority'
+      ? 25000
+      : config.dispatch.stepWindowMs;
+  const minSearchMs = orderTier === 'express'
+    ? (cfg.tierExpressMaxSearchMs ?? 60000)
+    : orderTier === 'priority'
+      ? (cfg.tierPriorityMaxSearchMs ?? 120000)
+      : config.dispatch.minSearchMs;
 
   const alreadyNotified = new Set(
     (order.dispatch?.attemptedWorkerIds || []).map(String)
@@ -231,6 +245,15 @@ async function processDispatchJob(job) {
           : null,
         etaMinutes:      order.pricing?.etaMinutes || null,
         expiresAt:       expiresAt.toISOString(),
+        tier:            order.tier || 'standard',
+        tierMultiplier:  order.pricing?.tierMultiplier || 1.0,
+        // Job context — worker reads these to prepare before arriving
+        description:     order.description || null,
+        images:          (order.images || []).slice(0, 3), // max 3 thumbnails in offer card
+        diagnosisUrgency: order.diagnosisUrgency || 'normal',
+        requiredTools:   order.requiredTools || [],
+        vehicleType:     order.vehicleType || null,
+        deviceBrand:     order.deviceBrand || null,
       };
 
       const pubMessages = batchWorkers.map((workerId) =>

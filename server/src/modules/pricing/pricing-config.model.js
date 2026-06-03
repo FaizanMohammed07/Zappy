@@ -38,6 +38,9 @@ const pricingConfigSchema = new mongoose.Schema(
 
     // Commission (workers' platform cut)
     commissionRate: { type: Number, default: 0.30, min: 0, max: 0.5 }, // 30%
+    // Reduced commission rate when customer used a coupon/promo code.
+    // Platform absorbs the coupon marketing cost; worker keeps more.
+    couponCommissionRate: { type: Number, default: 0.15, min: 0, max: 0.5 }, // 15%
 
     // ── Dispatch kill-switch ─────────────────────────────────────────────────
     // When false, the dispatch worker re-queues all jobs with a 60s delay instead
@@ -87,6 +90,23 @@ const pricingConfigSchema = new mongoose.Schema(
 
     // ── Emergency fund ───────────────────────────────────────────────────────
     emergencyFundContributionRate: { type: Number, default: 0.005 }, // 0.5% of commission
+
+    // ── Late arrival penalty ─────────────────────────────────────────────────
+    // Deducted from worker earnings per extra minute beyond ETA.
+    // Set to 0 to disable. Default: ₹2/min (200 paise).
+    lateArrivalPenaltyPaisePerMin: { type: Number, default: 200, min: 0 },
+    // Grace period before penalty kicks in (minutes). Default: 2 min buffer.
+    lateArrivalGraceMinutes: { type: Number, default: 2, min: 0 },
+
+    // ── Service tiers (booking-time speed/quality premium) ────────────────────
+    // Multipliers applied on top of the base quote price.
+    // Priority: 4.5★+ workers only. Express: nearest worker, instant match.
+    tierMultiplierPriority: { type: Number, default: 1.2, min: 1.0, max: 3.0 },
+    tierMultiplierExpress:  { type: Number, default: 1.4, min: 1.0, max: 3.0 },
+    // Max search window before force-assign kicks in (milliseconds).
+    // Express = 60s, Priority = 2 min, Standard = 5 min (system default).
+    tierExpressMaxSearchMs:  { type: Number, default: 60000 },
+    tierPriorityMaxSearchMs: { type: Number, default: 120000 },
 
     isActive: { type: Boolean, default: false }, // exactly one active — unique index below
 

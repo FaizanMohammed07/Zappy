@@ -15,9 +15,9 @@ const schema = Joi.object({
   AWS_SECRET_ACCESS_KEY: Joi.string().required(),
   DISPATCH_RADIUS_KM: Joi.number().default(5),
   DISPATCH_MAX_CANDIDATES: Joi.number().default(20),
-  DISPATCH_OFFER_TIMEOUT_MS: Joi.number().default(30000),
-  DISPATCH_STEP_WINDOW_MS: Joi.number().default(30000),    // ms per radius step
-  DISPATCH_MIN_SEARCH_MS: Joi.number().default(300000),    // 5-min minimum before force-assign
+  DISPATCH_OFFER_TIMEOUT_MS: Joi.number().default(35000),
+  DISPATCH_STEP_WINDOW_MS: Joi.number().default(35000),    // ms per radius step (35s)
+  DISPATCH_MIN_SEARCH_MS: Joi.number().default(300000),    // 5-min minimum before force-assign (standard tier)
   DISPATCH_MIN_WORKER_RATING: Joi.number().default(3.0),   // skip workers rated below this
   DISPATCH_FORCE_ASSIGN_RADIUS_KM: Joi.number().default(20), // max radius for force-assign
   BASE_FEE: Joi.number().default(40),
@@ -70,8 +70,8 @@ module.exports = {
     minSearchMs:         env.DISPATCH_MIN_SEARCH_MS,
     minWorkerRating:     env.DISPATCH_MIN_WORKER_RATING,
     forceAssignRadiusKm: env.DISPATCH_FORCE_ASSIGN_RADIUS_KM,
-    // 10 steps × 30s = exactly 5 minutes of voluntary search before force-assign.
-    // Starts hyper-local (50m) so the nearest specialist always gets first shot.
+    // Standard: 10 steps × 35s ≈ 5.8 min before force-assign.
+    // Express overrides to 15s/step, 60s total. Priority: 25s/step, 2 min total.
     radiusSteps: [0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 3.5, 5.0, 8.0, 12.0],
   },
   pricing: {

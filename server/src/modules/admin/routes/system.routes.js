@@ -171,8 +171,11 @@ router.post(
       }
 
       await notificationsQueue.add('push', {
-        recipientKind, title, body: body || '', deepLink, type,
+        title,
+        body:       body || '',
         bulkTokens: allTokens,
+        // data is what FCM puts in the notification payload (deepLink, type, etc.)
+        data: { deepLink: deepLink || '/', type: type || 'promotional', sentByAdmin: String(req.auth.sub) },
         sentByAdmin: String(req.auth.sub),
       });
 

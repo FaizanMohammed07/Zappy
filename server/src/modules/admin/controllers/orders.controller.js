@@ -3,10 +3,14 @@ const auditService = require('../audit.service');
 
 async function listOrders(req, res, next) {
   try {
-    const { status, service, city, from, to, page = 1, limit = 50 } = req.query;
+    const { status, service, city, from, to, reconciliationRequired, page = 1, limit = 50 } = req.query;
     const q = {};
     if (status) q.status = status;
     if (service) q.service = service;
+    // Reconciliation filter: ops queue for payment issues needing manual review
+    if (reconciliationRequired === 'true' || reconciliationRequired === true) {
+      q['payment.reconciliationRequired'] = true;
+    }
     // Date range filter
     if (from || to) {
       q.createdAt = {};
