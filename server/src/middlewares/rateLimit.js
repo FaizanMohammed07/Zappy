@@ -32,10 +32,11 @@ function makeLimiter({ windowMs, max, prefix, skipFailedRequests = false }) {
 // ── Global: 200 req / 15s per IP ────────────────────────────────────────────
 // Tighter window (15s vs 60s) means a viral spike hits the limiter faster
 // without punishing normal users who spread 300 req over a full minute. (#63)
-const globalLimiter   = makeLimiter({ windowMs: 15_000,     max: 50,  prefix: 'g'      });
+// 200/15s per IP — dashboard fires 6-8 concurrent RTK queries on mount, refetches on focus
+const globalLimiter   = makeLimiter({ windowMs: 15_000,     max: 200, prefix: 'g'      });
 
-// ── Auth: 10 req / min (unchanged — already tight) ──────────────────────────
-const authLimiter     = makeLimiter({ windowMs: 60_000,     max: 10,  prefix: 'auth'   });
+// ── Auth: 20 req / min — OTP dev testing fires frequently ───────────────────
+const authLimiter     = makeLimiter({ windowMs: 60_000,     max: 20,  prefix: 'auth'   });
 
 // ── Admin auth: 3 attempts per 15 min per IP (#79) ──────────────────────────
 // Much stricter than the general authLimiter. Brute-forcing admin credentials

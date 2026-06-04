@@ -41,51 +41,51 @@ export default function Audit() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {data?.items?.map((log) => (
-                <Fragment key={log._id}>
-                  <tr className="hover:bg-slate-50/60 transition-colors">
-                    <Td muted className="whitespace-nowrap">{fmtDate(log.createdAt)}</Td>
-                    <Td>
-                      <p className="font-semibold text-slate-900 text-xs">{log.adminId?.name || log.adminId?.email || '—'}</p>
-                      <p className="text-[11px] text-slate-400">{log.adminId?.email}</p>
-                    </Td>
-                    <Td>
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold capitalize">
-                        {log.action?.replace(/_/g, ' ')}
-                      </span>
-                    </Td>
-                    <Td muted>
-                      {log.targetKind && (
-                        <span className="capitalize">{log.targetKind}</span>
-                      )}
-                      {log.targetId && (
-                        <span className="text-[11px] text-slate-400 ml-1">…{log.targetId.toString().slice(-6)}</span>
-                      )}
-                    </Td>
-                    <Td>
-                      {log.changes && Object.keys(log.changes).length > 0 && (
-                        <button
-                          onClick={() => setExpanded(expanded === log._id ? null : log._id)}
-                          className="text-xs text-blue-600 hover:underline">
-                          {expanded === log._id ? 'hide' : 'view changes'}
-                        </button>
-                      )}
-                    </Td>
-                  </tr>
-                  {expanded === log._id && log.changes && (
-                    <tr className="bg-slate-50">
-                      <td colSpan={5} className="px-4 py-3">
-                        <pre className="text-[11px] text-slate-600 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
-                          {JSON.stringify(log.changes, null, 2)}
-                        </pre>
-                      </td>
+              {data?.logs?.map((log) => {
+                const hasDiff = log.before != null || log.after != null;
+                return (
+                  <Fragment key={log._id}>
+                    <tr className="hover:bg-slate-50/60 transition-colors">
+                      <Td muted className="whitespace-nowrap">{fmtDate(log.at || log.createdAt)}</Td>
+                      <Td>
+                        <p className="font-semibold text-slate-900 text-xs">{log.actor?.email || log.actor?.kind || '—'}</p>
+                        <p className="text-[11px] text-slate-400 capitalize">{log.actor?.kind}</p>
+                      </Td>
+                      <Td>
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold capitalize">
+                          {log.action?.replace(/_/g, ' ')}
+                        </span>
+                      </Td>
+                      <Td muted>
+                        {log.target?.kind && <span className="capitalize">{log.target.kind}</span>}
+                        {log.target?.id && (
+                          <span className="text-[11px] text-slate-400 ml-1">…{String(log.target.id).slice(-6)}</span>
+                        )}
+                      </Td>
+                      <Td>
+                        {hasDiff && (
+                          <button onClick={() => setExpanded(expanded === log._id ? null : log._id)}
+                            className="text-xs text-blue-600 hover:underline">
+                            {expanded === log._id ? 'hide' : 'view changes'}
+                          </button>
+                        )}
+                      </Td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
+                    {expanded === log._id && hasDiff && (
+                      <tr className="bg-slate-50">
+                        <td colSpan={5} className="px-4 py-3">
+                          <pre className="text-[11px] text-slate-600 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
+                            {JSON.stringify({ before: log.before, after: log.after }, null, 2)}
+                          </pre>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
-          {!data?.items?.length && !isFetching && <EmptyState message="No audit logs" icon={Shield} />}
+          {!data?.logs?.length && !isFetching && <EmptyState message="No audit logs" icon={Shield} />}
         </div>
         <div className="px-4 py-3 border-t border-slate-100">
           <Pagination page={page} total={data?.total} onPrev={() => setPage(p => p - 1)} onNext={() => setPage(p => p + 1)} />

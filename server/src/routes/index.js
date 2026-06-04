@@ -23,6 +23,7 @@ const payoutRoutes = require('../modules/payout/payout.routes');
 const engagementRoutes = require('../modules/engagement/engagement.routes');
 const adRoutes = require('../modules/ads/ad.routes');
 const promoRoutes = require('../modules/promo/promo.routes');
+const { router: eventRoutes, adminRouter: eventAdminRoutes, partnerRouter: eventPartnerRoutes } = require('../modules/events/event.routes');
 
 function mountRoutes(app) {
   const slug = process.env.ADMIN_LOGIN_SLUG;
@@ -66,6 +67,11 @@ function mountRoutes(app) {
   app.use(`/api/${slug}/ads`, adRoutes.adminRouter);
   app.use('/api/promos', promoRoutes);
   app.use(`/api/${slug}/promos`, promoRoutes.adminRouter);
+
+  // Event Commerce
+  app.use('/api/events/partner', eventPartnerRoutes);  // MUST be before /api/events to avoid :id conflict
+  app.use('/api/events', eventRoutes);
+  app.use(`/api/${slug}/events`, eventAdminRoutes);
 
   // Block anyone probing the old /api/admin path
   app.use('/api/admin', (req, res) => res.status(404).json({ error: 'Not found' }));

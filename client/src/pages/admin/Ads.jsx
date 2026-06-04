@@ -2,12 +2,14 @@ import { useState } from 'react';
 import {
   useAdminListAdsQuery, useAdminCreateAdMutation,
   useAdminUpdateAdMutation, useAdminDeleteAdMutation,
+  useAdminApproveAdMutation, useAdminRejectAdMutation,
+  useAdminAdWalletsQuery,
 } from '../../services/api';
 import {
   SectionHeader, Card, FormRow, Input, Select, SaveBtn, PageLoader, EmptyState,
   StatCard, Pagination,
 } from './_shared';
-import { Megaphone, Plus, Pencil, Trash2, Eye, MousePointerClick, DollarSign, Pause, Play } from 'lucide-react';
+import { Megaphone, Plus, Pencil, Trash2, Eye, MousePointerClick, DollarSign, Pause, Play, CheckCircle, XCircle, Wallet, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const TYPE_OPTIONS = [
@@ -32,10 +34,13 @@ const BILLING_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = [
-  { value: 'draft',     label: 'Draft'     },
-  { value: 'active',    label: 'Active'    },
-  { value: 'paused',    label: 'Paused'    },
-  { value: 'completed', label: 'Completed' },
+  { value: 'draft',            label: 'Draft'            },
+  { value: 'pending_approval', label: 'Pending Approval' },
+  { value: 'active',           label: 'Active'           },
+  { value: 'paused',           label: 'Paused'           },
+  { value: 'completed',        label: 'Completed'        },
+  { value: 'rejected',         label: 'Rejected'         },
+  { value: 'exhausted',        label: 'Exhausted'        },
 ];
 
 const BEHAVIOR_OPTIONS = [
@@ -61,14 +66,22 @@ function nextMonth() { const d = new Date(); d.setMonth(d.getMonth()+1); return 
 export default function Ads() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [activeView, setActiveView] = useState('campaigns'); // 'campaigns' | 'wallets'
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [rejectId, setRejectId] = useState(null);
+  const [rejectNote, setRejectNote] = useState('');
   const [form, setForm] = useState({ ...EMPTY_FORM, schedule: { startAt: today(), endAt: nextMonth(), impressionsLimit: 0 } });
 
-  const { data, isLoading, isFetching } = useAdminListAdsQuery({ status: statusFilter || undefined, page });
+  const { data, isLoading, isFetching, refetch } = useAdminListAdsQuery({ status: statusFilter || undefined, page });
+  const { data: walletsData } = useAdminAdWalletsQuery({}, { skip: activeView !== 'wallets' });
   const [createAd, { isLoading: creating }] = useAdminCreateAdMutation();
   const [updateAd, { isLoading: updating }] = useAdminUpdateAdMutation();
   const [deleteAd] = useAdminDeleteAdMutation();
+  const [approveAd] = useAdminApproveAdMutation();
+  const [rejectAd]  = useAdminRejectAdMutation();
+
+  const pendingCount = (data?.ads || []).filter(a => a.status === 'pending_approval').length;
 
   const ads = data?.ads || [];
   const totalPages = data?.totalPages || 1;
@@ -147,29 +160,104 @@ export default function Ads() {
 
   async function handleDelete(id) {
     if (!window.confirm('Delete this campaign?')) return;
-    try {
-      await deleteAd(id).unwrap();
-      toast.success('Deleted');
-    } catch { toast.error('Delete failed'); }
+    try { await deleteAd(id).unwrap(); toast.success('Deleted'); }
+    catch { toast.error('Delete failed'); }
   }
 
   async function toggleStatus(ad) {
     const next = ad.status === 'active' ? 'paused' : 'active';
-    try {
-      await updateAd({ id: ad._id, status: next }).unwrap();
-      toast.success(next === 'active' ? 'Campaign activated' : 'Campaign paused');
-    } catch { toast.error('Update failed'); }
+    try { await updateAd({ id: ad._id, status: next }).unwrap(); toast.success(next === 'active' ? 'Activated' : 'Paused'); }
+    catch { toast.error('Update failed'); }
+  }
+
+  async function handleApprove(id) {
+    try { await approveAd(id).unwrap(); toast.success('Campaign approved & live'); refetch(); }
+    catch { toast.error('Approval failed'); }
+  }
+
+  async function handleReject() {
+    if (!rejectNote.trim()) return toast.error('Enter rejection reason');
+    try { await rejectAd({ id: rejectId, note: rejectNote }).unwrap(); toast.success('Campaign rejected'); setRejectId(null); setRejectNote(''); refetch(); }
+    catch { toast.error('Failed'); }
   }
 
   if (isLoading) return <PageLoader />;
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Ad Campaigns" subtitle="Create and manage promotional campaigns across the platform.">
-        <button onClick={openCreate} className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-          <Plus size={15} /> New Campaign
-        </button>
+      <SectionHeader title="Ad Campaigns" subtitle="Create, approve and manage promotional campaigns.">
+        <div className="flex gap-2">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+            {[['campaigns','Campaigns'],['wallets','Wallets']].map(([v,l]) => (
+              <button key={v} onClick={() => setActiveView(v)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeView === v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <button onClick={openCreate} className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+            <Plus size={15} /> New Campaign
+          </button>
+        </div>
       </SectionHeader>
+
+      {/* Pending approval alert */}
+      {pendingCount > 0 && activeView === 'campaigns' && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Clock size={15} className="text-amber-600" />
+            <p className="text-sm font-bold text-amber-800">{pendingCount} campaign{pendingCount !== 1 ? 's' : ''} awaiting approval</p>
+          </div>
+          <button onClick={() => setStatusFilter('pending_approval')} className="text-xs text-amber-700 font-bold hover:underline">Review →</button>
+        </div>
+      )}
+
+      {/* Reject modal */}
+      {rejectId && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm space-y-3">
+            <p className="font-bold text-slate-900">Reject Campaign</p>
+            <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} rows={3} placeholder="Rejection reason (sent to advertiser)…"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-red-400 resize-none" />
+            <div className="flex gap-2">
+              <button onClick={handleReject} className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700">Confirm Reject</button>
+              <button onClick={() => { setRejectId(null); setRejectNote(''); }} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-medium">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wallets view */}
+      {activeView === 'wallets' && (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-100">
+                <tr className="text-left">
+                  {['Advertiser', 'Balance', 'Total Added', 'Total Spent', 'Transactions'].map(h => (
+                    <th key={h} className="px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {(walletsData?.wallets || []).map(w => (
+                  <tr key={w._id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-slate-900 text-sm">{w.advertiserName || String(w.advertiserId).slice(-6)}</p>
+                      <p className="text-[11px] text-slate-400 capitalize">{w.advertiserKind}</p>
+                    </td>
+                    <td className="px-4 py-3 font-black text-emerald-600">₹{Math.round((w.creditsPaise||0)/100).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-slate-600">₹{Math.round((w.lifetimeTopUpPaise||0)/100).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-red-500">₹{Math.round((w.lifetimeSpentPaise||0)/100).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-slate-400">{(w.ledger||[]).length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!(walletsData?.wallets?.length) && <div className="text-center py-8 text-slate-400 text-sm">No advertiser wallets yet</div>}
+          </div>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -241,10 +329,22 @@ export default function Ads() {
                         }`}>{ad.status}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <button onClick={() => toggleStatus(ad)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500" title={ad.status === 'active' ? 'Pause' : 'Activate'}>
-                            {ad.status === 'active' ? <Pause size={13} /> : <Play size={13} />}
-                          </button>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {ad.status === 'pending_approval' && (
+                            <>
+                              <button onClick={() => handleApprove(ad._id)} title="Approve" className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600">
+                                <CheckCircle size={13} />
+                              </button>
+                              <button onClick={() => { setRejectId(ad._id); setRejectNote(''); }} title="Reject" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500">
+                                <XCircle size={13} />
+                              </button>
+                            </>
+                          )}
+                          {['active','paused'].includes(ad.status) && (
+                            <button onClick={() => toggleStatus(ad)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500" title={ad.status === 'active' ? 'Pause' : 'Activate'}>
+                              {ad.status === 'active' ? <Pause size={13} /> : <Play size={13} />}
+                            </button>
+                          )}
                           <button onClick={() => openEdit(ad)} className="p-1.5 rounded hover:bg-blue-50 text-blue-600">
                             <Pencil size={13} />
                           </button>

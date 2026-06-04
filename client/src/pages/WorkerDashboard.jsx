@@ -18,7 +18,7 @@ import {
   useGetWorkerMeQuery, useGoOnlineMutation, useGoOfflineMutation,
   useGetEarningsQuery, useWorkerAcceptMutation, useWorkerRejectMutation,
   useGetKycStatusQuery, useGetWorkerOrdersQuery, useGetDemandZonesQuery,
-  useGetWorkerLeaderboardQuery, useListNotificationsQuery,
+  useGetWorkerLeaderboardQuery, useListNotificationsQuery, useLogoutMutation,
 } from '../services/api';
 import { useWorkerOfferSocket } from '../hooks/useSocket';
 import { setOffer, clearOffer, setOnline, selectWorker } from '../modules/worker/workerSlice';
@@ -192,6 +192,7 @@ export default function WorkerDashboard() {
   const [goOffline] = useGoOfflineMutation();
   const [acceptOffer, { isLoading: accepting }] = useWorkerAcceptMutation();
   const [rejectOffer] = useWorkerRejectMutation();
+  const [callLogout] = useLogoutMutation();
 
   const { getCurrent, watch } = useGeolocation();
   const watchRef   = useRef(null);
@@ -462,7 +463,7 @@ export default function WorkerDashboard() {
               {/* Notification bell */}
               <NotifBell token={token} onTap={() => nav('/worker/notifications')} />
               <motion.button
-                onClick={() => { dispatch(logout()); nav('/worker/login'); }}
+                onClick={async () => { try { await callLogout().unwrap(); } catch {} dispatch(logout()); nav('/worker/login'); }}
                 className="flex items-center gap-1.5 text-[11px] font-bold text-white/50 px-3.5 py-2 rounded-full transition-colors hover:text-white/80"
                 style={{ border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
                 whileTap={{ scale: 0.93 }}

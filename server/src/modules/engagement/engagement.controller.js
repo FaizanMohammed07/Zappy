@@ -162,14 +162,39 @@ async function addTicketMessage(req, res, next) {
 
 async function adminListTickets(req, res, next) {
   try {
+    const page  = Math.max(1, Number(req.query.page) || 1);
+    const limit = 50;
     const filter = {};
-    if (req.query.status) filter.status = req.query.status;
-    if (req.query.priority) filter.priority = req.query.priority;
-    const items = await SupportTicket.find(filter)
-      .sort({ priority: -1, slaDeadline: 1 })
-      .limit(100)
-      .lean();
-    res.json({ tickets: items });
+    if (req.query.status)   filter.status   = req.query.status;
+    if (req.query.priority) filter.priority  = req.query.priority;
+    if (req.query.category) filter.category  = req.query.category;
+    const [items, total] = await Promise.all([
+      SupportTicket.find(filter)
+        .sort({ priority: -1, slaDeadline: 1, createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      SupportTicket.countDocuments(filter),
+    ]);
+    res.json({ tickets: items, total, page, totalPages: Math.ceil(total / limit) });
+  } catch (err) { next(err); }
+}
+
+async function adminReplyTicket(req, res, next) {
+  try {
+    const ticket = await SupportTicket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    ticket.messages.push({ from: 'admin', fromId: req.auth.sub, text: req.body.text, at: new Date() });
+    if (!ticket.firstResponseAt) ticket.firstResponseAt = new Date();
+    if (!ticket.assignedTo) ticket.assignedTo = req.auth.sub;
+    if (req.body.status) {
+      ticket.status = req.body.status;
+      if (req.body.status === 'resolved') ticket.resolvedAt = new Date();
+    } else if (ticket.status === 'open') {
+      ticket.status = 'in_progress';
+    }
+    await ticket.save();
+    res.json({ ticket });
   } catch (err) { next(err); }
 }
 
@@ -219,6 +244,6 @@ module.exports = {
   sendChat, listChat, startCall, callProviderWebhook,
   getWorkerPublicProfile, submitFeedback,
   createTicket, listMyTickets, addTicketMessage,
-  adminListTickets, adminUpdateTicketStatus,
+  adminListTickets, adminUpdateTicketStatus, adminReplyTicket,
   getSuggestions,
 };

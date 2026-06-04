@@ -47,6 +47,25 @@ async function loginWorker(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function loginPartner(req, res, next) {
+  try {
+    const result = await authService.loginEventPartnerWithOtp(req.body);
+    setRtCookie(res, result.refreshToken);
+    res.json({ accessToken: result.accessToken, partner: result.partner });
+  } catch (err) { next(err); }
+}
+
+async function googlePartnerLogin(req, res, next) {
+  try {
+    const result = await authService.loginPartnerWithGoogle(req.body);
+    if (result.needsRegistration) {
+      return res.json({ needsRegistration: true, googleId: result.googleId, email: result.email, suggestedName: result.suggestedName });
+    }
+    setRtCookie(res, result.refreshToken);
+    res.json({ accessToken: result.accessToken, partner: result.partner, isNew: result.isNew });
+  } catch (err) { next(err); }
+}
+
 async function loginAdmin(req, res, next) {
   const auditService = require('../admin/audit.service');
   try {
@@ -95,4 +114,4 @@ async function logout(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { requestOtp, loginUser, loginWorker, loginAdmin, refresh, logout };
+module.exports = { requestOtp, loginUser, loginWorker, loginPartner, googlePartnerLogin, loginAdmin, refresh, logout };

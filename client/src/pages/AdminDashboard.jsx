@@ -8,9 +8,10 @@ import {
   FileText, LogOut, Menu, X, ChevronRight, FileCheck, Crown,
   Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
   HeadphonesIcon, Radio, Globe, Layers, Zap, Sparkles, TrendingUp,
-  Shield,
+  Shield, PartyPopper,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
+import { useLogoutMutation } from '../services/api';
 import { adminPath } from '../config/admin';
 
 import Overview from './admin/Overview';
@@ -41,6 +42,7 @@ import Rewards from './admin/Rewards';
 import BusinessIntelligence from './admin/BusinessIntelligence';
 import NotificationsAdmin from './admin/Notifications';
 import ShieldFund from './admin/ShieldFund';
+import Events from './admin/Events';
 
 /* ─── Navigation groups ────────────────────────────────────────────────── */
 const NAV_GROUPS = [
@@ -91,6 +93,12 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: 'Events',
+    items: [
+      { id: 'events', label: 'Event Commerce', icon: PartyPopper },
+    ],
+  },
+  {
     label: 'System',
     items: [
       { id: 'flags',        label: 'Feature Flags',    icon: ToggleRight },
@@ -109,6 +117,7 @@ const SECTION_MAP = {
   rewards: Rewards, shield: ShieldFund,
   audit: Audit, plans: AdminPlans, liveops: LiveOps, alerts: Alerts,
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
+  events: Events,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */
@@ -154,6 +163,7 @@ export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dispatch  = useDispatch();
   const navigate  = useNavigate();
+  const [callLogout] = useLogoutMutation();
 
   const Section = SECTION_MAP[active] || Overview;
   const activeLabel = ALL_NAV.find(n => n.id === active)?.label || 'Dashboard';
@@ -163,7 +173,8 @@ export default function AdminDashboard() {
     setSidebarOpen(false);
   }, []);
 
-  function doLogout() {
+  async function doLogout() {
+    try { await callLogout().unwrap(); } catch {}
     dispatch(logout());
     navigate(adminPath('/login'), { replace: true });
   }

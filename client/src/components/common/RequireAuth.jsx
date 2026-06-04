@@ -8,12 +8,17 @@ export function RequireAuth({ role, children }) {
   const loc = useLocation();
 
   if (!accessToken) {
-    const loginPath = role === 'worker' ? '/worker/login' : role === 'admin' ? adminPath('/login') : '/login';
+    const loginPath = role === 'worker' ? '/worker/login'
+      : role === 'admin' ? adminPath('/login')
+      : role === 'event_partner' ? '/partner/login'
+      : '/login';
     return <Navigate to={loginPath} state={{ from: loc.pathname }} replace />;
   }
   if (role && currentRole !== role) {
-    // Logged in with wrong role for this route → send to their own home
-    const home = currentRole === 'worker' ? '/worker' : currentRole === 'admin' ? adminPath('/dashboard') : '/';
+    const home = currentRole === 'worker' ? '/worker'
+      : currentRole === 'admin' ? adminPath('/dashboard')
+      : currentRole === 'event_partner' ? '/partner'
+      : '/';
     return <Navigate to={home} replace />;
   }
   return children;
