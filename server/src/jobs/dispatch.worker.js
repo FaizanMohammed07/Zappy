@@ -32,7 +32,7 @@ const WorkerModel = require('../modules/worker/worker.model');
 const geoService = require('../modules/worker/geo.service');
 const config = require('../config');
 const logger = require('../utils/logger');
-const { QUEUES, notificationsQueue, dispatchQueue } = require('./index');
+const { QUEUES, notificationsQueue, dispatchQueue, emergencyDispatchQueue } = require('./index');
 const pricingService = require('../modules/pricing/pricing.service');
 
 const MAX_BATCH_SIZE     = 10;
@@ -53,7 +53,8 @@ async function processDispatchJob(job) {
   const cfg = await pricingService.getActiveConfig();
   if (!cfg.dispatchEnabled) {
     logger.warn({ orderId }, '[DISPATCH] Dispatch paused by admin — re-queuing in 60s');
-    await dispatchQueue.add('dispatch', job.data, { delay: 60_000 });
+    const pausedTargetQueue = job.data.isEmergency ? emergencyDispatchQueue : dispatchQueue;
+    await pausedTargetQueue.add('dispatch', job.data, { delay: 60_000 });
     return { ok: false, reason: 'dispatch_paused' };
   }
 
@@ -346,12 +347,13 @@ async function processDispatchJob(job) {
     const nextRetry = retryCount + 1;
     logger.info({ orderId, nextRetry }, '[DISPATCH] No workers found — scheduling retry');
 
-    await dispatchQueue.add(
+    const retryTargetQueue = job.data.isEmergency ? emergencyDispatchQueue : dispatchQueue;
+    await retryTargetQueue.add(
       'dispatch',
-      { orderId: String(order._id), retryCount: nextRetry, attempt: nextRetry },
+      { orderId: String(order._id), retryCount: nextRetry, attempt: nextRetry, isEmergency: !!job.data.isEmergency },
       {
         jobId: `order_${order._id}_retry_${nextRetry}`,
-        delay: RETRY_DELAY_MS,
+        delay: job.data.isEmergency ? 30_000 : RETRY_DELAY_MS, // emergency retries faster: 30s vs 90s
         priority: 1,
       },
     );
@@ -763,17 +765,35 @@ async function main() {
     },
   );
 
-  bullWorker.on('completed', (job, result) =>
-    logger.info({ jobId: job.id, result }, '[DISPATCH] Job completed'),
-  );
-  bullWorker.on('failed', (job, err) =>
-    logger.error({ jobId: job?.id, err: err.message }, '[DISPATCH] Job failed'),
-  );
-  bullWorker.on('error', (err) =>
-    logger.error({ err: err.message }, '[DISPATCH] Worker error'),
+  // Dedicated worker for emergency queue — 5 reserved slots that are NEVER occupied
+  // by regular orders. Guarantees immediate pickup even when 50 standard dispatches
+  // are sleeping through their search windows.
+  const emergencyBullWorker = new BullWorker(
+    QUEUES.DISPATCH_EMERGENCY,
+    processDispatchJob,
+    {
+      connection:   createBullConnection(),
+      concurrency:  5,
+      lockDuration: 360_000,
+    },
   );
 
-  logger.info('[DISPATCH] Progressive radius + force-assign worker started (5-min guaranteed window)');
+  const attachListeners = (worker, label) => {
+    worker.on('completed', (job, result) =>
+      logger.info({ jobId: job.id, result }, `[${label}] Job completed`),
+    );
+    worker.on('failed', (job, err) =>
+      logger.error({ jobId: job?.id, err: err.message }, `[${label}] Job failed`),
+    );
+    worker.on('error', (err) =>
+      logger.error({ err: err.message }, `[${label}] Worker error`),
+    );
+  };
+
+  attachListeners(bullWorker, 'DISPATCH');
+  attachListeners(emergencyBullWorker, 'DISPATCH:EMERGENCY');
+
+  logger.info('[DISPATCH] Progressive radius + force-assign workers started (standard:50 + emergency:5 concurrency)');
 }
 
 if (require.main === module) {

@@ -5,7 +5,7 @@ const geoService = require('../worker/geo.service');
 const abuseService = require('./abuse.service');
 const ledgerService = require('../wallet/ledger.service');
 const Worker = require('../worker/worker.model');
-const { dispatchQueue } = require('../../jobs');
+const { dispatchQueue, emergencyDispatchQueue } = require('../../jobs');
 const { redis } = require('../../config/redis');
 const logger = require('../../utils/logger');
 
@@ -140,15 +140,17 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     snapshotCommissionRate: earningPreview.commissionRate,
   };
 
-  // Surge price protection: compare fresh tier-adjusted price vs what customer was shown.
-  // quotedTotalRupees from client already includes the tier markup.
+  // Surge price protection: re-validate fresh price against what customer was quoted.
+  // Admin-configurable tolerance (default 10%); cached config — not an extra DB hit.
   if (quotedTotalRupees != null && quotedTotalRupees > 0) {
     const freshTotal = pricing.total || 0;
     const priceIncreasePct = (freshTotal - quotedTotalRupees) / quotedTotalRupees;
-    if (priceIncreasePct > 0.20) {
+    const surgeCfg = await pricingService.getActiveConfig();
+    const surgeTolerance = surgeCfg.surgeTolerancePct ?? 0.10;
+    if (priceIncreasePct > surgeTolerance) {
       throw Object.assign(
         new Error(`Price changed since your quote (was ₹${quotedTotalRupees}, now ₹${Math.round(freshTotal)}). Please re-check the new price.`),
-        { status: 409, code: 'PRICE_CHANGED', quotedTotal: quotedTotalRupees, freshTotal: Math.round(freshTotal) }
+        { status: 409, code: 'PRICE_CHANGED', quotedTotal: quotedTotalRupees, freshTotal: Math.round(freshTotal), tolerancePct: surgeTolerance }
       );
     }
   }
@@ -273,10 +275,13 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
   }
 
   // Enqueue dispatch with optional delay for scheduled orders.
+  // Emergency orders go to a dedicated queue with reserved BullMQ concurrency slots
+  // so they are never blocked behind regular orders filling all 50 worker slots.
   const schedDelay = scheduledAt ? Math.max(0, new Date(scheduledAt).getTime() - Date.now()) : 0;
-  await dispatchQueue.add(
+  const targetQueue = isEmergency ? emergencyDispatchQueue : dispatchQueue;
+  await targetQueue.add(
     'dispatch',
-    { orderId: String(order._id), attempt: 0 },
+    { orderId: String(order._id), attempt: 0, isEmergency: !!isEmergency },
     {
       jobId: `order_${order._id}`,
       priority: isEmergency ? 1 : resolvedTier === 'express' ? 2 : resolvedTier === 'priority' ? 5 : 10,

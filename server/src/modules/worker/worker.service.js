@@ -4,6 +4,20 @@ const geoService = require('./geo.service');
 const pricingService = require('../pricing/pricing.service');
 const { redis } = require('../../config/redis');
 const config = require('../../config');
+const logger = require('../../utils/logger');
+
+// Max credible worker speed — anything beyond this is a GPS spoof or teleport.
+// 150 km/h covers highway driving, ambulances, trains (but not planes).
+const GPS_MAX_SPEED_KMH = 150;
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 async function goOnline({ workerId, lng, lat }) {
   // Load first to check KYC status — cheap guard before we write anything.
@@ -38,6 +52,8 @@ async function goOnline({ workerId, lng, lat }) {
   );
   await geoService.markOnline(worker);
   await pricingService.recordSupply(worker._id, lat, lng);
+  // Seed GPS baseline so first updateLocation has a reference point.
+  redis.set(`worker:lastloc:${workerId}`, JSON.stringify({ lat, lng, ts: Date.now() }), 'EX', 600).catch(() => {});
   return worker;
 }
 
@@ -68,6 +84,26 @@ async function goOffline({ workerId }) {
  * Mongo gets a throttled write every 30s via lastSeenAt.
  */
 async function updateLocation({ workerId, lng, lat, orderId }) {
+  // GPS spoof guard: reject location updates that imply impossible speed.
+  // Stealth rejection — return ok:true so fraudsters don't know they're flagged.
+  const lastLocKey = `worker:lastloc:${workerId}`;
+  const lastRaw = await redis.get(lastLocKey).catch(() => null);
+  if (lastRaw) {
+    try {
+      const last = JSON.parse(lastRaw);
+      const distKm = haversineKm(last.lat, last.lng, lat, lng);
+      const elapsedHours = (Date.now() - last.ts) / 3_600_000;
+      const speedKmh = elapsedHours > 0 ? distKm / elapsedHours : 0;
+      if (speedKmh > GPS_MAX_SPEED_KMH) {
+        logger.warn({ workerId, speedKmh: Math.round(speedKmh), distKm: distKm.toFixed(2), lat, lng }, '[GPS] Spoof detected — location rejected');
+        redis.publish('worker:gps_spoof', JSON.stringify({ workerId, lat, lng, speedKmh: Math.round(speedKmh), at: Date.now() })).catch(() => {});
+        return { ok: true };
+      }
+    } catch { /* JSON parse error — proceed normally */ }
+  }
+  // Update baseline for the next call (TTL 5 min — resets if worker pauses pinging)
+  redis.set(lastLocKey, JSON.stringify({ lat, lng, ts: Date.now() }), 'EX', 300).catch(() => {});
+
   await geoService.updateLocation(workerId, lng, lat);
 
   // Throttle Mongo writes — only if >30s since last.

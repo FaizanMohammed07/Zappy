@@ -8,10 +8,11 @@ EventEmitter.defaultMaxListeners = 25;
 const connection = createBullConnection();
 
 const QUEUES = {
-  DISPATCH:      'dispatch',
-  NOTIFICATIONS: 'notifications',
-  PAYMENTS:      'payments',
-  DLQ:           'dead-letter',   // Orders that exhausted all dispatch retries
+  DISPATCH:            'dispatch',
+  DISPATCH_EMERGENCY:  'dispatch:emergency',
+  NOTIFICATIONS:       'notifications',
+  PAYMENTS:            'payments',
+  DLQ:                 'dead-letter',   // Orders that exhausted all dispatch retries
 };
 
 const dispatchQueue = new Queue(QUEUES.DISPATCH, {
@@ -78,30 +79,51 @@ shieldQueue.add(
   }
 ).catch(() => {}); // non-fatal if Redis is unavailable at startup
 
+// Dedicated queue for emergency orders — separate concurrency pool, never waits behind
+// regular orders. Same processDispatchJob logic, dedicated BullWorker in dispatch.worker.js.
+const emergencyDispatchQueue = new Queue(QUEUES.DISPATCH_EMERGENCY, {
+  connection,
+  defaultJobOptions: {
+    attempts: 3,  // one extra retry vs regular — emergencies get more chances
+    backoff: { type: 'exponential', delay: 2000 },
+    removeOnComplete: { age: 3600, count: 500 },
+    removeOnFail: { age: 172800 },
+  },
+});
+
 const dispatchEvents = new QueueEvents(QUEUES.DISPATCH, { connection: createBullConnection() });
+const emergencyDispatchEvents = new QueueEvents(QUEUES.DISPATCH_EMERGENCY, { connection: createBullConnection() });
+
+function routeToDlq(queue) {
+  return async ({ jobId, failedReason }) => {
+    try {
+      const job = await queue.getJob(jobId);
+      if (!job) return;
+      const { orderId } = job.data || {};
+      if (!orderId) return;
+      const maxAttempts = job.opts?.attempts ?? 2;
+      if (job.attemptsMade < maxAttempts) return;
+      await dlqQueue.add('dispatch_failed', {
+        orderId, failedReason, originalJobId: jobId,
+        failedAt: new Date().toISOString(),
+        isEmergency: !!job.data?.isEmergency,
+      }, { jobId: `dlq_${orderId}` });
+    } catch { /* DLQ routing failure must never crash the event emitter */ }
+  };
+}
 
 // Listen for exhausted dispatch jobs and route to DLQ
-dispatchEvents.on('failed', async ({ jobId, failedReason }) => {
-  try {
-    const job = await dispatchQueue.getJob(jobId);
-    if (!job) return;
-    const { orderId } = job.data || {};
-    if (!orderId) return;
-    // Only escalate if all attempts are truly exhausted (BullMQ sets attemptsMade = attempts on final failure)
-    if (job.attemptsMade < (job.opts?.attempts ?? 2)) return;
-    await dlqQueue.add('dispatch_failed', { orderId, failedReason, originalJobId: jobId, failedAt: new Date().toISOString() }, {
-      jobId: `dlq_${orderId}`,
-      // Deduplicate: if the same order is already in DLQ, don't add again
-    });
-  } catch { /* DLQ routing failure must never crash the event emitter */ }
-});
+dispatchEvents.on('failed', routeToDlq(dispatchQueue));
+emergencyDispatchEvents.on('failed', routeToDlq(emergencyDispatchQueue));
 
 module.exports = {
   QUEUES,
   dispatchQueue,
+  emergencyDispatchQueue,
   notificationsQueue,
   paymentsQueue,
   dlqQueue,
   shieldQueue,
   dispatchEvents,
+  emergencyDispatchEvents,
 };

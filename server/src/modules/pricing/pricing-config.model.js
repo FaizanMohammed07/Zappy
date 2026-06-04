@@ -35,6 +35,9 @@ const pricingConfigSchema = new mongoose.Schema(
     // Surge controls
     surgeEnabled: { type: Boolean, default: true },
     surgeMaxCap: { type: Number, default: 2.5, min: 1.0, max: 5.0 },
+    // Max price increase (%) between quote and submit before order is blocked.
+    // 0.10 = 10%. User must re-confirm if price spiked beyond this threshold.
+    surgeTolerancePct: { type: Number, default: 0.10, min: 0.02, max: 0.50 },
 
     // Commission (workers' platform cut)
     commissionRate: { type: Number, default: 0.30, min: 0, max: 0.5 }, // 30%
