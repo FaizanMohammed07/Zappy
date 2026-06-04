@@ -9,7 +9,7 @@ const connection = createBullConnection();
 
 const QUEUES = {
   DISPATCH:            'dispatch',
-  DISPATCH_EMERGENCY:  'dispatch:emergency',
+  DISPATCH_EMERGENCY:  'dispatch-emergency',
   NOTIFICATIONS:       'notifications',
   PAYMENTS:            'payments',
   DLQ:                 'dead-letter',   // Orders that exhausted all dispatch retries
