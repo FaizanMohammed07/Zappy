@@ -35,7 +35,8 @@ const PlansPage           = lazy(() => import('./pages/PlansPage'));
 const WalletPage          = lazy(() => import('./pages/WalletPage'));
 const ReferralPage        = lazy(() => import('./pages/ReferralPage'));
 const WorkerProfilePage     = lazy(() => import('./pages/WorkerProfilePage'));
-const WorkerEditProfilePage = lazy(() => import('./pages/WorkerEditProfilePage'));
+const WorkerEditProfilePage        = lazy(() => import('./pages/WorkerEditProfilePage'));
+const WorkerNotificationsPage      = lazy(() => import('./pages/WorkerNotificationsPage'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/worker/jobs/:id" element={<RequireAuth role="worker"><WorkerJobPage /></RequireAuth>} />
         <Route path="/worker/kyc" element={<RequireAuth role="worker"><WorkerKycPage /></RequireAuth>} />
         <Route path="/worker/profile" element={<RequireAuth role="worker"><WorkerEditProfilePage /></RequireAuth>} />
+        <Route path="/worker/notifications" element={<RequireAuth role="worker"><WorkerNotificationsPage /></RequireAuth>} />
 
         {/* Admin */}
         <Route

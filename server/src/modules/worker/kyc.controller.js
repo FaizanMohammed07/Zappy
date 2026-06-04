@@ -10,11 +10,24 @@ async function submitKyc(req, res, next) {
     const w = await Worker.findById(req.auth.sub).select('kyc').lean();
     if (!w) return res.status(404).json({ error: 'Worker not found' });
 
-    if (w.kyc?.status === 'approved') {
-      return res.status(409).json({ error: 'KYC already approved', code: 'KYC_LOCKED' });
+    // Approved workers can only resubmit AFTER admin approves a change request.
+    // Direct resubmission without approval is blocked to prevent document tampering.
+    const isUpdate = w.kyc?.status === 'approved';
+    if (isUpdate) {
+      const crStatus = w.kyc?.changeRequest?.status;
+      if (crStatus !== 'approved') {
+        return res.status(409).json({
+          error: 'Your KYC is already approved. Submit a document change request first, then wait for admin approval.',
+          code: 'KYC_CHANGE_REQUEST_REQUIRED',
+          changeRequestStatus: crStatus ?? null,
+        });
+      }
     }
-    if (w.kyc?.status === 'pending_review') {
+    if (w.kyc?.status === 'pending_review' && !isUpdate) {
       return res.status(409).json({ error: 'KYC already submitted and under review', code: 'KYC_PENDING' });
+    }
+    if (w.kyc?.status === 'pending_review' && isUpdate) {
+      return res.status(409).json({ error: 'A KYC update is already under review', code: 'KYC_UPDATE_PENDING' });
     }
     if (w.kyc?.status === 'suspended') {
       return res.status(403).json({
@@ -56,8 +69,21 @@ async function submitKyc(req, res, next) {
           'kyc.aadhaarUrl':      req.body.aadhaarUrl,
           'kyc.licenseUrl':      req.body.licenseUrl,
           'kyc.selfieUrl':       req.body.selfieUrl,
+          'kyc.selfieMetadata':  req.body.selfieMetadata ?? null,
           'kyc.submittedAt':     now,
           'kyc.rejectionReason': null,
+          'kyc.isUpdate':        isUpdate,
+          'kyc.changeRequest':   null, // clear approved change request after submission
+          // Snapshot previous approved docs for comparison and revert-on-reject
+          ...(isUpdate && {
+            'kyc.approvedSnapshot': {
+              aadhaarUrl:    w.kyc.aadhaarUrl,
+              licenseUrl:    w.kyc.licenseUrl,
+              selfieUrl:     w.kyc.selfieUrl,
+              selfieMetadata: w.kyc.selfieMetadata ?? null,
+              approvedAt:    w.kyc.reviewedAt,
+            },
+          }),
         },
         // Append immutable audit trail entry (#86)
         $push: {
@@ -84,4 +110,75 @@ async function getKycStatus(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { submitKyc, getKycStatus };
+/**
+ * Stream a worker's own KYC document — auth-gated, no URL expiry.
+ * docType: aadhaar | license | selfie
+ */
+async function streamMyDoc(req, res, next) {
+  try {
+    const w = await Worker.findById(req.auth.sub).select('kyc').lean();
+    if (!w) return res.status(404).json({ error: 'Worker not found' });
+
+    const keyMap = {
+      aadhaar: w.kyc?.aadhaarUrl,
+      license: w.kyc?.licenseUrl,
+      selfie:  w.kyc?.selfieUrl,
+    };
+    const key = keyMap[req.params.docType];
+    if (!key) return res.status(404).json({ error: 'Document not found' });
+
+    const s3Service = require('../../utils/s3.service');
+    await s3Service.streamToResponse(key, res);
+  } catch (err) {
+    if (err?.name === 'NoSuchKey') return res.status(404).json({ error: 'Document not found in storage' });
+    next(err);
+  }
+}
+
+/**
+ * Worker requests a document change after KYC is approved.
+ * Admin must approve before the worker can upload new documents.
+ */
+async function requestDocumentChange(req, res, next) {
+  try {
+    const w = await Worker.findById(req.auth.sub).select('kyc name').lean();
+    if (!w) return res.status(404).json({ error: 'Worker not found' });
+
+    if (w.kyc?.status !== 'approved') {
+      return res.status(409).json({ error: 'Can only request a change on approved KYC', code: 'KYC_NOT_APPROVED' });
+    }
+    if (w.kyc?.changeRequest?.status === 'pending') {
+      return res.status(409).json({ error: 'A change request is already pending admin review', code: 'CHANGE_REQUEST_PENDING' });
+    }
+
+    await Worker.updateOne(
+      { _id: req.auth.sub },
+      {
+        $set: {
+          'kyc.changeRequest': {
+            status:      'pending',
+            message:     req.body.message,
+            requestedAt: new Date(),
+            reviewedAt:  null,
+            reviewedBy:  null,
+            denialReason: null,
+          },
+        },
+      }
+    );
+
+    // Notify the admin team (system notification)
+    const notifService = require('../notification/notification.service');
+    notifService.notify({
+      recipient: { kind: 'worker', id: req.auth.sub },
+      type: 'system_alert',
+      title: '📋 Change request submitted',
+      body: 'Your document change request has been sent to admin for review.',
+      deepLink: '/worker/kyc',
+    }).catch(() => {});
+
+    res.json({ ok: true, status: 'pending' });
+  } catch (err) { next(err); }
+}
+
+module.exports = { submitKyc, getKycStatus, streamMyDoc, requestDocumentChange };

@@ -29,6 +29,34 @@ const workerSchema = new mongoose.Schema(
       aadhaarUrl: String, // S3 key
       licenseUrl: String,
       selfieUrl: String,
+      selfieMetadata: {           // liveness capture metadata
+        capturedAt:     Date,
+        captureMethod:  String,   // 'live_camera' | 'upload'
+        lat:            Number,
+        lng:            Number,
+        geoStatus:      String,   // 'ok' | 'denied' | 'fetching'
+        userAgent:      String,
+      },
+      isUpdate: { type: Boolean, default: false },
+
+      // Worker-initiated document change request — must be admin-approved before re-upload
+      changeRequest: {
+        status:      { type: String, enum: ['pending', 'approved', 'denied'], default: null },
+        message:     { type: String, maxlength: 500 },  // worker's reason
+        requestedAt: Date,
+        reviewedAt:  Date,
+        reviewedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+        denialReason: String,
+      },
+
+      // Snapshot of last approved docs — used to revert if an update is rejected
+      approvedSnapshot: {
+        aadhaarUrl:    String,
+        licenseUrl:    String,
+        selfieUrl:     String,
+        selfieMetadata: mongoose.Schema.Types.Mixed,
+        approvedAt:    Date,
+      },
       submittedAt: Date,
       reviewedAt: Date,
       reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
@@ -86,11 +114,22 @@ const workerSchema = new mongoose.Schema(
       phone: { type: String, maxlength: 15 },
     },
 
+    // Profile photo — set from KYC selfie S3 key when KYC is approved
+    profilePhotoKey: { type: String, default: null },
+
+    // Onboarding — set to true after worker completes name + skills + emergency contact
+    onboardingComplete: { type: Boolean, default: false },
+
     // Ops
     deviceTokens: [String], // FCM push tokens
     deviceIds:    [String], // hardware fingerprints (for multi-account detection)
     isBlocked: { type: Boolean, default: false },
     lastSeenAt: { type: Date },
+
+    // Soft delete — data kept for compliance/fraud audit, worker can no longer log in
+    deletedAt:      { type: Date, default: null },
+    deletedBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
+    deletionReason: { type: String, default: null },
   },
   { timestamps: true }
 );

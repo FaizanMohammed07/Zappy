@@ -21,25 +21,55 @@ const TYPES = [
   'order_completed',
   'order_cancelled',
   'order_failed',
+  'order_delayed',
+  'order_reassigned',
   'rating_request',
+  'trip_started',
+  'refund_processed',
+
+  // Worker job events
+  'job_assigned',
+  'job_reminder',
+  'job_removed',
+  'late_arrival_penalty',
+
+  // Worker earnings & wallet
+  'worker_earning',
+  'penalty_applied',
+  'milestone_reached',
+  'rating_received',
+  'wallet_credited',
+
+  // Worker Cancellation Shield Fund
+  'cancellation_warning',
+  'cancellation_fee_charged',
+  'cancellation_fee_pending',
+  'shield_payout',
+
   // Worker safety + special events
   'worker_wellness',
   'worker_sos',
+
   // Trust / reporting
   'report_received',
-  // Subscriptions + wallet
+  'account_warning',
+
+  // Subscriptions & cashback
   'subscription_activated',
   'subscription_expiring',
-  'wallet_credited',
   'cashback_received',
   'referral_reward',
+
   // KYC
   'kyc_approved',
   'kyc_rejected',
   'kyc_suspended',
+  'kyc_clarification',
+
   // Disputes + support
   'dispute_response',
   'chat_message',
+
   // Platform-wide
   'promotional',
   'system_alert',

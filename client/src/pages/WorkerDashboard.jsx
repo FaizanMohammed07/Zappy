@@ -12,13 +12,13 @@ import {
   ChevronDown, ChevronUp, ArrowRight, BadgeIndianRupee,
   ShieldCheck, TrendingDown, Siren, ArrowUpRight,
   ArrowDownRight, Minus, Smartphone, Battery, Layers,
-  Home, Bike, Fuel, Pencil,
+  Home, Bike, Fuel, Pencil, Bell,
 } from 'lucide-react';
 import {
   useGetWorkerMeQuery, useGoOnlineMutation, useGoOfflineMutation,
   useGetEarningsQuery, useWorkerAcceptMutation, useWorkerRejectMutation,
   useGetKycStatusQuery, useGetWorkerOrdersQuery, useGetDemandZonesQuery,
-  useGetWorkerLeaderboardQuery,
+  useGetWorkerLeaderboardQuery, useListNotificationsQuery,
 } from '../services/api';
 import { useWorkerOfferSocket } from '../hooks/useSocket';
 import { setOffer, clearOffer, setOnline, selectWorker } from '../modules/worker/workerSlice';
@@ -26,6 +26,7 @@ import { selectAuth, logout } from '../modules/auth/authSlice';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { getSocket } from '../services/socket';
 import { ZappyLogo } from '../components/common/ZappyLogo';
+import WorkerOnboarding from './WorkerOnboarding';
 import ShiftSlotsWidget from '../components/worker/ShiftSlotsWidget';
 import WellnessWidget from '../components/worker/WellnessWidget';
 import EarnedWageWidget from '../components/worker/EarnedWageWidget';
@@ -75,6 +76,46 @@ const SERVICE_ICON_MAP = {
   car_wash:              { Icon: Car,            bg: 'bg-blue-100',    color: 'text-blue-600'   },
   minor_roadside_repair: { Icon: AlertTriangle,  bg: 'bg-red-100',     color: 'text-red-600'    },
 };
+
+/* ─── Notification bell with live unread count ───────────────── */
+function NotifBell({ token, onTap }) {
+  const { data } = useListNotificationsQuery(
+    { page: 1, unreadOnly: true },
+    { skip: !token, pollingInterval: 60000 }
+  );
+  const [bump, setBump] = useState(0); // real-time socket bumps
+
+  useEffect(() => {
+    if (!token) return;
+    const socket = getSocket(token);
+    const handler = () => setBump((b) => b + 1);
+    socket.on('notification', handler);
+    return () => socket.off('notification', handler);
+  }, [token]);
+
+  const count = (data?.unread ?? 0) + bump;
+
+  return (
+    <motion.button
+      onClick={onTap}
+      className="relative flex items-center justify-center w-9 h-9 rounded-full transition-colors hover:text-white/80"
+      style={{ border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
+      whileTap={{ scale: 0.9 }}
+    >
+      <Bell size={15} className="text-white/70" />
+      {count > 0 && (
+        <motion.span
+          key={count}
+          initial={{ scale: 1.4 }}
+          animate={{ scale: 1 }}
+          className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center"
+        >
+          {count > 99 ? '99+' : count}
+        </motion.span>
+      )}
+    </motion.button>
+  );
+}
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 
@@ -137,6 +178,16 @@ export default function WorkerDashboard() {
   const { data: kycData }     = useGetKycStatusQuery(undefined, { skip: !token });
   const { data: jobsData }    = useGetWorkerOrdersQuery(1,    { skip: !token });
 
+  // Profile avatar — fetched from server proxy (permanent, no URL expiry)
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  useEffect(() => {
+    if (!token || !meData?.worker?.profilePhotoKey) return;
+    fetch('/api/workers/me/avatar', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.blob() : null)
+      .then(blob => blob && setAvatarUrl(URL.createObjectURL(blob)))
+      .catch(() => {});
+  }, [token, meData?.worker?.profilePhotoKey]);
+
   const [goOnline]  = useGoOnlineMutation();
   const [goOffline] = useGoOfflineMutation();
   const [acceptOffer, { isLoading: accepting }] = useWorkerAcceptMutation();
@@ -156,8 +207,7 @@ export default function WorkerDashboard() {
   const isBusy      = isOnline && !!me?.currentOrderId;
   const kycApproved = kycData?.kyc?.status === 'approved';
   const kycStatus   = kycData?.kyc?.status;
-  // In dev mode, bypass KYC gate so testing is possible without admin approval
-  const canGoOnline = kycApproved || import.meta.env.DEV;
+  const canGoOnline = kycApproved;
 
   const completedJobs = me?.completedJobs ?? 0;
   const rating        = me?.rating ?? null; // null until first real rating
@@ -208,6 +258,23 @@ export default function WorkerDashboard() {
   }, [isOnline]);
 
   useEffect(() => { dispatch(setOnline(isOnline)); }, [isOnline, dispatch]);
+
+  // Real-time KYC rejection — admin can revoke while worker is online
+  useEffect(() => {
+    if (!token) return;
+    const socket = getSocket(token);
+    const handleKycRejected = ({ status, reason }) => {
+      dispatch(setOnline(false));
+      toast.error(
+        reason ? `KYC rejected: ${reason}` : 'Your KYC was not approved. Please resubmit.',
+        { duration: 8000 }
+      );
+      // Refetch worker profile so KYC banner re-appears immediately
+      refetchMe?.();
+    };
+    socket.on('kyc.rejected', handleKycRejected);
+    return () => socket.off('kyc.rejected', handleKycRejected);
+  }, [token, dispatch]);
 
   // GPS permission probe
   useEffect(() => {
@@ -313,6 +380,11 @@ export default function WorkerDashboard() {
     return () => { watchRef.current?.(); watchRef.current = null; };
   }, [isOnline, token, watch, me?.currentOrderId]);
 
+  // Onboarding gate — placed AFTER all hooks so React's hook count stays constant
+  if (meData && !me?.onboardingComplete) {
+    return <WorkerOnboarding onComplete={refetchMe} />;
+  }
+
   async function toggleOnline() {
     if (!canGoOnline) { toast.error('KYC required'); nav('/worker/kyc'); return; }
     if (isBusy) { toast('Finish your active job first'); return; }
@@ -386,32 +458,43 @@ export default function WorkerDashboard() {
           {/* ── Top bar ─────────────────────────────────────── */}
           <div className="flex items-center justify-between mb-7">
             <ZappyLogo size={26} />
-            <motion.button
-              onClick={() => { dispatch(logout()); nav('/worker/login'); }}
-              className="flex items-center gap-1.5 text-[11px] font-bold text-white/50 px-3.5 py-2 rounded-full transition-colors hover:text-white/80"
-              style={{ border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
-              whileTap={{ scale: 0.93 }}
-            >
-              <LogOut size={12} strokeWidth={2.5} />
-              Logout
-            </motion.button>
+            <div className="flex items-center gap-2">
+              {/* Notification bell */}
+              <NotifBell token={token} onTap={() => nav('/worker/notifications')} />
+              <motion.button
+                onClick={() => { dispatch(logout()); nav('/worker/login'); }}
+                className="flex items-center gap-1.5 text-[11px] font-bold text-white/50 px-3.5 py-2 rounded-full transition-colors hover:text-white/80"
+                style={{ border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
+                whileTap={{ scale: 0.93 }}
+              >
+                <LogOut size={12} strokeWidth={2.5} />
+                Logout
+              </motion.button>
+            </div>
           </div>
 
           {/* ── Profile row ─────────────────────────────────── */}
           <div className="flex items-center gap-4 mb-7">
             {/* Avatar */}
             <motion.div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-2xl shrink-0 relative"
+              className="w-16 h-16 rounded-2xl shrink-0 relative overflow-hidden"
               style={{
-                background: 'linear-gradient(135deg, rgba(99,102,241,0.5), rgba(139,92,246,0.4))',
                 border: '2px solid rgba(255,255,255,0.2)',
-                backdropFilter: 'blur(12px)',
                 boxShadow: '0 8px 32px rgba(99,102,241,0.25)',
               }}
               animate={{ boxShadow: ['0 0 0 0px rgba(99,102,241,0.35)', '0 0 0 10px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)'] }}
               transition={{ duration: 3.5, repeat: Infinity, delay: 1 }}
             >
-              {initials}
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={me?.name} className="w-full h-full object-cover rounded-2xl" />
+              ) : (
+                <div
+                  className="w-full h-full flex items-center justify-center text-white font-black text-2xl"
+                  style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.5), rgba(139,92,246,0.4))', backdropFilter: 'blur(12px)' }}
+                >
+                  {initials}
+                </div>
+              )}
               {/* Online dot */}
               {isOnline && (
                 <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#0f172a]" />
@@ -438,10 +521,13 @@ export default function WorkerDashboard() {
                 </span>
                 <span className="w-px h-3 bg-white/15" />
                 <span className="text-white/45 text-xs font-semibold">{completedJobs} jobs</span>
-                {me?.skills?.[0] && (
+                {me?.skills?.length > 0 && (
                   <>
                     <span className="w-px h-3 bg-white/15" />
-                    <span className="text-white/45 text-xs font-semibold capitalize">{me.skills[0].replace(/_/g, ' ')}</span>
+                    <span className="text-white/45 text-xs font-semibold capitalize">
+                      {me.skills.slice(0, 3).map(s => s.replace(/_/g, ' ')).join(' · ')}
+                      {me.skills.length > 3 && <span className="text-white/25"> +{me.skills.length - 3}</span>}
+                    </span>
                   </>
                 )}
               </div>
@@ -506,8 +592,7 @@ export default function WorkerDashboard() {
       {/* ── Scrollable content ───────────────────────────────── */}
       <div className="max-w-lg mx-auto px-4 mt-4 space-y-3.5 pb-40">
 
-        {/* ── KYC Banner — hidden in dev to unblock testing ──── */}
-        {!kycApproved && !import.meta.env.DEV && (
+        {!kycApproved && (
           <motion.button
             onClick={() => nav('/worker/kyc')}
             initial={{ opacity: 0, y: -4 }}
@@ -1432,81 +1517,82 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex flex-col"
+      className="fixed inset-0 z-[60] flex flex-col items-center sm:p-6 sm:bg-black/80 sm:backdrop-blur-sm"
     >
-      {/* Map fills the top half */}
-      <div
-        className="flex-1 relative overflow-hidden"
-        style={{
-          background: isExpress
-            ? 'linear-gradient(135deg, #1e1b4b, #312e81)'
-            : isPriority
-              ? 'linear-gradient(135deg, #1c1007, #78350f)'
-              : 'linear-gradient(135deg, #0f172a, #1e293b)',
-        }}
-      >
-        {mapUrl ? (
-          <img src={mapUrl} alt="map" className="w-full h-full object-cover opacity-80" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <motion.div
-              className="w-32 h-32 rounded-full"
-              style={{
-                background: isExpress
-                  ? 'radial-gradient(circle, rgba(99,102,241,0.5), transparent)'
-                  : isPriority
-                    ? 'radial-gradient(circle, rgba(251,191,36,0.4), transparent)'
-                    : 'radial-gradient(circle, rgba(99,102,241,0.3), transparent)',
-              }}
-              animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            />
-            <MapPin size={36} strokeWidth={1.5} className={isExpress ? 'text-indigo-300 absolute' : isPriority ? 'text-amber-300 absolute' : 'text-indigo-400 absolute'} />
-          </div>
-        )}
-        {/* Dark overlay */}
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.5) 100%)' }} />
-        {/* Countdown pill */}
-        <motion.div
-          className="absolute top-4 right-4 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl backdrop-blur-md"
-          style={{ background: urgent ? 'rgba(239,68,68,0.9)' : 'rgba(15,23,42,0.8)', border: `1px solid ${urgent ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.15)'}` }}
-          animate={urgent ? { scale: [1, 1.04, 1] } : {}}
-          transition={{ duration: 0.4, repeat: Infinity }}
-        >
-          <Clock size={13} strokeWidth={2.5} className="text-white" />
-          <span className="text-white font-black text-base tabular-nums">{left}s</span>
-        </motion.div>
-        {/* Tier banner — NEW JOB / EXPRESS / PRIORITY */}
-        <motion.div
-          className="absolute top-4 left-4 px-3.5 py-2 rounded-2xl backdrop-blur-md"
-          style={
-            isExpress
-              ? { background: 'rgba(79,70,229,0.9)', border: '1px solid rgba(99,102,241,0.6)' }
+      <div className="w-full max-w-md flex flex-col flex-1 h-full relative overflow-hidden sm:rounded-[2.5rem] shadow-2xl">
+        {/* Map fills the top half */}
+        <div
+          className="flex-1 relative overflow-hidden"
+          style={{
+            background: isExpress
+              ? 'linear-gradient(135deg, #1e1b4b, #312e81)'
               : isPriority
-                ? { background: 'rgba(180,83,9,0.9)', border: '1px solid rgba(251,191,36,0.5)' }
-                : { background: 'rgba(99,102,241,0.8)', border: '1px solid rgba(99,102,241,0.4)' }
-          }
-          animate={{
-            boxShadow: isExpress
-              ? ['0 0 0 0px rgba(99,102,241,0.6)', '0 0 0 16px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)']
-              : isPriority
-                ? ['0 0 0 0px rgba(251,191,36,0.5)', '0 0 0 14px rgba(251,191,36,0)', '0 0 0 0px rgba(251,191,36,0)']
-                : ['0 0 0 0px rgba(99,102,241,0.4)', '0 0 0 12px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)'],
+                ? 'linear-gradient(135deg, #1c1007, #78350f)'
+                : 'linear-gradient(135deg, #0f172a, #1e293b)',
           }}
-          transition={{ duration: isExpress ? 1.0 : 1.5, repeat: Infinity }}
         >
-          <span className="text-white font-black text-xs tracking-widest">
-            {isExpress ? '⚡ EXPRESS JOB' : isPriority ? '⭐ PRIORITY JOB' : '⚡ NEW JOB'}
-          </span>
-        </motion.div>
-      </div>
+          {mapUrl ? (
+            <img src={mapUrl} alt="map" className="w-full h-full object-cover opacity-80" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <motion.div
+                className="w-32 h-32 rounded-full"
+                style={{
+                  background: isExpress
+                    ? 'radial-gradient(circle, rgba(99,102,241,0.5), transparent)'
+                    : isPriority
+                      ? 'radial-gradient(circle, rgba(251,191,36,0.4), transparent)'
+                      : 'radial-gradient(circle, rgba(99,102,241,0.3), transparent)',
+                }}
+                animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+              <MapPin size={36} strokeWidth={1.5} className={isExpress ? 'text-indigo-300 absolute' : isPriority ? 'text-amber-300 absolute' : 'text-indigo-400 absolute'} />
+            </div>
+          )}
+          {/* Dark overlay */}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.5) 100%)' }} />
+          {/* Countdown pill */}
+          <motion.div
+            className="absolute top-4 right-4 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl backdrop-blur-md"
+            style={{ background: urgent ? 'rgba(239,68,68,0.9)' : 'rgba(15,23,42,0.8)', border: `1px solid ${urgent ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.15)'}` }}
+            animate={urgent ? { scale: [1, 1.04, 1] } : {}}
+            transition={{ duration: 0.4, repeat: Infinity }}
+          >
+            <Clock size={13} strokeWidth={2.5} className="text-white" />
+            <span className="text-white font-black text-base tabular-nums">{left}s</span>
+          </motion.div>
+          {/* Tier banner — NEW JOB / EXPRESS / PRIORITY */}
+          <motion.div
+            className="absolute top-4 left-4 px-3.5 py-2 rounded-2xl backdrop-blur-md"
+            style={
+              isExpress
+                ? { background: 'rgba(79,70,229,0.9)', border: '1px solid rgba(99,102,241,0.6)' }
+                : isPriority
+                  ? { background: 'rgba(180,83,9,0.9)', border: '1px solid rgba(251,191,36,0.5)' }
+                  : { background: 'rgba(99,102,241,0.8)', border: '1px solid rgba(99,102,241,0.4)' }
+            }
+            animate={{
+              boxShadow: isExpress
+                ? ['0 0 0 0px rgba(99,102,241,0.6)', '0 0 0 16px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)']
+                : isPriority
+                  ? ['0 0 0 0px rgba(251,191,36,0.5)', '0 0 0 14px rgba(251,191,36,0)', '0 0 0 0px rgba(251,191,36,0)']
+                  : ['0 0 0 0px rgba(99,102,241,0.4)', '0 0 0 12px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)'],
+            }}
+            transition={{ duration: isExpress ? 1.0 : 1.5, repeat: Infinity }}
+          >
+            <span className="text-white font-black text-xs tracking-widest">
+              {isExpress ? '⚡ EXPRESS JOB' : isPriority ? '⭐ PRIORITY JOB' : '⚡ NEW JOB'}
+            </span>
+          </motion.div>
+        </div>
 
-      {/* Bottom card — design changes completely per tier */}
-      <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 28, stiffness: 360 }}
+        {/* Bottom card — design changes completely per tier */}
+        <motion.div
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 360 }}
         className="relative z-10 rounded-t-[32px] -mt-8"
         style={
           isExpress
@@ -1835,6 +1921,7 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
           </button>
         </div>
       </motion.div>
+      </div>
     </motion.div>
   );
 }

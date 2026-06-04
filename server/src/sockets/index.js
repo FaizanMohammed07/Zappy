@@ -246,7 +246,7 @@ function initSockets(httpServer) {
   // Dispatch worker publishes events; we relay them to the right rooms.
   const subscriber = subClient.duplicate();
 
-  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', 'surge:alert', 'order:boost', (err) => {
+  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', 'surge:alert', 'order:boost', 'worker:kyc_rejected', (err) => {
     if (err) logger.error({ err }, 'Pub/sub subscribe failed');
   });
   // Notifications are per-recipient — `notification:<kind>:<id>`. Use pattern sub.
@@ -294,13 +294,28 @@ function initSockets(httpServer) {
       }
 
       if (channel === 'order:boost') {
-        // { orderId, amountPaise, rupees, newTotal }
-        // Push updated offer price to all workers in the order room (they're viewing the offer)
-        io.to(`order:${data.orderId}`).emit('offer.boosted', {
-          orderId:    data.orderId,
+        const boostPayload = {
+          orderId:     data.orderId,
           amountPaise: data.amountPaise,
           rupees:      data.rupees,
           newTotal:    data.newTotal,
+        };
+        if (data.workerId) {
+          // Targeted: worker is still in offer-viewing state (not yet in order room)
+          io.to(`worker:${data.workerId}`).emit('offer.boosted', boostPayload);
+        } else {
+          // Fallback: broadcast to order room (assigned/in-progress workers)
+          io.to(`order:${data.orderId}`).emit('offer.boosted', boostPayload);
+        }
+        return;
+      }
+
+      if (channel === 'worker:kyc_rejected') {
+        // Admin rejected KYC — force worker's UI offline in real-time
+        // { workerId, reason, status }
+        io.to(`worker:${data.workerId}`).emit('kyc.rejected', {
+          status: data.status,
+          reason: data.reason,
         });
         return;
       }

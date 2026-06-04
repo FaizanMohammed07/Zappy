@@ -31,15 +31,36 @@ router.post('/location', authenticate, requireRole('worker'), validate(locationS
 router.get('/earnings', authenticate, requireRole('worker'), ctrl.getEarnings);
 router.get('/orders', authenticate, requireRole('worker'), ctrl.getOrders);
 
-// Update skills / profile — workers can change their skill set after registration
+// Update skills / profile
 router.patch('/profile', authenticate, requireRole('worker'),
   validate(Joi.object({
     name:   Joi.string().min(2).max(100).optional(),
     skills: Joi.array().items(Joi.string()).min(1).max(10).optional(),
     bio:    Joi.string().max(300).allow('', null).optional(),
+    emergencyContact: Joi.object({
+      name:  Joi.string().max(100).optional(),
+      phone: Joi.string().max(15).optional(),
+    }).optional(),
   }).min(1)),
   ctrl.updateProfile
 );
+
+// Complete onboarding — called once after worker sets name + skills
+router.post('/onboarding/complete', authenticate, requireRole('worker'),
+  validate(Joi.object({
+    name:  Joi.string().min(2).max(100).required(),
+    phone: Joi.string().max(15).optional(),
+    skills: Joi.array().items(Joi.string()).min(1).max(20).required(),
+    emergencyContact: Joi.object({
+      name:  Joi.string().max(100).optional(),
+      phone: Joi.string().max(15).optional(),
+    }).optional(),
+  })),
+  ctrl.completeOnboarding,
+);
+
+// Stream profile avatar (selfie from approved KYC) — no URL expiry
+router.get('/me/avatar', authenticate, requireRole('worker'), ctrl.streamAvatar);
 router.get('/nearby', authenticate, nearbyLimiter, ctrl.getNearbyWorkers);
 router.get('/demand-zones', authenticate, requireRole('worker'), ctrl.getDemandZones);
 

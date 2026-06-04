@@ -397,6 +397,38 @@ async function updateProfile(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function completeOnboarding(req, res, next) {
+  try {
+    const { name, skills, emergencyContact } = req.body;
+    const worker = await Worker.findByIdAndUpdate(
+      req.auth.sub,
+      {
+        $set: {
+          name,
+          skills,
+          onboardingComplete: true,
+          ...(emergencyContact && { emergencyContact }),
+        },
+      },
+      { new: true }
+    );
+    res.json({ worker });
+  } catch (err) { next(err); }
+}
+
+async function streamAvatar(req, res, next) {
+  try {
+    const worker = await Worker.findById(req.auth.sub).select('profilePhotoKey kyc').lean();
+    const key = worker?.profilePhotoKey ?? worker?.kyc?.selfieUrl;
+    if (!key) return res.status(404).json({ error: 'No profile photo set' });
+    const s3Service = require('../../utils/s3.service');
+    await s3Service.streamToResponse(key, res);
+  } catch (err) {
+    if (err?.name === 'NoSuchKey') return res.status(404).json({ error: 'Photo not found' });
+    next(err);
+  }
+}
+
 module.exports = {
   getMe, goOnline, goOffline, updateLocation, getEarnings,
   getOrders, getNearbyWorkers, getDemandZones,
@@ -406,4 +438,6 @@ module.exports = {
   getPublicProfile,
   getLeaderboard,
   updateProfile,
+  completeOnboarding,
+  streamAvatar,
 };

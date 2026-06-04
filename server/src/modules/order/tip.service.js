@@ -33,14 +33,39 @@ async function liveBoost({ order, orderId, userId, amountPaise }) {
     payload: { amountPaise, rupees, newTotal: (order.pricing?.total || 0) + rupees },
   }));
 
-  // Also publish to worker:offer channel so dispatch loop picks up the higher price
-  // Workers currently holding the offer will receive an update via socket
-  await redis.publish('order:boost', JSON.stringify({
-    orderId:    String(orderId),
-    amountPaise,
-    rupees,
-    newTotal:   (order.pricing?.total || 0) + rupees,
-  }));
+  // Fetch workers who are currently holding this offer and push the boost to each.
+  // Workers join worker:<id> room (not order room) until accepted, so we must fan-out per-worker.
+  try {
+    const fresh = await Order.findById(orderId).select('dispatch.currentOfferWorkerIds').lean();
+    const workerIds = fresh?.dispatch?.currentOfferWorkerIds ?? [];
+    const boostPayload = JSON.stringify({
+      orderId: String(orderId),
+      amountPaise,
+      rupees,
+      newTotal: (order.pricing?.total || 0) + rupees,
+    });
+    // Publish one message per worker — socket bridge delivers to worker:<id> room
+    await Promise.all(
+      workerIds.map((wid) =>
+        redis.publish('order:boost', JSON.stringify({
+          orderId:    String(orderId),
+          workerId:   String(wid),   // ← targeted delivery
+          amountPaise,
+          rupees,
+          newTotal:   (order.pricing?.total || 0) + rupees,
+        }))
+      )
+    );
+    if (!workerIds.length) {
+      // Fallback: broadcast to order room (covers re-dispatch window)
+      await redis.publish('order:boost', JSON.stringify({
+        orderId: String(orderId), amountPaise, rupees,
+        newTotal: (order.pricing?.total || 0) + rupees,
+      }));
+    }
+  } catch (err) {
+    logger.warn({ err: err.message, orderId }, '[Tip] Boost fan-out to workers failed');
+  }
 
   logger.info({ orderId, amountPaise, rupees }, '[Tip] Live boost applied during search');
   return { boosted: true, rupees, newTotal: (order.pricing?.total || 0) + rupees };

@@ -29,12 +29,13 @@ const ALL_SKILLS = [
 
 export default function WorkerEditProfilePage() {
   const nav = useNavigate();
-  const { data: me, isLoading } = useGetWorkerMeQuery();
+  const { data: meData, isLoading } = useGetWorkerMeQuery();
+  const me = meData?.worker; // API returns { worker: {...} }
   const [updateProfile, { isLoading: isSaving, error }] = useUpdateWorkerProfileMutation();
 
   const [name,   setName]   = useState('');
   const [bio,    setBio]    = useState('');
-  const [skills, setSkills] = useState(null); // null = not yet initialised from server
+  const [skills, setSkills] = useState(null);
 
   // Initialise form from server data once loaded
   if (me && skills === null) {

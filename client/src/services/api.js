@@ -487,6 +487,40 @@ export const api = createApi({
     adminWorkerPenalties: b.query({
       query: (id) => adminApiPath(`/workers/${id}/penalties`),
     }),
+    adminKycDocUrls: b.query({
+      query: (id) => adminApiPath(`/workers/${id}/kyc/docs`),
+      providesTags: (r, e, id) => [{ type: 'Worker', id }],
+    }),
+    adminDeleteWorker: b.mutation({
+      query: ({ id, reason }) => ({ url: adminApiPath(`/workers/${id}`), method: 'DELETE', body: { reason } }),
+      invalidatesTags: ['AdminUsers'],
+    }),
+    adminKycClarify: b.mutation({
+      query: ({ id, message }) => ({ url: adminApiPath(`/workers/${id}/kyc/clarify`), method: 'POST', body: { message } }),
+    }),
+    adminKycChangeRequests: b.query({
+      query: () => adminApiPath('/kyc/change-requests'),
+      providesTags: ['Kyc'],
+    }),
+    adminRespondChangeRequest: b.mutation({
+      query: ({ id, decision, denialReason }) => ({
+        url: adminApiPath(`/workers/${id}/kyc/change-request/respond`),
+        method: 'POST',
+        body: { decision, denialReason },
+      }),
+      invalidatesTags: ['Kyc'],
+    }),
+
+    // Worker: request document change after approved KYC
+    workerRequestDocumentChange: b.mutation({
+      query: (message) => ({ url: '/kyc/request-change', method: 'POST', body: { message } }),
+      invalidatesTags: ['Kyc'],
+    }),
+    // Worker: complete onboarding
+    workerCompleteOnboarding: b.mutation({
+      query: (body) => ({ url: '/workers/onboarding/complete', method: 'POST', body }),
+      invalidatesTags: ['Me'],
+    }),
 
     // --- Admin: Subscription Plans ---
     adminListPlans: b.query({
@@ -911,6 +945,13 @@ export const {
   useAdminGetCancellationConfigQuery,
   useAdminUpdateCancellationConfigMutation,
   useAdminWorkerPenaltiesQuery,
+  useAdminKycDocUrlsQuery,
+  useAdminKycClarifyMutation,
+  useAdminDeleteWorkerMutation,
+  useAdminKycChangeRequestsQuery,
+  useAdminRespondChangeRequestMutation,
+  useWorkerRequestDocumentChangeMutation,
+  useWorkerCompleteOnboardingMutation,
   useListNotificationsQuery,
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,

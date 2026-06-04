@@ -12,8 +12,8 @@ async function goOnline({ workerId, lng, lat }) {
   if (existing.isBlocked) {
     throw Object.assign(new Error('Account is blocked'), { status: 403, code: 'WORKER_BLOCKED' });
   }
-  // In production, KYC is mandatory. In development, allow unverified workers for testing.
-  if (config.env === 'production' && existing.kyc?.status !== 'approved') {
+  // KYC approval is mandatory in all environments — no dev bypass.
+  if (existing.kyc?.status !== 'approved') {
     throw Object.assign(new Error('KYC approval required before going online'), {
       status: 403, code: 'KYC_NOT_APPROVED', kycStatus: existing.kyc?.status || 'not_submitted',
     });
