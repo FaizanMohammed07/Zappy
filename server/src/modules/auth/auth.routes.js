@@ -31,6 +31,19 @@ router.post(
 );
 
 router.post(
+  '/partner/login',
+  authLimiter,
+  validate(Joi.object({
+    phone:        phoneSchema,
+    otp:          Joi.string().length(6).required(),
+    businessName: Joi.string().max(150).optional(),
+    ownerName:    Joi.string().max(100).optional(),
+    cities:       Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.string()).optional(),
+  })),
+  ctrl.loginPartner
+);
+
+router.post(
   '/admin/login',
   adminAuthLimiter,  // 3 attempts / 15 min — much stricter than user authLimiter (#79)
   validate(Joi.object({ email: Joi.string().email().required(), password: Joi.string().min(8).required() })),

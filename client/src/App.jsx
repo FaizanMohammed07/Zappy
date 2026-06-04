@@ -37,6 +37,15 @@ const ReferralPage        = lazy(() => import('./pages/ReferralPage'));
 const WorkerProfilePage     = lazy(() => import('./pages/WorkerProfilePage'));
 const WorkerEditProfilePage        = lazy(() => import('./pages/WorkerEditProfilePage'));
 const WorkerNotificationsPage      = lazy(() => import('./pages/WorkerNotificationsPage'));
+const EventsHomePage               = lazy(() => import('./pages/events/EventsHomePage'));
+const EventCategoryPage            = lazy(() => import('./pages/events/EventCategoryPage'));
+const EventThemePage               = lazy(() => import('./pages/events/EventThemePage'));
+const EventBookingPage             = lazy(() => import('./pages/events/EventBookingPage'));
+const EventBookingListPage         = lazy(() => import('./pages/events/EventBookingListPage'));
+const EventBookingDetailPage       = lazy(() => import('./pages/events/EventBookingDetailPage'));
+const EventSavedThemesPage         = lazy(() => import('./pages/events/EventSavedThemesPage'));
+const PartnerLoginPage             = lazy(() => import('./pages/events/PartnerLoginPage'));
+const PartnerDashboard             = lazy(() => import('./pages/events/PartnerDashboard'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -96,6 +105,19 @@ export default function App() {
         <Route path="/worker/profile" element={<RequireAuth role="worker"><WorkerEditProfilePage /></RequireAuth>} />
         <Route path="/worker/notifications" element={<RequireAuth role="worker"><WorkerNotificationsPage /></RequireAuth>} />
 
+        {/* Event Partner */}
+        <Route path="/partner/login" element={token ? <RedirectByRole role={role} /> : <PartnerLoginPage />} />
+        <Route path="/partner" element={<RequireAuth role="event_partner"><PartnerDashboard /></RequireAuth>} />
+
+        {/* Event Commerce */}
+        <Route path="/events"                    element={<RequireAuth role="user"><EventsHomePage /></RequireAuth>} />
+        <Route path="/events/browse"             element={<RequireAuth role="user"><EventCategoryPage /></RequireAuth>} />
+        <Route path="/events/themes/:id"         element={<RequireAuth role="user"><EventThemePage /></RequireAuth>} />
+        <Route path="/events/book/:id"           element={<RequireAuth role="user"><EventBookingPage /></RequireAuth>} />
+        <Route path="/events/bookings"           element={<RequireAuth role="user"><EventBookingListPage /></RequireAuth>} />
+        <Route path="/events/bookings/:id"       element={<RequireAuth role="user"><EventBookingDetailPage /></RequireAuth>} />
+        <Route path="/events/saved"              element={<RequireAuth role="user"><EventSavedThemesPage /></RequireAuth>} />
+
         {/* Admin */}
         <Route
           path={adminPath('/dashboard')}
@@ -110,6 +132,9 @@ export default function App() {
 }
 
 function RedirectByRole({ role }) {
-  const dest = role === 'worker' ? '/worker' : role === 'admin' ? adminPath('/dashboard') : '/';
+  const dest = role === 'worker' ? '/worker'
+    : role === 'admin' ? adminPath('/dashboard')
+    : role === 'event_partner' ? '/partner'
+    : '/';
   return <Navigate to={dest} replace />;
 }

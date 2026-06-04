@@ -42,7 +42,7 @@ function familyKey(userId, family) {
 // Workers are capped at 3 (phone + tablet + emergency backup).
 // Users are capped at 5 (more forgiving — family sharing, multiple browsers).
 // Admins are capped at 2 (security).
-const MAX_SESSIONS = { worker: 3, user: 5, admin: 2 };
+const MAX_SESSIONS = { worker: 3, user: 5, admin: 2, event_partner: 3 };
 
 /**
  * Issue a NEW token pair (fresh login).

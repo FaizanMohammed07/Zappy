@@ -70,6 +70,17 @@ const TYPES = [
   'dispute_response',
   'chat_message',
 
+  // Event Commerce — user
+  'event_booking_confirmed',
+  'event_booking_cancelled',
+  'event_booking_reminder',
+  'event_completed',
+  // Event Commerce — partner
+  'event_booking_new',
+  'event_partner_kyc_approved',
+  'event_partner_kyc_rejected',
+  'event_booking_declined_partner',
+
   // Platform-wide
   'promotional',
   'system_alert',
@@ -78,7 +89,7 @@ const TYPES = [
 const notificationSchema = new mongoose.Schema(
   {
     recipient: {
-      kind: { type: String, enum: ['user', 'worker'], required: true },
+      kind: { type: String, enum: ['user', 'worker', 'event_partner'], required: true },
       id: { type: mongoose.Schema.Types.ObjectId, required: true },
     },
 

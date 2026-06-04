@@ -47,6 +47,14 @@ async function loginWorker(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function loginPartner(req, res, next) {
+  try {
+    const result = await authService.loginEventPartnerWithOtp(req.body);
+    setRtCookie(res, result.refreshToken);
+    res.json({ accessToken: result.accessToken, partner: result.partner });
+  } catch (err) { next(err); }
+}
+
 async function loginAdmin(req, res, next) {
   const auditService = require('../admin/audit.service');
   try {
@@ -95,4 +103,4 @@ async function logout(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { requestOtp, loginUser, loginWorker, loginAdmin, refresh, logout };
+module.exports = { requestOtp, loginUser, loginWorker, loginPartner, loginAdmin, refresh, logout };

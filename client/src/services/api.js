@@ -66,7 +66,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -80,6 +80,9 @@ export const api = createApi({
     }),
     loginAdmin: b.mutation({
       query: (body) => ({ url: '/auth/admin/login', method: 'POST', body }),
+    }),
+    loginEventPartner: b.mutation({
+      query: (body) => ({ url: '/auth/partner/login', method: 'POST', body }),
     }),
     logout: b.mutation({
       query: (refreshToken) => ({ url: '/auth/logout', method: 'POST', body: { refreshToken } }),
@@ -854,6 +857,159 @@ export const api = createApi({
       query: (id) => ({ url: adminApiPath(`/shield/fees/${id}/write-off`), method: 'POST' }),
       invalidatesTags: ['ShieldFund'],
     }),
+
+    // ── Event Partner dashboard ───────────────────────────────────────────────
+    partnerOverview: b.query({ query: () => '/events/partner/overview', providesTags: ['EventPartner'] }),
+    partnerMe: b.query({ query: () => '/events/partner/me', providesTags: ['EventPartner'] }),
+    updatePartnerMe: b.mutation({
+      query: (body) => ({ url: '/events/partner/me', method: 'PATCH', body }),
+      invalidatesTags: ['EventPartner'],
+    }),
+    partnerThemes: b.query({ query: () => '/events/partner/themes', providesTags: ['EventTheme'] }),
+    createEventTheme: b.mutation({
+      query: (body) => ({ url: '/events/partner/themes', method: 'POST', body }),
+      invalidatesTags: ['EventTheme'],
+    }),
+    updateEventTheme: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/events/partner/themes/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['EventTheme'],
+    }),
+    deleteEventTheme: b.mutation({
+      query: (id) => ({ url: `/events/partner/themes/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['EventTheme'],
+    }),
+    partnerBookings: b.query({
+      query: (params = {}) => ({ url: '/events/partner/bookings', params }),
+      providesTags: ['EventBooking'],
+    }),
+    updatePartnerBookingStatus: b.mutation({
+      query: ({ id, status }) => ({ url: `/events/partner/bookings/${id}/status`, method: 'PATCH', body: { status } }),
+      invalidatesTags: ['EventBooking'],
+    }),
+    partnerCalendar: b.query({ query: () => '/events/partner/calendar', providesTags: ['EventPartner'] }),
+    blockEventDate: b.mutation({
+      query: (body) => ({ url: '/events/partner/calendar/block', method: 'POST', body }),
+      invalidatesTags: ['EventPartner'],
+    }),
+    unblockEventDate: b.mutation({
+      query: (date) => ({ url: `/events/partner/calendar/block/${date}`, method: 'DELETE' }),
+      invalidatesTags: ['EventPartner'],
+    }),
+    partnerEarnings: b.query({ query: () => '/events/partner/earnings', providesTags: ['EventPartner'] }),
+    declineEventBooking: b.mutation({
+      query: ({ id, reason }) => ({ url: `/events/partner/bookings/${id}/decline`, method: 'POST', body: { reason } }),
+      invalidatesTags: ['EventBooking'],
+    }),
+
+    // ── Events (user-facing) ──────────────────────────────────────────────────
+    getEventCategories: b.query({ query: () => '/events/categories', providesTags: ['EventCategory'] }),
+    getEventThemes: b.query({
+      query: (params = {}) => ({ url: '/events/themes', params }),
+      providesTags: ['EventTheme'],
+    }),
+    getEventTheme: b.query({
+      query: (id) => `/events/themes/${id}`,
+      providesTags: (r, e, id) => [{ type: 'EventTheme', id }],
+    }),
+    toggleSaveEventTheme: b.mutation({
+      query: (id) => ({ url: `/events/themes/${id}/save`, method: 'POST' }),
+      invalidatesTags: ['EventTheme'],
+    }),
+    getSavedEventThemes: b.query({ query: () => '/events/saved', providesTags: ['EventTheme'] }),
+    createEventBooking: b.mutation({
+      query: (body) => ({ url: '/events/bookings', method: 'POST', body }),
+      invalidatesTags: ['EventBooking'],
+    }),
+    getEventBookings: b.query({
+      query: (page = 1) => `/events/bookings?page=${page}`,
+      providesTags: ['EventBooking'],
+    }),
+    getEventBooking: b.query({
+      query: (id) => `/events/bookings/${id}`,
+      providesTags: (r, e, id) => [{ type: 'EventBooking', id }],
+    }),
+    cancelEventBooking: b.mutation({
+      query: ({ id, reason }) => ({ url: `/events/bookings/${id}/cancel`, method: 'POST', body: { reason } }),
+      invalidatesTags: ['EventBooking'],
+    }),
+    submitEventReview: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/events/bookings/${id}/review`, method: 'POST', body }),
+      invalidatesTags: ['EventBooking'],
+    }),
+    getEventConfig: b.query({ query: () => '/events/config', providesTags: ['EventConfig'] }),
+    // Event payment
+    createEventAdvanceOrder: b.mutation({
+      query: (id) => ({ url: `/events/bookings/${id}/pay/advance`, method: 'POST' }),
+    }),
+    verifyEventAdvancePayment: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/events/bookings/${id}/pay/advance/verify`, method: 'POST', body }),
+      invalidatesTags: ['EventBooking'],
+    }),
+    createEventRemainingOrder: b.mutation({
+      query: (id) => ({ url: `/events/bookings/${id}/pay/remaining`, method: 'POST' }),
+    }),
+    verifyEventRemainingPayment: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/events/bookings/${id}/pay/remaining/verify`, method: 'POST', body }),
+      invalidatesTags: ['EventBooking'],
+    }),
+
+    // ── Events (admin) ────────────────────────────────────────────────────────
+    adminEventThemes: b.query({
+      query: (params = {}) => ({ url: adminApiPath('/events/themes'), params }),
+      providesTags: ['EventTheme'],
+    }),
+    adminUpdateThemeStatus: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/events/themes/${id}`), method: 'PATCH', body }),
+      invalidatesTags: ['EventTheme'],
+    }),
+    adminEventBookings: b.query({
+      query: (params = {}) => ({ url: adminApiPath('/events/bookings'), params }),
+      providesTags: ['EventBooking'],
+    }),
+    adminEventPartners: b.query({ query: (params = {}) => ({ url: adminApiPath('/events/partners'), params }), providesTags: ['EventPartner'] }),
+    adminCreateEventPartner: b.mutation({
+      query: (body) => ({ url: adminApiPath('/events/partners'), method: 'POST', body }),
+      invalidatesTags: ['EventPartner'],
+    }),
+    adminUpdateEventPartner: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/events/partners/${id}`), method: 'PATCH', body }),
+      invalidatesTags: ['EventPartner'],
+    }),
+    adminEventConfig: b.query({ query: () => adminApiPath('/events/config'), providesTags: ['EventConfig'] }),
+    adminUpdateEventConfig: b.mutation({
+      query: (body) => ({ url: adminApiPath('/events/config'), method: 'PUT', body }),
+      invalidatesTags: ['EventConfig'],
+    }),
+    adminEventAnalytics: b.query({ query: () => adminApiPath('/events/analytics'), providesTags: ['EventTheme'] }),
+    adminCancelEventBooking: b.mutation({
+      query: ({ id, reason }) => ({ url: adminApiPath(`/events/bookings/${id}/cancel`), method: 'POST', body: { reason } }),
+      invalidatesTags: ['EventBooking'],
+    }),
+    adminDeclineEventPartnerBooking: b.mutation({
+      query: ({ id, reason }) => ({ url: `/events/partner/bookings/${id}/decline`, method: 'POST', body: { reason } }),
+      invalidatesTags: ['EventBooking'],
+    }),
+    adminEventCategories: b.query({ query: () => adminApiPath('/events/categories'), providesTags: ['EventCategory'] }),
+    adminUpsertEventCategory: b.mutation({
+      query: (body) => ({ url: adminApiPath('/events/categories'), method: 'POST', body }),
+      invalidatesTags: ['EventCategory'],
+    }),
+    adminGetEventPartner: b.query({
+      query: (id) => adminApiPath(`/events/partners/${id}`),
+      providesTags: (r, e, id) => [{ type: 'EventPartner', id }],
+    }),
+    adminApproveEventPartnerKyc: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/events/partners/${id}/kyc/approve`), method: 'POST', body }),
+      invalidatesTags: ['EventPartner'],
+    }),
+    adminRejectEventPartnerKyc: b.mutation({
+      query: ({ id, reason }) => ({ url: adminApiPath(`/events/partners/${id}/kyc/reject`), method: 'POST', body: { reason } }),
+      invalidatesTags: ['EventPartner'],
+    }),
+    adminBlockEventPartner: b.mutation({
+      query: ({ id, block }) => ({ url: adminApiPath(`/events/partners/${id}/block`), method: 'POST', body: { block } }),
+      invalidatesTags: ['EventPartner'],
+    }),
   }),
 });
 
@@ -1064,4 +1220,53 @@ export const {
   useAdminShieldTriggerPayoutMutation,
   useAdminShieldWriteOffFeeMutation,
   useAdminShieldUpdateFeeScheduleMutation,
+  // Event Partner
+  useLoginEventPartnerMutation,
+  usePartnerOverviewQuery,
+  usePartnerMeQuery,
+  useUpdatePartnerMeMutation,
+  usePartnerThemesQuery,
+  useCreateEventThemeMutation,
+  useUpdateEventThemeMutation,
+  useDeleteEventThemeMutation,
+  usePartnerBookingsQuery,
+  useUpdatePartnerBookingStatusMutation,
+  usePartnerCalendarQuery,
+  useBlockEventDateMutation,
+  useUnblockEventDateMutation,
+  usePartnerEarningsQuery,
+  // Events (user)
+  useGetEventCategoriesQuery,
+  useGetEventThemesQuery,
+  useGetEventThemeQuery,
+  useToggleSaveEventThemeMutation,
+  useGetSavedEventThemesQuery,
+  useCreateEventBookingMutation,
+  useGetEventBookingsQuery,
+  useGetEventBookingQuery,
+  useCancelEventBookingMutation,
+  useSubmitEventReviewMutation,
+  useGetEventConfigQuery,
+  useCreateEventAdvanceOrderMutation,
+  useVerifyEventAdvancePaymentMutation,
+  useCreateEventRemainingOrderMutation,
+  useVerifyEventRemainingPaymentMutation,
+  // Events (admin)
+  useAdminEventThemesQuery,
+  useAdminUpdateThemeStatusMutation,
+  useAdminEventBookingsQuery,
+  useAdminEventPartnersQuery,
+  useAdminCreateEventPartnerMutation,
+  useAdminUpdateEventPartnerMutation,
+  useAdminEventConfigQuery,
+  useAdminUpdateEventConfigMutation,
+  useAdminEventAnalyticsQuery,
+  useAdminEventCategoriesQuery,
+  useAdminUpsertEventCategoryMutation,
+  useAdminCancelEventBookingMutation,
+  useDeclineEventBookingMutation,
+  useAdminGetEventPartnerQuery,
+  useAdminApproveEventPartnerKycMutation,
+  useAdminRejectEventPartnerKycMutation,
+  useAdminBlockEventPartnerMutation,
 } = api;

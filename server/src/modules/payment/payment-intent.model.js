@@ -28,15 +28,16 @@ const paymentIntentSchema = new mongoose.Schema(
 
     purpose: {
       type: String,
-      enum: ['subscription', 'wallet_topup', 'order_payment'],
+      enum: ['subscription', 'wallet_topup', 'order_payment', 'event_advance_payment', 'event_remaining_payment'],
       required: true,
       index: true,
     },
 
     // Refs depending on purpose — exactly one will be populated
-    planId: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan' },
+    planId:         { type: mongoose.Schema.Types.ObjectId, ref: 'Plan' },
     subscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' },
-    orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
+    orderId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
+    eventBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'EventBooking' },
 
     amountPaise: { type: Number, required: true },
     currency: { type: String, default: 'INR' },

@@ -4,6 +4,7 @@ const User = require('../user/user.model');
 const Worker = require('../worker/worker.model');
 const Admin = require('../admin/admin.model');
 const tokenService = require('./token.service');
+const logger = require('../../utils/logger');
 
 async function hashPassword(pw) {
   return bcrypt.hash(pw, 12);
@@ -134,6 +135,41 @@ async function loginWorkerWithOtp({ phone, otp, name, skills, deviceId }) {
   return { worker, ...tokens };
 }
 
+// ---- Event Partner (phone OTP) — self-registration allowed, admin approves KYC ----
+async function loginEventPartnerWithOtp({ phone, otp, businessName, ownerName, cities }) {
+  const ok = await verifyOtp(phone, otp);
+  if (!ok) throw Object.assign(new Error('Invalid OTP'), { status: 401, code: 'OTP_INVALID' });
+
+  const EventPartner = require('../events/event-partner.model');
+  let partner = await EventPartner.findOne({ phone });
+  const isNew = !partner;
+
+  if (isNew) {
+    if (!businessName || !ownerName) {
+      throw Object.assign(
+        new Error('First-time registration requires businessName and ownerName'),
+        { status: 400, code: 'PARTNER_ONBOARDING_REQUIRED' }
+      );
+    }
+    partner = await EventPartner.create({
+      phone, businessName, ownerName,
+      cities: Array.isArray(cities) ? cities : (cities || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+      isActive: true,
+      kyc: { status: 'not_submitted' },
+    });
+    logger.info({ partnerId: partner._id, phone }, '[AUTH] New event partner self-registered');
+  }
+
+  if (partner.isBlocked) {
+    throw Object.assign(new Error('Partner account is blocked. Contact support.'), { status: 403, code: 'ACCOUNT_BLOCKED' });
+  }
+
+  const tokens = await tokenService.issueTokenPair({
+    sub: partner._id.toString(), role: 'event_partner', phone: partner.phone,
+  });
+  return { partner, isNew, ...tokens };
+}
+
 // ---- Admin (email + password) with lockout ----
 async function loginAdmin({ email, password, ip }) {
   const failKey = `admin:fail:${email}`;
@@ -179,6 +215,7 @@ module.exports = {
   verifyOtp,
   loginUserWithOtp,
   loginWorkerWithOtp,
+  loginEventPartnerWithOtp,
   loginAdmin,
   refresh: tokenService.rotateTokenPair,
   revoke: tokenService.revokeRefreshToken,

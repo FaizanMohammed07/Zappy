@@ -285,6 +285,41 @@ async function processJob(job) {
     return { ok: true, skipped: true };
   }
 
+  /* ── Event booking reminder (24h before event) ── */
+  if (job.name === 'event_reminder') {
+    const { bookingId, userId, partnerId } = job.data;
+    try {
+      const EventBooking = require('../modules/events/event-booking.model');
+      const booking = await EventBooking.findById(bookingId).select('status themeId eventDate eventTimeSlot').populate('themeId', 'title').lean();
+      if (!booking || !['confirmed', 'partner_assigned'].includes(booking.status)) {
+        return { ok: true, skipped: true, reason: 'booking_not_active' };
+      }
+      const ns = require('../modules/notification/notification.service');
+      const dateStr = new Date(booking.eventDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+      await Promise.all([
+        ns.notify({
+          recipient: { kind: 'user', id: userId },
+          type: 'event_booking_reminder',
+          title: '🎉 Your event is tomorrow!',
+          body: `${booking.themeId?.title || 'Your decoration'} is scheduled for ${dateStr} at ${booking.eventTimeSlot}. Get ready!`,
+          deepLink: `/events/bookings/${bookingId}`,
+          data: { bookingId },
+        }),
+        ns.notify({
+          recipient: { kind: 'event_partner', id: partnerId },
+          type: 'event_booking_reminder',
+          title: '📋 Event reminder: Tomorrow',
+          body: `You have a decoration event tomorrow — ${dateStr} at ${booking.eventTimeSlot}. Confirm all materials are ready.`,
+          deepLink: `/partner`,
+          data: { bookingId },
+        }),
+      ]);
+    } catch (err) {
+      logger.warn({ err: err.message, bookingId }, '[Notif] Event reminder failed');
+    }
+    return { ok: true };
+  }
+
   logger.warn({ name: job.name }, '[Notif] Unknown job type');
   return { ok: false, reason: 'unknown_job' };
 }

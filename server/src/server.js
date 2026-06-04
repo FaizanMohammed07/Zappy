@@ -6,6 +6,8 @@ const { connectMongo } = require('./config/mongo');
 const { initSockets } = require('./sockets');
 const { ensureAdminSeeded } = require('./modules/admin/admin.seed');
 const { seedPlans } = require('./modules/subscription/plan.seed');
+const { seedEventCategories } = require('./modules/events/event-category.seed');
+const EventBooking = require('./modules/events/event-booking.model');
 
 /**
  * Startup reconciliation: reset workers who are marked unavailable but whose
@@ -57,6 +59,7 @@ async function start() {
   await reconcileWorkers();
   await ensureAdminSeeded();
   await seedPlans();
+  await seedEventCategories();
 
   const app = buildApp();
   const server = http.createServer(app);
@@ -71,6 +74,21 @@ async function start() {
   startNotificationsWorker();
   startStaleOrderWorker();
   startShieldPayoutWorker();
+
+  // Expire pending_payment event bookings older than 30 minutes every 5 min
+  setInterval(async () => {
+    try {
+      const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+      const expired = await EventBooking.updateMany(
+        { status: 'pending_payment', createdAt: { $lt: cutoff } },
+        { $set: { status: 'cancelled', cancellationReason: 'payment_timeout' },
+          $push: { statusHistory: { status: 'cancelled', meta: { reason: 'payment_timeout' } } } }
+      );
+      if (expired.modifiedCount > 0) {
+        logger.info({ count: expired.modifiedCount }, '[EVENT] Expired pending_payment bookings cancelled');
+      }
+    } catch (err) { logger.warn({ err: err.message }, '[EVENT] Booking expiry sweep failed'); }
+  }, 5 * 60 * 1000);
 
   server.listen(config.port, () => {
     logger.info({ port: config.port, env: config.env }, 'API server listening');

@@ -91,13 +91,13 @@ const FAMILY_TILES = [
   { key: 'home_visit_check',   name: 'Home Visit',    Icon: CheckCircle, grad: 'from-teal-500 to-cyan-600',     eta: null      },
 ];
 
-// Event Crew
+// Event Commerce tiles — navigate to event commerce module
 const EVENT_TILES = [
-  { key: 'event_birthday_setup', name: 'Birthday',   Icon: PartyPopper, grad: 'from-pink-500 to-fuchsia-600',  eta: null },
-  { key: 'event_decorator',      name: 'Decorator',  Icon: Sparkles,    grad: 'from-violet-500 to-purple-600', eta: null },
-  { key: 'event_setup_crew',     name: 'Setup Crew', Icon: Users,       grad: 'from-blue-500 to-indigo-600',   eta: null },
-  { key: 'event_wedding_setup',  name: 'Wedding',    Icon: Star,        grad: 'from-amber-400 to-orange-500',  eta: null },
-  { key: 'event_sound_crew',     name: 'Sound',      Icon: Layers,      grad: 'from-slate-600 to-slate-800',   eta: null },
+  { key: 'birthday',      name: 'Birthday',    Icon: PartyPopper, grad: 'from-pink-500 to-fuchsia-600',  category: 'birthday'      },
+  { key: 'anniversary',   name: 'Anniversary', Icon: Star,        grad: 'from-rose-500 to-pink-500',     category: 'anniversary'   },
+  { key: 'baby-shower',   name: 'Baby Shower', Icon: Sparkles,    grad: 'from-blue-400 to-indigo-500',   category: 'baby-shower'   },
+  { key: 'romantic',      name: 'Romantic',    Icon: Heart,       grad: 'from-red-400 to-rose-500',      category: 'romantic'      },
+  { key: 'housewarming',  name: 'Housewarming',Icon: Layers,      grad: 'from-amber-400 to-orange-500',  category: 'housewarming'  },
 ];
 
 // Pet Assistance
@@ -223,8 +223,10 @@ function PosterTile({ svc, nav }) {
 /* ─── Compact poster tile ──────────────────────────────────────────────── */
 function CompactTile({ svc, nav }) {
   const { key, name, Icon, grad, eta } = svc;
+  // nav can be a function (event tiles) or a useNavigate instance (service tiles)
+  const handleClick = typeof nav === 'function' && nav.length === 0 ? nav : () => nav(`/book/${key}`);
   return (
-    <motion.button onClick={() => nav(`/book/${key}`)} className="w-[72px] sm:w-[84px] md:w-[96px] lg:w-[104px] flex flex-col items-center gap-1.5 group shrink-0"
+    <motion.button onClick={handleClick} className="w-[72px] sm:w-[84px] md:w-[96px] lg:w-[104px] flex flex-col items-center gap-1.5 group shrink-0"
       whileHover={{ y: -3 }} whileTap={{ scale: 0.93 }}>
       <div className={`w-full aspect-square rounded-xl bg-gradient-to-br ${grad} relative overflow-hidden`}
         style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
@@ -726,12 +728,16 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ─── Event Crew ───────────────────────────────────────────── */}
+          {/* ─── Event Decorations ─────────────────────────────────── */}
           <div className="px-4 mt-7">
-            <SectionHeader title="Event Crew" badge="Book a Team" badgeColor="bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100" onSeeAll={() => nav('/services')} />
+            <SectionHeader title="Event Decorations" badge="🎉 Book a Theme" badgeColor="bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100" onSeeAll={() => nav('/events')} />
             <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fdf4ff,#fae8ff)', border: '1px solid rgba(168,85,247,0.12)' }}>
               <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {EVENT_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+                {EVENT_TILES.map(svc => (
+                  <motion.div key={svc.key} variants={fadeInUp}>
+                    <CompactTile svc={{ ...svc, eta: null }} nav={() => nav(`/events/browse?category=${svc.category}`)} />
+                  </motion.div>
+                ))}
               </motion.div>
             </div>
           </div>
