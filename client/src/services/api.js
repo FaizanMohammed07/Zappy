@@ -66,7 +66,10 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory'],
+  // Disable refetch-on-focus — dashboard fires 6-8 queries; tab switching floods the limiter
+  refetchOnFocus: false,
+  refetchOnReconnect: true,
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -83,6 +86,9 @@ export const api = createApi({
     }),
     loginEventPartner: b.mutation({
       query: (body) => ({ url: '/auth/partner/login', method: 'POST', body }),
+    }),
+    googlePartnerLogin: b.mutation({
+      query: (body) => ({ url: '/auth/partner/google', method: 'POST', body }),
     }),
     logout: b.mutation({
       query: (refreshToken) => ({ url: '/auth/logout', method: 'POST', body: { refreshToken } }),
@@ -548,11 +554,49 @@ export const api = createApi({
       query: () => '/ads',
       providesTags: ['Ad'],
     }),
+    getAdsByPlacement: b.query({
+      query: ({ placement, category, city, q, limit } = {}) => ({
+        url: `/ads/placement/${placement}`,
+        params: { category, city, q, limit },
+      }),
+      providesTags: ['Ad'],
+    }),
     trackAdImpression: b.mutation({
-      query: (id) => ({ url: `/ads/${id}/impression`, method: 'POST' }),
+      query: ({ id, placement, meta } = {}) => ({
+        url: `/ads/${id}/impression`, method: 'POST', body: { placement, meta },
+      }),
     }),
     trackAdClick: b.mutation({
-      query: (id) => ({ url: `/ads/${id}/click`, method: 'POST' }),
+      query: ({ id, placement, meta } = {}) => ({
+        url: `/ads/${id}/click`, method: 'POST', body: { placement, meta },
+      }),
+    }),
+    // Self-serve advertiser
+    myAdCampaigns: b.query({
+      query: ({ page = 1 } = {}) => `/ads/my?page=${page}`,
+      providesTags: ['Ad'],
+    }),
+    createMyCampaign: b.mutation({
+      query: (body) => ({ url: '/ads/my', method: 'POST', body }),
+      invalidatesTags: ['Ad'],
+    }),
+    updateMyCampaign: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/ads/my/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['Ad'],
+    }),
+    myCampaignAnalytics: b.query({
+      query: ({ id, days = 7 }) => `/ads/my/${id}/analytics?days=${days}`,
+    }),
+    myAdWallet: b.query({
+      query: () => '/ads/my/wallet',
+      providesTags: ['Ad'],
+    }),
+    createAdTopUpOrder: b.mutation({
+      query: (body) => ({ url: '/ads/my/wallet/topup', method: 'POST', body }),
+    }),
+    verifyAdTopUp: b.mutation({
+      query: (body) => ({ url: '/ads/my/wallet/topup/verify', method: 'POST', body }),
+      invalidatesTags: ['Ad'],
     }),
     // Admin: Ads
     adminListAds: b.query({
@@ -575,6 +619,21 @@ export const api = createApi({
     adminDeleteAd: b.mutation({
       query: (id) => ({ url: adminApiPath(`/ads/${id}`), method: 'DELETE' }),
       invalidatesTags: ['Ad'],
+    }),
+    adminApproveAd: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/ads/${id}/approve`), method: 'POST' }),
+      invalidatesTags: ['Ad'],
+    }),
+    adminRejectAd: b.mutation({
+      query: ({ id, note }) => ({ url: adminApiPath(`/ads/${id}/reject`), method: 'POST', body: { note } }),
+      invalidatesTags: ['Ad'],
+    }),
+    adminAdAnalytics: b.query({
+      query: ({ id, days = 7 }) => adminApiPath(`/ads/${id}/analytics?days=${days}`),
+    }),
+    adminAdWallets: b.query({
+      query: ({ page = 1 } = {}) => adminApiPath(`/ads/wallets?page=${page}`),
+      providesTags: ['Ad'],
     }),
 
     // --- Promos/Coupons ---
@@ -896,6 +955,18 @@ export const api = createApi({
       invalidatesTags: ['EventPartner'],
     }),
     partnerEarnings: b.query({ query: () => '/events/partner/earnings', providesTags: ['EventPartner'] }),
+    partnerNotifications: b.query({
+      query: ({ page = 1, unreadOnly = false } = {}) => `/events/partner/notifications?page=${page}&unreadOnly=${unreadOnly}`,
+      providesTags: ['PartnerNotification'],
+    }),
+    markPartnerNotificationRead: b.mutation({
+      query: (id) => ({ url: `/events/partner/notifications/${id}/read`, method: 'POST' }),
+      invalidatesTags: ['PartnerNotification'],
+    }),
+    markAllPartnerNotificationsRead: b.mutation({
+      query: () => ({ url: '/events/partner/notifications/read-all', method: 'POST' }),
+      invalidatesTags: ['PartnerNotification'],
+    }),
     declineEventBooking: b.mutation({
       query: ({ id, reason }) => ({ url: `/events/partner/bookings/${id}/decline`, method: 'POST', body: { reason } }),
       invalidatesTags: ['EventBooking'],
@@ -1128,14 +1199,28 @@ export const {
   useAdminCreatePlanMutation,
   useAdminUpdatePlanMutation,
   useAdminDeletePlanMutation,
-  // Ads
+  // Ads — serving
   useGetActiveAdsQuery,
+  useGetAdsByPlacementQuery,
   useTrackAdImpressionMutation,
   useTrackAdClickMutation,
+  // Ads — self-serve advertiser
+  useMyAdCampaignsQuery,
+  useCreateMyCampaignMutation,
+  useUpdateMyCampaignMutation,
+  useMyCampaignAnalyticsQuery,
+  useMyAdWalletQuery,
+  useCreateAdTopUpOrderMutation,
+  useVerifyAdTopUpMutation,
+  // Ads — admin
   useAdminListAdsQuery,
   useAdminCreateAdMutation,
   useAdminUpdateAdMutation,
   useAdminDeleteAdMutation,
+  useAdminApproveAdMutation,
+  useAdminRejectAdMutation,
+  useAdminAdAnalyticsQuery,
+  useAdminAdWalletsQuery,
   // Promos
   useValidatePromoMutation,
   useAdminListPromosQuery,
@@ -1222,6 +1307,10 @@ export const {
   useAdminShieldUpdateFeeScheduleMutation,
   // Event Partner
   useLoginEventPartnerMutation,
+  useGooglePartnerLoginMutation,
+  usePartnerNotificationsQuery,
+  useMarkPartnerNotificationReadMutation,
+  useMarkAllPartnerNotificationsReadMutation,
   usePartnerOverviewQuery,
   usePartnerMeQuery,
   useUpdatePartnerMeMutation,

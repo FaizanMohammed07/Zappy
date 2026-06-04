@@ -58,6 +58,7 @@ export default function LoginPage({ role = 'user' }) {
   const [skills, setSkills]     = useState([]);
   const [step, setStep]         = useState('phone');
   const [isNewUser, setIsNewUser] = useState(true);
+  const pendingOtp = useRef(null);
   const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
   const [loginUser,  { isLoading: loggingUser }]   = useLoginUserMutation();
   const [loginWorker, { isLoading: loggingWorker }] = useLoginWorkerMutation();
@@ -68,6 +69,21 @@ export default function LoginPage({ role = 'user' }) {
   const otpRefs   = useRef([]);
 
   const otp = otpDigits.join('');
+
+  // After OTP form mounts: fill digits from API response
+  useEffect(() => {
+    if (step !== 'otp' || !pendingOtp.current) return;
+    const code = String(pendingOtp.current);
+    pendingOtp.current = null;
+    const digits = code.slice(0, 6).split('').concat(Array(Math.max(0, 6 - code.length)).fill(''));
+    setOtpDigits(digits);
+    setTimeout(() => otpRefs.current[5]?.focus(), 80);
+  }, [step]);
+
+  // Auto-submit once all 6 digits filled (existing users only — new users must enter name)
+  useEffect(() => {
+    if (step === 'otp' && otp.length === 6 && !isNewUser) verify();
+  }, [otp]);
 
   // Mouse parallax for hero
   const mouseX = useMotionValue(0);
@@ -109,13 +125,9 @@ export default function LoginPage({ role = 'user' }) {
     if (!/^[0-9]{10,15}$/.test(phone)) { toast.error('Enter a valid phone number'); return; }
     try {
       const r = await requestOtp({ phone, role }).unwrap();
-      if (r.otp) {
-        const digits = String(r.otp).slice(0, 6).split('').concat(Array(Math.max(0, 6 - String(r.otp).length)).fill(''));
-        setOtpDigits(digits);
-      }
+      pendingOtp.current = r.otp || null;
       setIsNewUser(r.isNewUser ?? true);
       setStep('otp');
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
     } catch (err) {
       toast.error(err.data?.error || 'Failed to send OTP');
     }

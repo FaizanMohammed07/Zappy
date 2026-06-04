@@ -4,6 +4,7 @@ const c = require('./event.controller');
 const a = require('./event-admin.controller');
 const p  = require('./event-partner-api.controller');
 const ep = require('./event-payment.controller');
+const notifCtrl = require('../notification/notification.controller');
 
 // ── User-facing routes (/api/events) ──────────────────────────────────────────
 const router = express.Router();
@@ -46,7 +47,13 @@ partnerRouter.get('/calendar',                p.getCalendar);
 partnerRouter.post('/calendar/block',         p.blockDate);
 partnerRouter.delete('/calendar/block/:date', p.unblockDate);
 partnerRouter.get('/earnings',                p.getEarnings);
-partnerRouter.get('/kyc/stream/:idx',         p.streamMyKycDoc);
+// Static sub-path must come before param route (:idx would match "field")
+partnerRouter.get('/kyc/stream/field/:fieldName', p.streamMyKycField);
+partnerRouter.get('/kyc/stream/:idx',             p.streamMyKycDoc);
+// Notifications
+partnerRouter.get('/notifications',               notifCtrl.list);
+partnerRouter.post('/notifications/read-all',     notifCtrl.markAllRead);
+partnerRouter.post('/notifications/:id/read',     notifCtrl.markRead);
 
 // ── Admin routes (/api/{slug}/events) ─────────────────────────────────────────
 const adminRouter = express.Router();
@@ -62,7 +69,8 @@ adminRouter.get('/partners/:id',                  a.getPartner);
 adminRouter.patch('/partners/:id',                a.updatePartner);
 adminRouter.post('/partners/:id/kyc/approve',     a.approvePartnerKyc);
 adminRouter.post('/partners/:id/kyc/reject',      a.rejectPartnerKyc);
-adminRouter.get('/partners/:id/kyc/stream/:idx',  a.streamPartnerKycDoc);
+adminRouter.get('/partners/:id/kyc/field/:fieldName',   a.streamPartnerKycField);
+adminRouter.get('/partners/:id/kyc/stream/:idx',        a.streamPartnerKycDoc);
 adminRouter.post('/partners/:id/block',           a.blockPartner);
 adminRouter.get('/config',           a.getConfig);
 adminRouter.put('/config',           a.updateConfig);

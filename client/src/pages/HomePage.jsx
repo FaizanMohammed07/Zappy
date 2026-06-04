@@ -16,6 +16,7 @@ import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
 import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery } from '../services/api';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import BottomNav from '../components/layout/BottomNav';
+import Footer from '../components/layout/Footer';
 import PageTransition from '../components/common/PageTransition';
 import AdBanner from '../components/common/AdBanner';
 import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
@@ -37,7 +38,7 @@ const VEHICLE_HIGHLIGHTS = [
   { key: 'puncture',         name: 'Puncture Repair',  img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.82, price: 149, mrp: null, instant: true  },
   { key: 'car_wash',         name: 'Car Wash',         img: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.75, price: 349, mrp: null, instant: true  },
   { key: 'battery_jump_start',name: 'Jump Start',      img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.91, price: 299, mrp: null, instant: true  },
-  { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1558981396-7f5e96fd2378?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.77, price: 499, mrp: 599, instant: false },
+  { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.77, price: 499, mrp: 599, instant: false },
   { key: 'car_detailing',    name: 'Car Detailing',    img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.85, price: 1499, mrp: 1799, instant: false },
 ];
 
@@ -65,11 +66,11 @@ const LAPTOP_TILES = [
 
 // Smart Devices
 const SMART_TILES = [
-  { key: 'smart_tv_install',    name: 'Smart TV',         Icon: Tv,       grad: 'from-slate-700 to-slate-900',   eta: '60 mins' },
-  { key: 'router_setup',        name: 'WiFi Setup',       Icon: Wifi,     grad: 'from-blue-500 to-cyan-600',     eta: '30 mins' },
-  { key: 'cctv_install',        name: 'CCTV Install',     Icon: Camera,   grad: 'from-stone-600 to-stone-800',   eta: null      },
-  { key: 'smart_lock_install',  name: 'Smart Lock',       Icon: Lock,     grad: 'from-indigo-600 to-violet-700', eta: null      },
-  { key: 'home_automation_setup',name: 'Home Auto',       Icon: Zap,      grad: 'from-amber-500 to-orange-600',  eta: null      },
+  { key: 'smart_tv_install',    name: 'Smart TV',         img: '/images/smart_tv.png',       eta: '60 mins' },
+  { key: 'router_setup',        name: 'WiFi Setup',       img: '/images/wifi_setup.png',     eta: '30 mins' },
+  { key: 'cctv_install',        name: 'CCTV Install',     img: '/images/cctv_install.png',   eta: null      },
+  { key: 'smart_lock_install',  name: 'Smart Lock',       img: '/images/smart_lock.png',     eta: null      },
+  { key: 'home_automation_setup',name: 'Home Auto',       img: '/images/home_auto.png',      eta: null      },
 ];
 
 // Vehicle Care
@@ -84,29 +85,29 @@ const VEHICLE_TILES = [
 
 // Family & Elder Assist
 const FAMILY_TILES = [
-  { key: 'medicine_pickup',    name: 'Medicine',      Icon: Heart,       grad: 'from-rose-500 to-pink-600',     eta: '40 mins' },
-  { key: 'hospital_companion', name: 'Hospital Help', Icon: ShieldCheck, grad: 'from-blue-500 to-indigo-600',   eta: null      },
-  { key: 'grocery_assistance', name: 'Grocery',       Icon: Users,       grad: 'from-green-500 to-emerald-600', eta: '45 mins' },
-  { key: 'elder_companion',    name: 'Elder Care',    Icon: Heart,       grad: 'from-violet-500 to-purple-600', eta: null      },
-  { key: 'home_visit_check',   name: 'Home Visit',    Icon: CheckCircle, grad: 'from-teal-500 to-cyan-600',     eta: null      },
+  { key: 'medicine_pickup',    name: 'Medicine',      img: '/images/medicine_delivery.png', eta: '40 mins' },
+  { key: 'hospital_companion', name: 'Hospital Help', img: '/images/hospital_companion.png', eta: null      },
+  { key: 'grocery_assistance', name: 'Grocery',       img: '/images/grocery_delivery.png',   eta: '45 mins' },
+  { key: 'elder_companion',    name: 'Elder Care',    img: '/images/elder_care.png',         eta: null      },
+  { key: 'home_visit_check',   name: 'Home Visit',    img: '/images/home_visit.png',         eta: null      },
 ];
 
 // Event Commerce tiles — navigate to event commerce module
 const EVENT_TILES = [
-  { key: 'birthday',      name: 'Birthday',    Icon: PartyPopper, grad: 'from-pink-500 to-fuchsia-600',  category: 'birthday'      },
-  { key: 'anniversary',   name: 'Anniversary', Icon: Star,        grad: 'from-rose-500 to-pink-500',     category: 'anniversary'   },
-  { key: 'baby-shower',   name: 'Baby Shower', Icon: Sparkles,    grad: 'from-blue-400 to-indigo-500',   category: 'baby-shower'   },
-  { key: 'romantic',      name: 'Romantic',    Icon: Heart,       grad: 'from-red-400 to-rose-500',      category: 'romantic'      },
-  { key: 'housewarming',  name: 'Housewarming',Icon: Layers,      grad: 'from-amber-400 to-orange-500',  category: 'housewarming'  },
+  { key: 'birthday',      name: 'Birthday',    img: '/images/event_birthday.png',  category: 'birthday'      },
+  { key: 'anniversary',   name: 'Anniversary', img: '/images/event_anniversary.png', category: 'anniversary'   },
+  { key: 'baby-shower',   name: 'Baby Shower', img: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=400&h=400&q=80',   category: 'baby-shower'   },
+  { key: 'romantic',      name: 'Romantic',    img: 'https://images.unsplash.com/photo-1494972308805-463bc619d34e?auto=format&fit=crop&w=400&h=400&q=80',      category: 'romantic'      },
+  { key: 'housewarming',  name: 'Housewarming',img: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&h=400&q=80',  category: 'housewarming'  },
 ];
 
 // Pet Assistance
 const PET_TILES = [
-  { key: 'pet_grooming',       name: 'Grooming',    Icon: Dog,        grad: 'from-amber-400 to-orange-500',  eta: '60 mins' },
-  { key: 'pet_walking',        name: 'Walking',     Icon: Bike,       grad: 'from-green-500 to-emerald-600', eta: '20 mins' },
-  { key: 'pet_sitting',        name: 'Pet Sitting', Icon: Heart,      grad: 'from-rose-500 to-pink-600',     eta: null      },
-  { key: 'pet_vet_assist',     name: 'Vet Help',    Icon: ShieldCheck,grad: 'from-blue-500 to-indigo-600',   eta: null      },
-  { key: 'pet_transport',      name: 'Transport',   Icon: Car,        grad: 'from-violet-500 to-purple-600', eta: null      },
+  { key: 'pet_grooming',       name: 'Grooming',    img: 'https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=400&h=400&q=80',  eta: '60 mins' },
+  { key: 'pet_walking',        name: 'Walking',     img: 'https://images.unsplash.com/photo-1541599540903-216a46ca1dc0?auto=format&fit=crop&w=400&h=400&q=80', eta: '20 mins' },
+  { key: 'pet_sitting',        name: 'Pet Sitting', img: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=400&h=400&q=80',     eta: null      },
+  { key: 'pet_vet_assist',     name: 'Vet Help',    img: 'https://images.unsplash.com/photo-1576201836106-db1758fd1c97?auto=format&fit=crop&w=400&h=400&q=80',   eta: null      },
+  { key: 'pet_transport',      name: 'Transport',   img: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=400&h=400&q=80', eta: null      },
 ];
 
 const HERO_POSTERS = [
@@ -150,40 +151,40 @@ function ServiceImageCard({ item, nav }) {
   return (
     <motion.button
       onClick={() => nav(`/book/${item.key}`)}
-      className="shrink-0 w-44 flex flex-col text-left"
+      className="shrink-0 w-44 md:w-56 flex flex-col text-left group"
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.96 }}
     >
-      <div className="w-full h-36 rounded-2xl overflow-hidden bg-slate-100 mb-2.5 relative">
+      <div className="w-full h-36 md:h-44 rounded-2xl md:rounded-[1.5rem] overflow-hidden bg-slate-100 mb-3 relative shadow-sm border border-slate-100">
         <img
           src={item.img}
           alt={item.name}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
           onError={e => { e.target.style.display = 'none'; }}
         />
         {item.instant && (
-          <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm rounded-full px-2 py-0.5 shadow-sm">
-            <Zap size={8} className="text-green-600" strokeWidth={2.5} />
-            <span className="text-[9px] font-black text-green-600">Instant</span>
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-full px-2.5 py-1 shadow-sm border border-white/20">
+            <Zap size={10} className="text-green-600 fill-green-600" strokeWidth={2.5} />
+            <span className="text-[10px] font-black text-green-600 tracking-wide">Instant</span>
           </div>
         )}
       </div>
-      <p className="text-[13px] font-bold text-slate-900 leading-tight mb-1">{item.name}</p>
-      <div className="flex items-center gap-1 mb-1">
-        <Star size={10} className="text-amber-400 fill-amber-400" />
-        <span className="text-[11px] font-semibold text-slate-700">{item.rating.toFixed(2)}</span>
+      <p className="text-[14px] md:text-base font-black text-slate-900 leading-tight mb-1 group-hover:text-indigo-600 transition-colors">{item.name}</p>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Star size={12} className="text-amber-400 fill-amber-400" />
+        <span className="text-xs font-bold text-slate-700">{item.rating.toFixed(2)}</span>
         {item.instant && (
           <>
             <span className="text-slate-300 mx-0.5">·</span>
-            <Zap size={8} className="text-green-600" strokeWidth={2.5} />
-            <span className="text-[10px] font-semibold text-green-600">Instant</span>
+            <Zap size={10} className="text-green-600 fill-green-600" />
+            <span className="text-[10px] font-bold text-green-600">Instant</span>
           </>
         )}
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-[13px] font-black text-slate-900">₹{item.price}</span>
-        {item.mrp && <span className="text-[11px] text-slate-400 line-through">₹{item.mrp}</span>}
+        <span className="text-sm md:text-base font-black text-slate-900">₹{item.price}</span>
+        {item.mrp && <span className="text-xs md:text-[13px] font-semibold text-slate-400 line-through">₹{item.mrp}</span>}
       </div>
     </motion.button>
   );
@@ -193,29 +194,29 @@ function ServiceImageCard({ item, nav }) {
 function PosterTile({ svc, nav }) {
   const { key, name, Icon, grad, shadow, eta } = svc;
   return (
-    <motion.button onClick={() => nav(`/book/${key}`)} className="w-[84px] sm:w-[96px] md:w-[112px] lg:w-[128px] flex flex-col items-center gap-2 group shrink-0"
+    <motion.button onClick={() => nav(`/book/${key}`)} className="w-[104px] sm:w-[124px] md:w-[140px] lg:w-[156px] flex flex-col items-center gap-2.5 group shrink-0"
       whileHover={{ y: -4 }} whileTap={{ scale: 0.92 }} transition={springSnap}>
-      <div className={`w-full aspect-square rounded-2xl bg-gradient-to-br ${grad} relative overflow-hidden`}
+      <div className={`w-full aspect-square rounded-[1.25rem] bg-gradient-to-br ${grad} relative overflow-hidden`}
         style={{ boxShadow: shadow ? `0 6px 20px ${shadow}` : '0 4px 12px rgba(0,0,0,0.15)' }}>
-        <div className="absolute -right-3 -top-3 w-14 h-14 rounded-full bg-white/10" />
-        <div className="absolute -left-2 -bottom-3 w-10 h-10 rounded-full bg-white/10" />
+        <div className="absolute -right-3 -top-3 w-16 h-16 rounded-full bg-white/10" />
+        <div className="absolute -left-2 -bottom-3 w-12 h-12 rounded-full bg-white/10" />
         <div className="absolute inset-0 opacity-10" style={{
           backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,0.4) 0px,rgba(255,255,255,0.4) 1px,transparent 1px,transparent 8px)',
         }} />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Icon size={22} strokeWidth={1.75} className="text-white drop-shadow-sm relative z-10" />
+          <Icon size={32} strokeWidth={1.5} className="text-white drop-shadow-md relative z-10 transition-transform duration-300 group-hover:scale-110" />
         </div>
         {eta && (
-          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-10">
-            <div className="bg-black/30 backdrop-blur-sm rounded-full px-1.5 py-0.5 flex items-center gap-0.5">
-              <Clock size={7} className="text-white/90" />
-              <span className="text-[9px] font-black text-white">{eta}</span>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/30 backdrop-blur-sm rounded-full px-2 py-1 flex items-center gap-1 border border-white/10">
+              <Clock size={10} className="text-white/90" />
+              <span className="text-[10px] font-black text-white uppercase tracking-wider">{eta}</span>
             </div>
           </div>
         )}
         <motion.div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
       </div>
-      <span className="text-[11px] font-semibold text-slate-600 text-center leading-tight">{name}</span>
+      <span className="text-xs sm:text-[13px] font-bold text-slate-700 text-center leading-tight">{name}</span>
     </motion.button>
   );
 }
@@ -226,25 +227,25 @@ function CompactTile({ svc, nav }) {
   // nav can be a function (event tiles) or a useNavigate instance (service tiles)
   const handleClick = typeof nav === 'function' && nav.length === 0 ? nav : () => nav(`/book/${key}`);
   return (
-    <motion.button onClick={handleClick} className="w-[72px] sm:w-[84px] md:w-[96px] lg:w-[104px] flex flex-col items-center gap-1.5 group shrink-0"
+    <motion.button onClick={handleClick} className="w-[88px] sm:w-[104px] md:w-[120px] lg:w-[136px] flex flex-col items-center gap-2 group shrink-0"
       whileHover={{ y: -3 }} whileTap={{ scale: 0.93 }}>
-      <div className={`w-full aspect-square rounded-xl bg-gradient-to-br ${grad} relative overflow-hidden`}
+      <div className={`w-full aspect-square rounded-[1.1rem] bg-gradient-to-br ${grad} relative overflow-hidden shadow-sm group-hover:shadow-md transition-shadow`}
         style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
-        <div className="absolute -right-2 -top-2 w-10 h-10 rounded-full bg-white/10" />
-        <div className="absolute -left-1 -bottom-2 w-7 h-7 rounded-full bg-white/10" />
+        <div className="absolute -right-2 -top-2 w-12 h-12 rounded-full bg-white/10" />
+        <div className="absolute -left-1 -bottom-2 w-8 h-8 rounded-full bg-white/10" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Icon size={18} strokeWidth={1.75} className="text-white relative z-10" />
+          <Icon size={24} strokeWidth={1.5} className="text-white relative z-10 transition-transform duration-300 group-hover:scale-110 drop-shadow-sm" />
         </div>
         {eta && (
-          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10">
-            <div className="bg-black/25 backdrop-blur-sm rounded-full px-1 py-px flex items-center gap-0.5">
-              <Clock size={6} className="text-white/90" />
-              <span className="text-[8px] font-black text-white">{eta}</span>
+          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/25 backdrop-blur-sm rounded-full px-1.5 py-0.5 flex items-center gap-0.5 border border-white/10">
+              <Clock size={8} className="text-white/90" />
+              <span className="text-[9px] font-black text-white">{eta}</span>
             </div>
           </div>
         )}
       </div>
-      <span className="text-[10px] font-semibold text-slate-600 text-center leading-tight">{name}</span>
+      <span className="text-[11px] sm:text-xs font-semibold text-slate-700 text-center leading-tight">{name}</span>
     </motion.button>
   );
 }
@@ -253,21 +254,21 @@ function CompactTile({ svc, nav }) {
 function CompactImageTile({ svc, nav }) {
   const { key, name, img, eta } = svc;
   return (
-    <motion.button onClick={() => nav(`/book/${key}`)} className="w-[84px] sm:w-[100px] md:w-[112px] lg:w-[120px] flex flex-col items-center gap-2 group shrink-0"
+    <motion.button onClick={() => nav(`/book/${key}`)} className="w-[108px] sm:w-[124px] md:w-[140px] lg:w-[156px] flex flex-col items-center gap-2 group shrink-0"
       whileHover={{ y: -4 }} whileTap={{ scale: 0.94 }}>
-      <div className="w-full aspect-square rounded-2xl bg-slate-100 relative overflow-hidden shadow-sm group-hover:shadow-md transition-shadow">
+      <div className="w-full aspect-square rounded-2xl md:rounded-[1.25rem] bg-slate-100 relative overflow-hidden shadow-sm border border-slate-100 group-hover:shadow-lg transition-shadow">
         <img src={img} alt={name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/20 to-transparent opacity-80" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent opacity-90 transition-opacity duration-300 group-hover:opacity-100" />
         {eta && (
           <div className="absolute top-2 right-2 z-10">
-            <div className="bg-black/50 backdrop-blur-md rounded-full px-1.5 py-0.5 flex items-center gap-1 border border-white/10">
-              <Clock size={7} className="text-white" />
-              <span className="text-[8px] font-black text-white">{eta}</span>
+            <div className="bg-black/40 backdrop-blur-md rounded-full px-1.5 py-1 flex items-center gap-1 border border-white/10 shadow-sm">
+              <Clock size={8} className="text-white" />
+              <span className="text-[9px] font-black text-white">{eta}</span>
             </div>
           </div>
         )}
-        <div className="absolute bottom-2 left-2 right-2 z-10 text-center">
-           <span className="text-[10px] sm:text-xs font-bold text-white leading-tight drop-shadow-md">{name}</span>
+        <div className="absolute bottom-2.5 left-2 right-2 z-10 text-center">
+           <span className="text-[11px] sm:text-sm font-bold text-white leading-tight drop-shadow-md">{name}</span>
         </div>
       </div>
     </motion.button>
@@ -344,7 +345,7 @@ export default function HomePage() {
   return (
     <PageTransition>
       <IntroSplash />
-      <div className="min-h-screen pb-40 bg-white">
+      <div className="min-h-screen bg-white">
 
         {/* ─── Premium Navbar ───────────────────────────────────────── */}
         <header className="sticky top-0 z-30 bg-white" style={{ boxShadow: '0 1px 0 0 #f1f5f9, 0 4px 20px rgba(0,0,0,0.05)' }}>
@@ -520,130 +521,103 @@ export default function HomePage() {
           </motion.div>
         </div>
 
-        {/* ─── Trust stats ──────────────────────────────────────────── */}
-        <div style={{ borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', background: '#fafbfc' }}>
-          <div className="max-w-[1600px] w-full mx-auto px-4 py-3 flex items-center justify-around">
-            {[
-              { val: '50K+', label: 'Bookings',     color: 'text-indigo-600' },
-              { val: '4.8',  label: 'Avg Rating',   color: 'text-amber-500'  },
-              { val: '500+', label: 'Verified Pros', color: 'text-green-600' },
-              { val: '<60s', label: 'Avg Match',     color: 'text-violet-600' },
-            ].map(({ val, label, color }) => (
-              <div key={label} className="text-center">
-                <p className={`text-sm font-black ${color}`}>{val}</p>
-                <p className="text-[9px] text-slate-400 font-medium mt-0.5">{label}</p>
+        {/* ─── Premium Dashboard Widgets (Gamification & Quick Actions) ─── */}
+        <div className="max-w-5xl mx-auto px-5 mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Gamification Card (Left on Desktop, Top on Mobile) */}
+          {gam ? (
+            <motion.div className="rounded-[2rem] bg-white border border-slate-100 p-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group"
+              whileHover={{ y: -4 }} transition={{ duration: 0.3 }}>
+              {/* Background accent */}
+              <div className={`absolute -right-12 -top-12 w-40 h-40 rounded-full bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} opacity-10 filter blur-3xl group-hover:opacity-20 transition-opacity`} />
+              
+              <div className="flex justify-between items-start mb-8 relative z-10">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1.5">Your Progress</p>
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-2xl font-black text-slate-900">{gam.levelName}</h3>
+                    {gam.streak >= 2 && (
+                      <div className="flex items-center gap-1 bg-gradient-to-r from-orange-500 to-rose-500 px-2 py-1 rounded-lg text-white shadow-lg shadow-orange-500/20">
+                        <Flame size={12} className="fill-white" />
+                        <span className="text-[10px] font-black">{gam.streak} Day Streak</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className={`w-14 h-14 rounded-[1.2rem] bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shadow-lg transform rotate-3 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500`}>
+                  <Trophy size={24} className="text-white drop-shadow-md" />
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="max-w-[1600px] w-full mx-auto">
-
-          {/* ─── Re-engagement banner (#99) ──────────────────────────── */}
-          <AnimatePresence>
-            {showReengagement && lastCompleted && (
-              <motion.div className="px-4 mt-4"
-                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <motion.button
-                  onClick={() => nav(`/book/${lastCompleted.service}`)}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl text-left"
-                  style={{ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '1px solid rgba(34,197,94,0.25)' }}
-                  whileTap={{ scale: 0.98 }}>
-                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
-                    <Clock size={16} strokeWidth={2} className="text-green-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Book again?</p>
-                    <p className="text-sm font-bold text-green-900 capitalize truncate mt-0.5">
-                      {lastCompleted.service?.replace(/_/g, ' ')} · {daysSinceLastOrder}d ago
-                    </p>
-                  </div>
-                  <ChevronRight size={16} className="text-green-500 shrink-0" />
-                </motion.button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* ─── Active order banner ────────────────────────────────── */}
-          <AnimatePresence>
-            {activeOrder && (
-              <motion.div className="px-4 mt-4"
-                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <motion.button
-                  onClick={() => nav(`/orders/${activeOrder._id}`)}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl text-left relative overflow-hidden"
-                  style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', boxShadow: '0 8px 24px rgba(79,70,229,0.3)' }}
-                  whileHover={{ y: -2 }} whileTap={{ scale: 0.99 }}>
-                  <motion.div className="absolute inset-0 opacity-20"
-                    style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)' }}
-                    animate={{ x: ['-100%', '200%'] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }} />
-                  <motion.div className="w-3 h-3 rounded-full bg-green-400 shrink-0"
-                    animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
-                  <div className="flex-1 min-w-0 relative z-10">
-                    <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Live Order</p>
-                    <p className="text-sm font-bold text-white truncate capitalize mt-0.5">
-                      {activeOrder.service.replace(/_/g, ' ')} · {STATUS_LABELS[activeOrder.status]}
-                    </p>
-                  </div>
-                  <ArrowUpRight size={16} className="text-white/70 shrink-0 relative z-10" />
-                </motion.button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* ─── Gamification ────────────────────────────────────────── */}
-          {gam && (
-            <motion.div className="px-4 mt-4">
-              <div className="p-4 rounded-2xl bg-white ring-1 ring-slate-100" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
-                <div className="flex items-center gap-3">
-                  <motion.div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shrink-0`}
-                    whileHover={{ rotate: 8 }} transition={springSnap}>
-                    <Trophy size={18} strokeWidth={2} className="text-white" />
-                  </motion.div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <p className="text-sm font-black text-slate-900">{gam.levelName}</p>
-                      <span className="text-[10px] text-slate-400">{gam.xp} XP</span>
-                      {gam.streak >= 2 && (
-                        <motion.span className="flex items-center gap-0.5 text-[10px] font-black text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full ring-1 ring-orange-100"
-                          animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
-                          <Flame size={9} className="fill-orange-500" /> {gam.streak}
-                        </motion.span>
-                      )}
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                      <motion.div className={`h-full rounded-full bg-gradient-to-r ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'}`}
-                        initial={{ width: '0%' }} animate={{ width: `${Math.min(100, gam.progressPercent || 0)}%` }}
-                        transition={{ duration: 1, delay: 0.3 }} />
-                    </div>
-                    {gam.nextLevelName && <p className="text-[10px] text-slate-400 mt-1">{gam.xpToNext} XP to <strong>{gam.nextLevelName}</strong></p>}
-                  </div>
+              
+              <div className="relative z-10">
+                <div className="flex justify-between text-xs font-bold mb-2">
+                  <span className="text-slate-700">{gam.xp} XP Earned</span>
+                  {gam.nextLevelName && <span className="text-slate-400">{gam.xpToNext} XP to {gam.nextLevelName}</span>}
+                </div>
+                <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                  <motion.div className={`h-full rounded-full bg-gradient-to-r ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'}`}
+                    initial={{ width: '0%' }} animate={{ width: `${Math.min(100, gam.progressPercent || 0)}%` }}
+                    transition={{ duration: 1.5, delay: 0.2, ease: "easeOut" }} />
                 </div>
               </div>
             </motion.div>
+          ) : (
+            <div className="rounded-[2rem] bg-white border border-slate-100 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center items-center text-center">
+              <Trophy size={32} className="text-slate-300 mb-3" />
+              <p className="font-bold text-slate-900">Complete jobs to level up!</p>
+              <p className="text-xs text-slate-500 mt-1">Earn XP and unlock exclusive rewards.</p>
+            </div>
           )}
 
-          {/* ─── Quick cards ─────────────────────────────────────────── */}
-          <div className="px-4 mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
-            <motion.button onClick={() => nav('/plans')} className="rounded-2xl p-4 text-left"
-              style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.2)', boxShadow: '0 4px 16px rgba(245,158,11,0.1)' }}
-              whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
-              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center mb-3">
-                <Star size={16} strokeWidth={2} className="text-amber-600 fill-amber-400" />
+          {/* Quick Cards Grid (Right on Desktop, Bottom on Mobile) */}
+          <div className="grid grid-cols-2 gap-4">
+            <motion.button onClick={() => nav('/plans')} className="rounded-[2rem] p-5 flex flex-col justify-between text-left relative overflow-hidden group shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200/50"
+              whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+              <div className="w-12 h-12 rounded-[1.2rem] bg-amber-400 flex items-center justify-center shadow-lg shadow-amber-400/30 mb-4 group-hover:scale-110 transition-transform duration-300">
+                <Star size={20} className="text-white fill-white" />
               </div>
-              <p className="text-sm font-black text-slate-900">Go Premium</p>
-              <p className="text-[11px] text-amber-700 mt-0.5 font-medium">No surge · No fees</p>
+              <div>
+                <p className="text-lg sm:text-xl font-black text-amber-900 leading-tight">Zappy<br/>Premium</p>
+                <p className="text-[10px] sm:text-xs font-bold text-amber-700 mt-2 bg-amber-200/50 inline-block px-2 py-1 rounded-md">No surge fees</p>
+              </div>
             </motion.button>
-            <motion.button onClick={() => nav('/wallet')} className="rounded-2xl p-4 text-left"
-              style={{ background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid rgba(59,130,246,0.15)', boxShadow: '0 4px 16px rgba(59,130,246,0.08)' }}
-              whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
-              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center mb-3">
-                <Wallet size={16} strokeWidth={2} className="text-blue-600" />
+
+            <motion.button onClick={() => nav('/wallet')} className="rounded-[2rem] p-5 flex flex-col justify-between text-left relative overflow-hidden group shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/50"
+              whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+              <div className="w-12 h-12 rounded-[1.2rem] bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/30 mb-4 group-hover:scale-110 transition-transform duration-300">
+                <Wallet size={20} className="text-white" />
               </div>
-              <p className="text-sm font-black text-slate-900">Wallet</p>
-              <p className="text-[11px] text-blue-700 mt-0.5 font-medium">Balance &amp; top-up</p>
+              <div>
+                <p className="text-lg sm:text-xl font-black text-blue-900 leading-tight">Zappy<br/>Wallet</p>
+                <p className="text-[10px] sm:text-xs font-bold text-blue-700 mt-2 bg-blue-200/50 inline-block px-2 py-1 rounded-md">Check balance</p>
+              </div>
             </motion.button>
           </div>
+        </div>
+
+        {/* ─── Trust stats (Re-designed) ──────────────────────────── */}
+        <div className="max-w-5xl mx-auto px-5 mt-8 mb-6">
+          <div className="bg-slate-900 rounded-[2rem] py-6 px-4 sm:p-8 shadow-xl relative overflow-hidden">
+            {/* Decorative orbs */}
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-rose-500/20 rounded-full blur-3xl" />
+            
+            <div className="relative z-10 flex flex-wrap items-center justify-around md:justify-between gap-y-8 gap-x-2">
+              {[
+                { val: '50K+', label: 'Happy Bookings', color: 'text-indigo-400' },
+                { val: '4.8/5',  label: 'Average Rating', color: 'text-amber-400'  },
+                { val: '500+', label: 'Verified Pros', color: 'text-emerald-400' },
+                { val: '< 1m', label: 'Match Time',     color: 'text-fuchsia-400' },
+              ].map(({ val, label, color }) => (
+                <div key={label} className="text-center w-[45%] md:w-auto">
+                  <p className={`text-3xl sm:text-4xl font-black ${color} drop-shadow-md`}>{val}</p>
+                  <p className="text-[10px] sm:text-xs text-slate-400 font-bold mt-1.5 uppercase tracking-widest">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-5xl mx-auto px-5">
 
           {/* ─── Offers ──────────────────────────────────────────────── */}
           <OffersSection />
@@ -691,7 +665,7 @@ export default function HomePage() {
             <SectionHeader title="Smart Devices" badge="Install & Fix" badgeColor="bg-amber-50 text-amber-700 ring-amber-100" onSeeAll={() => nav('/services')} />
             <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.15)' }}>
               <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {SMART_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+                {SMART_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
               </motion.div>
             </div>
           </div>
@@ -709,21 +683,12 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ─── Vehicle tiles ────────────────────────────────────────── */}
-          <div className="px-4 mt-5">
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#f0f9ff,#e0f2fe)', border: '1px solid rgba(14,165,233,0.15)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {VEHICLE_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><PosterTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
-            </div>
-          </div>
-
           {/* ─── Family & Elder Assist ────────────────────────────────── */}
           <div className="px-4 mt-7">
             <SectionHeader title="Family Assist" badge="Trusted Help" badgeColor="bg-rose-50 text-rose-600 ring-rose-100" onSeeAll={() => nav('/services')} />
             <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fff1f2,#ffe4e6)', border: '1px solid rgba(244,63,94,0.12)' }}>
               <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {FAMILY_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+                {FAMILY_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
               </motion.div>
             </div>
           </div>
@@ -735,7 +700,7 @@ export default function HomePage() {
               <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
                 {EVENT_TILES.map(svc => (
                   <motion.div key={svc.key} variants={fadeInUp}>
-                    <CompactTile svc={{ ...svc, eta: null }} nav={() => nav(`/events/browse?category=${svc.category}`)} />
+                    <CompactImageTile svc={svc} nav={() => nav(`/events/browse?category=${svc.category}`)} />
                   </motion.div>
                 ))}
               </motion.div>
@@ -747,7 +712,7 @@ export default function HomePage() {
             <SectionHeader title="Pet Assistance" badge="GPS Tracked" badgeColor="bg-amber-50 text-amber-700 ring-amber-100" onSeeAll={() => nav('/services')} />
             <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.15)' }}>
               <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {PET_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactTile svc={svc} nav={nav} /></motion.div>)}
+                {PET_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
               </motion.div>
             </div>
           </div>
@@ -774,7 +739,7 @@ export default function HomePage() {
           </div>
 
         </div>
-
+        <Footer />
         <BottomNav active="home" />
       </div>
     </PageTransition>

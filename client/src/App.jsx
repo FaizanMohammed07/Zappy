@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useSelector } from 'react-redux';
@@ -46,6 +46,7 @@ const EventBookingDetailPage       = lazy(() => import('./pages/events/EventBook
 const EventSavedThemesPage         = lazy(() => import('./pages/events/EventSavedThemesPage'));
 const PartnerLoginPage             = lazy(() => import('./pages/events/PartnerLoginPage'));
 const PartnerDashboard             = lazy(() => import('./pages/events/PartnerDashboard'));
+const AdvertiserDashboard          = lazy(() => import('./pages/AdvertiserDashboard'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -62,6 +63,10 @@ export default function App() {
   useFCM();
   const { accessToken: token, role } = useSelector(selectAuth);
   const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   return (
     <Suspense fallback={<PageLoader />}>
@@ -108,6 +113,7 @@ export default function App() {
         {/* Event Partner */}
         <Route path="/partner/login" element={token ? <RedirectByRole role={role} /> : <PartnerLoginPage />} />
         <Route path="/partner" element={<RequireAuth role="event_partner"><PartnerDashboard /></RequireAuth>} />
+        <Route path="/partner/advertise" element={<RequireAuth role="event_partner"><AdvertiserDashboard /></RequireAuth>} />
 
         {/* Event Commerce */}
         <Route path="/events"                    element={<RequireAuth role="user"><EventsHomePage /></RequireAuth>} />

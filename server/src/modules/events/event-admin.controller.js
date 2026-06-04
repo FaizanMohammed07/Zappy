@@ -126,6 +126,23 @@ async function streamPartnerKycDoc(req, res, next) {
   }
 }
 
+const KYC_FIELD_ALLOWLIST = ['aadharFront','aadharBack','panCard','liveSelfie','gstCertificate','businessRegistration'];
+async function streamPartnerKycField(req, res, next) {
+  try {
+    const { fieldName } = req.params;
+    if (!KYC_FIELD_ALLOWLIST.includes(fieldName)) return res.status(400).json({ error: 'Invalid field' });
+    const partner = await EventPartner.findById(req.params.id).select('kyc').lean();
+    if (!partner) return res.status(404).json({ error: 'Partner not found' });
+    const key = partner.kyc?.[fieldName];
+    if (!key) return res.status(404).json({ error: 'Document not uploaded' });
+    const s3Service = require('../../utils/s3.service');
+    await s3Service.streamToResponse(key, res);
+  } catch (e) {
+    if (e?.name === 'NoSuchKey') return res.status(404).json({ error: 'File not found in storage' });
+    next(e);
+  }
+}
+
 async function cancelBooking(req, res, next) {
   try {
     const EventBooking = require('./event-booking.model');
@@ -187,6 +204,6 @@ async function blockPartner(req, res, next) {
 module.exports = {
   listThemes, updateThemeStatus, listBookings, cancelBooking,
   listPartners, getPartner, createPartner, updatePartner,
-  approvePartnerKyc, rejectPartnerKyc, streamPartnerKycDoc, streamOwnKycDoc, blockPartner,
+  approvePartnerKyc, rejectPartnerKyc, streamPartnerKycDoc, streamPartnerKycField, streamOwnKycDoc, blockPartner,
   getConfig, updateConfig, getAnalytics, listCategories, upsertCategory,
 };

@@ -88,11 +88,19 @@ router.post(
 const adminRouter = express.Router();
 adminRouter.use(authenticate, requireRole('admin'));
 adminRouter.get('/', ctrl.adminListTickets);
+adminRouter.post(
+  '/:id/reply',
+  validate(Joi.object({
+    text:   Joi.string().min(1).max(2000).required(),
+    status: Joi.string().valid('open', 'in_progress', 'waiting_user', 'resolved', 'closed').optional(),
+  })),
+  ctrl.adminReplyTicket
+);
 adminRouter.patch(
   '/:id/status',
   validate(Joi.object({
     status: Joi.string().valid('open', 'in_progress', 'waiting_user', 'resolved', 'closed').required(),
-    note: Joi.string().max(1000).optional(),
+    note:   Joi.string().max(1000).optional(),
   })),
   ctrl.adminUpdateTicketStatus
 );

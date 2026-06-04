@@ -379,8 +379,13 @@ async function adminGetConfig() {
 }
 
 async function adminUpdateConfig(patch, adminId) {
-  await EventConfig.updateMany({}, { $set: { isActive: false } });
-  const cfg = await EventConfig.create({ ...patch, isActive: true, updatedBy: adminId });
+  // Strip _id from patch — never let client dictate the document ID
+  const { _id, __v, ...safe } = patch;
+  const cfg = await EventConfig.findOneAndUpdate(
+    {},
+    { $set: { ...safe, isActive: true, updatedBy: adminId } },
+    { upsert: true, new: true }
+  ).lean();
   await redis.del(CFG_KEY).catch(() => {});
   return cfg;
 }

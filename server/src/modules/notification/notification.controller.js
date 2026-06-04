@@ -2,8 +2,8 @@ const notificationService = require('./notification.service');
 
 async function list(req, res, next) {
   try {
-    if (!['user', 'worker'].includes(req.auth.role)) {
-      return res.status(403).json({ error: 'Notifications only for users/workers' });
+    if (!['user', 'worker', 'event_partner'].includes(req.auth.role)) {
+      return res.status(403).json({ error: 'Not allowed' });
     }
     const result = await notificationService.listFor({
       kind: req.auth.role,

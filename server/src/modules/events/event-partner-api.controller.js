@@ -15,22 +15,41 @@ async function getMe(req, res, next) {
   } catch (e) { next(e); }
 }
 
+const KYC_MANDATORY = ['aadharFront', 'aadharBack', 'panCard', 'liveSelfie'];
+const KYC_OPTIONAL  = ['gstCertificate', 'businessRegistration'];
+const KYC_DOC_FIELDS = [...KYC_MANDATORY, ...KYC_OPTIONAL];
+
 async function updateMe(req, res, next) {
   try {
-    const ALLOWED = ['bio', 'portfolioImages', 'yearsExperience', 'cities', 'serviceRadiusKm', 'profilePhotoKey'];
+    const PROFILE_ALLOWED = ['bio', 'portfolioImages', 'yearsExperience', 'cities', 'serviceRadiusKm', 'profilePhotoKey', 'ownerName', 'businessName'];
     const patch = {};
-    for (const k of ALLOWED) { if (req.body[k] !== undefined) patch[k] = req.body[k]; }
+    for (const k of PROFILE_ALLOWED) { if (req.body[k] !== undefined) patch[k] = req.body[k]; }
 
-    let partner;
-    if (req.body.kycDocument) {
-      // Appending a new KYC document — mark as pending for admin review
-      partner = await EventPartner.findByIdAndUpdate(req.auth.sub, {
-        $set: { ...patch, 'kyc.status': 'pending' },
-        $addToSet: { 'kyc.documents': req.body.kycDocument },
-      }, { new: true }).lean();
-    } else {
-      partner = await EventPartner.findByIdAndUpdate(req.auth.sub, { $set: patch }, { new: true }).lean();
+    // Structured KYC document fields
+    const kycPatch = {};
+    for (const k of KYC_DOC_FIELDS) {
+      if (req.body[k] !== undefined) kycPatch[`kyc.${k}`] = req.body[k];
     }
+    if (req.body.gstNumber !== undefined) kycPatch['kyc.gstNumber'] = req.body.gstNumber;
+    if (req.body.panNumber  !== undefined) kycPatch['kyc.panNumber']  = req.body.panNumber;
+
+    // Legacy single doc append
+    const legacyDoc = req.body.kycDocument;
+
+    const current = await EventPartner.findById(req.auth.sub).select('kyc').lean();
+    const mergedKyc = { ...current?.kyc, ...Object.fromEntries(Object.entries(kycPatch).map(([k, v]) => [k.replace('kyc.', ''), v])) };
+
+    // Auto-set pending when all mandatory docs are present (and not already approved)
+    const mandatoryFilled = KYC_MANDATORY.every(k => mergedKyc[k]);
+    const currentStatus   = current?.kyc?.status;
+    if (Object.keys(kycPatch).length > 0 && mandatoryFilled && currentStatus !== 'approved') {
+      kycPatch['kyc.status'] = 'pending';
+    }
+
+    const update = { $set: { ...patch, ...kycPatch } };
+    if (legacyDoc) update.$addToSet = { 'kyc.documents': legacyDoc };
+
+    const partner = await EventPartner.findByIdAndUpdate(req.auth.sub, update, { new: true }).lean();
     res.json({ partner });
   } catch (e) { next(e); }
 }
@@ -219,7 +238,7 @@ async function unblockDate(req, res, next) {
 
 async function getEarnings(req, res, next) {
   try {
-    const pid = mongoose.Types.ObjectId.createFromHexString(String(req.auth.sub));
+    const pid = new mongoose.Types.ObjectId(req.auth.sub);
 
     const [summary, monthly, recent] = await Promise.all([
       EventBooking.aggregate([
@@ -268,7 +287,7 @@ async function getOverview(req, res, next) {
       EventBooking.countDocuments({ partnerId: pid, eventDate: { $gte: today, $lte: next7 }, status: { $in: ['confirmed', 'partner_assigned'] } }),
       EventBooking.countDocuments({ partnerId: pid, status: 'confirmed' }),
       EventBooking.aggregate([
-        { $match: { partnerId: mongoose.Types.ObjectId.createFromHexString(pid), status: 'completed' } },
+        { $match: { partnerId: new mongoose.Types.ObjectId(pid), status: 'completed' } },
         { $group: { _id: null, t: { $sum: '$pricing.totalPaise' } } },
       ]),
     ]);
@@ -306,11 +325,28 @@ async function streamMyKycDoc(req, res, next) {
   }
 }
 
+const KYC_FIELD_ALLOWLIST = ['aadharFront','aadharBack','panCard','liveSelfie','gstCertificate','businessRegistration'];
+async function streamMyKycField(req, res, next) {
+  try {
+    const { fieldName } = req.params;
+    if (!KYC_FIELD_ALLOWLIST.includes(fieldName)) return res.status(400).json({ error: 'Invalid field' });
+    const partner = await EventPartner.findById(req.auth.sub).select('kyc').lean();
+    if (!partner) return res.status(404).json({ error: 'Not found' });
+    const key = partner.kyc?.[fieldName];
+    if (!key) return res.status(404).json({ error: 'Document not uploaded' });
+    const s3Service = require('../../utils/s3.service');
+    await s3Service.streamToResponse(key, res);
+  } catch (e) {
+    if (e?.name === 'NoSuchKey') return res.status(404).json({ error: 'File not found in storage' });
+    next(e);
+  }
+}
+
 module.exports = {
   getMe, updateMe,
   getMyThemes, createTheme, updateTheme, deleteTheme,
   getMyBookings, updateBookingStatus, declineBooking,
   getCalendar, blockDate, unblockDate,
   getEarnings, getOverview, getCategories,
-  streamMyKycDoc,
+  streamMyKycDoc, streamMyKycField,
 };

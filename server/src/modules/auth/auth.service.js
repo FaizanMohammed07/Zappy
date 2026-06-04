@@ -1,10 +1,119 @@
 const bcrypt = require('bcryptjs');
+const https = require('https');
 const { redis } = require('../../config/redis');
 const User = require('../user/user.model');
 const Worker = require('../worker/worker.model');
 const Admin = require('../admin/admin.model');
+const EventPartner = require('../events/event-partner.model');
 const tokenService = require('./token.service');
 const logger = require('../../utils/logger');
+
+// Reuse the existing Firebase Admin app (zappio-c80e2) for token verification
+function getClientAuth() {
+  const admin = require('firebase-admin');
+  // Use default app if already initialized (by notifications.worker.js), else init minimal
+  const app = admin.apps.find(a => a.name === '[DEFAULT]') ||
+    admin.initializeApp({ projectId: 'zappio-c80e2' });
+  return app;
+}
+
+// ---- SMS delivery ----
+async function sendSms(phone, otp) {
+  const fast2smsKey = process.env.FAST2SMS_KEY;
+  const factor2Key  = process.env.SMS_2FACTOR_KEY;
+  const msg91Key    = process.env.MSG91_AUTH_KEY;
+  const mobile      = phone.startsWith('91') ? phone.slice(2) : phone; // Fast2SMS wants 10-digit
+  const mobile91    = `91${mobile}`;                                    // 2Factor / MSG91 want 91XXXXXXXXXX
+
+  // ── 1. Fast2SMS (primary for dev/testing — no DLT required) ──
+  if (fast2smsKey) {
+    try {
+      await new Promise((resolve, reject) => {
+        const params = new URLSearchParams({
+          authorization: fast2smsKey,
+          route: 'q',
+          message: `Your Zappy OTP is ${otp}. Valid for 5 minutes. Do not share with anyone.`,
+          flash: '0',
+          numbers: mobile,
+        });
+        const url = `https://www.fast2sms.com/dev/bulkV2?${params.toString()}`;
+        https.get(url, (res) => {
+          let data = '';
+          res.on('data', (c) => { data += c; });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.return === true) resolve();
+              else reject(new Error(`Fast2SMS: ${parsed.message}`));
+            } catch { reject(new Error(`Fast2SMS bad response: ${data}`)); }
+          });
+        }).on('error', reject);
+      });
+      logger.info(`OTP sent via Fast2SMS to ${mobile}`);
+      return;
+    } catch (err) {
+      logger.warn(`Fast2SMS failed: ${err.message} — trying next provider`);
+    }
+  }
+
+  // ── 2. 2Factor.in (Indian DLT-compliant, production primary) ──
+  if (factor2Key) {
+    try {
+      await new Promise((resolve, reject) => {
+        const url = `https://2factor.in/API/V1/${factor2Key}/SMS/${mobile91}/${otp}/OTP1`;
+        https.get(url, (res) => {
+          let data = '';
+          res.on('data', (c) => { data += c; });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.Status === 'Success') resolve();
+              else reject(new Error(`2Factor: ${parsed.Details}`));
+            } catch { reject(new Error(`2Factor bad response: ${data}`)); }
+          });
+        }).on('error', reject);
+      });
+      logger.info(`OTP sent via 2Factor to ${mobile91}`);
+      return;
+    } catch (err) {
+      logger.warn(`2Factor failed: ${err.message} — trying MSG91`);
+    }
+  }
+
+  // ── 3. MSG91 (backup — requires DLT registration in production) ──
+  if (msg91Key) {
+    try {
+      await new Promise((resolve, reject) => {
+        const params = new URLSearchParams({
+          authkey: msg91Key,
+          mobiles: mobile91,
+          message: `Your Zappy OTP is ${otp}. Valid for 5 minutes. Do not share.`,
+          sender: process.env.MSG91_SENDER_ID || 'ZAPPYO',
+          route: '4',
+          country: '91',
+        });
+        const url = `https://api.msg91.com/api/sendhttp.php?${params.toString()}`;
+        https.get(url, (res) => {
+          let data = '';
+          res.on('data', (c) => { data += c; });
+          res.on('end', () => {
+            logger.info(`MSG91 response: ${data}`);
+            // MSG91 always returns 200; success body starts with a numeric request ID
+            if (/^\d+/.test(data.trim())) resolve();
+            else reject(new Error(`MSG91: ${data}`));
+          });
+        }).on('error', reject);
+      });
+      logger.info(`OTP sent via MSG91 to ${mobile91}`);
+      return;
+    } catch (err) {
+      logger.warn(`MSG91 failed: ${err.message} — falling back to console`);
+    }
+  }
+
+  // ── 4. Dev fallback ──
+  logger.warn(`[DEV] OTP for ${mobile}: ${otp}`);
+}
 
 async function hashPassword(pw) {
   return bcrypt.hash(pw, 12);
@@ -29,6 +138,8 @@ async function requestOtp(phone, role) {
   // without two separate Redis keys. TTL = 5 min.
   await redis.hset(`otp:${phone}`, 'code', otp, 'attempts', '0');
   await redis.expire(`otp:${phone}`, 300);
+
+  await sendSms(phone, otp);
 
   // Tell the client whether this is a new account so it can skip registration fields
   let isNewUser = true;
@@ -208,6 +319,44 @@ async function loginAdmin({ email, password, ip }) {
   };
 }
 
+// ---- Event Partner — Google OAuth login/register ----
+async function loginPartnerWithGoogle({ idToken, businessName, ownerName, cities }) {
+  const adminApp = getClientAuth();
+  let decoded;
+  try {
+    decoded = await adminApp.auth().verifyIdToken(idToken);
+  } catch (err) {
+    throw Object.assign(new Error('Invalid Google token'), { status: 401, code: 'GOOGLE_TOKEN_INVALID' });
+  }
+
+  const { uid: googleId, email, name: googleName, picture } = decoded;
+  if (!email) throw Object.assign(new Error('Google account has no email'), { status: 400, code: 'NO_EMAIL' });
+
+  // Find by googleId first, then fall back to email
+  let partner = await EventPartner.findOne({ $or: [{ googleId }, { email }] });
+  const isNew = !partner;
+
+  if (isNew) {
+    if (!businessName || !ownerName) {
+      // Return signal to frontend to collect registration details
+      return { needsRegistration: true, googleId, email, suggestedName: googleName };
+    }
+    const cityList = typeof cities === 'string'
+      ? cities.split(',').map(c => c.trim()).filter(Boolean)
+      : (cities || []);
+    partner = await EventPartner.create({ googleId, email, businessName, ownerName, cities: cityList });
+  } else if (!partner.googleId) {
+    partner.googleId = googleId;
+    if (!partner.email) partner.email = email;
+    await partner.save();
+  }
+
+  if (partner.isBlocked) throw Object.assign(new Error('Account suspended'), { status: 403, code: 'ACCOUNT_BLOCKED' });
+
+  const tokens = await tokenService.issueTokenPair({ sub: partner._id, role: 'event_partner', email: partner.email });
+  return { partner, isNew, ...tokens };
+}
+
 module.exports = {
   hashPassword,
   comparePassword,
@@ -216,6 +365,7 @@ module.exports = {
   loginUserWithOtp,
   loginWorkerWithOtp,
   loginEventPartnerWithOtp,
+  loginPartnerWithGoogle,
   loginAdmin,
   refresh: tokenService.rotateTokenPair,
   revoke: tokenService.revokeRefreshToken,

@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, ArrowRight, ChevronLeft, Loader2, PartyPopper, Sparkles } from 'lucide-react';
-import { useRequestOtpMutation, useLoginEventPartnerMutation } from '../../services/api';
+import { useRequestOtpMutation, useLoginEventPartnerMutation, useGooglePartnerLoginMutation } from '../../services/api';
 import { setAuth } from '../../modules/auth/authSlice';
+import { signInWithGoogle } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 
 function OtpBox({ value, onChange, onKeyDown, inputRef, filled }) {
@@ -28,11 +29,48 @@ export default function PartnerLoginPage() {
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [isNew, setIsNew] = useState(false);
   const [regForm, setRegForm] = useState({ businessName: '', ownerName: '', cities: '' });
+  const [googleIdToken, setGoogleIdToken] = useState(null);
+  const [gLoading, setGLoading] = useState(false);
   const otpRefs = useRef([]);
 
   const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
   const [loginPartner, { isLoading: logging }] = useLoginEventPartnerMutation();
+  const [googlePartnerLogin] = useGooglePartnerLoginMutation();
   const otp = digits.join('');
+
+  async function handleGoogleLogin() {
+    setGLoading(true);
+    try {
+      const idToken = await signInWithGoogle();
+      const res = await googlePartnerLogin({ idToken }).unwrap();
+      if (res.needsRegistration) {
+        setGoogleIdToken(idToken);
+        setRegForm(f => ({ ...f, ownerName: res.suggestedName || '' }));
+        setStep('register');
+        return;
+      }
+      finishLogin(res);
+    } catch (err) {
+      const code = err?.code || '';
+      // User closed popup or denied — silent, not an error
+      if (code === 'auth/user-cancelled' || code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+      const msg = err?.data?.error || err?.message || 'Google sign-in failed';
+      toast.error(msg);
+      console.error('[Google login]', err);
+    } finally {
+      setGLoading(false);
+    }
+  }
+
+  function finishLogin(res) {
+    dispatch(setAuth({
+      accessToken: res.accessToken,
+      role: 'event_partner',
+      profile: { name: res.partner.businessName, phone: res.partner.phone, _id: res.partner._id },
+    }));
+    toast.success(res.isNew ? `Welcome to Zappy, ${res.partner.businessName}! 🎉` : `Welcome back, ${res.partner.businessName}!`);
+    navigate('/partner', { replace: true });
+  }
 
   async function handleSendOtp(e) {
     e.preventDefault();
@@ -58,13 +96,7 @@ export default function PartnerLoginPage() {
   async function doLogin(extra = {}) {
     try {
       const res = await loginPartner({ phone, otp, ...extra }).unwrap();
-      dispatch(setAuth({
-        accessToken: res.accessToken,
-        role: 'event_partner',
-        profile: { name: res.partner.businessName, phone: res.partner.phone, _id: res.partner._id },
-      }));
-      toast.success(res.isNew ? `Welcome to Zappy, ${res.partner.businessName}! 🎉` : `Welcome back, ${res.partner.businessName}!`);
-      navigate('/partner', { replace: true });
+      finishLogin(res);
     } catch (err) {
       toast.error(err?.data?.error || 'Invalid OTP');
       setDigits(['', '', '', '', '', '']);
@@ -76,7 +108,20 @@ export default function PartnerLoginPage() {
   async function handleRegister(e) {
     e.preventDefault();
     if (!regForm.businessName || !regForm.ownerName) return toast.error('Fill in all required fields');
-    await doLogin(regForm);
+    if (googleIdToken) {
+      // Google registration path
+      try {
+        setGLoading(true);
+        const res = await googlePartnerLogin({ idToken: googleIdToken, ...regForm }).unwrap();
+        finishLogin(res);
+      } catch (err) {
+        toast.error(err?.data?.error || 'Registration failed');
+      } finally {
+        setGLoading(false);
+      }
+    } else {
+      await doLogin(regForm);
+    }
   }
 
   function handleDigit(i, val) {
@@ -131,6 +176,20 @@ export default function PartnerLoginPage() {
                 className="w-full py-3.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-40 transition-all">
                 {sending ? <Loader2 size={16} className="animate-spin" /> : <><span>Get OTP</span><ArrowRight size={16} /></>}
               </button>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-white/20" />
+                <span className="text-xs text-white/40 font-medium">or</span>
+                <div className="flex-1 h-px bg-white/20" />
+              </div>
+
+              <button type="button" onClick={handleGoogleLogin} disabled={gLoading}
+                className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all disabled:opacity-40">
+                {gLoading ? <Loader2 size={16} className="animate-spin" /> : (
+                  <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+                )}
+                Continue with Google
+              </button>
+
               <p className="text-center text-xs text-white/40">New? You'll be able to register after OTP verification</p>
             </motion.form>
           )}

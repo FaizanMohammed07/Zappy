@@ -485,7 +485,7 @@ async function getAnalytics(req, res, next) {
       return Math.round(((curr - prevVal) / prevVal) * 100);
     };
 
-    res.json({
+    const payload = {
       sinceDays: days,
 
       // Current period totals
@@ -554,7 +554,7 @@ async function getAnalytics(req, res, next) {
       })),
       weeklySignups: { users: userSignups, workers: workerSignups },
       orderFunnel: funnelMap,
-    });
+    };
     redis
       .set(`admin:analytics:${days}`, JSON.stringify(payload), 'EX', 300)
       .catch(() => {});

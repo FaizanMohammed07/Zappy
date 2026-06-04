@@ -3,19 +3,29 @@ const mongoose = require('mongoose');
 const eventPartnerSchema = new mongoose.Schema({
   businessName: { type: String, required: true, trim: true },
   ownerName:    { type: String, required: true },
-  phone:        { type: String, required: true, unique: true },
-  email:        String,
+  phone:        { type: String, sparse: true },  // required for OTP path; optional for Google auth
+  email:        { type: String, sparse: true },
+  googleId:     { type: String, sparse: true },  // set when partner signs in via Google
 
   // Service areas
   cities:          { type: [String], default: [] },
   serviceRadiusKm: { type: Number, default: 30 },
 
-  // KYC — reusing same status pattern as worker KYC
+  // KYC
   kyc: {
     status:     { type: String, enum: ['not_submitted', 'pending', 'approved', 'rejected'], default: 'not_submitted' },
+    // Structured document fields (S3 keys)
+    aadharFront:          String, // mandatory
+    aadharBack:           String, // mandatory
+    panCard:              String, // mandatory
+    liveSelfie:           String, // mandatory
+    gstCertificate:       String, // optional
+    businessRegistration: String, // optional
+    // Legacy flat array kept for backward compat
+    documents:  { type: [String], default: [] },
+    // Review
     gstNumber:  String,
     panNumber:  String,
-    documents:  { type: [String], default: [] }, // S3 URLs
     reviewedAt: Date,
     reviewNote: String,
   },

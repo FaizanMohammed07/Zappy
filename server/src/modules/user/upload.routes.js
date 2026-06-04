@@ -30,8 +30,8 @@ router.post(
   authenticate,
   validate(Joi.object({
     folder: Joi.string().valid(
-      'kyc', 'profile', 'order-proof', 'vehicle-health',
-      'completion-photos', 'order-images', 'voice-tips'
+      'kyc', 'kyc-docs', 'profile', 'order-proof', 'vehicle-health',
+      'completion-photos', 'order-images', 'voice-tips', 'event-photos'
     ).required(),
     contentType: Joi.string().valid(...Object.keys(CONTENT_TYPE_EXTS)).required(),
     // Optional original filename — used for extension validation only; never stored.

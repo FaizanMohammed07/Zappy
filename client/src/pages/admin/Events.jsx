@@ -195,6 +195,51 @@ function usePartnerKycDoc(partnerId, idx, token, enabled = true) {
   return { url, loading };
 }
 
+/* ── Admin KYC doc row (streams a named S3 doc) ─────────────────────────────── */
+function AdminKycDocRow({ label, mandatory, s3Key, partnerId, docKey, token, onLightbox }) {
+  const [url, setUrl]         = useState(null);
+  const [loading, setLoading] = useState(false);
+  const objRef = useRef(null);
+
+  useEffect(() => {
+    if (!s3Key || !token) return;
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api${adminApiPath(`/events/partners/${partnerId}/kyc/field/${docKey}`)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then(blob => {
+        if (cancelled) return;
+        if (objRef.current) URL.revokeObjectURL(objRef.current);
+        const u = URL.createObjectURL(blob); objRef.current = u; setUrl(u);
+      })
+      .catch(() => setUrl(null))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [s3Key, partnerId, docKey, token]);
+  useEffect(() => () => { if (objRef.current) URL.revokeObjectURL(objRef.current); }, []);
+
+  return (
+    <div className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+      <div className={`w-14 h-14 rounded-xl overflow-hidden shrink-0 border-2 flex items-center justify-center cursor-pointer
+        ${url ? 'border-green-300 bg-green-50' : s3Key ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}
+        onClick={() => url && onLightbox(url)}>
+        {loading ? <Loader2 size={14} className="animate-spin text-slate-300" />
+          : url ? <img src={url} alt={label} className="w-full h-full object-cover" />
+          : <FileText size={16} className={s3Key ? 'text-amber-400' : 'text-slate-300'} />}
+      </div>
+      <div className="flex-1">
+        <p className="text-xs font-bold text-slate-700">{label}</p>
+        <p className="text-[10px] text-slate-400 mt-0.5">
+          {s3Key ? (url ? '✅ Uploaded' : '⏳ Loading…') : mandatory ? '❌ Not uploaded' : '— Optional'}
+        </p>
+      </div>
+      {url && <ZoomIn size={14} className="text-slate-400 cursor-pointer hover:text-slate-600" onClick={() => onLightbox(url)} />}
+    </div>
+  );
+}
+
 /* ── Partner Detail Drawer ───────────────────────────────────────────────────── */
 function PartnerDrawer({ partnerId, onClose, onRefresh }) {
   const { accessToken: token } = useSelector(selectAuth);
@@ -289,39 +334,46 @@ function PartnerDrawer({ partnerId, onClose, onRefresh }) {
               )}
             </div>
 
-            {/* KYC Documents */}
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">KYC Documents ({docCount})</p>
-              {docCount === 0 ? (
-                <div className="text-center py-8 bg-slate-50 rounded-xl">
-                  <FileText size={24} className="text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">No documents submitted yet</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-3">
-                  {docs.map((doc, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Document {i + 1}</p>
-                      <div className={`aspect-[3/4] rounded-xl overflow-hidden border border-slate-200 bg-slate-100 ${doc.url ? 'cursor-pointer group' : ''}`}
+            {/* KYC Documents — structured */}
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">KYC Documents</p>
+              {/* Structured fields */}
+              {[
+                { key: 'aadharFront',          label: '🪪 Aadhar Front',           mandatory: true  },
+                { key: 'aadharBack',           label: '🪪 Aadhar Back',            mandatory: true  },
+                { key: 'panCard',              label: '🗂️ PAN Card',               mandatory: true  },
+                { key: 'liveSelfie',           label: '🤳 Live Selfie',            mandatory: true  },
+                { key: 'gstCertificate',       label: '📋 GST Certificate',        mandatory: false },
+                { key: 'businessRegistration', label: '📄 Business Registration',  mandatory: false },
+              ].map(({ key, label, mandatory }) => {
+                const s3Key = partner.kyc?.[key];
+                return (
+                  <AdminKycDocRow key={key} label={label} mandatory={mandatory}
+                    s3Key={s3Key} partnerId={partnerId} docKey={key} token={token}
+                    onLightbox={setLightbox} />
+                );
+              })}
+              {/* Legacy docs if any */}
+              {docCount > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-3 mb-2">Additional Documents ({docCount})</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {docs.map((doc, i) => (
+                      <div key={i} className={`aspect-[4/3] rounded-xl overflow-hidden border border-slate-200 bg-slate-100 ${doc.url ? 'cursor-pointer group' : ''}`}
                         onClick={() => doc.url && setLightbox(doc.url)}>
-                        {doc.loading ? (
-                          <div className="w-full h-full flex items-center justify-center"><Loader2 size={18} className="animate-spin text-slate-300" /></div>
-                        ) : doc.url ? (
-                          <div className="relative w-full h-full">
-                            <img src={doc.url} alt={`Doc ${i + 1}`} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-center justify-center">
-                              <ZoomIn size={20} className="text-white opacity-0 group-hover:opacity-100 transition" />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-1">
-                            <FileText size={20} className="text-slate-300" />
-                            <span className="text-[10px] text-slate-400">Not available</span>
-                          </div>
-                        )}
+                        {doc.loading ? <div className="w-full h-full flex items-center justify-center"><Loader2 size={14} className="animate-spin text-slate-300" /></div>
+                          : doc.url ? <div className="relative w-full h-full"><img src={doc.url} alt="" className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-center justify-center"><ZoomIn size={16} className="text-white opacity-0 group-hover:opacity-100 transition" /></div></div>
+                          : <div className="w-full h-full flex items-center justify-center"><FileText size={16} className="text-slate-300" /></div>}
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* PAN / GST numbers */}
+              {(partner.kyc?.panNumber || partner.kyc?.gstNumber) && (
+                <div className="bg-slate-50 rounded-xl p-3 text-xs space-y-1">
+                  {partner.kyc?.panNumber  && <p><span className="font-bold text-slate-500">PAN:</span> {partner.kyc.panNumber}</p>}
+                  {partner.kyc?.gstNumber  && <p><span className="font-bold text-slate-500">GST:</span> {partner.kyc.gstNumber}</p>}
                 </div>
               )}
             </div>
