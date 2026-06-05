@@ -7,8 +7,30 @@ const EventSaved   = require('./event-saved.model');
 const { redis }    = require('../../config/redis');
 const logger       = require('../../utils/logger');
 
+const s3Service = require('../../utils/s3.service');
+
 const CFG_KEY = 'events:config';
 const CFG_TTL = 60;
+
+// Resolves S3 keys → presigned view URLs (24h) for coverImage + gallery.
+// Safe to call on already-resolved https:// URLs (no-op).
+async function resolveThemeImages(theme) {
+  if (!theme) return theme;
+  async function resolve(val) {
+    if (!val || val.startsWith('https://')) return val;
+    try { return await s3Service.getViewUrl(val); } catch { return val; }
+  }
+  theme.coverImage = await resolve(theme.coverImage);
+  if (Array.isArray(theme.gallery)) {
+    theme.gallery = await Promise.all(theme.gallery.map(resolve));
+  }
+  return theme;
+}
+
+async function resolveThemeListImages(themes) {
+  if (!themes?.length) return themes;
+  return Promise.all(themes.map(resolveThemeImages));
+}
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +92,7 @@ async function listThemes({ categorySlug, city, budgetMaxPaise, guestCount, page
       .lean(),
     EventTheme.countDocuments(q),
   ]);
+  await resolveThemeListImages(themes);
   return { themes, total, page, pages: Math.ceil(total / limit) };
 }
 
@@ -84,11 +107,11 @@ async function getTheme(themeId, userId = null) {
   if (userId) {
     const redisSaved = await redis.sismember(`events:saved:${userId}`, String(themeId)).catch(() => 0);
     isSaved = !!redisSaved;
-    // Fallback to MongoDB if Redis doesn't have the key
     if (!isSaved) {
       isSaved = !!(await EventSaved.findOne({ userId, themeId }).select('_id').lean().catch(() => null));
     }
   }
+  await resolveThemeImages(theme);
   return { ...theme, isSaved };
 }
 
@@ -141,8 +164,10 @@ async function getSavedThemes(userId) {
   }
 
   if (!ids.length) return [];
-  return EventTheme.find({ _id: { $in: ids }, status: { $in: ['approved', 'featured'] } })
+  const themes = await EventTheme.find({ _id: { $in: ids }, status: { $in: ['approved', 'featured'] } })
     .populate('categoryId', 'name slug emoji').lean();
+  await resolveThemeListImages(themes);
+  return themes;
 }
 
 // ── Booking ───────────────────────────────────────────────────────────────────
@@ -319,6 +344,7 @@ async function adminListThemes({ status, page = 1, search } = {}) {
       .populate('categoryId', 'name slug').populate('partnerId', 'businessName').lean(),
     EventTheme.countDocuments(q),
   ]);
+  await resolveThemeListImages(themes);
   return { themes, total, page, pages: Math.ceil(total / limit) };
 }
 
@@ -375,7 +401,8 @@ async function adminUpdatePartner(partnerId, patch) {
 }
 
 async function adminGetConfig() {
-  return EventConfig.findOne({ isActive: true }).lean() || defaultConfig();
+  const cfg = await EventConfig.findOne({ isActive: true }).lean();
+  return cfg || defaultConfig();
 }
 
 async function adminUpdateConfig(patch, adminId) {

@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Calendar, Clock, MapPin, Users, FileText, Camera, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { useGetEventThemeQuery, useCreateEventBookingMutation, usePresignUploadMutation, useCreateEventAdvanceOrderMutation, useVerifyEventAdvancePaymentMutation } from '../../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  ArrowLeft, Calendar as CalendarIcon, Clock, MapPin, Users, FileText, Camera, 
+  CheckCircle, AlertCircle, Loader2, Minus, Plus, ChevronRight, Zap, Star, ShieldCheck, Check
+} from 'lucide-react';
+import {
+  useGetEventThemeQuery, useCreateEventBookingMutation, usePresignUploadMutation,
+  useCreateEventAdvanceOrderMutation, useVerifyEventAdvancePaymentMutation,
+  useGetEventConfigQuery,
+} from '../../services/api';
 import toast from 'react-hot-toast';
 
-// Dynamically load Razorpay script
 function loadRazorpay() {
   return new Promise((resolve) => {
     if (window.Razorpay) return resolve(true);
@@ -17,16 +23,33 @@ function loadRazorpay() {
   });
 }
 
-const TIME_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM'];
+const TIME_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM'];
+const STEPS = ['When & Where', 'Location', 'Specifics', 'Review'];
 
-function StepIndicator({ step, total }) {
+function PremiumStepIndicator({ currentStep }) {
   return (
-    <div className="flex items-center gap-1">
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className={`h-1.5 rounded-full transition-all ${i < step ? 'bg-indigo-600' : i === step ? 'bg-indigo-600 flex-1' : 'bg-slate-200'} ${i === step ? 'w-8' : 'w-4'}`} />
-      ))}
+    <div className="relative pt-6 pb-2">
+      <div className="flex items-center justify-between relative z-10 px-2">
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-100 rounded-full z-0" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full z-0 transition-all duration-700 ease-out" style={{ width: `${(currentStep / 3) * 100}%` }} />
+        
+        {[0, 1, 2, 3].map(idx => {
+          const isCompleted = idx < currentStep;
+          const isActive = idx === currentStep;
+          return (
+            <div key={idx} className="relative flex flex-col items-center">
+              <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 ${isCompleted ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : isActive ? 'bg-white border-2 border-fuchsia-500 text-fuchsia-600 shadow-xl shadow-fuchsia-500/20 scale-110' : 'bg-white border-2 border-slate-200 text-slate-400'}`}>
+                {isCompleted ? <Check size={14} strokeWidth={3} /> : <span className="text-xs font-black">{idx + 1}</span>}
+              </div>
+              <span className={`absolute -bottom-6 w-20 text-center text-[9px] font-bold uppercase tracking-widest transition-colors ${isActive ? 'text-fuchsia-600' : isCompleted ? 'text-indigo-600' : 'text-slate-400'}`}>
+                {STEPS[idx]}
+              </span>
+            </div>
+          )
+        })}
+      </div>
     </div>
-  );
+  )
 }
 
 export default function EventBookingPage() {
@@ -35,15 +58,17 @@ export default function EventBookingPage() {
   const [queryParams] = useSearchParams();
   const isScheduled = queryParams.get('scheduled') === 'true';
 
-  const { data } = useGetEventThemeQuery(id);
+  const { data }      = useGetEventThemeQuery(id);
+  const { data: cfg } = useGetEventConfigQuery();
   const [createBooking]       = useCreateEventBookingMutation();
   const [presignUpload]       = usePresignUploadMutation();
   const [createAdvanceOrder]  = useCreateEventAdvanceOrderMutation();
   const [verifyAdvancePayment]= useVerifyEventAdvancePaymentMutation();
 
   const theme = data?.theme;
+  const advancePct = (cfg?.advancePaymentPct ?? 20) / 100;
 
-  const [step, setStep] = useState(0); // 0=date, 1=address, 2=details, 3=confirm
+  const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     eventDate:     '',
     eventTimeSlot: '',
@@ -58,8 +83,8 @@ export default function EventBookingPage() {
   function set(key, val) { setForm(p => ({ ...p, [key]: val })); }
   function setAddr(key, val) { setForm(p => ({ ...p, address: { ...p.address, [key]: val } })); }
 
-  const advancePaise = Math.round((theme?.startingPricePaise || 0) * 0.2);
   const totalPaise   = theme?.startingPricePaise || 0;
+  const advancePaise = Math.round(totalPaise * advancePct);
 
   async function handleRoomPhoto(e) {
     const files = Array.from(e.target.files || []);
@@ -72,27 +97,24 @@ export default function EventBookingPage() {
         return signed.key;
       }));
       set('roomPhotos', [...form.roomPhotos, ...keys]);
-      toast.success(`${keys.length} photo${keys.length > 1 ? 's' : ''} uploaded`);
-    } catch { toast.error('Upload failed'); }
+      toast.success(`${keys.length} photo(s) added beautifully! ✨`);
+    } catch { toast.error('Upload failed. The magic got interrupted.'); }
     finally { setUploading(false); }
   }
 
   async function handleSubmit() {
     setSubmitting(true);
     try {
-      // Step 1: Create booking
       const result = await createBooking({
         themeId: id, ...form, guestCount: Number(form.guestCount),
       }).unwrap();
       const bookingId = result.booking._id;
 
-      // Step 2: Load Razorpay + create order
       const loaded = await loadRazorpay();
-      if (!loaded) { toast.error('Payment gateway failed to load. Please try again.'); setSubmitting(false); return; }
+      if (!loaded) { toast.error('Payment gateway failed. Please refresh.'); setSubmitting(false); return; }
 
       const orderRes = await createAdvanceOrder(bookingId).unwrap();
 
-      // Step 3: Open Razorpay checkout
       await new Promise((resolve, reject) => {
         const rzp = new window.Razorpay({
           key:         import.meta.env.VITE_RAZORPAY_KEY_ID,
@@ -100,8 +122,8 @@ export default function EventBookingPage() {
           currency:    'INR',
           order_id:    orderRes.orderId,
           name:        'Zappy Events',
-          description: `Advance for ${theme.title}`,
-          theme:       { color: '#7c3aed' },
+          description: `Securing your magical experience!`,
+          theme:       { color: '#8b5cf6' },
           handler: async (response) => {
             try {
               await verifyAdvancePayment({
@@ -110,14 +132,14 @@ export default function EventBookingPage() {
                 razorpayPaymentId:     response.razorpay_payment_id,
                 razorpaySignature:     response.razorpay_signature,
               }).unwrap();
-              toast.success('🎉 Booking confirmed! Your event is set.');
+              toast.success('🎉 Booking Confirmed! Your slot is locked.');
               navigate(`/events/bookings/${bookingId}?paid=true`);
               resolve();
             } catch (e) { reject(e); }
           },
           modal: {
             ondismiss: () => {
-              toast('Payment cancelled. Your booking slot is saved for 15 minutes.', { icon: '⏱️' });
+              toast('Payment incomplete. We reserved your slot for 15 mins!', { icon: '⏱️' });
               navigate(`/events/bookings/${bookingId}`);
               resolve();
             },
@@ -128,7 +150,7 @@ export default function EventBookingPage() {
     } catch (err) {
       const msg = err?.data?.message || err?.data?.error || 'Booking failed';
       toast.error(msg);
-      if (err?.data?.code === 'SLOT_TAKEN') toast.error('This slot was just taken — please choose another time');
+      if (err?.data?.code === 'SLOT_TAKEN') toast.error('Oh no! Someone just grabbed that slot.');
     } finally { setSubmitting(false); }
   }
 
@@ -139,157 +161,294 @@ export default function EventBookingPage() {
     true,
   ];
 
-  if (!theme) return <div className="min-h-screen bg-white flex items-center justify-center"><Loader2 size={22} className="animate-spin text-indigo-400" /></div>;
+  if (!theme) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 size={32} className="animate-spin text-fuchsia-500" /></div>;
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-4 pt-12 pb-4 sticky top-0 z-10">
-        <div className="flex items-center gap-3 mb-3">
-          <button onClick={() => step > 0 ? setStep(s => s - 1) : navigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100">
-            <ArrowLeft size={18} className="text-slate-700" />
-          </button>
-          <div className="flex-1">
-            <h1 className="font-bold text-slate-900">{['Choose Date & Time', 'Venue Details', 'Event Details', 'Review & Confirm'][step]}</h1>
-            <p className="text-xs text-slate-400">Step {step + 1} of 4</p>
+    <div className="min-h-screen bg-slate-50 pb-32 font-sans selection:bg-fuchsia-100 selection:text-fuchsia-900">
+      
+      {/* ─── Premium Glassy Header ────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-2xl border-b border-slate-200/50 pt-10 pb-8 px-4 shadow-[0_4px_30px_rgba(0,0,0,0.03)]">
+        <div className="max-w-md mx-auto">
+          <div className="flex items-center gap-4 mb-4">
+            <button onClick={() => step > 0 ? setStep(s => s - 1) : navigate(-1)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-200 hover:scale-105 transition-all">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="flex-1">
+              <h1 className="font-black text-2xl text-slate-900 tracking-tight">Reserve Experience</h1>
+            </div>
+            <img src={theme.coverImage} className="w-10 h-10 rounded-full object-cover shadow-sm border border-slate-200" />
           </div>
-        </div>
-        <StepIndicator step={step + 1} total={4} />
-      </div>
-
-      {/* Theme summary strip */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-indigo-50 border-b border-indigo-100">
-        <img src={theme.coverImage} alt="" className="w-10 h-10 rounded-xl object-cover" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-900 truncate">{theme.title}</p>
-          <p className="text-xs text-indigo-600 font-medium">₹{Math.round(totalPaise / 100).toLocaleString('en-IN')} total</p>
+          
+          <PremiumStepIndicator currentStep={step} />
         </div>
       </div>
 
-      <div className="px-4 py-5">
-        {/* Step 0: Date & Time */}
-        {step === 0 && (
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2"><Calendar size={15} />Event Date</label>
-              <input type="date" value={form.eventDate} onChange={e => set('eventDate', e.target.value)}
-                min={new Date(Date.now() + 86_400_000).toISOString().split('T')[0]}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-400 outline-none" />
-            </div>
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2"><Clock size={15} />Time Slot</label>
-              <div className="grid grid-cols-3 gap-2">
-                {TIME_SLOTS.map(slot => (
-                  <button key={slot} onClick={() => set('eventTimeSlot', slot)}
-                    className={`py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${form.eventTimeSlot === slot ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'}`}>
-                    {slot}
-                  </button>
-                ))}
+      <div className="max-w-md mx-auto px-4 py-8">
+        <AnimatePresence mode="wait">
+          
+          {/* ─── Step 0: Date & Time ────────────────────────────────────────────── */}
+          {step === 0 && (
+            <motion.div key="step0" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
+              
+              <div className="bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center"><CalendarIcon size={20} /></div>
+                  <h3 className="font-black text-lg text-slate-900">Select Date</h3>
+                </div>
+                <input 
+                  type="date" 
+                  value={form.eventDate} 
+                  onChange={e => set('eventDate', e.target.value)}
+                  min={new Date(Date.now() + 86_400_000).toISOString().split('T')[0]}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-slate-800 font-bold focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all cursor-pointer" 
+                />
               </div>
-            </div>
-          </motion.div>
-        )}
 
-        {/* Step 1: Address */}
-        {step === 1 && (
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-            {[
-              { key: 'line1', label: 'Address Line 1', placeholder: 'Flat / House / Building', required: true },
-              { key: 'city',  label: 'City',           placeholder: 'Bangalore',               required: true },
-              { key: 'pincode', label: 'Pincode',      placeholder: '560001' },
-            ].map(({ key, label, placeholder, required }) => (
-              <div key={key}>
-                <label className="text-sm font-semibold text-slate-700 block mb-1.5">{label}{required && <span className="text-red-400 ml-0.5">*</span>}</label>
-                <input value={form.address[key]} onChange={e => setAddr(key, e.target.value)} placeholder={placeholder}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-400 outline-none" />
-              </div>
-            ))}
-          </motion.div>
-        )}
-
-        {/* Step 2: Event details */}
-        {step === 2 && (
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2"><Users size={15} />Number of Guests</label>
-              <input type="number" min={1} value={form.guestCount} onChange={e => set('guestCount', e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-400 outline-none" />
-            </div>
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2"><FileText size={15} />Special Notes</label>
-              <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Colour preferences, specific items, allergies, theme modifications…"
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-400 outline-none resize-none" rows={3} />
-            </div>
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2"><Camera size={15} />Room Photos (optional)</label>
-              <p className="text-xs text-slate-400 mb-2">Helps the partner plan the setup better</p>
-              <label className="block w-full border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-indigo-300 transition-all">
-                {uploading ? <Loader2 size={18} className="animate-spin text-indigo-400 mx-auto" /> : <><Camera size={18} className="text-slate-300 mx-auto mb-1" /><span className="text-xs text-slate-400">Tap to upload photos</span></>}
-                <input type="file" accept="image/*" multiple onChange={handleRoomPhoto} className="hidden" />
-              </label>
-              {form.roomPhotos.length > 0 && (
-                <div className="flex gap-2 mt-2">
-                  {form.roomPhotos.map((url, i) => (
-                    <img key={i} src={url} alt="" className="w-14 h-14 rounded-lg object-cover" />
+              <div className="bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-fuchsia-50 text-fuchsia-500 flex items-center justify-center"><Clock size={20} /></div>
+                  <div>
+                    <h3 className="font-black text-lg text-slate-900">Select Time</h3>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Available Slots</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  {TIME_SLOTS.map(slot => (
+                    <button 
+                      key={slot} 
+                      onClick={() => set('eventTimeSlot', slot)}
+                      className={`py-3.5 rounded-2xl text-xs font-black transition-all duration-300 ${form.eventTimeSlot === slot ? 'bg-slate-900 text-white shadow-[0_10px_20px_rgba(0,0,0,0.15)] scale-105 ring-2 ring-slate-900 ring-offset-2' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-400 hover:bg-white hover:shadow-sm'}`}
+                    >
+                      {slot}
+                    </button>
                   ))}
                 </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Step 3: Confirm */}
-        {step === 3 && (
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-            <div className="bg-slate-50 rounded-2xl p-4 space-y-2.5">
-              {[
-                { label: 'Theme',    value: theme.title },
-                { label: 'Date',     value: new Date(form.eventDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) },
-                { label: 'Time',     value: form.eventTimeSlot },
-                { label: 'Address',  value: `${form.address.line1}, ${form.address.city} ${form.address.pincode}` },
-                { label: 'Guests',   value: `${form.guestCount} guests` },
-                ...(form.notes ? [{ label: 'Notes', value: form.notes }] : []),
-              ].map(({ label, value }) => (
-                <div key={label} className="flex justify-between gap-3 text-sm">
-                  <span className="text-slate-500 font-medium shrink-0">{label}</span>
-                  <span className="text-slate-900 text-right">{value}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Payment breakdown */}
-            <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100">
-              <p className="font-bold text-sm text-slate-900 mb-3">Payment Summary</p>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-600">Total amount</span><span className="font-semibold">₹{Math.round(totalPaise / 100).toLocaleString('en-IN')}</span></div>
-                <div className="flex justify-between text-indigo-700"><span className="font-semibold">Advance to pay now (20%)</span><span className="font-bold">₹{Math.round(advancePaise / 100).toLocaleString('en-IN')}</span></div>
-                <div className="flex justify-between text-slate-500"><span>Remaining (on event day)</span><span>₹{Math.round((totalPaise - advancePaise) / 100).toLocaleString('en-IN')}</span></div>
               </div>
-            </div>
+            </motion.div>
+          )}
 
-            <div className="flex items-start gap-2 bg-amber-50 rounded-xl p-3 border border-amber-100">
-              <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">Cancellation policy: Full refund if cancelled 7+ days before event. Partial refund within 3–7 days.</p>
-            </div>
-          </motion.div>
-        )}
+          {/* ─── Step 1: Address ────────────────────────────────────────────────── */}
+          {step === 1 && (
+            <motion.div key="step1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+              <div className="bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-500 flex items-center justify-center"><MapPin size={20} /></div>
+                  <div>
+                    <h3 className="font-black text-lg text-slate-900">Venue Details</h3>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Where's the magic happening?</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    { key: 'line1', label: 'Flat / House / Building', required: true },
+                    { key: 'city',  label: 'City',           required: true },
+                    { key: 'pincode', label: 'Pincode',      required: false },
+                  ].map(({ key, label, required }) => (
+                    <div key={key} className="relative">
+                      <input 
+                        id={key}
+                        value={form.address[key]} 
+                        onChange={e => setAddr(key, e.target.value)} 
+                        className="peer w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 pt-7 pb-3 text-slate-900 font-bold focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all placeholder-transparent" 
+                        placeholder={label}
+                      />
+                      <label htmlFor={key} className="absolute left-5 top-2 text-[10px] uppercase tracking-widest font-bold text-slate-400 peer-placeholder-shown:top-5 peer-placeholder-shown:text-sm peer-placeholder-shown:normal-case peer-placeholder-shown:font-semibold peer-focus:top-2 peer-focus:text-[10px] peer-focus:uppercase peer-focus:font-bold peer-focus:text-indigo-600 transition-all pointer-events-none">
+                        {label} {required && <span className="text-rose-400">*</span>}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ─── Step 2: Event Details ──────────────────────────────────────────── */}
+          {step === 2 && (
+            <motion.div key="step2" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+              
+              {/* Guest Counter */}
+              <div className="bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500"><Users size={24} /></div>
+                  <div>
+                    <h3 className="font-black text-slate-900">Total Guests</h3>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Kids & Adults</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 shadow-inner">
+                  <button onClick={() => set('guestCount', Math.max(1, form.guestCount - 1))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-slate-100 text-slate-600 shadow-sm transition-all active:scale-95"><Minus size={18} /></button>
+                  <span className="font-black text-xl text-slate-900 w-8 text-center">{form.guestCount}</span>
+                  <button onClick={() => set('guestCount', form.guestCount + 1)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-slate-100 text-slate-600 shadow-sm transition-all active:scale-95"><Plus size={18} /></button>
+                </div>
+              </div>
+
+              {/* Special Notes */}
+              <div className="bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center"><FileText size={20} /></div>
+                  <h3 className="font-black text-slate-900">Special Requests</h3>
+                </div>
+                <textarea 
+                  value={form.notes} 
+                  onChange={e => set('notes', e.target.value)} 
+                  placeholder="Any color themes, allergies, or surprises planned? Let the creator know!"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-slate-800 font-medium focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all resize-none placeholder:text-slate-400" 
+                  rows={3} 
+                />
+              </div>
+
+              {/* Room Photos */}
+              <div className="bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><Camera size={20} /></div>
+                  <div>
+                    <h3 className="font-black text-slate-900">Space Photos <span className="text-slate-400 font-medium text-xs">(Optional)</span></h3>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Help the creator plan</p>
+                  </div>
+                </div>
+                
+                <label className="flex flex-col items-center justify-center w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-[1.5rem] p-6 cursor-pointer hover:bg-slate-100 hover:border-indigo-300 transition-all group">
+                  {uploading ? (
+                    <Loader2 size={28} className="animate-spin text-indigo-500 mb-2" />
+                  ) : (
+                    <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-400 group-hover:text-indigo-500 group-hover:scale-110 transition-all mb-3">
+                      <Camera size={24} />
+                    </div>
+                  )}
+                  <span className="font-bold text-slate-700">{uploading ? 'Uploading magic...' : 'Tap to upload photos'}</span>
+                  <input type="file" accept="image/*" multiple onChange={handleRoomPhoto} className="hidden" />
+                </label>
+
+                {form.roomPhotos.length > 0 && (
+                  <div className="flex gap-3 mt-4 overflow-x-auto pb-2">
+                    {form.roomPhotos.map((url, i) => (
+                      <div key={i} className="relative shrink-0 w-20 h-20 rounded-2xl overflow-hidden shadow-sm border border-slate-200">
+                        <img src={url} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ─── Step 3: Review & Pay (Ticket Style) ────────────────────────────── */}
+          {step === 3 && (
+            <motion.div key="step3" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+              
+              <div className="bg-white rounded-[2rem] shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden relative">
+                {/* Decorative top gradient */}
+                <div className="h-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500" />
+                
+                {/* Ticket Content */}
+                <div className="p-6 md:p-8">
+                  <div className="flex items-center gap-4 mb-8">
+                    <img src={theme.coverImage} className="w-16 h-16 rounded-2xl object-cover shadow-sm border border-slate-100" />
+                    <div>
+                      <h3 className="font-black text-xl text-slate-900 leading-tight mb-1">{theme.title}</h3>
+                      <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-black tracking-widest uppercase">
+                        {theme.categoryId?.name || 'Exclusive'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 flex items-center gap-1.5"><CalendarIcon size={12}/> Date</p>
+                      <p className="font-bold text-slate-800">{new Date(form.eventDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 flex items-center gap-1.5"><Clock size={12}/> Time</p>
+                      <p className="font-bold text-slate-800">{form.eventTimeSlot}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 flex items-center gap-1.5"><MapPin size={12}/> Venue</p>
+                      <p className="font-bold text-slate-800">{form.address.line1}, {form.address.city} {form.address.pincode}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Perforated Divider */}
+                <div className="relative flex items-center px-4 py-2">
+                  <div className="absolute left-0 w-5 h-10 bg-slate-50 rounded-r-full -translate-x-1 shadow-inner border-y border-r border-slate-200" />
+                  <div className="flex-1 border-t-2 border-dashed border-slate-300" />
+                  <div className="absolute right-0 w-5 h-10 bg-slate-50 rounded-l-full translate-x-1 shadow-inner border-y border-l border-slate-200" />
+                </div>
+
+                {/* Payment Breakdown */}
+                <div className="p-6 md:p-8 bg-slate-50/50">
+                  <h4 className="font-black text-slate-900 mb-5 flex items-center gap-2"><Zap size={18} className="text-yellow-500 fill-yellow-500"/> Cost Breakdown</h4>
+                  <div className="space-y-4 text-[15px]">
+                    <div className="flex justify-between text-slate-600 font-medium">
+                      <span>Total Package</span>
+                      <span className="font-bold text-slate-900">₹{Math.round(totalPaise / 100).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 font-medium">
+                      <span>Taxes & Fees</span>
+                      <span className="text-emerald-500 font-bold uppercase tracking-wide text-xs flex items-center gap-1"><CheckCircle size={14}/> Included</span>
+                    </div>
+                    
+                    <div className="border-t border-slate-200 pt-4 flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm">
+                      <div>
+                        <span className="font-black text-slate-900 block">Advance Required ({Math.round(advancePct * 100)}%)</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Pay now to lock slot</span>
+                      </div>
+                      <span className="font-black text-3xl text-indigo-600 tracking-tighter">₹{Math.round(advancePaise / 100).toLocaleString('en-IN')}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 text-center font-medium mt-2">
+                      Remaining ₹{Math.round((totalPaise - advancePaise) / 100).toLocaleString('en-IN')} to be paid on event day
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                <ShieldCheck size={24} className="text-emerald-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Worry-Free Cancellation</p>
+                  <p className="text-xs text-slate-500 mt-1">Full refund if cancelled 7+ days before the event. You're fully protected.</p>
+                </div>
+              </div>
+
+            </motion.div>
+          )}
+
+        </AnimatePresence>
       </div>
 
-      {/* Footer CTA */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-4">
-        {step < 3 ? (
-          <button onClick={() => setStep(s => s + 1)} disabled={!canNext[step]}
-            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-            Continue
-          </button>
-        ) : (
-          <button onClick={handleSubmit} disabled={submitting}
-            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-            {submitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-            {submitting ? 'Creating Booking…' : `Confirm & Pay ₹${Math.round(advancePaise / 100).toLocaleString('en-IN')} Advance`}
-          </button>
-        )}
+      {/* ─── Floating Neon Action Bar ─────────────────────────────────────────── */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent pb-6 z-50">
+        <div className="max-w-md mx-auto">
+          {step < 3 ? (
+            <button 
+              onClick={() => setStep(s => s + 1)} 
+              disabled={!canNext[step]}
+              className="relative w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40 hover:shadow-2xl hover:-translate-y-1"
+            >
+              CONTINUE <ChevronRight size={18} />
+            </button>
+          ) : (
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 rounded-[1.5rem] blur opacity-40 group-hover:opacity-70 transition duration-500 animate-pulse" />
+              <button 
+                onClick={handleSubmit} 
+                disabled={submitting}
+                className="relative w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-80"
+              >
+                {submitting ? (
+                  <><Loader2 size={20} className="animate-spin" /> SECURING SLOT...</>
+                ) : (
+                  <><Zap size={18} className="fill-yellow-400 text-yellow-400" /> SECURE BOOKING</>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+      
     </div>
   );
 }

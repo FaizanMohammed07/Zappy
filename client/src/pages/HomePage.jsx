@@ -707,15 +707,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ─── Pet Assistance ───────────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Pet Assistance" badge="GPS Tracked" badgeColor="bg-amber-50 text-amber-700 ring-amber-100" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.15)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {PET_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
-            </div>
-          </div>
+          {/* ─── Pet Assistance ── hidden until feature launch ────────── */}
 
           {/* ─── Trust strip ──────────────────────────────────────────── */}
           <div className="px-4 mt-7 mb-4">

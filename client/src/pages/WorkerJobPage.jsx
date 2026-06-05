@@ -155,10 +155,8 @@ const STATUS_CONFIG = {
 
 const ACTIVE_STATUSES = new Set(['assigned', 'on_the_way', 'arrived', 'in_progress']);
 
-/* Maximum distance (metres) the worker must be within to tap "I've Arrived".
-   100 m accounts for urban GPS drift (typical phone accuracy is ±10–30 m).
-   If you want stricter enforcement, lower this value. */
-const ARRIVED_GEOFENCE_M = 100;
+/* Maximum distance (metres) the worker must be within to tap "I've Arrived". */
+const ARRIVED_GEOFENCE_M = 10;
 
 function haversineMeters(a, b) {
   const R     = 6_371_000;
@@ -1064,7 +1062,7 @@ export default function WorkerJobPage() {
             const distM   = myLocation && pickup ? haversineMeters(myLocation, pickup) : null;
             const withinFence = distM !== null && distM <= ARRIVED_GEOFENCE_M;
             // Progress 0→1 as distance drops from 300m → 0m (feels responsive)
-            const progress = distM !== null ? Math.max(0, Math.min(1, 1 - distM / 300)) : 0;
+            const progress = distM !== null ? Math.max(0, Math.min(1, 1 - distM / 50)) : 0;
             const pct      = Math.round(progress * 100);
 
             // ETA countdown from trip deadline stored on order

@@ -8,7 +8,7 @@ import {
   FileText, LogOut, Menu, X, ChevronRight, FileCheck, Crown,
   Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
   HeadphonesIcon, Radio, Globe, Layers, Zap, Sparkles, TrendingUp,
-  Shield, PartyPopper,
+  Shield, PartyPopper, PawPrint,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
 import { useLogoutMutation } from '../services/api';
@@ -43,6 +43,7 @@ import BusinessIntelligence from './admin/BusinessIntelligence';
 import NotificationsAdmin from './admin/Notifications';
 import ShieldFund from './admin/ShieldFund';
 import Events from './admin/Events';
+import PetAssistance from './admin/PetAssistance';
 
 /* ─── Navigation groups ────────────────────────────────────────────────── */
 const NAV_GROUPS = [
@@ -99,6 +100,12 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: 'Future Planning',
+    items: [
+      { id: 'pet-assistance', label: 'Pet Assistance', icon: PawPrint },
+    ],
+  },
+  {
     label: 'System',
     items: [
       { id: 'flags',        label: 'Feature Flags',    icon: ToggleRight },
@@ -118,6 +125,7 @@ const SECTION_MAP = {
   audit: Audit, plans: AdminPlans, liveops: LiveOps, alerts: Alerts,
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
   events: Events,
+  'pet-assistance': PetAssistance,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */

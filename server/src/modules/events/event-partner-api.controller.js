@@ -58,10 +58,21 @@ async function updateMe(req, res, next) {
 
 async function getMyThemes(req, res, next) {
   try {
+    const s3Service = require('../../utils/s3.service');
     const themes = await EventTheme.find({ partnerId: req.auth.sub })
       .sort({ createdAt: -1 })
       .populate('categoryId', 'name slug emoji')
       .lean();
+    await Promise.all(themes.map(async t => {
+      if (t.coverImage && !t.coverImage.startsWith('https://')) {
+        try { t.coverImage = await s3Service.getViewUrl(t.coverImage); } catch {}
+      }
+      if (Array.isArray(t.gallery)) {
+        t.gallery = await Promise.all(t.gallery.map(async k =>
+          k && !k.startsWith('https://') ? s3Service.getViewUrl(k).catch(() => k) : k
+        ));
+      }
+    }));
     res.json({ themes });
   } catch (e) { next(e); }
 }

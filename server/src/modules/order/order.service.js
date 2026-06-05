@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const orderRepo = require('./order.repository');
+const Order = require('./order.model');
 const pricingService = require('../pricing/pricing.service');
 const geoService = require('../worker/geo.service');
 const abuseService = require('./abuse.service');
@@ -407,10 +408,9 @@ async function workerStartTrip({ orderId, workerId, workerLat, workerLng }) {
 }
 
 // Max distance (km) allowed between worker's GPS and pickup pin to mark arrived.
-// 500m is generous enough to handle GPS drift and multi-floor buildings.
-// We WARN above 200m but only BLOCK above 500m to avoid false positives.
-const ARRIVE_WARN_KM  = 0.20;
-const ARRIVE_BLOCK_KM = 0.50;
+// Frontend enforces 10 m; backend allows 50 m to absorb GPS drift on cheap phones.
+const ARRIVE_WARN_KM  = 0.020;
+const ARRIVE_BLOCK_KM = 0.050;
 
 async function workerArrive({ orderId, workerId, workerLat, workerLng }) {
   // Proximity check — if coordinates supplied by the client, verify the worker
@@ -477,11 +477,11 @@ async function workerArrive({ orderId, workerId, workerLat, workerLng }) {
 
         // Real-time socket alert to worker's job page
         const { redis } = require('../../config/redis');
-        await redis.publish('order:event', JSON.stringify({
+        redis.publish('order:event', JSON.stringify({
           orderId: String(orderId),
           event: 'order.late_penalty',
           payload: { lateMinutes, penaltyPaise, penaltyRupees: Math.round(penaltyPaise / 100) },
-        }));
+        })).catch(() => {});
       } else {
         updates.tripLateMinutes = 0;
         updates.lateArrivalPenaltyPaise = 0;
@@ -890,14 +890,14 @@ async function guardedTransition(orderId, workerId, allowedFrom, toStatus, extra
   }
 
   // Broadcast to order room for real-time UI updates.
-  await redis.publish(
+  redis.publish(
     'order:event',
     JSON.stringify({
       orderId: String(orderId),
       event: 'order.status',
       payload: { status: toStatus, at: new Date().toISOString() },
     })
-  );
+  ).catch(() => {});
 
   // Per-status push notifications to the user (the worker sees status in-app)
   const notificationService = require('../notification/notification.service');
@@ -1010,14 +1010,14 @@ async function cancelByUser({ orderId, userId, reason }) {
     )
   );
 
-  await redis.publish(
+  redis.publish(
     'order:event',
     JSON.stringify({
       orderId: String(orderId),
       event: 'order.cancelled',
       payload: { reason: reason || 'user_cancelled', feePaise },
     })
-  );
+  ).catch(() => {});
 
   return {
     order: updated,
@@ -1114,14 +1114,14 @@ async function workerCancel({ orderId, workerId, reason }) {
   }
 
   // Broadcast worker-cancelled event so the user's tracking page updates immediately.
-  await redis.publish(
+  redis.publish(
     'order:event',
     JSON.stringify({
       orderId: String(orderId),
       event: 'order.worker_cancelled',
       payload: { reason: reason || 'worker_cancelled', cancelledBy: 'worker', isLate },
     })
-  );
+  ).catch(() => {});
 
   // Notify user
   const notificationService = require('../notification/notification.service');

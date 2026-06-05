@@ -223,7 +223,7 @@ function ThemesTab() {
               <div className="flex gap-3 p-3.5">
                 <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0">
                   {theme.coverImage ? (
-                    <img src={theme.coverImage.startsWith('http') ? theme.coverImage : ''} alt=""
+                    <img src={theme.coverImage} alt=""
                       className="w-full h-full object-cover" onError={e => e.target.style.display='none'} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -296,8 +296,9 @@ function ThemeUploadModal({ theme, onClose, onSuccess }) {
     cities:              theme?.cities?.join(', ') || '',
     guestCapacityMax:    theme?.guestCapacity?.max || 200,
   });
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving]       = useState(false);
+  const [uploading, setUploading]   = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [coverPreview, setCoverPreview] = useState(theme?.coverImage || null);
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })); }
 
@@ -306,8 +307,12 @@ function ThemeUploadModal({ theme, onClose, onSuccess }) {
     try {
       const { data: signed } = await presignUpload({ contentType: file.type || 'image/jpeg', folder: 'event-photos' });
       await fetch(signed.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
-      if (multi) set('gallery', [...form.gallery, signed.key]);
-      else set('coverImage', signed.key);
+      if (multi) {
+        set('gallery', [...form.gallery, signed.key]);
+      } else {
+        set('coverImage', signed.key);
+        setCoverPreview(URL.createObjectURL(file));
+      }
       toast.success('Uploaded');
     } catch { toast.error('Upload failed'); }
     finally { setUploading(false); }
@@ -358,9 +363,9 @@ function ThemeUploadModal({ theme, onClose, onSuccess }) {
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-2">Cover Photo <span className="text-red-400">*</span></label>
             <label className="block border-2 border-dashed border-slate-200 rounded-2xl overflow-hidden cursor-pointer hover:border-violet-300 transition-all">
-              {form.coverImage ? (
+              {coverPreview ? (
                 <div className="relative h-44">
-                  <img src={form.coverImage.startsWith('http') ? form.coverImage : ''} alt=""
+                  <img src={coverPreview} alt=""
                     className="w-full h-full object-cover" onError={e => e.target.style.display='none'} />
                   <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                     <p className="text-white text-xs font-bold">Click to change</p>

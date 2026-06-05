@@ -34,6 +34,11 @@ async function getUploadUrl({ folder, contentType, userId }) {
   }
 }
 
+async function getViewUrl(key, expiresIn = 86400) {
+  const cmd = new GetObjectCommand({ Bucket: config.aws.bucket, Key: key });
+  return getSignedUrl(s3, cmd, { expiresIn });
+}
+
 async function getDownloadUrl(key, expiresIn = 300) {
   const filename = key.split('/').pop();
   const cmd = new GetObjectCommand({
@@ -72,4 +77,4 @@ async function deleteObject(key) {
   await s3.send(new DeleteObjectCommand({ Bucket: config.aws.bucket, Key: key }));
 }
 
-module.exports = { getUploadUrl, getDownloadUrl, streamToResponse, deleteObject };
+module.exports = { getUploadUrl, getViewUrl, getDownloadUrl, streamToResponse, deleteObject };
