@@ -304,6 +304,8 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, statu
     pendingWorker:  null,
     trailPositions: [],
     routeAnimFrame: null,
+    drFrame:        null,   // dead reckoning rAF handle
+    drAnchor:       null,   // { lat, lng, hdg, spd, anchoredAt }
   });
 
   /* ── Init map ── */
@@ -411,11 +413,13 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, statu
 
     return () => {
       if (st.routeAnimFrame) cancelAnimationFrame(st.routeAnimFrame);
+      if (st.drFrame) cancelAnimationFrame(st.drFrame);
       st.ready = false;
       st.map   = null;
       st.pickupMarker  = null;
       st.workerMarker  = null;
       st.prevWorkerPos = null;
+      st.drAnchor      = null;
       st.trailPositions = [];
       map.remove();
     };
@@ -435,12 +439,13 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, statu
     fitBounds(st.map, pickup, st.pendingWorker);
   }, [pickup]);
 
-  /* ── Worker location prop ── */
+  /* ── Worker location prop — anchor + dead reckoning loop ── */
   useEffect(() => {
     const st = sr.current;
     st.pendingWorker = workerLocation || null;
     if (!st.map || !st.ready || !workerLocation) return;
 
+    // Snap/lerp marker to actual GPS fix
     if (st.workerMarker) {
       const from = st.prevWorkerPos || workerLocation;
       animateMarkerTo(st.workerMarker, from, workerLocation);
@@ -457,6 +462,41 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, statu
       fitBounds(st.map, p, workerLocation);
       fetchRoute(st.map, st, workerLocation, p);
     }
+
+    // Dead reckoning: glide marker between pings using heading + speed.
+    // Stops after 10s or if speed unknown — prevents runaway drift.
+    if (st.drFrame) cancelAnimationFrame(st.drFrame);
+    const hdg = workerLocation.hdg;
+    const spd = workerLocation.spd;   // m/s
+    if (!hdg || !spd || spd < 0.5) return; // stationary or no heading — skip DR
+
+    st.drAnchor = {
+      lat: workerLocation.lat,
+      lng: workerLocation.lng,
+      hdgRad: hdg * Math.PI / 180,
+      spd,
+      anchoredAt: performance.now(),
+    };
+
+    const DR_MAX_MS = 10000; // stop extrapolating after 10s
+    const R = 6371000;
+
+    function drStep(now) {
+      if (!st.workerMarker || !st.drAnchor) return;
+      const elapsed = (now - st.drAnchor.anchoredAt) / 1000; // seconds
+      if (elapsed > DR_MAX_MS / 1000) return;
+
+      const { lat: aLat, lng: aLng, hdgRad, spd: aSpd } = st.drAnchor;
+      const dist = aSpd * elapsed; // metres travelled since anchor
+      if (dist > 300) return; // sanity cap — never extrapolate more than 300m
+
+      const dLat = (dist * Math.cos(hdgRad)) / R * (180 / Math.PI);
+      const dLng = (dist * Math.sin(hdgRad)) / (R * Math.cos(aLat * Math.PI / 180)) * (180 / Math.PI);
+
+      st.workerMarker.setLngLat([aLng + dLng, aLat + dLat]);
+      st.drFrame = requestAnimationFrame(drStep);
+    }
+    st.drFrame = requestAnimationFrame(drStep);
   }, [workerLocation]);
 
   /* ── Service colour change → rebuild worker marker ── */

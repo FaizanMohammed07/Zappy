@@ -529,16 +529,40 @@ export default function WorkerJobPage() {
       return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
     }
 
+    // Stationary tracking: if worker hasn't moved 15m in 45s, drop to 60s heartbeat.
+    let stationaryRef = { lastMovedAt: Date.now(), lastPos: null };
+
     watchCancelRef.current = watch(
       (pos) => {
         setMyLocation({ lat: pos.lat, lng: pos.lng });
         const now = Date.now();
         const cur = { lat: pos.lat, lng: pos.lng };
-        const moved = !lastJobPos || jobHaverMetres(lastJobPos, cur) >= 10;
-        if (!moved || now - lastSentRef.current < 4000) return;
+        const distMoved = lastJobPos ? jobHaverMetres(lastJobPos, cur) : 999;
+        const moved = distMoved >= 15;
+
+        if (moved) {
+          stationaryRef.lastMovedAt = now;
+          stationaryRef.lastPos = cur;
+        }
+
+        const isParked = (now - stationaryRef.lastMovedAt) > 45000;
+        // Parked: heartbeat every 60s. Moving: every 4s.
+        const minInterval = isParked ? 60000 : 4000;
+        if (now - lastSentRef.current < minInterval) return;
+        // Skip if parked and position unchanged (pure noise)
+        if (isParked && !moved) return;
+
         lastSentRef.current = now;
-        lastJobPos = cur;
-        socket.emit('worker:location', { lat: pos.lat, lng: pos.lng, orderId: id });
+        if (moved) lastJobPos = cur;
+
+        // Send heading + speed for client-side dead reckoning on customer map
+        socket.emit('worker:location', {
+          lat: pos.lat,
+          lng: pos.lng,
+          orderId: id,
+          hdg: pos.heading ?? null,
+          spd: pos.speed ?? null,
+        });
       },
       (err) => console.warn('[WorkerJobPage] geolocation watch error', err),
     );

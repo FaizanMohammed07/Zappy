@@ -60,9 +60,13 @@ async function getPricingConfig(req, res, next) {
 
 async function setPricingConfig(req, res, next) {
   try {
+    const pricingService = require('../../pricing/pricing.service');
     const beforeRaw = await redis.get('config:pricing');
     const before = beforeRaw ? JSON.parse(beforeRaw) : {};
-    await redis.set('config:pricing', JSON.stringify(req.body), 'EX', 86400);
+    // Write display snapshot (used by admin UI reads) with short TTL matching the pricing engine
+    await redis.set('config:pricing', JSON.stringify(req.body), 'EX', 120);
+    // Also push through updateActiveConfig so MongoDB + config:pricing:active stay in sync
+    await pricingService.updateActiveConfig(req.body, req.auth.sub);
     await auditService.fromRequest(
       req,
       'admin.pricing_config_update',

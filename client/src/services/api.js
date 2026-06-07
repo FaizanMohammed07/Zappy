@@ -16,10 +16,28 @@ const rawBaseQuery = fetchBaseQuery({
   },
 });
 
-// Mutex ensures only one refresh call happens at a time — concurrent 401s
-// from parallel queries would otherwise each try to refresh and rotate the
-// family multiple times, triggering false reuse-detection revocations.
+// Mutex: guards concurrent 401s within the SAME tab.
 const refreshMutex = new Mutex();
+
+// BroadcastChannel: syncs the new access token across multiple open tabs so
+// only ONE tab ever sends a /auth/refresh request at a time. Without this,
+// two tabs expiring simultaneously both call refresh with the same old cookie,
+// triggering RT_REUSE detection which burns the family and logs everyone out.
+const _bc = typeof BroadcastChannel !== 'undefined'
+  ? new BroadcastChannel('zappy_token_refresh')
+  : null;
+
+let _lastCrossTabToken = null;    // AT broadcast from another tab
+let _lastCrossTabTs   = 0;        // timestamp of that broadcast
+
+if (_bc) {
+  _bc.onmessage = (ev) => {
+    if (ev.data?.type === 'TOKEN_REFRESHED' && ev.data?.accessToken) {
+      _lastCrossTabToken = ev.data.accessToken;
+      _lastCrossTabTs    = Date.now();
+    }
+  };
+}
 
 const baseQueryWithReauth = async (args, api, extraOptions) => {
   let result = await rawBaseQuery(args, api, extraOptions);
@@ -28,7 +46,15 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
   // Never try to refresh if this IS the refresh call
   if (typeof args !== 'string' && args.url === '/auth/refresh') return result;
 
-  // Wait if another request is already refreshing
+  // If another tab refreshed within the last 5 seconds, use that token directly.
+  // This prevents the multi-tab race that triggers RT_REUSE on the server.
+  if (_lastCrossTabToken && Date.now() - _lastCrossTabTs < 5000) {
+    const state = api.getState();
+    api.dispatch(setAuth({ accessToken: _lastCrossTabToken, profile: state.auth.profile, role: state.auth.role }));
+    return rawBaseQuery(args, api, extraOptions);
+  }
+
+  // Wait if another request in THIS tab is already refreshing
   if (refreshMutex.isLocked()) {
     await refreshMutex.waitForUnlock();
     return rawBaseQuery(args, api, extraOptions);
@@ -37,21 +63,18 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
   const release = await refreshMutex.acquire();
   try {
     const state = api.getState();
-    // RT is in an httpOnly cookie — we don't need to read it from state.
-    // credentials: 'include' (set on rawBaseQuery) sends the cookie automatically.
     const refreshRes = await rawBaseQuery(
       { url: '/auth/refresh', method: 'POST' },
       api,
       extraOptions
     );
     if (refreshRes.data?.accessToken) {
-      api.dispatch(
-        setAuth({
-          accessToken: refreshRes.data.accessToken,
-          profile: state.auth.profile,
-          role: state.auth.role,
-        })
-      );
+      const newAt = refreshRes.data.accessToken;
+      api.dispatch(setAuth({ accessToken: newAt, profile: state.auth.profile, role: state.auth.role }));
+      // Tell all other open tabs — they should NOT attempt their own refresh
+      _bc?.postMessage({ type: 'TOKEN_REFRESHED', accessToken: newAt });
+      _lastCrossTabToken = newAt;
+      _lastCrossTabTs    = Date.now();
       result = await rawBaseQuery(args, api, extraOptions);
     } else {
       // Refresh failed (RT_REUSE, RT_REVOKED, expired). Log the user out.
@@ -339,15 +362,18 @@ export const api = createApi({
     }),
 
     // --- Pricing (public) ---
-    getPricingConfig: b.query({ query: () => '/pricing' }),
+    getPricingConfig: b.query({ query: () => '/pricing', providesTags: ['PricingCfg'] }),
     adminUpdatePricing: b.mutation({
       query: (body) => ({ url: adminApiPath('/pricing'), method: 'PATCH', body }),
+      invalidatesTags: ['PricingCfg'],
     }),
     adminToggles: b.mutation({
       query: (body) => ({ url: adminApiPath('/toggles'), method: 'PATCH', body }),
+      invalidatesTags: ['PricingCfg'],
     }),
     adminToggleDispatch: b.mutation({
       query: (body) => ({ url: adminApiPath('/dispatch/toggle'), method: 'PATCH', body }),
+      invalidatesTags: ['PricingCfg'],
     }),
     adminRevenue: b.query({
       query: (days = 7) => adminApiPath(`/revenue?days=${days}`),

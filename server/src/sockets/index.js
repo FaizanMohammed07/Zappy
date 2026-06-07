@@ -134,7 +134,7 @@ function initSockets(httpServer) {
 
     // --- Worker live location (WS-driven, bypasses HTTP for lower latency) ---
     // The client should throttle client-side; we throttle server-side too.
-    socket.on('worker:location', async ({ lat, lng, orderId }) => {
+    socket.on('worker:location', async ({ lat, lng, orderId, hdg, spd }) => {
       if (role !== 'worker') return;
       if (typeof lat !== 'number' || typeof lng !== 'number') return;
       // Basic coordinate range validation
@@ -210,7 +210,11 @@ function initSockets(httpServer) {
       await geoService.updateLocation(id, lng, lat);
 
       if (orderId && movedEnough) {
-        io.to(`order:${orderId}`).emit('worker.location', { lat, lng, at: Date.now() });
+        io.to(`order:${orderId}`).emit('worker.location', {
+          lat, lng, at: Date.now(),
+          hdg: (typeof hdg === 'number' && hdg >= 0 && hdg <= 360) ? hdg : null,
+          spd: (typeof spd === 'number' && spd >= 0 && spd < 60)   ? spd : null,
+        });
 
         // ETA + arriving-soon notification — non-blocking, only during on_the_way
         Order.findById(orderId).select('userId status').lean().then((o) => {

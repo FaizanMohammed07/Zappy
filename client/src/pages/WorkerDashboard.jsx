@@ -346,6 +346,8 @@ export default function WorkerDashboard() {
       return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
     }
 
+    let stationaryState = { lastMovedAt: Date.now() };
+
     watchRef.current = watch(
       (pos) => {
         setGpsOn(true);
@@ -354,17 +356,27 @@ export default function WorkerDashboard() {
         const now = Date.now();
         const cur = { lat: pos.lat, lng: pos.lng };
 
-        // Skip socket emit if worker hasn't moved ≥ 10 metres since last send
-        const moved = !lastSentPosRef.current || haverMetres(lastSentPosRef.current, cur) >= 10;
+        const distMoved = lastSentPosRef.current ? haverMetres(lastSentPosRef.current, cur) : 999;
+        const moved = distMoved >= 15;
+        if (moved) stationaryState.lastMovedAt = now;
 
-        // Socket: every 4s AND moved ≥ 10m (fast path)
-        if (moved && now - lastSocket >= 4000) {
+        // Parked workers: heartbeat every 60s. Moving workers: every 4s.
+        const isParked = (now - stationaryState.lastMovedAt) > 45000;
+        const minInterval = isParked ? 60000 : 4000;
+
+        if (moved || now - lastSocket >= minInterval) {
           lastSocket = now;
-          lastSentPosRef.current = cur;
-          socket.emit('worker:location', { lat: pos.lat, lng: pos.lng, orderId: me?.currentOrderId });
+          if (moved) lastSentPosRef.current = cur;
+          socket.emit('worker:location', {
+            lat: pos.lat,
+            lng: pos.lng,
+            orderId: me?.currentOrderId,
+            hdg: pos.heading ?? null,
+            spd: pos.speed ?? null,
+          });
         }
 
-        // REST backup: every 30s regardless of distance (Mongo heartbeat, socket reconnect safety)
+        // REST backup: every 30s (Mongo alive heartbeat, survives socket reconnect)
         if (now - lastRestRef.current >= 30000) {
           lastRestRef.current = now;
           const locBody = { lat: pos.lat, lng: pos.lng };
@@ -1518,12 +1530,12 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex flex-col items-center sm:p-6 sm:bg-black/80 sm:backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex flex-col items-center sm:justify-center sm:p-6 sm:bg-black/80 sm:backdrop-blur-sm"
     >
-      <div className="w-full max-w-md flex flex-col flex-1 h-full relative overflow-hidden sm:rounded-[2.5rem] shadow-2xl">
-        {/* Map fills the top half */}
+      <div className="w-full max-w-md flex flex-col h-full sm:h-[90vh] sm:max-h-[850px] relative overflow-hidden sm:rounded-[2.5rem] shadow-2xl">
+        {/* Map fills the entire background */}
         <div
-          className="flex-1 relative overflow-hidden"
+          className="absolute inset-0 z-0"
           style={{
             background: isExpress
               ? 'linear-gradient(135deg, #1e1b4b, #312e81)'
@@ -1588,13 +1600,16 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
           </motion.div>
         </div>
 
+        {/* Spacer to push card to bottom */}
+        <div className="flex-1 relative z-10 pointer-events-none" />
+
         {/* Bottom card — design changes completely per tier */}
         <motion.div
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 28, stiffness: 360 }}
-        className="relative z-10 rounded-t-[32px] -mt-8"
+        className="relative z-10 rounded-t-[32px] mt-auto"
         style={
           isExpress
             ? { background: 'linear-gradient(160deg,#1e1b4b 0%,#312e81 60%,#1e1b4b 100%)', boxShadow: '0 -20px 80px rgba(79,70,229,0.5)' }

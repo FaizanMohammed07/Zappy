@@ -43,10 +43,23 @@ function ThemesTab() {
   const [page, setPage] = useState(1);
   const { data, isLoading, refetch } = useAdminEventThemesQuery({ status: statusFilter || undefined, page });
   const [updateStatus] = useAdminUpdateThemeStatusMutation();
+  const [editPriceId, setEditPriceId] = useState(null);
+  const [editPriceVal, setEditPriceVal] = useState('');
 
   async function handle(id, patch) {
     try { await updateStatus({ id, ...patch }).unwrap(); toast.success('Updated'); refetch(); }
     catch { toast.error('Failed'); }
+  }
+
+  async function savePrice(id) {
+    const rs = Math.round(Number(editPriceVal));
+    if (!rs || rs <= 0) { toast.error('Enter a valid price'); return; }
+    try {
+      await updateStatus({ id, startingPricePaise: rs * 100 }).unwrap();
+      toast.success(`Price updated to ₹${rs}`);
+      setEditPriceId(null);
+      refetch();
+    } catch { toast.error('Failed to update price'); }
   }
 
   return (
@@ -73,7 +86,30 @@ function ThemesTab() {
                   <Pill className={STATUS_COLORS[theme.status]}>{theme.status}</Pill>
                   {theme.isTrending && <Pill className="bg-orange-50 text-orange-700 border-orange-200">🔥 Trending</Pill>}
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">{theme.categoryId?.name} · ₹{Math.round((theme.startingPricePaise || 0) / 100)} starting · {theme.partnerId?.businessName}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-xs text-slate-500">{theme.categoryId?.name} · {theme.partnerId?.businessName}</p>
+                  {editPriceId === theme._id ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-slate-500">₹</span>
+                      <input
+                        type="number" min="1" autoFocus
+                        value={editPriceVal}
+                        onChange={e => setEditPriceVal(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') savePrice(theme._id); if (e.key === 'Escape') setEditPriceId(null); }}
+                        className="w-24 border border-indigo-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-indigo-500"
+                      />
+                      <button onClick={() => savePrice(theme._id)} className="px-2 py-0.5 text-xs bg-indigo-600 text-white rounded font-medium">Save</button>
+                      <button onClick={() => setEditPriceId(null)} className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded font-medium">✕</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditPriceId(theme._id); setEditPriceVal(String(Math.round((theme.startingPricePaise || 0) / 100))); }}
+                      className="text-xs font-semibold text-indigo-600 border border-indigo-200 bg-indigo-50 px-2 py-0.5 rounded hover:bg-indigo-100"
+                    >
+                      ₹{Math.round((theme.startingPricePaise || 0) / 100)} ✏️
+                    </button>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400 mt-0.5">{theme.bookingCount} bookings · ⭐ {theme.rating?.toFixed(1) || '–'} ({theme.reviewCount})</p>
                 {theme.adminNote && <p className="text-xs text-amber-600 mt-1 italic">Note: {theme.adminNote}</p>}
               </div>
@@ -655,7 +691,13 @@ function ConfigTab() {
   const [form, setForm] = useState(null);
 
   if (isLoading) return <div className="flex justify-center py-16"><Loader2 size={22} className="animate-spin text-slate-300" /></div>;
-  const values = form || cfg || {};
+  // Auto-correct 0 or missing maxAdvanceBookingDays so it never breaks bookings
+  const rawValues = form || cfg || {};
+  const values = {
+    ...rawValues,
+    maxAdvanceBookingDays: rawValues.maxAdvanceBookingDays > 0 ? rawValues.maxAdvanceBookingDays : 365,
+    minAdvanceBookingHours: rawValues.minAdvanceBookingHours > 0 ? rawValues.minAdvanceBookingHours : 2,
+  };
 
   async function handleSave(e) {
     e.preventDefault();
@@ -678,8 +720,19 @@ function ConfigTab() {
         {field('advancePaymentPct',     'Advance Payment %')}
         {field('platformCommissionPct', 'Platform Commission %')}
         {field('travelFeePerKmPaise',   'Travel Fee / km (paise)')}
-        {field('minAdvanceBookingHours','Min Advance Booking (hrs)')}
-        {field('maxAdvanceBookingDays', 'Max Advance Booking (days)')}
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Min Advance Booking (hrs)</label>
+          <input type="number" min="1" max="72" value={values.minAdvanceBookingHours ?? ''} onChange={e => setForm(p => ({ ...(p || values), minAdvanceBookingHours: Number(e.target.value) }))}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 outline-none" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Max Advance Booking (days)</label>
+          <input type="number" min="1" max="730" value={values.maxAdvanceBookingDays ?? ''} onChange={e => setForm(p => ({ ...(p || values), maxAdvanceBookingDays: Number(e.target.value) }))}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 outline-none" />
+          {(values.maxAdvanceBookingDays === 0 || values.maxAdvanceBookingDays < 1) && (
+            <p className="text-xs text-red-500 mt-1">Must be ≥ 1 — setting 0 blocks all bookings</p>
+          )}
+        </div>
       </div>
 
       <div>

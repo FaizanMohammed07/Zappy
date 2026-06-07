@@ -93,7 +93,7 @@ async function issueTokenPair({ sub, role, phone, email }) {
   await redis.setex(
     familyKey(sub, family),
     RT_EXPIRES_SEC,
-    JSON.stringify({ currentGen: gen, sub, role })
+    JSON.stringify({ currentGen: gen, sub, role, rotatedAt: 0 })
   );
 
   return { accessToken, refreshToken };
@@ -122,14 +122,34 @@ async function rotateTokenPair(presentedRefreshToken) {
   const stored = JSON.parse(raw);
 
   if (stored.currentGen !== gen) {
-    // REUSE DETECTED — either this RT was already rotated (attacker) or a
-    // legitimate client retried. Safest action: burn the family down.
-    logger.warn({ sub, family, presentedGen: gen, currentGen: stored.currentGen }, 'RT reuse detected — revoking family');
-    await redis.del(familyKey(sub, family));
-    throw Object.assign(new Error('Token reuse detected — please log in again'), {
-      status: 401,
-      code: 'RT_REUSE',
-    });
+    // Check if this is a multi-tab concurrent-rotation race vs actual token theft.
+    // A concurrent race looks like: stored.currentGen === gen + 1 AND the last
+    // rotation happened within the past 8 seconds. In this case the "winner" tab
+    // already rotated; re-issue tokens for the current gen without burning the family.
+    const isConcurrentRace =
+      stored.currentGen === gen + 1 &&
+      stored.rotatedAt &&
+      Date.now() - stored.rotatedAt < 8000;
+
+    if (!isConcurrentRace) {
+      logger.warn({ sub, family, presentedGen: gen, currentGen: stored.currentGen }, 'RT reuse detected — revoking family');
+      await redis.del(familyKey(sub, family));
+      throw Object.assign(new Error('Token reuse detected — please log in again'), {
+        status: 401,
+        code: 'RT_REUSE',
+      });
+    }
+
+    // Multi-tab race: issue fresh tokens for the already-current gen.
+    logger.info({ sub, family, presentedGen: gen, currentGen: stored.currentGen }, 'RT concurrent race resolved — re-issuing for current gen');
+    const raceAccessToken = signAccessToken({ sub, role, phone: decoded.phone, email: decoded.email });
+    const raceTokenId = crypto.randomBytes(16).toString('hex');
+    const raceRefreshToken = jwt.sign(
+      { sub, role, family, gen: stored.currentGen, jti: raceTokenId, type: 'refresh' },
+      config.jwt.secret,
+      { expiresIn: RT_EXPIRES_SEC }
+    );
+    return { accessToken: raceAccessToken, refreshToken: raceRefreshToken, role };
   }
 
   const newGen = gen + 1;
@@ -144,12 +164,9 @@ async function rotateTokenPair(presentedRefreshToken) {
   await redis.setex(
     familyKey(sub, family),
     RT_EXPIRES_SEC,
-    JSON.stringify({ currentGen: newGen, sub, role })
+    JSON.stringify({ currentGen: newGen, sub, role, rotatedAt: Date.now() })
   );
 
-  // Include role so auth.controller can pass it to the client in the
-  // refresh response — lets the client restore full session state even
-  // when sessionStorage was cleared (browser closed and reopened).
   return { accessToken, refreshToken, role };
 }
 

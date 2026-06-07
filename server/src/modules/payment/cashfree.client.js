@@ -68,7 +68,7 @@ async function createOrder({ orderId, amountPaise, customer, tags = {}, notifyUr
     },
     order_meta: {
       notify_url: notifyUrl || process.env.CASHFREE_WEBHOOK_URL || undefined,
-      payment_methods: 'upi,cc,dc,nb,wallet,emi',
+      payment_methods: 'upi,cc,dc,nb,emi,paylater,app',
     },
     order_tags: tags,
   });

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ArrowLeft, Calendar as CalendarIcon, Clock, MapPin, Users, FileText, Camera, 
-  CheckCircle, AlertCircle, Loader2, Minus, Plus, ChevronRight, Zap, Star, ShieldCheck, Check
+import {
+  ArrowLeft, Calendar as CalendarIcon, Clock, MapPin, Users, FileText, Camera,
+  CheckCircle, AlertCircle, Loader2, Minus, Plus, ChevronRight, Zap, Star, ShieldCheck, Check,
+  Navigation, LocateFixed
 } from 'lucide-react';
 import {
   useGetEventThemeQuery, useCreateEventBookingMutation, usePresignUploadMutation,
@@ -63,16 +64,52 @@ export default function EventBookingPage() {
   const [form, setForm] = useState({
     eventDate:     '',
     eventTimeSlot: '',
-    address:       { line1: '', city: '', pincode: '' },
+    address:       { line1: '', city: '', pincode: '', landmark: '' },
     guestCount:    1,
     notes:         '',
     roomPhotos:    [],
   });
-  const [uploading, setUploading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [uploading,    setUploading]    = useState(false);
+  const [submitting,   setSubmitting]   = useState(false);
+  const [locating,     setLocating]     = useState(false);
+  const [locDetected,  setLocDetected]  = useState(false);
 
   function set(key, val) { setForm(p => ({ ...p, [key]: val })); }
-  function setAddr(key, val) { setForm(p => ({ ...p, address: { ...p.address, [key]: val } })); }
+  function setAddr(key, val) { setLocDetected(false); setForm(p => ({ ...p, address: { ...p.address, [key]: val } })); }
+
+  async function detectLocation() {
+    if (!navigator.geolocation) { toast.error('Geolocation not supported by your browser'); return; }
+    setLocating(true);
+    try {
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, enableHighAccuracy: true })
+      );
+      const { latitude, longitude } = pos.coords;
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const data = await resp.json();
+      const a = data.address || {};
+      const line1Parts = [a.house_number, a.road, a.neighbourhood, a.suburb].filter(Boolean);
+      setForm(p => ({
+        ...p,
+        address: {
+          line1:    line1Parts.join(', ') || data.display_name?.split(',')[0] || '',
+          city:     a.city || a.town || a.village || a.county || '',
+          pincode:  a.postcode || '',
+          landmark: p.address.landmark,
+        },
+      }));
+      setLocDetected(true);
+      toast.success('Location detected! Review and edit if needed.');
+    } catch (err) {
+      if (err.code === 1) toast.error('Location access denied — please allow it in browser settings');
+      else toast.error('Could not detect your location. Enter manually.');
+    } finally {
+      setLocating(false);
+    }
+  }
 
   const totalPaise   = theme?.startingPricePaise || 0;
   const advancePaise = Math.round(totalPaise * advancePct);
@@ -108,6 +145,8 @@ export default function EventBookingPage() {
           paymentSessionId: orderRes.paymentSessionId,
           cfOrderId:        orderRes.cfOrderId,
           cashfreeEnv:      orderRes.cashfreeEnv || import.meta.env.VITE_CASHFREE_ENV || 'sandbox',
+          amountPaise:      orderRes.amountPaise,
+          purpose:          'Event Booking — Advance',
         });
         await verifyAdvancePayment({
           id:          bookingId,
@@ -218,18 +257,34 @@ export default function EventBookingPage() {
                   </div>
                 </div>
 
+                {/* ── Detect current location ──────────────────────────── */}
+                <button
+                  type="button"
+                  onClick={detectLocation}
+                  disabled={locating}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl border-2 border-dashed border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-bold text-sm transition-all disabled:opacity-60 active:scale-[0.98] mb-4"
+                >
+                  {locating ? (
+                    <><Loader2 size={16} className="animate-spin" /> Detecting location…</>
+                  ) : locDetected ? (
+                    <><CheckCircle size={16} className="text-emerald-500" /> Location detected — edit below if needed</>
+                  ) : (
+                    <><LocateFixed size={16} /> Use My Current Location</>
+                  )}
+                </button>
+
                 <div className="space-y-4">
                   {[
-                    { key: 'line1', label: 'Flat / House / Building', required: true },
-                    { key: 'city',  label: 'City',           required: true },
-                    { key: 'pincode', label: 'Pincode',      required: false },
+                    { key: 'line1',   label: 'Flat / House / Building', required: true  },
+                    { key: 'city',    label: 'City',                    required: true  },
+                    { key: 'pincode', label: 'Pincode',                 required: false },
                   ].map(({ key, label, required }) => (
                     <div key={key} className="relative">
-                      <input 
+                      <input
                         id={key}
-                        value={form.address[key]} 
-                        onChange={e => setAddr(key, e.target.value)} 
-                        className="peer w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 pt-7 pb-3 text-slate-900 font-bold focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all placeholder-transparent" 
+                        value={form.address[key]}
+                        onChange={e => setAddr(key, e.target.value)}
+                        className="peer w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 pt-7 pb-3 text-slate-900 font-bold focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all placeholder-transparent"
                         placeholder={label}
                       />
                       <label htmlFor={key} className="absolute left-5 top-2 text-[10px] uppercase tracking-widest font-bold text-slate-400 peer-placeholder-shown:top-5 peer-placeholder-shown:text-sm peer-placeholder-shown:normal-case peer-placeholder-shown:font-semibold peer-focus:top-2 peer-focus:text-[10px] peer-focus:uppercase peer-focus:font-bold peer-focus:text-indigo-600 transition-all pointer-events-none">
@@ -237,6 +292,21 @@ export default function EventBookingPage() {
                       </label>
                     </div>
                   ))}
+
+                  {/* Landmark / note for the decorator */}
+                  <div className="relative">
+                    <textarea
+                      id="landmark"
+                      rows={2}
+                      value={form.address.landmark}
+                      onChange={e => setAddr('landmark', e.target.value)}
+                      placeholder="Landmark / note"
+                      className="peer w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 pt-7 pb-3 text-slate-900 font-bold focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all resize-none placeholder-transparent"
+                    />
+                    <label htmlFor="landmark" className="absolute left-5 top-2 text-[10px] uppercase tracking-widest font-bold text-slate-400 peer-placeholder-shown:top-5 peer-placeholder-shown:text-sm peer-placeholder-shown:normal-case peer-placeholder-shown:font-semibold peer-focus:top-2 peer-focus:text-[10px] peer-focus:uppercase peer-focus:font-bold peer-focus:text-indigo-600 transition-all pointer-events-none flex items-center gap-1">
+                      <Navigation size={9} /> Landmark / Note for decorator
+                    </label>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -345,6 +415,9 @@ export default function EventBookingPage() {
                     <div className="col-span-2">
                       <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 flex items-center gap-1.5"><MapPin size={12}/> Venue</p>
                       <p className="font-bold text-slate-800">{form.address.line1}, {form.address.city} {form.address.pincode}</p>
+                      {form.address.landmark && (
+                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1"><Navigation size={10}/> {form.address.landmark}</p>
+                      )}
                     </div>
                   </div>
                 </div>

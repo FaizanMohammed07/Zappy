@@ -396,10 +396,10 @@ export default function HomePage() {
               </div>
 
               {/* Location text */}
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-0.5">
+              <div className="flex-1 min-w-0 flex flex-col justify-center gap-[2px]">
+                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest leading-none">
                   Delivering to
-                </p>
+                </span>
                 <AnimatePresence mode="wait">
                   {loc.loading ? (
                     <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -473,18 +473,18 @@ export default function HomePage() {
         </header>
 
         {/* ─── Mobile Search bar ───────────────────────────────────────────── */}
-        <div className="md:hidden bg-white px-4 pt-3 pb-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
+        <div className="md:hidden bg-white px-4 pt-2 pb-4" style={{ borderBottom: '1px solid #f1f5f9' }}>
           <motion.button
             onClick={() => nav('/services')}
-            className="w-full flex items-center gap-3 rounded-xl px-4 h-11 text-left"
-            style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0' }}
+            className="w-full flex items-center gap-3 rounded-[1rem] px-4 h-12 text-left"
+            style={{ background: '#f8fafc', border: '2px solid #e2e8f0' }}
             whileHover={{ borderColor: '#6366f1', background: '#fafbff' }}
             whileTap={{ scale: 0.99 }}
           >
-            <Search size={16} strokeWidth={2} className="text-slate-400 shrink-0" />
-            <span className="text-sm font-medium text-slate-400 flex-1">Search for a service…</span>
+            <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
+            <span className="text-[15px] font-medium text-slate-400 flex-1 leading-none pt-[2px]">Search for a service…</span>
             <motion.span
-              className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full shrink-0"
+              className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0 leading-none"
               animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
             >
               50+ services

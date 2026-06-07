@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Megaphone, Plus, Wallet, BarChart2, Settings, LogOut, X, Loader2,
   TrendingUp, Eye, MousePointerClick, IndianRupee, Play, Pause,
-  CheckCircle, Clock, XCircle, ArrowRight, ArrowLeft, Zap, Target, RefreshCw, Sparkles
+  CheckCircle, Clock, XCircle, ArrowRight, ArrowLeft, Zap, Target, RefreshCw, Sparkles, UploadCloud, Image as ImageIcon
 } from 'lucide-react';
 import {
   useMyAdCampaignsQuery, useCreateMyCampaignMutation, useUpdateMyCampaignMutation,
   useMyAdWalletQuery, useCreateAdTopUpOrderMutation, useVerifyAdTopUpMutation,
-  useGetEventCategoriesQuery, useLogoutMutation,
+  useGetEventCategoriesQuery, useLogoutMutation, usePresignUploadMutation,
 } from '../services/api';
 import { openCheckout } from '../services/cashfree';
 import { logout, selectAuth } from '../modules/auth/authSlice';
@@ -78,7 +78,33 @@ function StatBox({ label, value, sub, icon: Icon, color }) {
 function CampaignModal({ initial, onClose, onSave }) {
   const [form, setForm] = useState(initial || EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const { data: catData } = useGetEventCategoriesQuery();
+  const [presignUpload] = usePresignUploadMutation();
+
+  async function handleImageUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return toast.error('Image must be under 2MB');
+    
+    setUploadingImage(true);
+    try {
+      const { url } = await presignUpload({
+        fileName: file.name,
+        fileType: file.type,
+        folder: 'ads'
+      }).unwrap();
+      
+      await fetch(url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      const finalUrl = url.split('?')[0];
+      set('content.imageUrl', finalUrl);
+      toast.success('Image uploaded!');
+    } catch (err) {
+      toast.error('Upload failed');
+    } finally {
+      setUploadingImage(false);
+    }
+  }
 
   function set(path, value) {
     setForm(prev => {
@@ -194,7 +220,6 @@ function CampaignModal({ initial, onClose, onSave }) {
             {[
               { k: 'content.headline', label: 'Headline *', placeholder: 'Get 20% off Birthday Decoration!' },
               { k: 'content.body',     label: 'Description', placeholder: 'Limited slots available this month' },
-              { k: 'content.imageUrl', label: 'Image URL',   placeholder: 'https://your-cdn.com/ad.jpg' },
               { k: 'content.ctaText',  label: 'CTA Button',  placeholder: 'Book Now' },
               { k: 'content.ctaLink',  label: 'CTA Link',    placeholder: '/events or https://...' },
               { k: 'content.badgeText',label: 'Badge Text',  placeholder: 'HOT DEAL (optional)' },
@@ -205,6 +230,29 @@ function CampaignModal({ initial, onClose, onSave }) {
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:border-violet-400 outline-none" />
               </div>
             ))}
+
+            <div>
+              <label className="text-xs font-bold text-slate-600 block mb-1.5">Ad Image (Optional)</label>
+              <label className={`block border-2 border-dashed rounded-2xl p-4 transition-all ${form.content.imageUrl ? 'border-violet-400 bg-violet-50/50' : 'border-slate-200 hover:border-violet-300 hover:bg-slate-50 cursor-pointer'}`}>
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                    {uploadingImage ? <Loader2 size={20} className="text-violet-500 animate-spin" /> : 
+                     form.content.imageUrl ? <ImageIcon size={20} className="text-violet-600" /> :
+                     <UploadCloud size={20} className="text-violet-500" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-700 truncate">{form.content.imageUrl ? 'Image Uploaded' : 'Upload Image'}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">{form.content.imageUrl ? form.content.imageUrl : 'PNG, JPG up to 2MB'}</p>
+                  </div>
+                  {form.content.imageUrl && !uploadingImage && (
+                    <button type="button" onClick={(e) => { e.preventDefault(); set('content.imageUrl', ''); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </label>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Background Color</label>
@@ -348,6 +396,8 @@ function TopUpModal({ onClose, onSuccess }) {
         paymentSessionId: orderInfo.paymentSessionId,
         cfOrderId:        orderInfo.cfOrderId,
         cashfreeEnv:      orderInfo.cashfreeEnv || import.meta.env.VITE_CASHFREE_ENV || 'sandbox',
+        amountPaise:      orderInfo.amountPaise,
+        purpose:          'Ad Wallet Top-up',
       });
       await verifyTopUp({ cfOrderId: checkoutResp.cfOrderId, cfPaymentId: checkoutResp.cfPaymentId }).unwrap();
       toast.success(`₹${amountPaise / 100} added to ad wallet!`);

@@ -64,6 +64,8 @@ export function useFCM() {
       hasInit.current = false;
       return;
     }
+    // Admins don't receive push notifications — skip entirely.
+    if (role === 'admin') return;
     // Already initialized this session — skip (covers token refreshes & visibility events).
     if (hasInit.current) return;
 
