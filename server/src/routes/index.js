@@ -1,3 +1,4 @@
+const seoRoutes = require('../modules/seo/seo.routes');
 const authRoutes = require('../modules/auth/auth.routes');
 const verticalConfigRoutes = require('../modules/service/vertical-config.routes');
 const userRoutes = require('../modules/user/user.routes');
@@ -28,6 +29,9 @@ const { router: eventRoutes, adminRouter: eventAdminRoutes, partnerRouter: event
 function mountRoutes(app) {
   const slug = process.env.ADMIN_LOGIN_SLUG;
   if (!slug) throw new Error('ADMIN_LOGIN_SLUG env var is required');
+
+  // SEO routes served at root — sitemap, robots, city/category landing pages
+  app.use('/', seoRoutes);
 
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);

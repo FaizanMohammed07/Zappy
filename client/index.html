@@ -5,22 +5,81 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#2563EB" />
 
-    <!-- Favicon: inline SVG with the Zappy logo (no server round-trip) -->
+    <!-- Favicon: inline SVG — no server round-trip -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563EB'/%3E%3Cpath d='M18 20 L44 20 L30 40 L46 40' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Ccircle cx='48' cy='46' r='4' fill='%23F59E0B'/%3E%3C/svg%3E" />
     <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563EB'/%3E%3Cpath d='M18 20 L44 20 L30 40 L46 40' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Ccircle cx='48' cy='46' r='4' fill='%23F59E0B'/%3E%3C/svg%3E" />
 
-    <!-- Poppins — Zappy's primary font. Weights: 400 / 500 / 600 / 700 -->
+    <!-- Poppins — Zappy's primary font -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-    <!-- SEO -->
-    <meta name="description" content="Zappy — Instant help from verified professionals. Book plumbers, electricians, mechanics, and more. Anytime, anywhere." />
+    <!-- Base SEO (overridden per-route by SEO.jsx) -->
+    <title>Zappy — Instant Help. Anytime. Anywhere.</title>
+    <meta name="description" content="Zappy — Book verified professionals instantly. Plumber, electrician, mechanic, birthday decoration, laptop repair — on-demand across India." />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="https://www.zappyone.com/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Zappy" />
+    <meta property="og:url" content="https://www.zappyone.com/" />
     <meta property="og:title" content="Zappy — Instant Help. Anytime. Anywhere." />
     <meta property="og:description" content="Book trusted professionals instantly. Plumbing, electrical, mechanic, cleaning — on-demand." />
-    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://www.zappyone.com/og-default.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_IN" />
 
-    <title>Zappy — Instant Help. Anytime. Anywhere.</title>
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Zappy — Instant Help. Anytime. Anywhere." />
+    <meta name="twitter:description" content="Book trusted professionals instantly. On-demand services across India." />
+    <meta name="twitter:image" content="https://www.zappyone.com/og-default.jpg" />
+
+    <!-- Organization schema — helps AI engines attribute brand knowledge -->
+    <script type="application/ld+json" data-seo="org">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Zappy",
+      "url": "https://www.zappyone.com",
+      "logo": "https://www.zappyone.com/logo.png",
+      "description": "Zappy is an on-demand home and vehicle services platform connecting users with verified professionals across India.",
+      "foundingDate": "2024",
+      "areaServed": {
+        "@type": "Country",
+        "name": "India"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "availableLanguage": ["English", "Hindi", "Telugu"]
+      },
+      "sameAs": [
+        "https://play.google.com/store/apps/details?id=co.in.zappy",
+        "https://apps.apple.com/in/app/zappy/id0000000000"
+      ]
+    }
+    </script>
+
+    <!-- SiteLinksSearchBox — triggers search box in Google SERPs -->
+    <script type="application/ld+json" data-seo="searchbox">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Zappy",
+      "url": "https://www.zappyone.com",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://www.zappyone.com/services?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -33,6 +33,7 @@ services:
       - NODE_ENV=production
       - MONGO_URI=mongodb://mongo:27017/hyperlocal
       - REDIS_URL=redis://redis:6379
+      - PUBLIC_URL=${PUBLIC_URL:-https://www.zappyone.com}
     depends_on:
       mongo:
         condition: service_healthy
@@ -50,6 +51,7 @@ services:
       - NODE_ENV=production
       - MONGO_URI=mongodb://mongo:27017/hyperlocal
       - REDIS_URL=redis://redis:6379
+      - PUBLIC_URL=${PUBLIC_URL:-https://www.zappyone.com}
     command: ["node", "src/jobs/dispatch.worker.js"]
     depends_on:
       mongo:
@@ -93,7 +95,16 @@ services:
     build:
       context: ./client
       args:
+        VITE_ADMIN_SLUG: ${VITE_ADMIN_SLUG}
+        VITE_CASHFREE_ENV: ${VITE_CASHFREE_ENV}
         VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
+        VITE_FIREBASE_VAPID_KEY: ${VITE_FIREBASE_VAPID_KEY}
     restart: unless-stopped
 
   nginx:

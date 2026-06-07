@@ -35,6 +35,8 @@ export default function PlansPage() {
         paymentSessionId: orderInfo.paymentSessionId,
         cfOrderId:        orderInfo.cfOrderId,
         cashfreeEnv:      orderInfo.cashfreeEnv || 'sandbox',
+        amountPaise:      orderInfo.amountPaise,
+        purpose:          `${plan.name} Plan`,
       });
       await verifyPayment({
         cfOrderId:   checkoutResp.cfOrderId,

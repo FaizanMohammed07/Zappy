@@ -1,4 +1,6 @@
 const express = require('express');
+const Joi = require('joi');
+const { validate } = require('../../middlewares/validate');
 const { authenticate, requireRole } = require('../../middlewares/auth');
 const c = require('./event.controller');
 const a = require('./event-admin.controller');
@@ -73,7 +75,22 @@ adminRouter.get('/partners/:id/kyc/field/:fieldName',   a.streamPartnerKycField)
 adminRouter.get('/partners/:id/kyc/stream/:idx',        a.streamPartnerKycDoc);
 adminRouter.post('/partners/:id/block',           a.blockPartner);
 adminRouter.get('/config',           a.getConfig);
-adminRouter.put('/config',           a.updateConfig);
+adminRouter.put('/config',
+  validate(Joi.object({
+    advancePaymentPct:      Joi.number().min(1).max(100),
+    platformCommissionPct:  Joi.number().min(0).max(50),
+    travelFeePerKmPaise:    Joi.number().integer().min(0),
+    minAdvanceBookingHours: Joi.number().min(1).max(72),
+    maxAdvanceBookingDays:  Joi.number().min(1).max(730),
+    bookingEnabled:         Joi.boolean(),
+    sameDayBookingEnabled:  Joi.boolean(),
+    videoEnabled:           Joi.boolean(),
+    cancellationPolicy:     Joi.array().items(Joi.object({
+      daysBeforeEvent: Joi.number().integer().min(0).required(),
+      refundPct:       Joi.number().min(0).max(100).required(),
+    })),
+  }).min(1)),
+  a.updateConfig);
 adminRouter.get('/analytics',        a.getAnalytics);
 adminRouter.get('/categories',       a.listCategories);
 adminRouter.post('/categories',      a.upsertCategory);

@@ -194,7 +194,8 @@ async function createBooking({ userId, themeId, eventDate, eventTimeSlot, addres
       { status: 409, code: 'BOOKING_TOO_SOON' }
     );
   }
-  if (hoursUntil > cfg.maxAdvanceBookingDays * 24) {
+  const maxDays = cfg.maxAdvanceBookingDays > 0 ? cfg.maxAdvanceBookingDays : 365;
+  if (hoursUntil > maxDays * 24) {
     throw Object.assign(new Error('Booking date is too far in the future'), { status: 409 });
   }
 
@@ -353,6 +354,10 @@ async function adminUpdateThemeStatus(themeId, patch) {
   if (patch.status    !== undefined) update.status    = patch.status;
   if (patch.adminNote !== undefined) update.adminNote = patch.adminNote;
   if (patch.isTrending !== undefined) update.isTrending = patch.isTrending;
+  if (patch.startingPricePaise !== undefined) {
+    const p = Math.round(Number(patch.startingPricePaise));
+    if (p > 0) update.startingPricePaise = p;
+  }
   const prevTheme = await EventTheme.findById(themeId).select('status categoryId').lean();
   if (!prevTheme) throw Object.assign(new Error('Theme not found'), { status: 404 });
 
@@ -406,8 +411,10 @@ async function adminGetConfig() {
 }
 
 async function adminUpdateConfig(patch, adminId) {
-  // Strip _id from patch — never let client dictate the document ID
   const { _id, __v, ...safe } = patch;
+  // Clamp fields that would silently break booking if set to 0
+  if (safe.maxAdvanceBookingDays !== undefined && safe.maxAdvanceBookingDays < 1) safe.maxAdvanceBookingDays = 365;
+  if (safe.minAdvanceBookingHours !== undefined && safe.minAdvanceBookingHours < 1) safe.minAdvanceBookingHours = 2;
   const cfg = await EventConfig.findOneAndUpdate(
     {},
     { $set: { ...safe, isActive: true, updatedBy: adminId } },

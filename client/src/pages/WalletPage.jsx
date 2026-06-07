@@ -42,6 +42,8 @@ export default function WalletPage() {
         paymentSessionId: orderInfo.paymentSessionId,
         cfOrderId:        orderInfo.cfOrderId,
         cashfreeEnv:      orderInfo.cashfreeEnv || 'sandbox',
+        amountPaise:      orderInfo.amountPaise,
+        purpose:          'Wallet Top-up',
       });
       await verify({
         cfOrderId:   checkoutResp.cfOrderId,

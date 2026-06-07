@@ -6,7 +6,7 @@ import {
   Wrench, Droplets, Bolt, Hammer, Users, Car, Sparkles,
   Tv, Wifi, Smartphone, Battery, Layers, Bike, Fuel, AlertTriangle, Zap,
   Camera, Heart, Dog, Star, ShieldCheck, ShieldAlert, Cpu,
-  MonitorSmartphone, Laptop, Lock,
+  MonitorSmartphone, Laptop, Lock, ArrowUpRight
 } from 'lucide-react';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
@@ -98,7 +98,7 @@ const SERVICE_ICONS = {
 };
 
 const CATEGORIES = [
-  { key: 'all',          label: 'All',          Icon: Sparkles    },
+  { key: 'all',          label: 'All',           Icon: Sparkles    },
   { key: 'mobile',       label: 'Phone',         Icon: Smartphone  },
   { key: 'other',        label: 'Smart Devices', Icon: Tv          },
   { key: 'vehicle',      label: 'Vehicle',       Icon: Car         },
@@ -106,35 +106,6 @@ const CATEGORIES = [
   { key: 'other2',       label: 'Events',        Icon: Star        },
   { key: 'other3',       label: 'Pets',          Icon: Dog         },
 ];
-
-// Map DB category values to filter keys
-const CAT_MAP = {
-  mobile: ['mobile'],
-  other:  ['other'],       // smart devices
-  vehicle:['vehicle'],
-  helper: ['helper'],      // family + elder
-  other2: ['other'],       // events (also category: 'other')
-  other3: ['other'],       // pets (also category: 'other')
-};
-
-const VERTICAL_COLORS = {
-  mobile:       { bg: 'from-indigo-500 to-violet-600',  pill: 'bg-indigo-100 text-indigo-700'  },
-  other:        { bg: 'from-slate-600 to-slate-800',    pill: 'bg-slate-100 text-slate-700'    },
-  vehicle:      { bg: 'from-slate-600 to-slate-800',    pill: 'bg-slate-100 text-slate-700'    },
-  helper:       { bg: 'from-rose-500 to-pink-600',      pill: 'bg-rose-100 text-rose-700'      },
-  construction: { bg: 'from-stone-500 to-slate-600',    pill: 'bg-stone-100 text-stone-700'    },
-};
-
-function FloatingOrb({ style }) {
-  return (
-    <motion.div
-      className="absolute rounded-full pointer-events-none"
-      style={{ filter: 'blur(40px)', ...style }}
-      animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.7, 0.5] }}
-      transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-    />
-  );
-}
 
 export default function ServicesPage() {
   const nav = useNavigate();
@@ -168,87 +139,87 @@ export default function ServicesPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen pb-40" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 160px)' }}>
-
-        {/* Premium Header */}
-        <header className="sticky top-0 z-20 overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%)' }}>
-          <FloatingOrb style={{ width: 160, height: 160, background: 'rgba(99,102,241,0.25)', top: -60, right: -40 }} />
-          <FloatingOrb style={{ width: 100, height: 100, background: 'rgba(139,92,246,0.2)', top: 10, left: -20 }} />
-
-          <div className="relative page-container pt-4 pb-3">
-            {/* Back + title row */}
-            <div className="flex items-center gap-3 mb-4">
+      <div className="min-h-screen bg-[#F8FAFC] pb-40 font-sans selection:bg-indigo-500/30">
+        
+        {/* Immersive Header */}
+        <header className="sticky top-0 z-30 pt-4 pb-2 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50">
+          <div className="page-container">
+            {/* Top Bar */}
+            <div className="flex items-center justify-between mb-6">
               <motion.button
                 onClick={() => nav(-1)}
-                className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/10"
-                whileHover={{ scale: 1.06 }}
-                whileTap={{ scale: 0.92 }}
+                className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200/60 hover:bg-slate-200 transition-colors"
+                whileTap={{ scale: 0.9 }}
               >
-                <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
+                <ArrowLeft size={18} className="text-slate-700" />
               </motion.button>
-              <div className="flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Browse</p>
-                <h1 className="text-white font-black text-lg leading-tight">All Services</h1>
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">Zappy Catalog</span>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight">All Services</h1>
               </div>
-              {query && (
-                <motion.button
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  exit={{ scale: 0 }}
-                  onClick={() => setQuery('')}
-                  className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <X size={14} className="text-white" />
-                </motion.button>
-              )}
+              <div className="w-10 h-10" /> {/* Balancer */}
             </div>
 
-            {/* Search */}
-            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl px-4 py-3 focus-within:bg-white/15 focus-within:border-white/30 transition-all">
-              <Search size={15} strokeWidth={2} className="text-white/50 shrink-0" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search services…"
-                className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-white/40 font-medium"
-              />
+            {/* Premium Search */}
+            <div className="relative group mb-5">
+              <div className="absolute inset-0 bg-indigo-500/5 rounded-2xl blur-xl group-focus-within:bg-indigo-500/10 transition-colors pointer-events-none" />
+              <div className="relative flex items-center gap-3 bg-white border border-slate-200/80 rounded-2xl px-4 py-3.5 shadow-sm focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10 transition-all">
+                <Search size={18} className="text-slate-400 shrink-0" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="What do you need help with?"
+                  className="flex-1 bg-transparent outline-none text-sm sm:text-base font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-medium"
+                />
+                <AnimatePresence>
+                  {query && (
+                    <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} onClick={() => setQuery('')} className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors">
+                      <X size={12} className="text-slate-500" />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
-            {/* Category chips */}
-            <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+            {/* Category Pills (Bento Style) */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3">
               {CATEGORIES.map((c) => {
                 const isActive = category === c.key;
                 return (
                   <motion.button
                     key={c.key}
                     onClick={() => setCategory(c.key)}
-                    className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-[1rem] text-sm font-bold transition-all border ${
                       isActive
-                        ? 'bg-white text-slate-900 shadow-md'
-                        : 'bg-white/10 text-white/70 hover:bg-white/15 border border-white/10'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-md'
+                        : 'bg-white text-slate-600 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
                     }`}
-                    whileHover={{ scale: 1.04 }}
+                    whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.96 }}
                   >
-                    <span>{c.emoji}</span>
+                    <c.Icon size={16} className={isActive ? 'text-white' : 'text-slate-400'} />
                     {c.label}
                   </motion.button>
                 );
               })}
             </div>
           </div>
-
-          {/* Bottom fade */}
-          <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         </header>
 
-        <div className="page-container mt-5">
+        <div className="page-container mt-6">
           {/* Loading */}
           {loading && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
-                <SkeletonServiceCard key={i} />
+                <div key={i} className="bg-white rounded-[24px] p-5 border border-slate-200/60 shadow-sm animate-pulse">
+                  <div className="w-14 h-14 bg-slate-100 rounded-2xl mb-4" />
+                  <div className="h-5 bg-slate-100 rounded mb-2 w-3/4" />
+                  <div className="h-4 bg-slate-100 rounded mb-6 w-full" />
+                  <div className="flex justify-between mt-4 pt-4 border-t border-slate-100">
+                    <div className="w-16 h-4 bg-slate-100 rounded" />
+                    <div className="w-12 h-6 bg-slate-100 rounded-full" />
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -256,131 +227,95 @@ export default function ServicesPage() {
           {/* Empty state */}
           {!loading && filtered.length === 0 && (
             <motion.div
-              className="flex flex-col items-center justify-center h-56 gap-4 text-center"
+              className="flex flex-col items-center justify-center h-[40vh] gap-4 text-center"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
-                <Wrench size={26} className="text-slate-400" />
+              <div className="w-20 h-20 rounded-[2rem] bg-slate-100 flex items-center justify-center shadow-inner">
+                <Wrench size={32} className="text-slate-400" />
               </div>
               <div>
-                <p className="font-bold text-[#0F172A] text-base">No services found</p>
-                <p className="text-sm text-slate-400 mt-1">Try a different search or category</p>
+                <p className="font-black text-slate-900 text-xl">No services found</p>
+                <p className="text-sm text-slate-500 mt-2">Try a different search or category.</p>
               </div>
               {(query || category !== 'all') && (
                 <motion.button
                   onClick={() => { setQuery(''); setCategory('all'); }}
-                  className="text-xs font-bold text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full"
+                  className="mt-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 px-6 py-3 rounded-xl transition-colors shadow-lg shadow-slate-900/20"
                   whileTap={{ scale: 0.95 }}
                 >
-                  Clear filters
+                  Clear all filters
                 </motion.button>
               )}
             </motion.div>
           )}
 
-          {/* Results */}
+          {/* Results Header */}
           {!loading && filtered.length > 0 && (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">
-                  {filtered.length} {filtered.length === 1 ? 'service' : 'services'} available
-                </p>
-                {category !== 'all' && (
-                  <motion.button
-                    initial={{ opacity: 0, x: 8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    onClick={() => setCategory('all')}
-                    className="text-xs font-bold text-indigo-600 flex items-center gap-1"
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Show all <X size={10} />
-                  </motion.button>
-                )}
-              </div>
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                {filtered.length} Services Available
+              </p>
+            </div>
+          )}
 
-              <motion.div
-                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
-                variants={staggerContainer}
-                initial="initial"
-                animate="animate"
-              >
-                <AnimatePresence mode="popLayout">
-                  {filtered.map((s) => {
-                    const svc = SERVICE_ICONS[s.code] || SERVICE_ICONS[s.category] || {
-                      Icon: Wrench, gradient: 'from-slate-500 to-slate-600', bg: 'bg-slate-50', text: 'text-slate-600',
-                    };
-                    const { Icon } = svc;
-                    const price = Math.round((s.priceRangeMinPaise || 0) / 100);
+          {/* Grid */}
+          {!loading && filtered.length > 0 && (
+            <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" variants={staggerContainer} initial="initial" animate="animate">
+              <AnimatePresence mode="popLayout">
+                {filtered.map((s) => {
+                  const svc = SERVICE_ICONS[s.code] || SERVICE_ICONS[s.category] || {
+                    Icon: Wrench, gradient: 'from-slate-500 to-slate-600', bg: 'bg-slate-100', text: 'text-slate-700',
+                  };
+                  const { Icon } = svc;
+                  const price = Math.round((s.priceRangeMinPaise || 0) / 100);
 
-                    return (
-                      <motion.button
-                        key={s.code}
-                        layout
-                        onClick={() => nav(`/book/${s.code}`)}
-                        className="group relative bg-white rounded-2xl overflow-hidden text-left"
-                        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
-                        variants={fadeInUp}
-                        whileHover={{ y: -4, boxShadow: '0 16px 40px rgba(0,0,0,0.12)' }}
-                        whileTap={{ scale: 0.97 }}
-                        transition={{ duration: 0.22, ease: easeSoft }}
-                      >
-                        {/* Gradient icon header */}
-                        <div className={`relative w-full h-20 bg-gradient-to-br ${svc.gradient} flex items-center justify-center overflow-hidden`}>
-                          {/* Subtle pattern overlay */}
-                          <div className="absolute inset-0 opacity-20"
-                            style={{ backgroundImage: 'radial-gradient(circle at 70% 30%, rgba(255,255,255,0.4) 0%, transparent 50%)' }}
-                          />
-                          <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center ring-1 ring-white/30">
-                            <Icon size={20} strokeWidth={1.75} className="text-white" />
-                          </div>
-
-                          {/* Hover overlay */}
-                          <motion.div
-                            className="absolute inset-0 bg-black/10"
-                            initial={{ opacity: 0 }}
-                            whileHover={{ opacity: 1 }}
-                            transition={{ duration: 0.15 }}
-                          />
-
-                          {/* "Book" pill — appears on hover */}
-                          <motion.div
-                            className="absolute bottom-2 right-2 flex items-center gap-0.5 bg-white/90 backdrop-blur-sm text-slate-900 text-[9px] font-black px-2 py-0.5 rounded-full"
-                            initial={{ opacity: 0, y: 4 }}
-                            whileHover={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.15 }}
-                          >
-                            Book <ChevronRight size={8} strokeWidth={3} />
-                          </motion.div>
+                  return (
+                    <motion.button
+                      key={s.code}
+                      layout
+                      onClick={() => nav(`/book/${s.code}`)}
+                      className="group relative bg-white rounded-[24px] p-5 text-left border border-slate-200/60 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] hover:-translate-y-1 hover:border-slate-300/80 overflow-hidden"
+                      variants={fadeInUp}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      {/* Background glow on hover */}
+                      <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${svc.gradient} opacity-0 group-hover:opacity-[0.08] transition-opacity blur-2xl rounded-full pointer-events-none`} />
+                      
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`w-14 h-14 rounded-2xl ${svc.bg} flex items-center justify-center shadow-sm border border-black/[0.03]`}>
+                          <Icon size={24} strokeWidth={2.5} className={svc.text} />
                         </div>
-
-                        {/* Content */}
-                        <div className="p-3">
-                          <p className="font-black text-[#0F172A] text-sm leading-tight line-clamp-1">{s.name}</p>
-                          <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed min-h-[30px]">
-                            {s.description || 'Professional service at your doorstep'}
-                          </p>
-
-                          <div className="mt-2.5 pt-2 border-t border-slate-50 flex items-center justify-between">
-                            <span className={`text-[12px] font-extrabold ${svc.text}`}>
-                              {price > 0 ? `₹${price}+` : 'Get quote'}
-                            </span>
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded-full">
-                              <Clock size={9} strokeWidth={2} />
-                              ~{s.estimatedDurationMinutes}m
-                            </span>
-                          </div>
+                        <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0">
+                          <ArrowUpRight size={16} className="text-slate-400" />
                         </div>
-                      </motion.button>
-                    );
-                  })}
-                </AnimatePresence>
-              </motion.div>
-            </>
+                      </div>
+
+                      <h3 className="font-black text-slate-900 text-lg leading-tight mb-2 line-clamp-1 group-hover:text-indigo-600 transition-colors">{s.name}</h3>
+                      <p className="text-[13px] text-slate-500 font-medium line-clamp-2 leading-relaxed mb-6 min-h-[40px]">
+                        {s.description || 'Professional service at your doorstep'}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Starting at</span>
+                          <span className="text-base font-black text-slate-900">
+                            {price > 0 ? `₹${price}` : 'Get Quote'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100 text-slate-500">
+                          <Clock size={12} className="text-slate-400" />
+                          <span className="text-[11px] font-bold">~{s.estimatedDurationMinutes}m</span>
+                        </div>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </AnimatePresence>
+            </motion.div>
           )}
         </div>
-
-        <BottomNav active="home" />
+        <BottomNav active="search" />
       </div>
     </PageTransition>
   );

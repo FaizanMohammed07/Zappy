@@ -80,6 +80,8 @@ export default function EventBookingDetailPage() {
         paymentSessionId: orderRes.paymentSessionId,
         cfOrderId:        orderRes.cfOrderId,
         cashfreeEnv:      orderRes.cashfreeEnv || import.meta.env.VITE_CASHFREE_ENV || 'sandbox',
+        amountPaise:      orderRes.amountPaise,
+        purpose:          'Event — Remaining Payment',
       });
       await verifyRemainingPayment({
         id,
