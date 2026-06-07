@@ -115,7 +115,8 @@ async function startPurchase({ owner, planCode }) {
  * Called by the webhook handler on `payment.captured`.
  * Idempotent: re-running this for the same payment is a no-op.
  */
-async function activateFromPayment({ subscriptionId, paymentIntentId, razorpayPaymentId }) {
+async function activateFromPayment({ subscriptionId, paymentIntentId, cfPaymentId, razorpayPaymentId }) {
+  const resolvedPaymentId = cfPaymentId || razorpayPaymentId; // backwards compat
   const sub = await Subscription.findById(subscriptionId);
   if (!sub) throw Object.assign(new Error('Subscription not found'), { status: 404 });
   if (sub.status === 'active') {
@@ -133,7 +134,7 @@ async function activateFromPayment({ subscriptionId, paymentIntentId, razorpayPa
   sub.startAt = startAt;
   sub.endAt = endAt;
   sub.paymentIntentId = paymentIntentId;
-  sub.razorpayPaymentId = razorpayPaymentId;
+  sub.razorpayPaymentId = resolvedPaymentId;
   // Snapshot the effects so future plan edits don't retroactively change perks
   sub.effectsSnapshot = plan.effects || {};
   await sub.save();

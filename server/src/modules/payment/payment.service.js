@@ -1,93 +1,102 @@
 /**
- * Payment Service
+ * Payment Service — Cashfree PG
  * ----------------------------------------------------------------------------
- * The orchestrator between Razorpay and our domain.
+ * Flow:
+ *   1. createOrderForPurpose() — backend creates Cashfree order, returns
+ *      payment_session_id to frontend
+ *   2. Frontend opens Cashfree Drop with payment_session_id
+ *   3. On success Cashfree calls our webhook (source of truth)
+ *   4. handleWebhook() applies side-effects exactly once
+ *   5. Frontend may also call /verify after checkout for instant UX confirmation
  *
- *   1. createOrder() — called from API to start a payment for a known purpose
- *   2. handleWebhook() — called from Razorpay; routes to the right side-effect
- *      handler based on PaymentIntent.purpose
- *   3. handleCheckoutVerification() — for the in-page Razorpay Checkout flow
- *      where the frontend POSTs back the signed result; we double-confirm
- *      via the webhook regardless
- *
- * Idempotency is enforced at three layers:
- *   - PaymentIntent.razorpayPaymentId is unique
- *   - PaymentIntent.appliedAt is set in a single findOneAndUpdate guard
- *   - Wallet.apply uses idempotencyKey at the Transaction level
- *
- * Even if Razorpay sends the same webhook 5 times, we apply effects once.
+ * Idempotency layers:
+ *   - PaymentIntent.cfOrderId is unique
+ *   - PaymentIntent.appliedAt set in a single findOneAndUpdate guard
+ *   - Wallet.apply uses idempotencyKey at Transaction level
  * ----------------------------------------------------------------------------
  */
 
+const crypto = require('crypto');
 const PaymentIntent = require('./payment-intent.model');
 const Order = require('../order/order.model');
 const Transaction = require('./transaction.model');
-const razorpay = require('./razorpay.client');
+const cashfree = require('./cashfree.client');
 const walletService = require('../wallet/wallet.service');
 const subscriptionService = require('../subscription/subscription.service');
 const logger = require('../../utils/logger');
 
+/** Resolve customer details for Cashfree — phone is required by their API. */
+async function resolveCustomer(owner) {
+  try {
+    const Model = owner.kind === 'user'
+      ? require('../user/user.model')
+      : require('../worker/worker.model');
+    const doc = await Model.findById(owner.id).select('name phone email').lean();
+    return {
+      id:    String(owner.id),
+      phone: doc?.phone || '9999999999',
+      email: doc?.email || 'noreply@zappy.in',
+      name:  doc?.name  || undefined,
+    };
+  } catch {
+    return { id: String(owner.id), phone: '9999999999', email: 'noreply@zappy.in' };
+  }
+}
+
 /**
- * Create a Razorpay order for one of three purposes.
- * Returns { paymentIntent, razorpayOrder } — the frontend uses razorpayOrder.id
- * to launch the Razorpay Checkout widget.
+ * Create a Cashfree order for one of three purposes.
+ * Returns { paymentIntent, cfOrder } — frontend uses cfOrder.payment_session_id.
  */
 async function createOrderForPurpose({ owner, purpose, planCode, amountPaise, orderId }) {
   let resolvedAmount = amountPaise;
   let planId = null;
   let subscriptionId = null;
-  let receiptPrefix = '';
+  let cfOrderIdPrefix = '';
 
   if (purpose === 'subscription') {
     if (!planCode) throw Object.assign(new Error('planCode required'), { status: 400, code: 'PLAN_CODE_REQUIRED' });
-    const { subscription, plan } = await subscriptionService.startPurchase({
-      owner, planCode,
-    });
+    const { subscription, plan } = await subscriptionService.startPurchase({ owner, planCode });
     resolvedAmount = plan.priceInPaise;
     planId = plan._id;
     subscriptionId = subscription._id;
-    receiptPrefix = 'sub';
+    cfOrderIdPrefix = 'sub';
   } else if (purpose === 'wallet_topup') {
     if (!Number.isInteger(amountPaise) || amountPaise < 1000) {
-      throw Object.assign(new Error('Wallet top-up minimum is ₹10'), {
-        status: 400, code: 'TOPUP_MIN',
-      });
+      throw Object.assign(new Error('Wallet top-up minimum is ₹10'), { status: 400, code: 'TOPUP_MIN' });
     }
-    receiptPrefix = 'wlt';
+    cfOrderIdPrefix = 'wlt';
   } else if (purpose === 'order_payment') {
     if (!orderId) throw Object.assign(new Error('orderId required'), { status: 400, code: 'ORDER_ID_REQUIRED' });
     const order = await Order.findById(orderId).lean();
     if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
-    if (String(order.userId) !== String(owner.id)) {
-      throw Object.assign(new Error('Not your order'), { status: 403 });
-    }
-    if (order.payment?.status === 'paid') {
-      throw Object.assign(new Error('Order already paid'), { status: 409, code: 'ORDER_ALREADY_PAID' });
-    }
-    resolvedAmount = order.pricing.total * 100; // pricing.total is in rupees
-    receiptPrefix = 'ord';
+    if (String(order.userId) !== String(owner.id)) throw Object.assign(new Error('Not your order'), { status: 403 });
+    if (order.payment?.status === 'paid') throw Object.assign(new Error('Order already paid'), { status: 409, code: 'ORDER_ALREADY_PAID' });
+    resolvedAmount = order.pricing.total * 100;
+    cfOrderIdPrefix = 'ord';
   } else {
     throw Object.assign(new Error('Unknown purpose'), { status: 400, code: 'BAD_PURPOSE' });
   }
 
-  // Receipt is what shows in Razorpay dashboard — must be ≤40 chars
-  const receipt = `${receiptPrefix}_${Date.now()}_${String(owner.id).slice(-6)}`.slice(0, 40);
+  // Unique, URL-safe order ID we control — lets us look it up in our DB without
+  // needing to store Cashfree's numeric cf_order_id alongside it.
+  const cfOrderId = `zpy_${cfOrderIdPrefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-  const rzpOrder = await razorpay.createOrder({
+  const customer = await resolveCustomer(owner);
+  const cfOrder = await cashfree.createOrder({
+    orderId: cfOrderId,
     amountPaise: resolvedAmount,
-    currency: 'INR',
-    receipt,
-    notes: {
+    customer,
+    tags: {
       purpose,
       ownerKind: owner.kind,
       ownerId: String(owner.id),
       ...(planCode ? { planCode } : {}),
-      ...(orderId ? { orderId: String(orderId) } : {}),
+      ...(orderId  ? { orderId: String(orderId) } : {}),
     },
   });
 
   const intent = await PaymentIntent.create({
-    razorpayOrderId: rzpOrder.id,
+    cfOrderId,
     owner,
     purpose,
     planId,
@@ -98,103 +107,84 @@ async function createOrderForPurpose({ owner, purpose, planCode, amountPaise, or
     status: 'created',
   });
 
-  return { paymentIntent: intent, razorpayOrder: rzpOrder };
+  return { paymentIntent: intent, cfOrder };
 }
 
 /**
- * Handle a Razorpay webhook. The caller must have already verified the
- * signature against the raw body.
- *
- * Key events:
- *   - payment.captured  → apply side effects
- *   - payment.failed    → mark intent failed
- *   - order.paid        → also apply (sometimes arrives before payment.captured)
- *   - refund.processed  → mark intent refunded
+ * Handle a Cashfree webhook.
+ * Cashfree event types: PAYMENT_SUCCESS_WEBHOOK, PAYMENT_FAILED_WEBHOOK,
+ *   PAYMENT_USER_DROPPED_WEBHOOK, REFUND_STATUS_WEBHOOK
  */
 async function handleWebhook(payload) {
-  const event = payload?.event;
-  if (!event) return { ok: false, reason: 'missing_event' };
+  const eventType = payload?.type;
+  if (!eventType) return { ok: false, reason: 'missing_type' };
 
-  switch (event) {
-    case 'payment.captured':
-    case 'order.paid': {
-      const payment = payload.payload?.payment?.entity;
-      if (!payment) return { ok: false, reason: 'no_payment_entity' };
+  const order   = payload.data?.order;
+  const payment = payload.data?.payment;
+
+  switch (eventType) {
+    case 'PAYMENT_SUCCESS_WEBHOOK': {
+      if (!order?.order_id || !payment?.cf_payment_id) return { ok: false, reason: 'missing_ids' };
       return capturePayment({
-        razorpayOrderId: payment.order_id,
-        razorpayPaymentId: payment.id,
-        amountPaise: payment.amount,
-        eventName: event,
-        rawPayload: payload,
+        cfOrderId:   order.order_id,
+        cfPaymentId: String(payment.cf_payment_id),
+        amountPaise: Math.round(payment.payment_amount * 100),
+        eventName:   eventType,
+        rawPayload:  payload,
       });
     }
-    case 'payment.failed': {
-      const payment = payload.payload?.payment?.entity;
-      if (payment?.order_id) {
+    case 'PAYMENT_FAILED_WEBHOOK':
+    case 'PAYMENT_USER_DROPPED_WEBHOOK': {
+      if (order?.order_id) {
         await PaymentIntent.updateOne(
-          { razorpayOrderId: payment.order_id, status: { $in: ['created', 'authorized'] } },
+          { cfOrderId: order.order_id, status: { $in: ['created', 'authorized'] } },
           {
-            $set: { status: 'failed', failureReason: payment.error_description || 'failed' },
-            $push: { events: { event, payload } },
+            $set: { status: 'failed', failureReason: payment?.payment_message || eventType },
+            $push: { events: { event: eventType, payload } },
           }
         );
       }
       return { ok: true, action: 'marked_failed' };
     }
-    case 'refund.processed':
-    case 'refund.created': {
-      const refund = payload.payload?.refund?.entity;
-      if (refund?.payment_id) {
+    case 'REFUND_STATUS_WEBHOOK': {
+      const refund = payload.data?.refund;
+      if (refund?.cf_payment_id) {
         await PaymentIntent.updateOne(
-          { razorpayPaymentId: refund.payment_id },
-          { $set: { status: 'refunded' }, $push: { events: { event, payload } } }
+          { cfPaymentId: String(refund.cf_payment_id) },
+          { $set: { status: 'refunded' }, $push: { events: { event: eventType, payload } } }
         );
       }
       return { ok: true, action: 'marked_refunded' };
     }
     default:
-      logger.info({ event }, 'Webhook event ignored');
+      logger.info({ eventType }, 'Cashfree webhook event ignored');
       return { ok: true, action: 'ignored' };
   }
 }
 
 /**
  * Apply side-effects of a successful payment exactly once.
- *
- * The atomicity trick: we use findOneAndUpdate with `appliedAt: { $exists: false }`
- * as the guard. Only ONE of N concurrent webhook deliveries will match; the
- * rest see no document and bail out cleanly.
+ * Atomicity: findOneAndUpdate with `appliedAt: { $exists: false }` — only one
+ * concurrent webhook delivery wins; the rest see no document and bail cleanly.
  */
-async function capturePayment({ razorpayOrderId, razorpayPaymentId, amountPaise, eventName, rawPayload }) {
-  // Atomic claim — first writer wins
+async function capturePayment({ cfOrderId, cfPaymentId, amountPaise, eventName, rawPayload }) {
   const intent = await PaymentIntent.findOneAndUpdate(
+    { cfOrderId, appliedAt: { $exists: false } },
     {
-      razorpayOrderId,
-      appliedAt: { $exists: false },
-    },
-    {
-      $set: {
-        razorpayPaymentId,
-        status: 'captured',
-        appliedAt: new Date(),
-      },
+      $set:  { cfPaymentId, status: 'captured', appliedAt: new Date() },
       $push: { events: { event: eventName, payload: rawPayload } },
     },
     { new: true }
   );
 
   if (!intent) {
-    // Either unknown order, or already applied. Both are safe no-ops.
-    logger.info({ razorpayOrderId, razorpayPaymentId }, 'Payment intent not claimable — likely already processed');
+    logger.info({ cfOrderId, cfPaymentId }, 'Payment intent not claimable — likely already processed');
     return { ok: true, action: 'already_applied_or_unknown' };
   }
 
-  // Sanity check: amount tampering
-  if (intent.amountPaise !== amountPaise) {
-    logger.error(
-      { expected: intent.amountPaise, got: amountPaise, razorpayPaymentId },
-      'Amount mismatch — payment captured for different amount'
-    );
+  // Amount sanity check
+  if (Math.abs(intent.amountPaise - amountPaise) > 100) {
+    logger.error({ expected: intent.amountPaise, got: amountPaise, cfPaymentId }, 'Amount mismatch — possible tampering');
     return { ok: false, action: 'amount_mismatch' };
   }
 
@@ -203,9 +193,8 @@ async function capturePayment({ razorpayOrderId, razorpayPaymentId, amountPaise,
       await subscriptionService.activateFromPayment({
         subscriptionId: intent.subscriptionId,
         paymentIntentId: intent._id,
-        razorpayPaymentId,
+        cfPaymentId,
       });
-      // Platform revenue ledger row
       await Transaction.create({
         type: 'credit',
         owner: { kind: 'platform', id: null },
@@ -213,9 +202,10 @@ async function capturePayment({ razorpayOrderId, razorpayPaymentId, amountPaise,
         reason: Transaction.REASONS.SUBSCRIPTION_REVENUE,
         refSubscriptionId: intent.subscriptionId,
         refPaymentIntentId: intent._id,
-        idempotencyKey: `platform:sub:${razorpayPaymentId}`,
+        idempotencyKey: `platform:sub:${cfPaymentId}`,
         description: 'Subscription payment received',
       }).catch((e) => { if (e.code !== 11000) throw e; });
+
     } else if (intent.purpose === 'wallet_topup') {
       await walletService.apply({
         kind: intent.owner.kind,
@@ -223,27 +213,29 @@ async function capturePayment({ razorpayOrderId, razorpayPaymentId, amountPaise,
         type: 'credit',
         amountPaise: intent.amountPaise,
         reason: Transaction.REASONS.WALLET_TOPUP,
-        idempotencyKey: `topup:${razorpayPaymentId}`,
+        idempotencyKey: `topup:${cfPaymentId}`,
         refs: { paymentIntentId: intent._id },
         description: 'Wallet top-up',
       });
+
     } else if (intent.purpose === 'order_payment') {
       const order = await Order.findById(intent.orderId);
       if (order) {
         order.payment.status = 'paid';
-        order.payment.transactionId = razorpayPaymentId;
+        order.payment.transactionId = cfPaymentId;
         order.payment.paidAt = new Date();
         await order.save();
       }
     }
+
     return { ok: true, action: 'applied', purpose: intent.purpose };
+
   } catch (err) {
-    // Side-effect failed after payment was captured. Money exists in Razorpay
-    // but our side-effects (wallet credit, subscription activation) didn't apply.
-    // Mark the PaymentIntent for admin reconciliation and alert ops. (#95/#96)
-    logger.error({ err: err.message, razorpayPaymentId, purpose: intent.purpose }, '[PAYMENT] Side-effect failed — marking for reconciliation');
+    // Side-effect failed after payment captured. Money is in Cashfree but our
+    // domain didn't apply. Mark for reconciliation + alert ops. (#95/#96)
+    logger.error({ err: err.message, cfPaymentId, purpose: intent.purpose }, '[PAYMENT] Side-effect failed — marking for reconciliation');
     await PaymentIntent.updateOne(
-      { razorpayOrderId: intent.razorpayOrderId },
+      { cfOrderId: intent.cfOrderId },
       {
         $set: {
           reconciliationRequired: true,
@@ -252,13 +244,13 @@ async function capturePayment({ razorpayOrderId, razorpayPaymentId, amountPaise,
         },
       }
     ).catch(() => {});
-    // Alert admin ops room
+
     const { redis: r } = require('../../config/redis');
     r.publish('notification:admin:ops', JSON.stringify({
       type: 'payment_reconciliation_required',
       title: '⚠️ Payment needs reconciliation',
-      body: `${purpose} · ₹${(intent.amountPaise / 100).toFixed(0)} · ${razorpayPaymentId}`,
-      data: { razorpayPaymentId, razorpayOrderId: intent.razorpayOrderId, purpose: intent.purpose, err: err.message },
+      body: `${intent.purpose} · ₹${(intent.amountPaise / 100).toFixed(0)} · ${cfPaymentId}`,
+      data: { cfPaymentId, cfOrderId: intent.cfOrderId, purpose: intent.purpose, err: err.message },
       urgent: true,
     })).catch(() => {});
     throw err;
@@ -266,33 +258,33 @@ async function capturePayment({ razorpayOrderId, razorpayPaymentId, amountPaise,
 }
 
 /**
- * Optional: in-page checkout verification. Razorpay returns a signature
- * the moment the user pays. We verify it and OPTIMISTICALLY apply side
- * effects — but the webhook is still the source of truth and idempotency
- * guards ensure no double-application.
+ * Post-checkout confirmation from frontend.
+ * Cashfree doesn't return a signature on checkout — we confirm by fetching
+ * payment status from the Cashfree API. Webhook remains the source of truth.
  */
-async function handleCheckoutVerification({ razorpayOrderId, razorpayPaymentId, signature }) {
-  const ok = razorpay.verifyCheckoutSignature({
-    orderId: razorpayOrderId,
-    paymentId: razorpayPaymentId,
-    signature,
-  });
-  if (!ok) {
-    throw Object.assign(new Error('Invalid checkout signature'), {
-      status: 400, code: 'CHECKOUT_SIG_INVALID',
-    });
+async function handleCheckoutVerification({ cfOrderId, cfPaymentId }) {
+  // Fetch all payments for this order — pick the successful one
+  let payments;
+  try {
+    payments = await cashfree.getOrderPayments(cfOrderId);
+  } catch (err) {
+    throw Object.assign(new Error('Could not verify payment with gateway'), { status: 502, code: 'GATEWAY_VERIFY_FAILED' });
   }
-  // Fetch the payment to learn its amount, then apply.
-  const payment = await razorpay.fetchPayment(razorpayPaymentId);
-  if (payment.status !== 'captured' && payment.status !== 'authorized') {
-    return { ok: false, status: payment.status };
+
+  const successful = Array.isArray(payments)
+    ? payments.find((p) => p.payment_status === 'SUCCESS' && String(p.cf_payment_id) === String(cfPaymentId))
+    : null;
+
+  if (!successful) {
+    return { ok: false, status: 'not_confirmed' };
   }
+
   return capturePayment({
-    razorpayOrderId,
-    razorpayPaymentId,
-    amountPaise: payment.amount,
+    cfOrderId,
+    cfPaymentId: String(successful.cf_payment_id),
+    amountPaise: Math.round(successful.payment_amount * 100),
     eventName: 'manual.verify',
-    rawPayload: { source: 'checkout-verify', payment },
+    rawPayload: { source: 'checkout-verify', payment: successful },
   });
 }
 

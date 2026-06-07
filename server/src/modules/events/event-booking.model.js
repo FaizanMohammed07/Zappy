@@ -37,18 +37,18 @@ const eventBookingSchema = new mongoose.Schema({
 
   // Advance payment
   advancePayment: {
-    status:            { type: String, enum: ['pending', 'paid', 'refunded'], default: 'pending' },
-    razorpayOrderId:   String,
-    razorpayPaymentId: String,
-    paidAt:            Date,
+    status:      { type: String, enum: ['pending', 'paid', 'refunded'], default: 'pending' },
+    cfOrderId:   String,
+    cfPaymentId: String,
+    paidAt:      Date,
   },
 
   // Remaining balance (collected on day of event or after)
   remainingPayment: {
-    status:            { type: String, enum: ['pending', 'paid'], default: 'pending' },
-    razorpayOrderId:   String,
-    razorpayPaymentId: String,
-    paidAt:            Date,
+    status:      { type: String, enum: ['pending', 'paid'], default: 'pending' },
+    cfOrderId:   String,
+    cfPaymentId: String,
+    paidAt:      Date,
   },
 
   // Booking lifecycle

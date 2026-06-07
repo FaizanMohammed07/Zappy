@@ -105,11 +105,114 @@ async function myWallet(req, res, next) {
 }
 
 async function createTopUpOrder(req, res, next) {
-  res.status(503).json({ error: 'Payment gateway coming soon', code: 'GATEWAY_UNAVAILABLE' });
+  try {
+    const amountPaise = Number(req.body.amountPaise);
+    if (!Number.isInteger(amountPaise) || amountPaise < 10000) {
+      return res.status(400).json({ error: 'Minimum top-up is ₹100', code: 'TOPUP_MIN' });
+    }
+
+    const crypto   = require('crypto');
+    const cashfree = require('../payment/cashfree.client');
+    const config   = require('../../config');
+
+    // Resolve advertiser contact for Cashfree's required customer_phone
+    let customer = { id: String(req.auth.sub), phone: '9999999999', email: 'noreply@zappy.in' };
+    try {
+      const Advertiser = req.auth.role === 'partner'
+        ? require('../partner/partner.model')
+        : require('../user/user.model');
+      const doc = await Advertiser.findById(req.auth.sub).select('name phone email businessName').lean();
+      customer = {
+        id:    String(req.auth.sub),
+        phone: doc?.phone || '9999999999',
+        email: doc?.email || 'noreply@zappy.in',
+        name:  doc?.name || doc?.businessName || undefined,
+      };
+    } catch { /* fail open */ }
+
+    const cfOrderId = `zpy_adwlt_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+    const cfOrder = await cashfree.createOrder({
+      orderId:     cfOrderId,
+      amountPaise,
+      customer,
+      tags: { purpose: 'ad_wallet_topup', advertiserId: String(req.auth.sub), kind: req.auth.role },
+    });
+
+    // Store the pending top-up in Redis so verify can confirm it
+    const { redis } = require('../../config/redis');
+    await redis.set(
+      `adtopup:${cfOrderId}`,
+      JSON.stringify({ advertiserId: String(req.auth.sub), advertiserKind: req.auth.role, amountPaise }),
+      'EX', 3600 // 1h TTL — if not verified in 1h, discard
+    );
+
+    res.status(201).json({
+      cfOrderId,
+      paymentSessionId: cfOrder.payment_session_id,
+      amountPaise,
+      currency: 'INR',
+      cashfreeEnv: config.cashfree.env,
+    });
+  } catch (err) { next(err); }
 }
 
 async function verifyTopUp(req, res, next) {
-  res.status(503).json({ error: 'Payment gateway coming soon', code: 'GATEWAY_UNAVAILABLE' });
+  try {
+    const { cfOrderId, cfPaymentId } = req.body;
+    if (!cfOrderId || !cfPaymentId) {
+      return res.status(400).json({ error: 'cfOrderId and cfPaymentId required' });
+    }
+
+    const cashfree = require('../payment/cashfree.client');
+    const { redis } = require('../../config/redis');
+
+    // Retrieve pending top-up meta
+    const raw = await redis.get(`adtopup:${cfOrderId}`);
+    if (!raw) return res.status(404).json({ error: 'Top-up session expired or not found', code: 'SESSION_EXPIRED' });
+    const { advertiserId, advertiserKind, amountPaise } = JSON.parse(raw);
+
+    // Only the advertiser who created the order can verify it
+    if (advertiserId !== String(req.auth.sub)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Confirm with Cashfree API
+    let payments;
+    try {
+      payments = await cashfree.getOrderPayments(cfOrderId);
+    } catch {
+      return res.status(502).json({ error: 'Could not verify payment with gateway' });
+    }
+    const successful = Array.isArray(payments)
+      ? payments.find((p) => p.payment_status === 'SUCCESS' && String(p.cf_payment_id) === String(cfPaymentId))
+      : null;
+    if (!successful) {
+      return res.status(400).json({ error: 'Payment not confirmed by gateway', code: 'PAYMENT_NOT_CONFIRMED' });
+    }
+
+    // Idempotency — check Redis lock to prevent double-credit
+    const idempKey = `adtopup:applied:${cfPaymentId}`;
+    const claimed  = await redis.set(idempKey, '1', 'NX', 'EX', 86400);
+    if (!claimed) {
+      return res.json({ ok: true, alreadyApplied: true });
+    }
+
+    await adService.topUpWallet({
+      advertiserId,
+      advertiserKind,
+      amountPaise,
+      ref: cfPaymentId,
+    });
+
+    // Clean up the pending session key
+    redis.del(`adtopup:${cfOrderId}`).catch(() => {});
+
+    const logger = require('../../utils/logger');
+    logger.info({ advertiserId, amountPaise, cfPaymentId }, '[AdWallet] Top-up applied');
+
+    res.json({ ok: true, amountPaise, amountRupees: Math.round(amountPaise / 100) });
+  } catch (err) { next(err); }
 }
 
 // ─── Admin ────────────────────────────────────────────────────────────────────

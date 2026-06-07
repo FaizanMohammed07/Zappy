@@ -40,7 +40,7 @@ const adminApi = api.injectEndpoints({
     }),
     adminReconciliationQueue: b.query({ query: () => adminApiPath('/payments/reconciliation-queue') }),
     adminReconcilePayment: b.mutation({
-      query: (razorpayOrderId) => ({ url: adminApiPath(`/payments/${razorpayOrderId}/reconcile`), method: 'POST' }),
+      query: (cfOrderId) => ({ url: adminApiPath(`/payments/${cfOrderId}/reconcile`), method: 'POST' }),
     }),
     adminOrderAudit: b.query({ query: (orderId) => adminApiPath(`/audit/order/${orderId}`) }),
     adminCommissionAudit: b.query({ query: (days = 7) => adminApiPath(`/audit/commission?days=${days}`) }),

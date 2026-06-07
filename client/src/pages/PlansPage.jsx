@@ -10,7 +10,7 @@ import {
   useSubscribeMutation, useCancelSubscriptionMutation, useVerifyPaymentMutation,
 } from '../services/api';
 import { selectAuth } from '../modules/auth/authSlice';
-import { openCheckout } from '../services/razorpay';
+import { openCheckout } from '../services/cashfree';
 import toast from 'react-hot-toast';
 
 export default function PlansPage() {
@@ -32,17 +32,13 @@ export default function PlansPage() {
       setPurchasing(plan.code);
       const orderInfo = await subscribe(plan.code).unwrap();
       const checkoutResp = await openCheckout({
-        razorpayKeyId: orderInfo.razorpayKeyId,
-        razorpayOrderId: orderInfo.razorpayOrderId,
-        amountPaise: orderInfo.amountPaise,
-        name: 'Zappy',
-        description: plan.name,
-        prefill: { contact: profile?.phone, name: profile?.name, email: profile?.email },
+        paymentSessionId: orderInfo.paymentSessionId,
+        cfOrderId:        orderInfo.cfOrderId,
+        cashfreeEnv:      orderInfo.cashfreeEnv || 'sandbox',
       });
       await verifyPayment({
-        razorpayOrderId: checkoutResp.razorpay_order_id,
-        razorpayPaymentId: checkoutResp.razorpay_payment_id,
-        razorpaySignature: checkoutResp.razorpay_signature,
+        cfOrderId:   checkoutResp.cfOrderId,
+        cfPaymentId: checkoutResp.cfPaymentId,
       }).unwrap();
       toast.success(`${plan.name} activated!`);
       refetchSub();

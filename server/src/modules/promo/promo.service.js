@@ -1,5 +1,6 @@
 const Promo = require('./promo.model');
 const { PromoUsage } = require('./promo.model');
+const { redis } = require('../../config/redis');
 
 /**
  * Validate and compute discount for a promo code.
@@ -32,9 +33,24 @@ async function applyPromo({ code, userId, orderTotalPaise, service }) {
     throw Object.assign(new Error('Promo code limit reached'), { status: 400, code: 'PROMO_EXHAUSTED' });
   }
 
-  // Per-user uses check
+  // Per-user uses check — Redis lock prevents the TOCTOU race where two concurrent
+  // requests both pass countDocuments before either recordUsage increments the counter.
   if (promo.limits.perUserUses > 0) {
-    const userUses = await PromoUsage.countDocuments({ code: promo.code, userId });
+    const lockKey   = `promo:apply:${promo.code}:${userId}`;
+    const lockToken = `${Date.now()}`;
+    const acquired  = await redis.set(lockKey, lockToken, 'NX', 'PX', 10000).catch(() => null);
+    if (!acquired) {
+      throw Object.assign(new Error('Promo is already being applied to another order'), { status: 409, code: 'PROMO_CONCURRENT' });
+    }
+    let userUses;
+    try {
+      userUses = await PromoUsage.countDocuments({ code: promo.code, userId });
+    } finally {
+      redis.eval(
+        `if redis.call("GET",KEYS[1])==ARGV[1] then return redis.call("DEL",KEYS[1]) else return 0 end`,
+        1, lockKey, lockToken
+      ).catch(() => {});
+    }
     if (userUses >= promo.limits.perUserUses) {
       throw Object.assign(new Error('You have already used this promo'), { status: 400, code: 'PROMO_USER_LIMIT' });
     }

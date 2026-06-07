@@ -10,6 +10,7 @@ import {
   useSubmitEventReviewMutation, useCreateEventRemainingOrderMutation,
   useVerifyEventRemainingPaymentMutation,
 } from '../../services/api';
+import { openCheckout } from '../../services/cashfree';
 import toast from 'react-hot-toast';
 
 const STEP_MAP = {
@@ -23,15 +24,6 @@ const STEP_MAP = {
 
 const TIMELINE = ['Payment', 'Confirmed', 'Assigned', 'In Progress', 'Completed'];
 
-function loadRazorpay() {
-  return new Promise(resolve => {
-    if (window.Razorpay) return resolve(true);
-    const s = document.createElement('script');
-    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    s.onload = () => resolve(true); s.onerror = () => resolve(false);
-    document.body.appendChild(s);
-  });
-}
 
 export default function EventBookingDetailPage() {
   const { id } = useParams();
@@ -83,28 +75,23 @@ export default function EventBookingDetailPage() {
   async function handlePayRemaining() {
     setPayingRemaining(true);
     try {
-      const loaded = await loadRazorpay();
-      if (!loaded) return toast.error('Payment gateway unavailable');
       const orderRes = await createRemainingOrder(id).unwrap();
-      await new Promise((resolve, reject) => {
-        const rzp = new window.Razorpay({
-          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-          amount: orderRes.amountPaise, currency: 'INR', order_id: orderRes.orderId,
-          name: 'Zappy Events', description: 'Remaining balance',
-          theme: { color: '#7c3aed' },
-          handler: async (response) => {
-            try {
-              await verifyRemainingPayment({ id, razorpayOrderId: orderRes.orderId, razorpayPaymentId: response.razorpay_payment_id, razorpaySignature: response.razorpay_signature }).unwrap();
-              toast.success('Remaining payment done!');
-              refetch(); resolve();
-            } catch (e) { reject(e); }
-          },
-          modal: { ondismiss: resolve },
-        });
-        rzp.open();
+      const checkoutResp = await openCheckout({
+        paymentSessionId: orderRes.paymentSessionId,
+        cfOrderId:        orderRes.cfOrderId,
+        cashfreeEnv:      orderRes.cashfreeEnv || import.meta.env.VITE_CASHFREE_ENV || 'sandbox',
       });
-    } catch (e) { toast.error(e?.data?.error || 'Payment failed'); }
-    finally { setPayingRemaining(false); }
+      await verifyRemainingPayment({
+        id,
+        cfOrderId:   checkoutResp.cfOrderId,
+        cfPaymentId: checkoutResp.cfPaymentId,
+      }).unwrap();
+      toast.success('Remaining payment done!');
+      refetch();
+    } catch (e) {
+      const msg = e?.message || e?.data?.error || 'Payment failed';
+      if (!msg.includes('cancelled')) toast.error(msg);
+    } finally { setPayingRemaining(false); }
   }
 
   if (isLoading) return (

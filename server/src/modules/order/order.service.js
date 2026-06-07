@@ -8,6 +8,7 @@ const ledgerService = require('../wallet/ledger.service');
 const Worker = require('../worker/worker.model');
 const { dispatchQueue, emergencyDispatchQueue } = require('../../jobs');
 const { redis } = require('../../config/redis');
+const appConfig = require('../../config');
 const logger = require('../../utils/logger');
 
 /**
@@ -26,9 +27,8 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
 }) {
   // Dispatch queue depth circuit breaker — shed load before the queue backs up
   // and adds latency to ALL in-flight orders. (#62/#63)
-  // Cap: 2,000 waiting jobs ≈ ~33 min of dispatch capacity at normal throughput.
   // Emergency orders bypass the cap — they're always urgent.
-  const DISPATCH_QUEUE_HARD_CAP = 2000;
+  const DISPATCH_QUEUE_HARD_CAP = appConfig.dispatch.queueCap;
   if (priority !== 'emergency') {
     try {
       const waitingCount = await dispatchQueue.getWaitingCount();
@@ -48,14 +48,16 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
   // pickup location, fail fast with a user-friendly message instead of creating
   // an order that will sit in 'searching' until the 5-minute dispatch window
   // exhausts and then silently fails. (#85)
-  if (!scheduledAt) {
+  // Geo-readiness check: only run when explicitly enabled via env var.
+  // Disabled by default so demos/staging work without live workers in the area.
+  // Set GEO_READINESS_CHECK=true in production .env once workers are onboarded.
+  if (!scheduledAt && process.env.GEO_READINESS_CHECK === 'true') {
     try {
-      const geoService = require('../worker/geo.service');
       const candidates = await geoService.findCandidates({
         lat: pickupLocation.lat,
         lng: pickupLocation.lng,
         skill: service,
-        radiusKm: 25,
+        radiusKm: appConfig.dispatch.geoReadinessKm,
       });
       if (candidates.length === 0) {
         throw Object.assign(
@@ -74,9 +76,26 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
 
   // One-at-a-time semantic — only one non-terminal order per user at a time.
   // Scheduled orders are exempt: they don't occupy the user's "slot" until dispatch.
+  // Redis lock prevents the TOCTOU race where two concurrent requests both pass the
+  // findActiveByUser check before either order is persisted.
+  let _orderCreateLockKey   = null;
+  let _orderCreateLockToken = null;
   if (!scheduledAt) {
+    _orderCreateLockKey   = `order:create:lock:${userId}`;
+    _orderCreateLockToken = crypto.randomBytes(16).toString('hex');
+    const acquired = await redis.set(_orderCreateLockKey, _orderCreateLockToken, 'NX', 'PX', 15000);
+    if (!acquired) {
+      throw Object.assign(
+        new Error('Another order is being placed for your account. Please wait a moment.'),
+        { status: 409, code: 'ORDER_CREATE_IN_PROGRESS' }
+      );
+    }
     const existingActive = await orderRepo.findActiveByUser(userId);
     if (existingActive) {
+      redis.eval(
+        `if redis.call("GET",KEYS[1])==ARGV[1] then return redis.call("DEL",KEYS[1]) else return 0 end`,
+        1, _orderCreateLockKey, _orderCreateLockToken
+      ).catch(() => {});
       throw Object.assign(
         new Error('You already have an active order. Complete or cancel it before placing a new one.'),
         { status: 409, code: 'ACTIVE_ORDER_EXISTS', activeOrderId: String(existingActive._id) }
@@ -94,7 +113,13 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     ? { lat: dropLocation.lat, lng: dropLocation.lng }
     : { lat: pickupLocation.lat + 0.00045, lng: pickupLocation.lng }; // ~50m nominal
 
-  let pricing = await pricingService.quote({ origin, dest, service, userId });
+  let pricing = await Promise.race([
+    pricingService.quote({ origin, dest, service, userId }),
+    new Promise((_, reject) => setTimeout(
+      () => reject(Object.assign(new Error('Pricing service timed out. Please try again.'), { status: 503, code: 'PRICING_TIMEOUT' })),
+      appConfig.dispatch.pricingTimeoutMs
+    )),
+  ]);
 
   // Apply tier multiplier (standard 1.0×, priority 1.2×, express 1.4×).
   // This must happen BEFORE surge protection so quotedTotalRupees comparison is apples-to-apples
@@ -124,6 +149,20 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
       tipPaise,
       boostedTotal: pricing.total + tipRupees,
       paise: { ...(pricing.paise || {}), total: (pricing.paise?.total ?? pricing.total * 100) + tipPaise },
+    };
+  }
+
+  // Team pricing: multiply base price by number of workers required.
+  // Each worker earns independently — pricing scales linearly with team size.
+  const resolvedTeamSize = Math.min(Math.max(Number(teamSize) || 1, 1), 20);
+  if (resolvedTeamSize > 1) {
+    const basePaise = pricing.paise?.total ?? Math.round((pricing.total || 0) * 100);
+    const teamPaise = basePaise * resolvedTeamSize;
+    pricing = {
+      ...pricing,
+      total: Math.round(teamPaise / 100),
+      teamSize: resolvedTeamSize,
+      paise: { ...(pricing.paise || {}), total: teamPaise },
     };
   }
 
@@ -248,14 +287,20 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     ...(vehicleType && { vehicleType }),
     ...(pricingModel && { pricingModel }),
     ...(estimatedHours && { estimatedHours }),
-    // Team size: multi-worker dispatch is not yet implemented (#74).
-    // Cap at 1 silently so the order still proceeds; worker counts > 1
-    // will display as a "coordination needed" note to the assigned worker.
-    ...(teamSize && { teamSize: Math.min(Number(teamSize) || 1, 1) }),
+    ...(teamSize && teamSize > 1 && { teamSize: Math.min(Number(teamSize) || 1, 20) }),
     ...(diagnosisAnswers && { diagnosisAnswers }),
     ...(diagnosisUrgency && diagnosisUrgency !== 'normal' && { diagnosisUrgency }),
     ...(pendingCancellationFeePaise > 0 && { pendingCancellationFeePaise }),
   });
+
+  // Order persisted — release the per-user creation lock so the user can create another order
+  // once this one completes/cancels (without this, the 15s TTL is the safety net).
+  if (_orderCreateLockKey) {
+    redis.eval(
+      `if redis.call("GET",KEYS[1])==ARGV[1] then return redis.call("DEL",KEYS[1]) else return 0 end`,
+      1, _orderCreateLockKey, _orderCreateLockToken
+    ).catch(() => {});
+  }
 
   // Collect deferred cancellation fees now that we have the orderId
   if (pendingCancellationFeePaise > 0) {
@@ -383,8 +428,11 @@ async function workerStartTrip({ orderId, workerId, workerLat, workerLng }) {
 
     // Emit ETA to customer's order room so they see it immediately
     if (tripEtaMinutes != null) {
-      const { emitToOrderRoom } = require('../../sockets/emit');
-      emitToOrderRoom(orderId, 'order.eta', { etaMinutes: tripEtaMinutes }).catch(() => {});
+      redis.publish('order:event', JSON.stringify({
+        orderId: String(orderId),
+        event: 'order.eta',
+        payload: { etaMinutes: tripEtaMinutes },
+      })).catch(() => {});
     }
   }
 
@@ -947,6 +995,7 @@ async function cancelByUser({ orderId, userId, reason }) {
     logger.error({ orderId, userId, err: err.message }, 'Shield fee assessment failed — continuing');
     return { feePaise: 0, isGrace: false, collectionStatus: 'zero_fee' };
   });
+  const feeReason = isGrace ? 'grace_period' : collectionStatus === 'zero_fee' ? 'no_fee' : 'cancellation_fee';
   const workerCompensationPaise = 0; // workers receive compensation via the Monday fund payout, not directly
 
   const updated = await orderRepo.transitionStatus(

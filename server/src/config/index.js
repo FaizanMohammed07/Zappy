@@ -20,6 +20,9 @@ const schema = Joi.object({
   DISPATCH_MIN_SEARCH_MS: Joi.number().default(300000),    // 5-min minimum before force-assign (standard tier)
   DISPATCH_MIN_WORKER_RATING: Joi.number().default(3.0),   // skip workers rated below this
   DISPATCH_FORCE_ASSIGN_RADIUS_KM: Joi.number().default(20), // max radius for force-assign
+  DISPATCH_QUEUE_CAP: Joi.number().default(2000),            // circuit-breaker: reject new orders above this BullMQ queue depth
+  DISPATCH_GEO_READINESS_KM: Joi.number().default(25),       // radius to check for available workers before creating order
+  PRICING_TIMEOUT_MS: Joi.number().default(8000),            // abort pricing call after this many ms
   BASE_FEE: Joi.number().default(40),
   PER_KM_FEE: Joi.number().default(12),
   PER_MIN_FEE: Joi.number().default(2),
@@ -27,10 +30,11 @@ const schema = Joi.object({
   MIN_FARE: Joi.number().default(60),
   // Frontend origin — used for CORS. Must be set in production.
   CLIENT_URL: Joi.string().uri().optional(),
-  // Razorpay
-  RAZORPAY_KEY_ID: Joi.string().default(''),
-  RAZORPAY_KEY_SECRET: Joi.string().default(''),
-  RAZORPAY_WEBHOOK_SECRET: Joi.string().default(''),
+  // Cashfree Payment Gateway
+  CASHFREE_APP_ID:        Joi.string().default(''),
+  CASHFREE_SECRET_KEY:    Joi.string().default(''),
+  CASHFREE_WEBHOOK_URL:   Joi.string().uri().optional(),   // set to your /api/payments/webhook URL
+  CASHFREE_ENV:           Joi.string().valid('sandbox', 'production').default('sandbox'),
   // Firebase Admin SDK (service account — replaces legacy server key)
   FIREBASE_PROJECT_ID:    Joi.string().default(''),
   FIREBASE_CLIENT_EMAIL:  Joi.string().default(''),
@@ -70,6 +74,9 @@ module.exports = {
     minSearchMs:         env.DISPATCH_MIN_SEARCH_MS,
     minWorkerRating:     env.DISPATCH_MIN_WORKER_RATING,
     forceAssignRadiusKm: env.DISPATCH_FORCE_ASSIGN_RADIUS_KM,
+    queueCap:           env.DISPATCH_QUEUE_CAP,
+    geoReadinessKm:     env.DISPATCH_GEO_READINESS_KM,
+    pricingTimeoutMs:   env.PRICING_TIMEOUT_MS,
     // Standard: 10 steps × 35s ≈ 5.8 min before force-assign.
     // Express overrides to 15s/step, 60s total. Priority: 25s/step, 2 min total.
     radiusSteps: [0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 3.5, 5.0, 8.0, 12.0],
@@ -81,10 +88,11 @@ module.exports = {
     platformFee: env.PLATFORM_FEE,
     minFare: env.MIN_FARE,
   },
-  razorpay: {
-    keyId: env.RAZORPAY_KEY_ID,
-    keySecret: env.RAZORPAY_KEY_SECRET,
-    webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+  cashfree: {
+    appId:     env.CASHFREE_APP_ID,
+    secretKey: env.CASHFREE_SECRET_KEY,
+    webhookUrl: env.CASHFREE_WEBHOOK_URL || '',
+    env:        env.CASHFREE_ENV,
   },
   firebase: {
     projectId:   env.FIREBASE_PROJECT_ID,

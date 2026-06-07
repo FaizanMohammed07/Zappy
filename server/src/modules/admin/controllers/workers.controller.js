@@ -361,6 +361,10 @@ async function kycStreamDoc(req, res, next) {
     if (!worker) return res.status(404).json({ error: 'Worker not found' });
 
     const { docType } = req.params;
+    const ALLOWED_DOC_TYPES = ['aadhaar', 'license', 'selfie', 'snap_aadhaar', 'snap_license', 'snap_selfie'];
+    if (!ALLOWED_DOC_TYPES.includes(docType)) {
+      return res.status(400).json({ error: 'Invalid document type' });
+    }
     const kyc = worker.kyc ?? {};
 
     const keyMap = {

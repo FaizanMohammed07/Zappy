@@ -1,5 +1,6 @@
 const Order = require('../../order/order.model');
 const auditService = require('../audit.service');
+const logger = require('../../../utils/logger');
 
 async function listOrders(req, res, next) {
   try {
@@ -30,6 +31,7 @@ async function listOrders(req, res, next) {
         .limit(Number(limit))
         .populate('userId', 'name phone')
         .populate('workerId', 'name phone rating')
+        .populate('workerIds', 'name phone rating')
         .lean(),
       Order.countDocuments(q),
     ]);
@@ -50,7 +52,7 @@ async function refundOrder(req, res, next) {
     const PaymentIntent = require('../../payment/payment-intent.model');
     const Transaction = require('../../payment/transaction.model');
     const walletService = require('../../wallet/wallet.service');
-    const razorpay = require('../../payment/razorpay.client');
+    const cashfree = require('../../payment/cashfree.client');
 
     const order = await Order.findById(req.params.id).lean();
     if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -84,17 +86,17 @@ async function refundOrder(req, res, next) {
       ? Math.min(Number(req.body.amountPaise), intent.amountPaise)
       : intent.amountPaise;
 
-    /* Trigger Razorpay refund */
-    let rzpRefund;
+    /* Trigger Cashfree refund */
+    let cfRefund;
     try {
-      rzpRefund = await razorpay.refundPayment(
-        intent.razorpayPaymentId,
-        refundPaise,
-      );
+      cfRefund = await cashfree.createRefund({
+        orderId:     intent.cfOrderId,
+        amountPaise: refundPaise,
+        refundId:    `admin_refund_${order._id}_${Date.now()}`,
+        note:        `Admin refund for order ${order._id}`,
+      });
     } catch (err) {
-      return res
-        .status(502)
-        .json({ error: `Razorpay refund failed: ${err.message}` });
+      return res.status(502).json({ error: `Cashfree refund failed: ${err.message}` });
     }
 
     /* Credit user wallet with the refund amount */
@@ -104,10 +106,10 @@ async function refundOrder(req, res, next) {
       type: 'credit',
       amountPaise: refundPaise,
       reason: Transaction.REASONS.ADMIN_ADJUSTMENT_CREDIT,
-      idempotencyKey: `refund:${rzpRefund.id}`,
+      idempotencyKey: `refund:${cfRefund.cf_refund_id || intent.cfOrderId}`,
       refs: { orderId: order._id, paymentIntentId: intent._id },
       description: `Refund for order ${order._id} — admin initiated`,
-      metadata: { adminId: req.auth.sub, rzpRefundId: rzpRefund.id },
+      metadata: { adminId: req.auth.sub, cfRefundId: cfRefund.cf_refund_id },
     });
 
     /* Mark payment intent refunded */
@@ -116,43 +118,29 @@ async function refundOrder(req, res, next) {
       $push: {
         events: {
           event: 'admin.refund',
-          payload: {
-            refundId: rzpRefund.id,
-            amountPaise: refundPaise,
-            adminId: req.auth.sub,
-          },
+          payload: { cfRefundId: cfRefund.cf_refund_id, amountPaise: refundPaise, adminId: req.auth.sub },
         },
       },
     });
 
     /* Update order payment status */
-    await Order.findByIdAndUpdate(order._id, {
-      $set: { 'payment.status': 'refunded' },
-    });
+    await Order.findByIdAndUpdate(order._id, { $set: { 'payment.status': 'refunded' } });
 
     await auditService.fromRequest(
       req,
       'admin.order_refund',
       { kind: 'order', id: req.params.id },
       { paymentStatus: 'paid' },
-      { refundPaise, rzpRefundId: rzpRefund.id },
+      { refundPaise, cfRefundId: cfRefund.cf_refund_id },
     );
 
-    logger.info(
-      {
-        orderId: order._id,
-        refundPaise,
-        rzpRefundId: rzpRefund.id,
-        admin: req.auth.sub,
-      },
-      '[Admin] Order refunded',
-    );
+    logger.info({ orderId: order._id, refundPaise, cfRefundId: cfRefund.cf_refund_id, admin: req.auth.sub }, '[Admin] Order refunded');
 
     res.json({
       ok: true,
       refundPaise,
       refundRupees: Math.round(refundPaise / 100),
-      rzpRefundId: rzpRefund.id,
+      cfRefundId: cfRefund.cf_refund_id,
     });
   } catch (err) {
     next(err);

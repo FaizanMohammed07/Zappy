@@ -29,11 +29,12 @@ async function subscribe(req, res, next) {
       planCode: req.body.planCode,
     });
     res.status(201).json({
-      paymentIntentId: result.paymentIntent._id,
-      razorpayOrderId: result.razorpayOrder.id,
-      amountPaise: result.razorpayOrder.amount,
-      currency: result.razorpayOrder.currency,
-      razorpayKeyId: config.razorpay.keyId,
+      paymentIntentId:  result.paymentIntent._id,
+      cfOrderId:        result.cfOrder.order_id,
+      paymentSessionId: result.cfOrder.payment_session_id,
+      amountPaise:      result.paymentIntent.amountPaise,
+      currency:         'INR',
+      cashfreeEnv:      config.cashfree.env,
     });
   } catch (err) { next(err); }
 }

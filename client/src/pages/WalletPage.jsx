@@ -13,7 +13,7 @@ import {
   useWalletTopupMutation, useVerifyPaymentMutation,
 } from '../services/api';
 import { selectAuth } from '../modules/auth/authSlice';
-import { openCheckout } from '../services/razorpay';
+import { openCheckout } from '../services/cashfree';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp, scaleIn } from '../lib/animations';
@@ -39,17 +39,13 @@ export default function WalletPage() {
       setBusy(true);
       const orderInfo = await topup(amountPaise).unwrap();
       const checkoutResp = await openCheckout({
-        razorpayKeyId: orderInfo.razorpayKeyId,
-        razorpayOrderId: orderInfo.razorpayOrderId,
-        amountPaise: orderInfo.amountPaise,
-        name: 'Zappy',
-        description: `Wallet top-up ₹${amountPaise / 100}`,
-        prefill: { contact: profile?.phone, name: profile?.name },
+        paymentSessionId: orderInfo.paymentSessionId,
+        cfOrderId:        orderInfo.cfOrderId,
+        cashfreeEnv:      orderInfo.cashfreeEnv || 'sandbox',
       });
       await verify({
-        razorpayOrderId: checkoutResp.razorpay_order_id,
-        razorpayPaymentId: checkoutResp.razorpay_payment_id,
-        razorpaySignature: checkoutResp.razorpay_signature,
+        cfOrderId:   checkoutResp.cfOrderId,
+        cfPaymentId: checkoutResp.cfPaymentId,
       }).unwrap();
       toast.success(`₹${amountPaise / 100} added to wallet`);
       setCustomAmount('');

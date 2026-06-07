@@ -12,16 +12,7 @@ import {
 } from '../../services/api';
 import toast from 'react-hot-toast';
 
-function loadRazorpay() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) return resolve(true);
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
+import { openCheckout } from '../../services/cashfree';
 
 const TIME_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM'];
 const STEPS = ['When & Where', 'Location', 'Specifics', 'Review'];
@@ -110,43 +101,30 @@ export default function EventBookingPage() {
       }).unwrap();
       const bookingId = result.booking._id;
 
-      const loaded = await loadRazorpay();
-      if (!loaded) { toast.error('Payment gateway failed. Please refresh.'); setSubmitting(false); return; }
-
       const orderRes = await createAdvanceOrder(bookingId).unwrap();
 
-      await new Promise((resolve, reject) => {
-        const rzp = new window.Razorpay({
-          key:         import.meta.env.VITE_RAZORPAY_KEY_ID,
-          amount:      orderRes.amountPaise,
-          currency:    'INR',
-          order_id:    orderRes.orderId,
-          name:        'Zappy Events',
-          description: `Securing your magical experience!`,
-          theme:       { color: '#8b5cf6' },
-          handler: async (response) => {
-            try {
-              await verifyAdvancePayment({
-                id:                    bookingId,
-                razorpayOrderId:       orderRes.orderId,
-                razorpayPaymentId:     response.razorpay_payment_id,
-                razorpaySignature:     response.razorpay_signature,
-              }).unwrap();
-              toast.success('🎉 Booking Confirmed! Your slot is locked.');
-              navigate(`/events/bookings/${bookingId}?paid=true`);
-              resolve();
-            } catch (e) { reject(e); }
-          },
-          modal: {
-            ondismiss: () => {
-              toast('Payment incomplete. We reserved your slot for 15 mins!', { icon: '⏱️' });
-              navigate(`/events/bookings/${bookingId}`);
-              resolve();
-            },
-          },
+      try {
+        const checkoutResp = await openCheckout({
+          paymentSessionId: orderRes.paymentSessionId,
+          cfOrderId:        orderRes.cfOrderId,
+          cashfreeEnv:      orderRes.cashfreeEnv || import.meta.env.VITE_CASHFREE_ENV || 'sandbox',
         });
-        rzp.open();
-      });
+        await verifyAdvancePayment({
+          id:          bookingId,
+          cfOrderId:   checkoutResp.cfOrderId,
+          cfPaymentId: checkoutResp.cfPaymentId,
+        }).unwrap();
+        toast.success('🎉 Booking Confirmed! Your slot is locked.');
+        navigate(`/events/bookings/${bookingId}?paid=true`);
+      } catch (payErr) {
+        const msg = payErr?.message || '';
+        if (msg.includes('cancelled')) {
+          toast('Payment incomplete. We reserved your slot for 15 mins!', { icon: '⏱️' });
+          navigate(`/events/bookings/${bookingId}`);
+        } else {
+          throw payErr;
+        }
+      }
     } catch (err) {
       const msg = err?.data?.message || err?.data?.error || 'Booking failed';
       toast.error(msg);

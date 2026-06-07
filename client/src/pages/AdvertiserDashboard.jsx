@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 import {
   useMyAdCampaignsQuery, useCreateMyCampaignMutation, useUpdateMyCampaignMutation,
-  useMyAdWalletQuery,
+  useMyAdWalletQuery, useCreateAdTopUpOrderMutation, useVerifyAdTopUpMutation,
   useGetEventCategoriesQuery, useLogoutMutation,
 } from '../services/api';
+import { openCheckout } from '../services/cashfree';
 import { logout, selectAuth } from '../modules/auth/authSlice';
 import toast from 'react-hot-toast';
 
@@ -330,29 +331,84 @@ function CampaignModal({ initial, onClose, onSave }) {
   );
 }
 
-/* ─── Wallet top-up modal — gateway locked ────────────────────────────────────── */
-function TopUpModal({ onClose }) {
+/* ─── Wallet top-up modal ─────────────────────────────────────────────────────── */
+const QUICK_TOPUP = [50000, 100000, 200000, 500000]; // paise
+
+function TopUpModal({ onClose, onSuccess }) {
+  const [createOrder] = useCreateAdTopUpOrderMutation();
+  const [verifyTopUp] = useVerifyAdTopUpMutation();
+  const [custom, setCustom] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function handleTopUp(amountPaise) {
+    try {
+      setBusy(true);
+      const orderInfo = await createOrder({ amountPaise }).unwrap();
+      const checkoutResp = await openCheckout({
+        paymentSessionId: orderInfo.paymentSessionId,
+        cfOrderId:        orderInfo.cfOrderId,
+        cashfreeEnv:      orderInfo.cashfreeEnv || import.meta.env.VITE_CASHFREE_ENV || 'sandbox',
+      });
+      await verifyTopUp({ cfOrderId: checkoutResp.cfOrderId, cfPaymentId: checkoutResp.cfPaymentId }).unwrap();
+      toast.success(`₹${amountPaise / 100} added to ad wallet!`);
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const msg = err?.message || err?.data?.error || 'Top-up failed';
+      if (!msg.includes('cancelled')) toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleCustom() {
+    const amt = parseInt(custom, 10);
+    if (!amt || amt < 100) { toast.error('Minimum top-up is ₹100'); return; }
+    handleTopUp(amt * 100);
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={e => e.target === e.currentTarget && onClose()}>
+      onClick={e => e.target === e.currentTarget && !busy && onClose()}>
       <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
-        <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <span className="text-3xl">🔒</span>
+        className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="font-black text-slate-900 text-lg">Add Ad Credits</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Credits are used to run your campaigns</p>
+          </div>
+          {!busy && <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-slate-100 transition-colors"><X size={18} className="text-slate-400" /></button>}
         </div>
-        <h3 className="font-black text-slate-900 text-lg">Payment Gateway</h3>
-        <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-          We're integrating a secure payment gateway for ad wallet top-ups.
-        </p>
-        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-          <p className="text-xs font-bold text-amber-700">🚀 Coming Soon</p>
-          <p className="text-xs text-amber-600 mt-0.5">Contact your Zappy account manager to add credits manually in the meantime.</p>
+
+        {/* Quick amounts */}
+        <div className="grid grid-cols-2 gap-2.5 mb-4">
+          {QUICK_TOPUP.map(p => (
+            <button key={p} disabled={busy} onClick={() => handleTopUp(p)}
+              className="py-3 rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 font-black text-sm transition-colors disabled:opacity-50">
+              ₹{p / 100}
+            </button>
+          ))}
         </div>
-        <button onClick={onClose}
-          className="mt-5 w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors">
-          Got it
-        </button>
+
+        {/* Custom amount */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+            <input
+              type="number" min="100" placeholder="Custom amount"
+              value={custom} onChange={e => setCustom(e.target.value)}
+              disabled={busy}
+              className="w-full pl-7 pr-3 py-3 rounded-xl border border-slate-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+            />
+          </div>
+          <button onClick={handleCustom} disabled={busy || !custom}
+            className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-40 flex items-center gap-1.5">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Pay'}
+          </button>
+        </div>
+
+        <p className="text-[10px] text-slate-400 text-center mt-3">Secured by Cashfree · UPI, Cards, Net Banking</p>
       </motion.div>
     </motion.div>
   );

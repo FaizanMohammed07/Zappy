@@ -1,25 +1,24 @@
 const mongoose = require('mongoose');
 
 /**
- * PaymentIntent — represents a single intended Razorpay payment lifecycle.
+ * PaymentIntent — represents a single Cashfree payment lifecycle.
  *
- * We create one of these the moment we ask Razorpay to create an order. The
- * webhook later resolves it. Multiple status transitions:
+ * We create one of these the moment we ask Cashfree to create an order. The
+ * webhook later resolves it. Status transitions:
  *
- *   created → authorized → captured  (success)
- *           → failed                  (terminal)
- *           → expired                 (terminal, sweeper)
+ *   created → captured  (success)
+ *           → failed    (terminal)
+ *           → expired   (terminal, sweeper)
  *
  * The `purpose` field tells the webhook handler what side-effects to apply
- * once the payment captures: activate a subscription, top up a wallet, or
- * settle an order. Keeping this on the intent itself (not derived from
- * Razorpay metadata only) means we can reconcile even if Razorpay's notes
- * field is missing.
+ * once payment captures: activate a subscription, top up a wallet, or settle
+ * an order. Kept on the intent so reconciliation works even if Cashfree tags
+ * are lost.
  */
 const paymentIntentSchema = new mongoose.Schema(
   {
-    razorpayOrderId: { type: String, required: true, unique: true, index: true },
-    razorpayPaymentId: { type: String, sparse: true, unique: true }, // set on capture
+    cfOrderId:   { type: String, required: true, unique: true, index: true }, // Cashfree order_id (we set this)
+    cfPaymentId: { type: String, sparse: true, unique: true },                // cf_payment_id — set on capture
 
     owner: {
       kind: { type: String, enum: ['user', 'worker'], required: true },
@@ -53,7 +52,7 @@ const paymentIntentSchema = new mongoose.Schema(
     // apply side-effects. Idempotency key in our domain.
     appliedAt: Date,
 
-    // Raw metadata from Razorpay events for audit + debugging
+    // Raw metadata from Cashfree webhook events for audit + debugging
     events: [
       {
         event: String,

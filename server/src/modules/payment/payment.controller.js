@@ -8,11 +8,12 @@ async function createOrder(req, res, next) {
       ...req.body,
     });
     res.status(201).json({
-      paymentIntentId: result.paymentIntent._id,
-      razorpayOrderId: result.razorpayOrder.id,
-      amountPaise: result.razorpayOrder.amount,
-      currency: result.razorpayOrder.currency,
-      razorpayKeyId: config.razorpay.keyId,
+      paymentIntentId:  result.paymentIntent._id,
+      cfOrderId:        result.cfOrder.order_id,
+      paymentSessionId: result.cfOrder.payment_session_id,
+      amountPaise:      result.paymentIntent.amountPaise,
+      currency:         'INR',
+      cashfreeEnv:      config.cashfree.env,
     });
   } catch (err) { next(err); }
 }
@@ -20,9 +21,8 @@ async function createOrder(req, res, next) {
 async function verify(req, res, next) {
   try {
     const result = await paymentService.handleCheckoutVerification({
-      razorpayOrderId: req.body.razorpayOrderId,
-      razorpayPaymentId: req.body.razorpayPaymentId,
-      signature: req.body.razorpaySignature,
+      cfOrderId:   req.body.cfOrderId,
+      cfPaymentId: req.body.cfPaymentId,
     });
     res.json(result);
   } catch (err) { next(err); }

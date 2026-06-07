@@ -83,7 +83,16 @@ export default function Orders() {
                   <Td mono>#{o._id.slice(-8)}</Td>
                   <Td>{o.service?.replace(/_/g, ' ')}</Td>
                   <Td muted>{o.userId?.name || o.userId?.phone || '—'}</Td>
-                  <Td muted>{o.workerId?.name || '—'}</Td>
+                  <Td muted>
+                    {o.teamSize > 1 ? (
+                      <div>
+                        <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">Team ×{o.teamSize}</span>
+                        <span className="block text-[10px] text-slate-500 mt-0.5">
+                          {o.workerIds?.length || (o.workerId ? 1 : 0)}/{o.teamSize} assigned
+                        </span>
+                      </div>
+                    ) : (o.workerId?.name || '—')}
+                  </Td>
                   <Td>
                     {o.tier === 'express' ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full ring-1 ring-indigo-200">⚡ Express</span>
@@ -97,6 +106,9 @@ export default function Orders() {
                   <Td right>
                     <div className="text-right">
                       <span className="font-bold text-slate-900">₹{o.pricing?.total || 0}</span>
+                      {o.teamSize > 1 && (
+                        <span className="block text-[9px] text-violet-500">₹{Math.round((o.pricing?.total || 0) / o.teamSize)}/worker</span>
+                      )}
                       {o.pricing?.tierMultiplier > 1 && (
                         <span className="block text-[9px] text-slate-400">{o.pricing.tierMultiplier}× tier</span>
                       )}
@@ -134,8 +146,13 @@ export default function Orders() {
               {[
                 ['Service', selected.service?.replace(/_/g, ' ')],
                 ['Customer', selected.userId?.name || selected.userId?.phone || '—'],
-                ['Worker', selected.workerId?.name || '—'],
-                ['Base Amount', `₹${selected.pricing?.total || 0}`],
+                ...( (selected.teamSize || 1) <= 1 ? [['Worker', selected.workerId?.name || '—']] : [] ),
+                ['Total Amount', `₹${selected.pricing?.total || 0}`],
+                ...( (selected.teamSize || 1) > 1 ? [
+                  ['Team Size', `${selected.teamSize} workers`],
+                  ['Per Worker', `₹${Math.round((selected.pricing?.total || 0) / selected.teamSize)}`],
+                  ['Workers Assigned', `${selected.workerIds?.length || (selected.workerId ? 1 : 0)} / ${selected.teamSize}`],
+                ] : [] ),
                 ['Tier', selected.tier || 'standard'],
                 ['Tier Multiplier', selected.pricing?.tierMultiplier ? `${selected.pricing.tierMultiplier}×` : '1.0×'],
                 ['Payment', selected.payment?.method || '—'],
@@ -149,6 +166,31 @@ export default function Orders() {
                 </div>
               ))}
             </div>
+
+            {/* Team workers panel */}
+            {(selected.teamSize || 1) > 1 && (
+              <div className="rounded-xl bg-violet-50 ring-1 ring-violet-100 p-3">
+                <p className="text-[11px] text-violet-500 font-bold uppercase mb-2">Team Members</p>
+                <div className="space-y-1.5">
+                  {(selected.workerIds?.length ? selected.workerIds : selected.workerId ? [selected.workerId] : []).map((w, i) => (
+                    <div key={w._id || w} className="flex items-center justify-between bg-white rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-black flex items-center justify-center">{i + 1}</span>
+                        <span className="text-sm font-semibold text-slate-800">{w.name || 'Unknown'}</span>
+                        {i === 0 && <span className="text-[9px] bg-violet-600 text-white px-1.5 py-0.5 rounded-full font-bold">LEAD</span>}
+                      </div>
+                      <span className="text-xs text-slate-400">{w.phone || '—'}</span>
+                    </div>
+                  ))}
+                  {Array.from({ length: Math.max(0, (selected.teamSize || 1) - (selected.workerIds?.length || (selected.workerId ? 1 : 0))) }).map((_, i) => (
+                    <div key={`empty-${i}`} className="flex items-center gap-2 bg-amber-50 rounded-lg px-3 py-2">
+                      <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 text-[10px] font-black flex items-center justify-center">?</span>
+                      <span className="text-xs text-amber-600 font-semibold">Searching for worker…</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* Boost / Tip row */}
             {(selected.pricing?.tipPaise > 0 || selected.pricing?.boostedTotal) && (
               <div className="rounded-xl bg-orange-50 ring-1 ring-orange-100 p-3 grid grid-cols-2 gap-3">

@@ -54,7 +54,22 @@ async function reconcileWorkers() {
   }
 }
 
+function warnMissingEnv() {
+  const criticalForFCM = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
+  const missingFCM = criticalForFCM.filter((k) => !process.env[k]);
+  if (missingFCM.length > 0) {
+    logger.warn({ missing: missingFCM }, '[STARTUP] Firebase env vars missing — push notifications will be disabled. Set these before going live.');
+  }
+  if (!process.env.CASHFREE_APP_ID || !process.env.CASHFREE_SECRET_KEY) {
+    logger.warn('[STARTUP] Cashfree credentials missing — payment collection will fail. Set CASHFREE_APP_ID and CASHFREE_SECRET_KEY.');
+  }
+  if (!process.env.CLIENT_URL && process.env.NODE_ENV === 'production') {
+    logger.warn('[STARTUP] CLIENT_URL not set in production — CORS will reject all browser requests.');
+  }
+}
+
 async function start() {
+  warnMissingEnv();
   await connectMongo();
   await reconcileWorkers();
   await ensureAdminSeeded();
@@ -74,6 +89,7 @@ async function start() {
   startNotificationsWorker();
   startStaleOrderWorker();
   startShieldPayoutWorker();
+  startWorkerHeartbeatSweep();
 
   // Expire pending_payment event bookings older than 30 minutes every 5 min
   setInterval(async () => {
@@ -175,6 +191,40 @@ function startStaleOrderWorker() {
   } catch (err) {
     logger.error({ err: err.message }, '[STALE] Failed to start watchdog');
   }
+}
+
+function startWorkerHeartbeatSweep() {
+  const OFFLINE_AFTER_MS = 30 * 60 * 1000; // 30 min without ping → mark offline in Mongo
+
+  async function sweepStaleWorkers() {
+    try {
+      const Worker = require('./modules/worker/worker.model');
+      const geoService = require('./modules/worker/geo.service');
+      const cutoff = new Date(Date.now() - OFFLINE_AFTER_MS);
+      const stale = await Worker.find({
+        isOnline: true,
+        lastSeenAt: { $lt: cutoff },
+        // Don't force-offline a worker mid-order — that would confuse dispatch.
+        currentOrderId: null,
+      }).select('_id skills').lean();
+
+      for (const w of stale) {
+        await Worker.updateOne({ _id: w._id }, { $set: { isOnline: false, isAvailable: false } });
+        await geoService.markOffline(String(w._id));
+        logger.info({ workerId: w._id }, '[HEARTBEAT] Worker auto-offlined after 30 min inactivity');
+      }
+      if (stale.length > 0) {
+        logger.info({ count: stale.length }, '[HEARTBEAT] Stale worker sweep complete');
+      }
+    } catch (err) {
+      logger.warn({ err: err.message }, '[HEARTBEAT] Stale worker sweep failed');
+    }
+  }
+
+  // Run every 10 minutes — frequent enough to clean up but not spammy.
+  sweepStaleWorkers().catch(() => {});
+  setInterval(() => sweepStaleWorkers().catch(() => {}), 10 * 60 * 1000);
+  logger.info('[HEARTBEAT] Worker heartbeat sweep started (every 10 minutes)');
 }
 
 function startShieldPayoutWorker() {

@@ -24,22 +24,30 @@ router.get('/payments/reconciliation-queue', async (req, res, next) => {
     const PaymentIntent = require('../../payment/payment-intent.model');
     const items = await PaymentIntent.find(
       { reconciliationRequired: true, reconciledAt: { $exists: false } },
-      { razorpayOrderId: 1, razorpayPaymentId: 1, purpose: 1, amountPaise: 1, reconciliationReason: 1, reconciliationAt: 1 },
+      { cfOrderId: 1, cfPaymentId: 1, purpose: 1, amountPaise: 1, reconciliationReason: 1, reconciliationAt: 1 },
     ).sort({ reconciliationAt: -1 }).limit(50).lean();
     res.json({ count: items.length, items: items.map((i) => ({ ...i, amountRupees: Math.round(i.amountPaise / 100) })) });
   } catch (err) { next(err); }
 });
 
-router.post('/payments/:razorpayOrderId/reconcile', async (req, res, next) => {
+router.post('/payments/:razorpayOrderId/reconcile',
+  validate(Joi.object({ notes: Joi.string().max(500).optional() })),
+  async (req, res, next) => {
   try {
+    // Validate Cashfree order ID format (our own prefix: zpy_*) — prevent injection
+    const { razorpayOrderId } = req.params; // param name kept for URL compat
+    const cfOrderId = razorpayOrderId;
+    if (!/^zpy_[a-z0-9_]{4,60}$/.test(cfOrderId)) {
+      return res.status(400).json({ error: 'Invalid payment order ID format' });
+    }
     const PaymentIntent = require('../../payment/payment-intent.model');
     const intent = await PaymentIntent.findOneAndUpdate(
-      { razorpayOrderId: req.params.razorpayOrderId, reconciliationRequired: true },
+      { cfOrderId, reconciliationRequired: true },
       { $set: { reconciledAt: new Date(), reconciledBy: req.auth.sub } },
       { new: true },
     );
     if (!intent) return res.status(404).json({ error: 'Intent not found or already reconciled' });
-    await auditService.fromRequest(req, 'admin.payment_reconciled', { kind: 'user', id: intent.owner.id }, null, { razorpayOrderId: req.params.razorpayOrderId });
+    await auditService.fromRequest(req, 'admin.payment_reconciled', { kind: 'user', id: intent.owner.id }, null, { cfOrderId });
     res.json({ ok: true, intent });
   } catch (err) { next(err); }
 });
@@ -47,16 +55,19 @@ router.post('/payments/:razorpayOrderId/reconcile', async (req, res, next) => {
 // #96: Full financial trace for any single order
 router.get('/audit/order/:orderId', async (req, res, next) => {
   try {
+    const { orderId } = req.params;
+    if (!/^[a-f0-9]{24}$/.test(orderId)) return res.status(400).json({ error: 'Invalid order ID' });
     const PaymentIntent = require('../../payment/payment-intent.model');
     const Transaction   = require('../../payment/transaction.model');
     const [order, intent, transactions] = await Promise.all([
-      Order.findById(req.params.orderId)
-        .select('userId workerId service pricing earnings payment status completedAt promoCode discountPaise')
+      Order.findById(orderId)
+        .select('userId workerId workerIds teamSize service pricing earnings payment status completedAt promoCode discountPaise')
         .populate('userId', 'name phone')
         .populate('workerId', 'name phone')
+        .populate('workerIds', 'name phone rating')
         .lean(),
-      PaymentIntent.findOne({ orderId: req.params.orderId }).lean(),
-      Transaction.find({ refOrderId: req.params.orderId }).sort({ createdAt: 1 }).lean(),
+      PaymentIntent.findOne({ orderId }).lean(),
+      Transaction.find({ refOrderId: orderId }).sort({ createdAt: 1 }).lean(),
     ]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
@@ -84,7 +95,7 @@ router.get('/audit/order/:orderId', async (req, res, next) => {
         isBalanced:         Math.abs(discrepancyPaise) < 100,
       },
       paymentIntent: intent
-        ? { status: intent.status, razorpayOrderId: intent.razorpayOrderId, razorpayPaymentId: intent.razorpayPaymentId, appliedAt: intent.appliedAt, reconciliationRequired: intent.reconciliationRequired }
+        ? { status: intent.status, cfOrderId: intent.cfOrderId, cfPaymentId: intent.cfPaymentId, appliedAt: intent.appliedAt, reconciliationRequired: intent.reconciliationRequired }
         : null,
       transactions: transactions.map((t) => ({
         type: t.type, owner: t.owner, amountRupees: Math.round(t.amountPaise / 100),

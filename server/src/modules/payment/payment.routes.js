@@ -2,7 +2,7 @@ const express = require('express');
 const Joi = require('joi');
 const ctrl = require('./payment.controller');
 const paymentService = require('./payment.service');
-const razorpay = require('./razorpay.client');
+const cashfree = require('./cashfree.client');
 const { authenticate } = require('../../middlewares/auth');
 const { validate } = require('../../middlewares/validate');
 const { authLimiter } = require('../../middlewares/rateLimit');
@@ -15,10 +15,10 @@ router.post(
   authenticate,
   authLimiter,
   validate(Joi.object({
-    purpose: Joi.string().valid('subscription', 'wallet_topup', 'order_payment').required(),
-    planCode: Joi.string().when('purpose', { is: 'subscription', then: Joi.required() }),
+    purpose:     Joi.string().valid('subscription', 'wallet_topup', 'order_payment').required(),
+    planCode:    Joi.string().when('purpose', { is: 'subscription', then: Joi.required() }),
     amountPaise: Joi.number().integer().min(100).when('purpose', { is: 'wallet_topup', then: Joi.required() }),
-    orderId: Joi.string().hex().length(24).when('purpose', { is: 'order_payment', then: Joi.required() }),
+    orderId:     Joi.string().hex().length(24).when('purpose', { is: 'order_payment', then: Joi.required() }),
   })),
   ctrl.createOrder
 );
@@ -27,9 +27,8 @@ router.post(
   '/verify',
   authenticate,
   validate(Joi.object({
-    razorpayOrderId: Joi.string().required(),
-    razorpayPaymentId: Joi.string().required(),
-    razorpaySignature: Joi.string().required(),
+    cfOrderId:   Joi.string().required(),
+    cfPaymentId: Joi.string().required(),
   })),
   ctrl.verify
 );
@@ -40,17 +39,18 @@ webhookRouter.post(
   '/',
   express.raw({ type: 'application/json', limit: '1mb' }),
   async (req, res) => {
-    const signature = req.get('x-razorpay-signature');
-    const rawBody = req.body;
+    const signature = req.get('x-webhook-signature');
+    const timestamp = req.get('x-webhook-timestamp');
+    const rawBody   = req.body;
 
-    if (!signature) {
-      logger.warn({ ip: req.ip }, 'Webhook missing signature');
+    if (!signature || !timestamp) {
+      logger.warn({ ip: req.ip }, 'Cashfree webhook missing signature or timestamp');
       return res.status(400).json({ error: 'Missing signature' });
     }
 
-    const ok = razorpay.verifyWebhookSignature(rawBody, signature);
+    const ok = cashfree.verifyWebhookSignature(rawBody, timestamp, signature);
     if (!ok) {
-      logger.warn({ ip: req.ip }, 'Webhook signature verification failed');
+      logger.warn({ ip: req.ip }, 'Cashfree webhook signature verification failed');
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
@@ -63,10 +63,10 @@ webhookRouter.post(
 
     try {
       const result = await paymentService.handleWebhook(payload);
-      logger.info({ event: payload.event, result }, 'Webhook processed');
+      logger.info({ type: payload.type, result }, 'Cashfree webhook processed');
       res.json({ ok: true, ...result });
     } catch (err) {
-      logger.error({ err: err.message, event: payload.event }, 'Webhook processing failed');
+      logger.error({ err: err.message, type: payload.type }, 'Webhook processing failed');
       res.status(500).json({ error: 'Processing failed' });
     }
   }
