@@ -27,19 +27,22 @@ const INDIA_ZOOM = 5;
 
 const TILE_LAYERS = {
   light: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
     attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     label: 'Voyager',
+    subdomains: 'abcd',
   },
   dark: {
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
     attr: '&copy; OpenStreetMap &copy; CARTO',
     label: 'Dark',
+    subdomains: 'abcd',
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr: 'Tiles &copy; Esri',
+    attr: 'Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA',
     label: 'Satellite',
+    subdomains: '',
   },
 };
 
@@ -282,49 +285,70 @@ export default function Zones() {
   const zones = data?.zones || [];
   const selected = zones.find((z) => z._id === selectedId) || null;
 
-  // Init Leaflet map once
+  // Init Leaflet map once — use rAF so the container has painted and has real pixel dimensions
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, {
-      center: INDIA_CENTER,
-      zoom: INDIA_ZOOM,
-      zoomControl: false,
-      attributionControl: false,
+
+    let map;
+    const raf = requestAnimationFrame(() => {
+      if (!containerRef.current) return;
+
+      map = L.map(containerRef.current, {
+        center: INDIA_CENTER,
+        zoom: INDIA_ZOOM,
+        zoomControl: false,
+        attributionControl: false,
+        preferCanvas: true,
+      });
+
+      // Tile layer — use direct URL without {r} retina placeholder to avoid blank tiles
+      const tile = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        { attribution: TILE_LAYERS.light.attr, maxZoom: 19, subdomains: 'abcd' }
+      ).addTo(map);
+      tileLayerRef.current = tile;
+
+      L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
+
+      layerGroupRef.current = L.layerGroup().addTo(map);
+      drawLayerRef.current = L.layerGroup().addTo(map);
+
+      mapRef.current = map;
+
+      // Force Leaflet to recalculate container size after paint
+      setTimeout(() => {
+        map.invalidateSize({ animate: false });
+        setMapReady(true);
+      }, 50);
     });
 
-    // Tile layer
-    const tile = L.tileLayer(TILE_LAYERS.light.url, {
-      attribution: TILE_LAYERS.light.attr,
-      maxZoom: 19,
-      subdomains: 'abcd',
-    }).addTo(map);
-    tileLayerRef.current = tile;
-
-    // Custom attribution (bottom-right, minimal)
-    L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
-
-    // Layer groups
-    layerGroupRef.current = L.layerGroup().addTo(map);
-    drawLayerRef.current = L.layerGroup().addTo(map);
-
-    mapRef.current = map;
-    setMapReady(true);
-
     return () => {
-      map.remove();
-      mapRef.current = null;
-      tileLayerRef.current = null;
+      cancelAnimationFrame(raf);
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        tileLayerRef.current = null;
+      }
     };
   }, []);
 
-  // Switch tile style
+  // Switch tile style — remove old layer and add new so subdomains update too
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
     const cfg = TILE_LAYERS[activeStyle];
     if (tileLayerRef.current) {
-      tileLayerRef.current.setUrl(cfg.url);
+      map.removeLayer(tileLayerRef.current);
     }
+    const newTile = L.tileLayer(cfg.url, {
+      attribution: cfg.attr,
+      maxZoom: 19,
+      subdomains: cfg.subdomains || 'abcd',
+    });
+    // Insert below zone/draw layers so zones stay on top
+    newTile.addTo(map);
+    newTile.bringToBack();
+    tileLayerRef.current = newTile;
   }, [activeStyle, mapReady]);
 
   // Render zone polygons
@@ -613,9 +637,9 @@ export default function Zones() {
               </div>
             </div>
 
-            {/* Map container */}
-            <div className="relative" style={{ height: 460 }}>
-              <div ref={containerRef} className="w-full h-full" />
+            {/* Map container — explicit px height so Leaflet reads non-zero dimensions at init */}
+            <div className="relative" style={{ height: '460px' }}>
+              <div ref={containerRef} style={{ width: '100%', height: '460px' }} />
 
               {/* Drawing mode banner */}
               <AnimatePresence>
