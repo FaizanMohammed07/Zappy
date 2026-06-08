@@ -26,6 +26,41 @@ export function serviceLabel(slug) {
 /** All services including the sentinel 'all' option for filter dropdowns */
 export const SERVICE_FILTER_OPTIONS = ['all', ...SERVICE_SLUGS];
 
+/** Emoji shown on nearby-worker map markers when that service is active */
+export const SERVICE_WORKER_EMOJI = {
+  // Vehicle
+  puncture:              '🛞',
+  bike_wash:             '🚲',
+  car_wash:              '🚗',
+  battery_jump_start:    '🔋',
+  fuel_delivery:         '⛽',
+  minor_roadside_repair: '🔧',
+  // Home
+  electrical:            '⚡',
+  plumbing:              '🪠',
+  ac_repair:             '❄️',
+  carpenter:             '🪚',
+  cleaning:              '🧹',
+  painting:              '🎨',
+  helper:                '🙋',
+  delivery:              '📦',
+  laundry:               '👕',
+  beauty:                '💇',
+  gardening:             '🌱',
+  security:              '🔒',
+  appliance:             '🔌',
+  internet:              '📡',
+  // Mobile
+  screen_replacement:    '📱',
+  battery_replacement:   '🔋',
+  charging_issue:        '🔌',
+  speaker_mic_issue:     '🎙️',
+  software_issue:        '💻',
+  water_damage_check:    '💧',
+  // Construction
+  mason:                 '🧱',
+};
+
 export const SERVICE_COLORS = {
   puncture:            '#ef4444',
   plumbing:            '#3b82f6',

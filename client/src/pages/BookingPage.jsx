@@ -562,7 +562,7 @@ export default function BookingPage() {
           <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
         </header>
         <div className="flex-1 min-h-0">
-          <LocationPicker onConfirm={onLocationConfirmed} onCancel={() => nav(-1)} serviceLabel={meta.label} />
+          <LocationPicker onConfirm={onLocationConfirmed} onCancel={() => nav(-1)} serviceLabel={meta.label} service={service} />
         </div>
       </div>
     );

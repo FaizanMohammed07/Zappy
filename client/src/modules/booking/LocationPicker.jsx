@@ -13,6 +13,7 @@ import {
 } from '../../services/api';
 import { saveGeoLocation, loadGeoLocation } from '../../utils/geoCache';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { SERVICE_WORKER_EMOJI, SERVICE_COLORS } from '../../constants/services';
 
 const TOKEN    = import.meta.env.VITE_MAPBOX_TOKEN;
 const SHEET_H  = 230;
@@ -55,23 +56,50 @@ function ensureLocPickStyles() {
   document.head.appendChild(s);
 }
 
-function makeWorkerDot() {
+function makeWorkerDot(emoji = '👷', accentColor = '#22c55e') {
   ensureLocPickStyles();
-  const el = document.createElement('div');
-  el.style.cssText = `
-    position:relative; width:14px; height:14px; border-radius:50%;
-    background:#22c55e; border:2.5px solid white;
-    box-shadow:0 2px 8px rgba(34,197,94,0.55);
-    z-index:2;
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;cursor:default;user-select:none;';
+
+  const badge = document.createElement('div');
+  badge.style.cssText = `
+    display:flex;align-items:center;gap:3px;
+    background:rgba(10,13,28,0.9);
+    border:1.5px solid ${accentColor}66;
+    border-radius:20px;
+    padding:3px 7px 3px 5px;
+    box-shadow:0 3px 14px rgba(0,0,0,0.55),0 0 0 1px rgba(255,255,255,0.05);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
   `;
-  const ring = document.createElement('div');
-  ring.style.cssText = `
-    position:absolute; inset:-6px; border-radius:50%;
-    background:rgba(34,197,94,0.22);
+
+  const emojiSpan = document.createElement('span');
+  emojiSpan.style.cssText = 'font-size:13px;line-height:1;display:block;';
+  emojiSpan.textContent = emoji;
+
+  const dot = document.createElement('span');
+  dot.style.cssText = `
+    width:6px;height:6px;border-radius:50%;
+    background:${accentColor};box-shadow:0 0 6px ${accentColor};
+    display:block;flex-shrink:0;
     animation:zlp-worker-pulse 2s ease-out infinite;
   `;
-  el.appendChild(ring);
-  return el;
+
+  badge.appendChild(emojiSpan);
+  badge.appendChild(dot);
+
+  // Callout triangle pointing down
+  const tip = document.createElement('div');
+  tip.style.cssText = `
+    width:0;height:0;
+    border-left:5px solid transparent;
+    border-right:5px solid transparent;
+    border-top:5px solid rgba(10,13,28,0.9);
+    margin-top:-1px;
+  `;
+
+  wrap.appendChild(badge);
+  wrap.appendChild(tip);
+  return wrap;
 }
 
 function makeUserLocationEl() {
@@ -101,7 +129,7 @@ function makeUserLocationEl() {
 
 function ensureWorkerDotStyles() { ensureLocPickStyles(); }
 
-export default function LocationPicker({ onConfirm, serviceLabel }) {
+export default function LocationPicker({ onConfirm, serviceLabel, service }) {
   const { getCurrent } = useGeolocation();
 
   const [view,        setView]        = useState('quick');
@@ -299,6 +327,8 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function _loadNearbyWorkers(map, loc) {
+    const workerEmoji = SERVICE_WORKER_EMOJI[service] ?? '👷';
+    const workerColor = SERVICE_COLORS[service]       ?? '#22c55e';
     try {
       const res = await fetchNearby({ lat: loc.lat, lng: loc.lng }).unwrap();
       const workers = res?.workers || [];
@@ -306,7 +336,7 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
       workerMarkers.current.forEach((m) => m.remove());
       workerMarkers.current = [];
       workers.forEach((w) => {
-        const marker = new mapboxgl.Marker({ element: makeWorkerDot(), anchor: 'center' })
+        const marker = new mapboxgl.Marker({ element: makeWorkerDot(workerEmoji, workerColor), anchor: 'bottom' })
           .setLngLat([w.lng, w.lat])
           .addTo(map);
         workerMarkers.current.push(marker);
@@ -829,7 +859,7 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400" />
                 </span>
                 <span className="text-[11px] font-extrabold text-white whitespace-nowrap">
-                  {nearbyCount} worker{nearbyCount !== 1 ? 's' : ''} nearby · ~15 min ETA
+                  {nearbyCount} worker{nearbyCount !== 1 ? 's' : ''} nearby · ~5 min ETA
                 </span>
               </div>
             )}
@@ -908,7 +938,7 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
           <motion.button
             onClick={confirmLocation}
             disabled={!coords || !address || geocoding}
-            className="w-full h-12 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all"
+            className="w-full h-11 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all"
             style={{
               background: coords && address && !geocoding
                 ? 'linear-gradient(135deg, #f97316, #ea580c)'
