@@ -144,6 +144,17 @@ async function listMyTickets(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function getTicket(req, res, next) {
+  try {
+    const ticket = await SupportTicket.findOne({
+      _id: req.params.id,
+      'raisedBy.id': req.auth.sub,
+    }).lean();
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    res.json({ ticket });
+  } catch (err) { next(err); }
+}
+
 async function addTicketMessage(req, res, next) {
   try {
     const ticket = await SupportTicket.findById(req.params.id);
@@ -243,7 +254,7 @@ async function getSuggestions(req, res, next) {
 module.exports = {
   sendChat, listChat, startCall, callProviderWebhook,
   getWorkerPublicProfile, submitFeedback,
-  createTicket, listMyTickets, addTicketMessage,
+  createTicket, listMyTickets, getTicket, addTicketMessage,
   adminListTickets, adminUpdateTicketStatus, adminReplyTicket,
   getSuggestions,
 };

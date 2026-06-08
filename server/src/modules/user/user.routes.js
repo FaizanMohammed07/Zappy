@@ -37,6 +37,45 @@ router.post(
 
 router.delete('/addresses/:addrId', authenticate, requireRole('user'), ctrl.deleteAddress);
 
+router.patch(
+  '/addresses/:addrId',
+  authenticate,
+  requireRole('user'),
+  validate(Joi.object({
+    label: Joi.string().max(50),
+    address: Joi.string().max(500),
+    lat: Joi.number(),
+    lng: Joi.number(),
+    landmark: Joi.string().max(200).allow('', null),
+    flatNumber: Joi.string().max(100).allow('', null),
+    notes: Joi.string().max(500).allow('', null),
+    tag: Joi.string().valid('home', 'work', 'other'),
+  }).min(1)),
+  ctrl.editAddress
+);
+
+router.patch('/addresses/:addrId/default', authenticate, requireRole('user'), ctrl.setDefaultAddress);
+
+router.get('/payment-methods', authenticate, requireRole('user'), ctrl.listPaymentMethods);
+router.post(
+  '/payment-methods',
+  authenticate,
+  requireRole('user'),
+  validate(Joi.object({
+    type: Joi.string().valid('card', 'upi', 'netbanking').required(),
+    last4: Joi.string().length(4),
+    network: Joi.string().valid('Visa', 'Mastercard', 'RuPay', 'Amex', 'Diners', 'Unknown'),
+    cardName: Joi.string().max(100).allow('', null),
+    expiryMM: Joi.number().integer().min(1).max(12),
+    expiryYY: Joi.number().integer().min(24).max(99),
+    upiId: Joi.string().max(100),
+    upiProvider: Joi.string().max(50).allow('', null),
+  })),
+  ctrl.addPaymentMethod
+);
+router.delete('/payment-methods/:methodId', authenticate, requireRole('user'), ctrl.deletePaymentMethod);
+router.patch('/payment-methods/:methodId/default', authenticate, requireRole('user'), ctrl.setDefaultPaymentMethod);
+
 router.post(
   '/recent-location',
   authenticate,

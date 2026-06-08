@@ -13,7 +13,7 @@ router.post(
   authenticate,
   disputeLimiter,
   validate(Joi.object({
-    orderId: Joi.string().hex().length(24).required(),
+    orderId: Joi.string().hex().length(24).optional(),
     category: Joi.string().valid(...Dispute.CATEGORIES).required(),
     description: Joi.string().min(10).max(2000).required(),
     evidenceUrls: Joi.array().items(Joi.string()).max(5).default([]),

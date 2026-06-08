@@ -38,7 +38,7 @@ const RESOLUTION_TYPES = [
 
 const disputeSchema = new mongoose.Schema(
   {
-    orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
+    orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: false, index: true },
 
     raisedBy: {
       kind: { type: String, enum: ['user', 'worker'], required: true },
