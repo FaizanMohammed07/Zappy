@@ -121,7 +121,7 @@ export default function Incentives() {
                 .sort((a, b) => Number(a.jobs) - Number(b.jobs))
                 .map((m, i) => (
                   <span key={i} className="bg-slate-100 px-2.5 py-1 rounded-full">
-                    {m.jobs} jobs → ₹{Math.round(Number(m.bonusPaise) / 100)}{m.label ? ` (${m.label})` : ''}
+                    {m.jobs} jobs → ₹{Number(m.bonusPaise)}{m.label ? ` (${m.label})` : ''}
                   </span>
                 ))}
             </div>
