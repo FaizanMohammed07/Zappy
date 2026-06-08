@@ -4,7 +4,7 @@ import { SectionHeader, Card, FormRow, Input, SaveBtn, PageLoader } from './_sha
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const DEFAULT_MILESTONE = { jobs: 50, bonusPaise: 5000, label: '' };
+const DEFAULT_MILESTONE = { jobs: 50, bonusPaise: 50, label: '' };
 
 export default function Incentives() {
   const { data, isLoading, refetch } = useAdminGetIncentivesQuery();
@@ -15,7 +15,7 @@ export default function Incentives() {
 
   useEffect(() => {
     if (data?.milestones?.length) {
-      setMilestonesState(data.milestones.map(m => ({ ...m })));
+      setMilestonesState(data.milestones.map(m => ({ ...m, bonusPaise: Math.round((m.bonusPaise || 0) / 100) })));
     }
   }, [data]);
 
@@ -34,7 +34,7 @@ export default function Incentives() {
   async function saveMilestones() {
     const parsed = milestones.map(m => ({
       jobs: Number(m.jobs),
-      bonusPaise: Number(m.bonusPaise),
+      bonusPaise: Math.round(Number(m.bonusPaise) * 100),
       label: m.label || undefined,
     }));
     if (parsed.some(m => !m.jobs || m.jobs < 1 || !m.bonusPaise || m.bonusPaise < 1)) {
@@ -88,11 +88,11 @@ export default function Incentives() {
                     placeholder="e.g. 50"
                   />
                 </FormRow>
-                <FormRow label={i === 0 ? 'Bonus (paise)' : ''}>
+                <FormRow label={i === 0 ? 'Bonus (₹)' : ''}>
                   <Input
                     type="number" min="1" value={m.bonusPaise}
                     onChange={e => updateMilestone(i, 'bonusPaise', e.target.value)}
-                    placeholder="e.g. 5000 = ₹50"
+                    placeholder="e.g. 50"
                   />
                 </FormRow>
                 <FormRow label={i === 0 ? 'Label (optional)' : ''}>
