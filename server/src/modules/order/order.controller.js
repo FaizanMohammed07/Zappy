@@ -420,4 +420,19 @@ async function reportWorker(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getQuote, createOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation };
+async function rescheduleOrder(req, res, next) {
+  try {
+    const Order = require('./order.model');
+    const order = await Order.findOne({ _id: req.params.id, userId: req.auth.sub });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (!['searching', 'created'].includes(order.status)) {
+      return res.status(400).json({ error: 'Order can only be rescheduled before a worker is assigned' });
+    }
+    const newTime = new Date(req.body.scheduledAt);
+    order.scheduledAt = newTime;
+    await order.save();
+    res.json({ order });
+  } catch (err) { next(err); }
+}
+
+module.exports = { getQuote, createOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };

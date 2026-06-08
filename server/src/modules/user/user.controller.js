@@ -127,6 +127,83 @@ async function deletePaymentMethod(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function getNotificationPrefs(req, res, next) {
+  try {
+    const user = await User.findById(req.auth.sub).select('notificationPrefs').lean();
+    res.json({ prefs: user?.notificationPrefs || {} });
+  } catch (err) { next(err); }
+}
+
+async function updateNotificationPrefs(req, res, next) {
+  try {
+    const setFields = Object.fromEntries(
+      Object.entries(req.body).map(([k, v]) => [`notificationPrefs.${k}`, v])
+    );
+    const user = await User.findByIdAndUpdate(
+      req.auth.sub,
+      { $set: setFields },
+      { new: true }
+    ).select('notificationPrefs');
+    res.json({ prefs: user.notificationPrefs });
+  } catch (err) { next(err); }
+}
+
+async function getSpending(req, res, next) {
+  try {
+    const Order = require('../order/order.model');
+    const orders = await Order.find({
+      userId: req.auth.sub,
+      status: 'completed',
+      completedAt: { $gte: new Date(Date.now() - 180 * 86400000) },
+    }).select('service pricing completedAt promoCode').lean();
+
+    const byMonth = {};
+    const byService = {};
+    let totalSavingsPaise = 0;
+
+    for (const o of orders) {
+      const d = new Date(o.completedAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const amt = o.pricing?.total || 0;
+      byMonth[key] = (byMonth[key] || 0) + amt;
+      byService[o.service] = (byService[o.service] || 0) + amt;
+      if (o.pricing?.discountPaise) totalSavingsPaise += o.pricing.discountPaise;
+    }
+
+    const monthly = Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, totalRupees]) => ({ month, totalRupees }));
+
+    const topServices = Object.entries(byService)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([service, totalRupees]) => ({ service, totalRupees }));
+
+    res.json({
+      monthly,
+      topServices,
+      totalSavingsPaise,
+      orderCount: orders.length,
+      totalSpentRupees: orders.reduce((s, o) => s + (o.pricing?.total || 0), 0),
+    });
+  } catch (err) { next(err); }
+}
+
+async function deleteAccount(req, res, next) {
+  try {
+    await User.findByIdAndUpdate(req.auth.sub, {
+      $set: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        name: 'Deleted User',
+        email: null,
+        deviceTokens: [],
+      },
+    });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
 async function setDefaultPaymentMethod(req, res, next) {
   try {
     await SavedCard.updateMany({ userId: req.auth.sub }, { $set: { isDefault: false } });
@@ -172,5 +249,7 @@ module.exports = {
   getMe, updateMe,
   getAddresses, addAddress, deleteAddress, editAddress, setDefaultAddress,
   listPaymentMethods, addPaymentMethod, deletePaymentMethod, setDefaultPaymentMethod,
+  getNotificationPrefs, updateNotificationPrefs,
+  getSpending, deleteAccount,
   saveRecentLocation, registerDeviceToken,
 };

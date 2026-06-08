@@ -6,7 +6,7 @@ import {
   ClipboardList, Wallet, Bell, Star, MapPin, HelpCircle,
   LogOut, ChevronRight, ShieldCheck, Home, Briefcase, Plus,
   Trash2, X, Loader2, Scale, HeadphonesIcon, CreditCard,
-  Pencil, Check,
+  Pencil, Check, TrendingUp, Tag, Calendar, Shield,
 } from 'lucide-react';
 import { selectAuth, logout } from '../modules/auth/authSlice';
 import {
@@ -195,6 +195,9 @@ export default function ProfilePage() {
                   <MenuItem Icon={Wallet} label="Wallet" sublabel="Balance & transactions" onClick={() => nav('/wallet')} />
                   <MenuItem Icon={CreditCard} label="Payment Methods" sublabel="Cards, UPI & more" onClick={() => nav('/payments')} />
                   <MenuItem Icon={Bell} label="Notifications" onClick={() => nav('/notifications')} />
+                  <MenuItem Icon={TrendingUp} label="Spending Analytics" sublabel="Monthly & service breakdown" onClick={() => nav('/spending')} />
+                  <MenuItem Icon={Tag} label="Promo Codes" sublabel="Browse all active offers" onClick={() => nav('/promos')} />
+                  <MenuItem Icon={Calendar} label="Scheduled Bookings" sublabel="View & reschedule" onClick={() => nav('/scheduled')} />
                 </MenuSection>
               </motion.div>
 
@@ -399,6 +402,8 @@ export default function ProfilePage() {
                 <MenuSection title="Help">
                   <MenuItem Icon={HeadphonesIcon} label="Help & Support" sublabel="Create a support ticket" onClick={() => nav('/support')} />
                   <MenuItem Icon={Scale} label="Disputes" sublabel="Raise or track an issue" onClick={() => nav('/disputes')} />
+                  <MenuItem Icon={Bell} label="Notification Settings" sublabel="Manage what you receive" onClick={() => nav('/notification-prefs')} />
+                  <MenuItem Icon={Shield} label="Account Security" sublabel="Login history & deletion" onClick={() => nav('/account-security')} />
                 </MenuSection>
               </motion.div>
 

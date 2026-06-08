@@ -964,6 +964,39 @@ export const api = createApi({
       providesTags: ['Referral'],
     }),
 
+    // --- Notification Preferences ---
+    getNotificationPrefs: b.query({
+      query: () => '/users/me/notification-prefs',
+      providesTags: ['Me'],
+    }),
+    updateNotificationPrefs: b.mutation({
+      query: (body) => ({ url: '/users/me/notification-prefs', method: 'PATCH', body }),
+      invalidatesTags: ['Me'],
+    }),
+
+    // --- Spending Analytics ---
+    getSpending: b.query({
+      query: () => '/users/spending',
+      providesTags: ['Me'],
+    }),
+
+    // --- Account Deletion ---
+    deleteAccount: b.mutation({
+      query: () => ({ url: '/users/me', method: 'DELETE' }),
+    }),
+
+    // --- Available Promos ---
+    getAvailablePromos: b.query({
+      query: () => '/promos/available',
+      providesTags: ['Promo'],
+    }),
+
+    // --- Reschedule Order ---
+    rescheduleOrder: b.mutation({
+      query: ({ id, scheduledAt }) => ({ url: `/orders/${id}/reschedule`, method: 'PATCH', body: { scheduledAt } }),
+      invalidatesTags: (r, e, a) => ['Order', { type: 'Order', id: a.id }],
+    }),
+
     // --- Admin: Worker Cancellation Shield Fund ---
     adminShieldSummary: b.query({
       query: () => adminApiPath('/shield/summary'),
@@ -1590,4 +1623,11 @@ export const {
   useAdminUpdateCityMutation,
   useAdminDeleteCityMutation,
   useAdminToggleCityActiveMutation,
+  // Batch 2 user features
+  useGetNotificationPrefsQuery,
+  useUpdateNotificationPrefsMutation,
+  useGetSpendingQuery,
+  useDeleteAccountMutation,
+  useGetAvailablePromosQuery,
+  useRescheduleOrderMutation,
 } = api;

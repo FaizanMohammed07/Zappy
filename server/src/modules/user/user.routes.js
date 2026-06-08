@@ -76,6 +76,26 @@ router.post(
 router.delete('/payment-methods/:methodId', authenticate, requireRole('user'), ctrl.deletePaymentMethod);
 router.patch('/payment-methods/:methodId/default', authenticate, requireRole('user'), ctrl.setDefaultPaymentMethod);
 
+router.get('/me/notification-prefs', authenticate, requireRole('user'), ctrl.getNotificationPrefs);
+router.patch(
+  '/me/notification-prefs',
+  authenticate,
+  requireRole('user'),
+  validate(Joi.object({
+    orderUpdates:  Joi.boolean(),
+    workerArrival: Joi.boolean(),
+    payments:      Joi.boolean(),
+    disputes:      Joi.boolean(),
+    promotions:    Joi.boolean(),
+    marketing:     Joi.boolean(),
+  }).min(1)),
+  ctrl.updateNotificationPrefs
+);
+
+router.get('/spending', authenticate, requireRole('user'), ctrl.getSpending);
+
+router.delete('/me', authenticate, requireRole('user'), ctrl.deleteAccount);
+
 router.post(
   '/recent-location',
   authenticate,
