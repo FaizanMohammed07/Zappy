@@ -118,6 +118,7 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
   const [results,     setResults]     = useState([]);
   const [searching,   setSearching]   = useState(false);
   const [nearbyCount, setNearbyCount] = useState(null);
+  const [mapReady,    setMapReady]    = useState(false);
 
   const mapRef        = useRef(null);
   const stateRef      = useRef({ pendingCenter: null, ready: false, userLocMarker: null });
@@ -170,39 +171,75 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
   useEffect(() => {
     if (view !== 'map') return;
     if (!TOKEN || mapRef.current) return;
-    const container = document.getElementById('zappy-locpick-map');
-    if (!container) return;
 
-    ensureWorkerDotStyles();
-    mapboxgl.accessToken = TOKEN;
+    setMapReady(false);
 
-    const initCenter = stateRef.current.pendingCenter
-      ?? (detectedLoc ? [detectedLoc.lng, detectedLoc.lat] : [77.5946, 12.9716]);
-    const initZoom   = (stateRef.current.pendingCenter || detectedLoc) ? 15 : 11;
+    // Defer init by one frame so the container has real dimensions in the DOM
+    const raf = requestAnimationFrame(() => {
+      const container = document.getElementById('zappy-locpick-map');
+      if (!container || mapRef.current) return;
 
-    const map = new mapboxgl.Map({
-      container,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: initCenter,
-      zoom:   initZoom,
-      attributionControl: false,
-      logoPosition: 'bottom-left',
-    });
-    mapRef.current = map;
+      ensureWorkerDotStyles();
+      mapboxgl.accessToken = TOKEN;
 
-    map.on('load', () => {
-      stateRef.current.ready = true;
-      if (stateRef.current.pendingCenter) {
-        map.flyTo({ center: stateRef.current.pendingCenter, zoom: 16, duration: 900 });
-        stateRef.current.pendingCenter = null;
-      }
-      const loc = detectedLoc;
-      if (loc) {
-        stateRef.current.userLocMarker = new mapboxgl.Marker({ element: makeUserLocationEl(), anchor: 'center' })
-          .setLngLat([loc.lng, loc.lat]).addTo(map);
-        _loadNearbyWorkers(map, loc);
-      }
-    });
+      const initCenter = stateRef.current.pendingCenter
+        ?? (detectedLoc ? [detectedLoc.lng, detectedLoc.lat] : [77.5946, 12.9716]);
+      const initZoom = (stateRef.current.pendingCenter || detectedLoc) ? 15 : 11;
+
+      const map = new mapboxgl.Map({
+        container,
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center: initCenter,
+        zoom: initZoom,
+        attributionControl: false,
+        fadeDuration: 150,
+      });
+      mapRef.current = map;
+
+      // Resize immediately + after a short delay — fixes blank tiles in modals/sheets
+      map.resize();
+      const resizeTimer = setTimeout(() => map.resize(), 150);
+
+      map.on('load', () => {
+        map.resize();
+        setMapReady(true);
+        stateRef.current.ready = true;
+
+        // Vivid accent colours over dark base
+        const tryPaint = (layer, prop, val) => {
+          try { if (map.getLayer(layer)) map.setPaintProperty(layer, prop, val); } catch {}
+        };
+        // Road highlights — indigo/violet glow
+        ['road-primary', 'road-secondary-tertiary', 'road-street'].forEach(l => {
+          tryPaint(l, 'line-color', '#6366f1');
+          tryPaint(l, 'line-opacity', 0.9);
+        });
+        tryPaint('road-motorway-trunk', 'line-color', '#8b5cf6');
+        tryPaint('road-local', 'line-color', '#4f46e5');
+        tryPaint('road-local', 'line-opacity', 0.6);
+        // Water — deep teal
+        tryPaint('water', 'fill-color', '#0c4a6e');
+        // Parks — deep green
+        tryPaint('landuse', 'fill-color', '#14532d');
+        tryPaint('landuse', 'fill-opacity', 0.6);
+        if (stateRef.current.pendingCenter) {
+          map.flyTo({ center: stateRef.current.pendingCenter, zoom: 16, duration: 900 });
+          stateRef.current.pendingCenter = null;
+        }
+        const loc = detectedLoc;
+        if (loc) {
+          stateRef.current.userLocMarker = new mapboxgl.Marker({ element: makeUserLocationEl(), anchor: 'center' })
+            .setLngLat([loc.lng, loc.lat]).addTo(map);
+          _loadNearbyWorkers(map, loc);
+        }
+      });
+
+      // Fallback: if style errors, try light-v11
+      map.on('error', (e) => {
+        if (e.sourceId === undefined && !stateRef.current.ready) {
+          map.setStyle('mapbox://styles/mapbox/light-v11');
+        }
+      });
 
     map.on('movestart', () => { setDrag(true); setGeocoding(false); });
     map.on('moveend', () => {
@@ -244,17 +281,20 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
       }, 420);
     });
 
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
+      clearTimeout(resizeTimer); // closed in cleanup
+    }); // end requestAnimationFrame
 
     return () => {
+      cancelAnimationFrame(raf);
       clearTimeout(revTimer.current);
       workerMarkers.current.forEach((m) => m.remove());
       workerMarkers.current = [];
       stateRef.current.userLocMarker?.remove();
       stateRef.current.userLocMarker = null;
-      map.remove();
-      mapRef.current = null;
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
       stateRef.current.ready = false;
+      setMapReady(false);
     };
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -638,8 +678,39 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
         </div>
       )}
 
-      {/* Map */}
-      <div id="zappy-locpick-map" className="absolute inset-0" />
+      {/* Map container — explicit fill so Mapbox gets real dimensions */}
+      <div id="zappy-locpick-map" className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
+
+      {/* Loading overlay — fades out once tiles are rendered */}
+      <AnimatePresence>
+        {!mapReady && (
+          <motion.div
+            key="map-loading"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3"
+            style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}
+          >
+            <motion.div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
+              style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', boxShadow: '0 0 32px rgba(249,115,22,0.5)' }}
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+            >
+              <MapPin size={24} strokeWidth={2} className="text-white" />
+            </motion.div>
+            <p className="text-sm font-bold text-white/80">Loading map…</p>
+            <div className="flex gap-1.5">
+              {[0, 0.15, 0.3].map((d) => (
+                <motion.div key={d} className="w-1.5 h-1.5 rounded-full bg-orange-400"
+                  animate={{ opacity: [0.3, 1, 0.3], y: [0, -4, 0] }}
+                  transition={{ duration: 0.8, repeat: Infinity, delay: d }} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Premium Center Pin ─────────────────────────────────────── */}
       <div
@@ -650,78 +721,86 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
           transform: 'translateX(-50%) translateY(-100%)',
         }}
       >
-        {/* Pulse ring — visible when stationary and location confirmed */}
+        {/* Pulse ring — vivid orange glow when stationary */}
         {!isDragging && coords && (
-          <motion.div
-            className="absolute rounded-full"
-            style={{ width: 56, height: 56, top: -10, left: '50%', marginLeft: -28, background: 'rgba(37,99,235,0.15)', zIndex: 0 }}
-            animate={{ scale: [1, 1.7], opacity: [0.6, 0] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
-          />
+          <>
+            <motion.div
+              className="absolute rounded-full"
+              style={{ width: 60, height: 60, top: -12, left: '50%', marginLeft: -30, background: 'rgba(249,115,22,0.25)', zIndex: 0 }}
+              animate={{ scale: [1, 1.8], opacity: [0.7, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+            />
+            <motion.div
+              className="absolute rounded-full"
+              style={{ width: 60, height: 60, top: -12, left: '50%', marginLeft: -30, background: 'rgba(249,115,22,0.12)', zIndex: 0 }}
+              animate={{ scale: [1, 2.4], opacity: [0.5, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.4 }}
+            />
+          </>
         )}
 
-        {/* Pin body */}
+        {/* Pin body — vibrant orange, highly visible on dark map */}
         <motion.div
           animate={{ y: isDragging ? -18 : 0, scale: isDragging ? 1.15 : 1 }}
           transition={{ type: 'spring', stiffness: 480, damping: 26 }}
           style={{ position: 'relative', zIndex: 1 }}
         >
-          <svg width="42" height="54" viewBox="0 0 42 54" fill="none">
+          <svg width="44" height="56" viewBox="0 0 44 56" fill="none">
             <defs>
               <filter id="ps" x="-50%" y="-20%" width="200%" height="180%">
-                <feDropShadow dx="0" dy={isDragging ? 8 : 4} stdDeviation={isDragging ? 6 : 3}
-                  floodColor="#1d4ed8" floodOpacity={isDragging ? 0.55 : 0.35} />
+                <feDropShadow dx="0" dy={isDragging ? 10 : 5} stdDeviation={isDragging ? 8 : 4}
+                  floodColor="#c2410c" floodOpacity={isDragging ? 0.7 : 0.45} />
               </filter>
-              <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#3b82f6" />
-                <stop offset="100%" stopColor="#1d4ed8" />
+              <linearGradient id="pg" x1="0" y1="0" x2="0.7" y2="1">
+                <stop offset="0%" stopColor="#fb923c" />
+                <stop offset="100%" stopColor="#ea580c" />
               </linearGradient>
             </defs>
             <path
-              d="M21 0C9.4 0 0 9.4 0 21C0 36.75 21 54 21 54C21 54 42 36.75 42 21C42 9.4 32.6 0 21 0Z"
+              d="M22 0C9.85 0 0 9.85 0 22C0 38.5 22 56 22 56C22 56 44 38.5 44 22C44 9.85 34.15 0 22 0Z"
               fill="url(#pg)" filter="url(#ps)"
             />
             {/* White ring */}
-            <circle cx="21" cy="21" r="10" fill="white" />
+            <circle cx="22" cy="22" r="11" fill="white" />
             {/* Inner dot */}
-            <circle cx="21" cy="21" r="5" fill="#2563EB" />
+            <circle cx="22" cy="22" r="5.5" fill="#ea580c" />
             {/* Gloss highlight */}
-            <ellipse cx="17" cy="16" rx="4" ry="2.5" fill="white" opacity="0.35" transform="rotate(-20 17 16)" />
+            <ellipse cx="17.5" cy="16.5" rx="5" ry="3" fill="white" opacity="0.45" transform="rotate(-20 17.5 16.5)" />
           </svg>
         </motion.div>
 
-        {/* Shadow beneath pin — expands on lift */}
+        {/* Shadow beneath pin */}
         <motion.div
-          animate={{ scaleX: isDragging ? 0.5 : 1, opacity: isDragging ? 0.35 : 0.18 }}
+          animate={{ scaleX: isDragging ? 0.45 : 1, opacity: isDragging ? 0.3 : 0.22 }}
           transition={{ type: 'spring', stiffness: 480, damping: 26 }}
-          className="rounded-full bg-blue-900"
-          style={{ width: 18, height: 5, marginTop: -3, filter: 'blur(3px)' }}
+          className="rounded-full"
+          style={{ width: 20, height: 6, marginTop: -4, background: 'rgba(234,88,12,0.8)', filter: 'blur(4px)' }}
         />
       </div>
 
       {/* ── Top-left: Back button ──────────────────────────────────── */}
       <motion.button
         onClick={() => setView('quick')}
-        className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg px-3.5 py-2.5 ring-1 ring-black/[0.06]"
+        className="absolute top-4 left-4 z-20 flex items-center gap-2 rounded-2xl px-3.5 py-2.5"
         whileTap={{ scale: 0.93 }}
         aria-label="Back"
-        style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}
+        style={{ background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
       >
-        <X size={14} strokeWidth={2.5} className="text-slate-600" />
-        <span className="text-xs font-bold text-slate-700">Back</span>
+        <X size={14} strokeWidth={2.5} className="text-white/90" />
+        <span className="text-xs font-bold text-white/90">Back</span>
       </motion.button>
 
       {/* ── Top-right: GPS recenter ────────────────────────────────── */}
       <motion.button
         onClick={_goToMyLocation}
-        className="absolute top-4 right-4 z-20 w-11 h-11 rounded-2xl flex items-center justify-center ring-1 ring-black/[0.06]"
-        style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}
+        className="absolute top-4 right-4 z-20 w-11 h-11 rounded-2xl flex items-center justify-center"
+        style={{ background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
         whileTap={{ scale: 0.90 }}
         aria-label="My location"
       >
         {geoState === 'loading'
-          ? <Loader2 size={17} strokeWidth={2} className="text-blue-600 animate-spin" />
-          : <Crosshair size={17} strokeWidth={2} className="text-blue-600" />}
+          ? <Loader2 size={17} strokeWidth={2} className="text-orange-400 animate-spin" />
+          : <Crosshair size={17} strokeWidth={2} className="text-orange-400" />}
       </motion.button>
 
       {/* ── Nearby workers badge ───────────────────────────────────── */}
@@ -758,21 +837,25 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
         )}
       </AnimatePresence>
 
-      {/* ── Premium Bottom Sheet ───────────────────────────────────── */}
+      {/* ── Premium Dark Glass Bottom Sheet ───────────────────────── */}
       <div
         className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl overflow-hidden"
         style={{
           height: SHEET_H,
-          background: 'white',
-          boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+          background: 'rgba(10,13,28,0.88)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.55)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderBottom: 'none',
         }}
       >
-        {/* Accent bar at top of sheet */}
-        <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #3b82f6, #6366f1, #8b5cf6)' }} />
+        {/* Vivid accent bar */}
+        <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #f97316, #f59e0b, #f97316)' }} />
 
         {/* Drag handle */}
         <div className="flex justify-center pt-2.5 pb-1">
-          <div className="w-10 h-1 rounded-full bg-slate-200" />
+          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.18)' }} />
         </div>
 
         <div className="px-5 pt-1 pb-3">
@@ -780,10 +863,10 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
           <div className="flex items-center gap-3 mb-3">
             {/* Animated pin icon */}
             <motion.div
-              className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-md"
-              style={{ background: isDragging || geocoding ? 'linear-gradient(135deg, #94a3b8, #64748b)' : 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}
-              animate={!isDragging && !geocoding && coords ? { boxShadow: ['0 0 0 0px rgba(59,130,246,0.4)', '0 0 0 8px rgba(59,130,246,0)', '0 0 0 0px rgba(59,130,246,0)'] } : { boxShadow: 'none' }}
-              transition={{ duration: 2, repeat: Infinity }}
+              className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: isDragging || geocoding ? 'rgba(100,116,139,0.5)' : 'linear-gradient(135deg, #f97316, #ea580c)', boxShadow: isDragging || geocoding ? 'none' : '0 0 16px rgba(249,115,22,0.45)' }}
+              animate={!isDragging && !geocoding && coords ? { boxShadow: ['0 0 12px rgba(249,115,22,0.4)', '0 0 28px rgba(249,115,22,0.7)', '0 0 12px rgba(249,115,22,0.4)'] } : {}}
+              transition={{ duration: 1.8, repeat: Infinity }}
             >
               {geocoding
                 ? <Loader2 size={16} strokeWidth={2.5} className="text-white animate-spin" />
@@ -792,28 +875,28 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
 
             {/* Address text */}
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.15em] mb-0.5">
+              <p className="text-[9px] font-black uppercase tracking-[0.15em] mb-0.5" style={{ color: '#f97316' }}>
                 Service Location
               </p>
               <AnimatePresence mode="wait">
                 {isDragging ? (
                   <motion.p key="drag" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="text-sm font-semibold text-slate-400 italic">
+                    className="text-sm font-semibold italic" style={{ color: 'rgba(255,255,255,0.4)' }}>
                     Move map to pin location…
                   </motion.p>
                 ) : geocoding ? (
                   <motion.p key="geo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="text-sm font-semibold text-slate-400 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse inline-block" />
+                    className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block" />
                     Looking up address…
                   </motion.p>
                 ) : address ? (
                   <motion.div key="addr" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                    <p className="text-[15px] font-black text-[#0F172A] leading-tight truncate">{shortAddress || address.split(',')[0]}</p>
-                    <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">{address}</p>
+                    <p className="text-[15px] font-black leading-tight truncate text-white">{shortAddress || address.split(',')[0]}</p>
+                    <p className="text-[11px] font-medium truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{address}</p>
                   </motion.div>
                 ) : (
-                  <motion.p key="empty" className="text-sm font-medium text-slate-400">
+                  <motion.p key="empty" className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
                     Drag map to pin your location
                   </motion.p>
                 )}
@@ -828,21 +911,22 @@ export default function LocationPicker({ onConfirm, serviceLabel }) {
             className="w-full h-12 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all"
             style={{
               background: coords && address && !geocoding
-                ? 'linear-gradient(135deg, #16a34a, #15803d)'
-                : '#e2e8f0',
-              color: coords && address && !geocoding ? 'white' : '#94a3b8',
-              boxShadow: coords && address && !geocoding ? '0 4px 20px rgba(22,163,74,0.35)' : 'none',
+                ? 'linear-gradient(135deg, #f97316, #ea580c)'
+                : 'rgba(255,255,255,0.07)',
+              color: coords && address && !geocoding ? 'white' : 'rgba(255,255,255,0.25)',
+              boxShadow: coords && address && !geocoding ? '0 4px 24px rgba(249,115,22,0.5)' : 'none',
+              border: coords && address && !geocoding ? 'none' : '1px solid rgba(255,255,255,0.08)',
             }}
             whileTap={coords && address && !geocoding ? { scale: 0.97 } : {}}
             animate={coords && address && !geocoding ? {
-              boxShadow: ['0 4px 20px rgba(22,163,74,0.35)', '0 4px 28px rgba(22,163,74,0.55)', '0 4px 20px rgba(22,163,74,0.35)'],
+              boxShadow: ['0 4px 20px rgba(249,115,22,0.45)', '0 4px 32px rgba(249,115,22,0.75)', '0 4px 20px rgba(249,115,22,0.45)'],
             } : {}}
-            transition={{ duration: 2, repeat: Infinity }}
+            transition={{ duration: 1.8, repeat: Infinity }}
           >
             {geocoding
               ? <><Loader2 size={15} className="animate-spin" /> Detecting address…</>
               : coords && address
-                ? <><Star size={14} strokeWidth={2.5} /> Confirm This Location</>
+                ? <><CheckCircle size={15} strokeWidth={2.5} /> Confirm This Location</>
                 : 'Pin a location to continue'}
           </motion.button>
         </div>
