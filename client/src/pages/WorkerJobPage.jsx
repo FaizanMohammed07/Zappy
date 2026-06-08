@@ -631,6 +631,17 @@ export default function WorkerJobPage() {
     }
   }, [proofPhotos.length, presign]);
 
+  /* ── Idle alert: count seconds since order was assigned ── */
+  useEffect(() => {
+    if (status !== 'assigned' || !order) return;
+    const assignedEntry = order.statusHistory?.slice().reverse().find(h => h.status === 'assigned');
+    const assignedAt    = assignedEntry ? new Date(assignedEntry.at).getTime() : Date.now();
+    const tick = () => setIdleSeconds(Math.floor((Date.now() - assignedAt) / 1000));
+    tick();
+    const t = setInterval(tick, 5000);
+    return () => clearInterval(t);
+  }, [status, order]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Loading / error states ── */
   if (isLoading) {
     return (
@@ -642,17 +653,6 @@ export default function WorkerJobPage() {
       </div>
     );
   }
-
-  /* ── Idle alert: count seconds since order was assigned ── */
-  useEffect(() => {
-    if (status !== 'assigned' || !order) return;
-    const assignedEntry = order.statusHistory?.slice().reverse().find(h => h.status === 'assigned');
-    const assignedAt    = assignedEntry ? new Date(assignedEntry.at).getTime() : Date.now();
-    const tick = () => setIdleSeconds(Math.floor((Date.now() - assignedAt) / 1000));
-    tick();
-    const t = setInterval(tick, 5000);
-    return () => clearInterval(t);
-  }, [status, order]);
 
   if (isError || !order) {
     return (
