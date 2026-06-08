@@ -11,10 +11,14 @@ async function listModules(req, res, next) {
     const worker = await Worker.findById(req.auth.sub).select('certifications skills').lean();
     const earnedIds = new Set((worker?.certifications || []).map(c => c.moduleId));
 
+    const certMap = {};
+    (worker?.certifications || []).forEach(c => { certMap[c.moduleId] = c.score; });
+
     res.json({
       modules: modules.map(m => ({
         ...m,
-        earned: earnedIds.has(String(m._id)),
+        certified: certMap[String(m._id)] !== undefined,
+        certScore: certMap[String(m._id)] ?? null,
       })),
     });
   } catch (err) { next(err); }
@@ -35,45 +39,58 @@ async function submitQuiz(req, res, next) {
     const mod = await TrainingModule.findById(req.params.id).lean();
     if (!mod || !mod.isActive) return res.status(404).json({ error: 'Module not found' });
 
-    const worker = await Worker.findById(req.auth.sub).select('certifications skills wallet').lean();
-    const alreadyEarned = (worker?.certifications || []).some(c => c.moduleId === String(mod._id));
-    if (alreadyEarned) return res.status(409).json({ error: 'Already completed this module' });
-
-    const { answers } = req.body; // [0, 2, 1, 3, ...]
-    if (!Array.isArray(answers) || answers.length !== mod.quiz.length) {
+    const { answers } = req.body;
+    if (!Array.isArray(answers) || answers.length !== (mod.quiz || []).length) {
       return res.status(400).json({ error: 'Answer count does not match quiz questions' });
+    }
+    if (mod.quiz.length === 0) {
+      return res.status(400).json({ error: 'This module has no quiz questions yet' });
     }
 
     const correct = answers.filter((a, i) => a === mod.quiz[i].correct).length;
-    const score = mod.quiz.length > 0 ? Math.round((correct / mod.quiz.length) * 100) : 100;
+    const score = Math.round((correct / mod.quiz.length) * 100);
     const passed = score >= mod.passingScore;
 
     if (!passed) {
-      return res.status(400).json({ error: `Score ${score}% — need ${mod.passingScore}% to pass`, score, passed: false });
+      return res.json({ passed: false, score, passingScore: mod.passingScore,
+        message: `You scored ${score}%. You need ${mod.passingScore}% to pass. Review the material and try again.` });
     }
 
-    // Award certification + unlock service + bonus
-    const updates = {
-      $push: {
-        certifications: { moduleId: String(mod._id), moduleName: mod.title, score, earnedAt: new Date() },
-      },
-    };
-    if (mod.unlockService) {
-      updates.$addToSet = { skills: mod.unlockService };
-    }
-    if (mod.bonusRupees > 0) {
-      updates.$inc = { 'wallet.balance': mod.bonusRupees * 100, 'wallet.totalEarnings': mod.bonusRupees * 100 };
+    const worker = await Worker.findById(req.auth.sub).select('certifications skills wallet').lean();
+    const existing = (worker?.certifications || []).find(c => c.moduleId === String(mod._id));
+    const isFirstTime = !existing;
+    const improvedScore = existing && score > existing.score;
+
+    const updates = {};
+
+    if (isFirstTime) {
+      updates.$push = { certifications: { moduleId: String(mod._id), moduleName: mod.title, score, earnedAt: new Date() } };
+      if (mod.unlockService) updates.$addToSet = { skills: mod.unlockService };
+      // Only credit bonus on first pass
+      if (mod.bonusRupees > 0) {
+        updates.$inc = { 'wallet.balance': mod.bonusRupees * 100, 'wallet.totalEarnings': mod.bonusRupees * 100 };
+      }
+    } else if (improvedScore) {
+      // Update score but don't re-credit bonus
+      updates.$set = { 'certifications.$[elem].score': score };
     }
 
-    await Worker.updateOne({ _id: req.auth.sub }, updates);
+    if (Object.keys(updates).length > 0) {
+      const opts = improvedScore ? { arrayFilters: [{ 'elem.moduleId': String(mod._id) }] } : {};
+      await Worker.updateOne({ _id: req.auth.sub }, updates, opts);
+    }
 
     res.json({
       passed: true,
       score,
-      bonusRupees: mod.bonusRupees,
-      xpReward: mod.xpReward,
-      unlockedService: mod.unlockService,
-      message: `Congratulations! You scored ${score}% and earned your ${mod.title} certification.`,
+      bonusAdded: isFirstTime ? (mod.bonusRupees || 0) * 100 : 0,
+      bonusRupees: isFirstTime ? mod.bonusRupees : 0,
+      xpReward: isFirstTime ? mod.xpReward : 0,
+      unlockedService: isFirstTime ? mod.unlockService : null,
+      alreadyCertified: !isFirstTime,
+      message: isFirstTime
+        ? `Congratulations! You scored ${score}% and earned your ${mod.title} certification.`
+        : `You scored ${score}%.${improvedScore ? ' Your best score has been updated.' : ''}`,
     });
   } catch (err) { next(err); }
 }

@@ -446,9 +446,27 @@ async function getBankAccounts(req, res, next) {
 async function addBankAccount(req, res, next) {
   try {
     const { label, accountName, accountNumber, bankName, ifsc, type, upiId, upiLabel } = req.body;
+    const worker = await Worker.findById(req.auth.sub).select('savedBankAccounts savedUpiIds').lean();
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+    const MAX_ACCOUNTS = 5;
     if (type === 'upi') {
+      if ((worker.savedUpiIds || []).length >= MAX_ACCOUNTS) {
+        return res.status(400).json({ error: `Maximum ${MAX_ACCOUNTS} UPI IDs allowed. Delete one first.` });
+      }
+      // Prevent duplicate UPI IDs
+      const exists = (worker.savedUpiIds || []).some(u => u.upiId === upiId);
+      if (exists) return res.status(409).json({ error: 'This UPI ID is already saved' });
+
       await Worker.updateOne({ _id: req.auth.sub }, { $push: { savedUpiIds: { upiId, label: upiLabel || upiId, isDefault: false } } });
     } else {
+      if ((worker.savedBankAccounts || []).length >= MAX_ACCOUNTS) {
+        return res.status(400).json({ error: `Maximum ${MAX_ACCOUNTS} bank accounts allowed. Delete one first.` });
+      }
+      // Prevent duplicate account numbers
+      const exists = (worker.savedBankAccounts || []).some(b => b.accountNumber === accountNumber && b.ifsc === ifsc);
+      if (exists) return res.status(409).json({ error: 'This bank account is already saved' });
+
       await Worker.updateOne({ _id: req.auth.sub }, { $push: { savedBankAccounts: { label, accountName, accountNumber, bankName, ifsc, isDefault: false } } });
     }
     const w = await Worker.findById(req.auth.sub).select('savedBankAccounts savedUpiIds').lean();
@@ -553,40 +571,94 @@ async function getZoneBenchmark(req, res, next) {
 
 /* ── Per-Job Earnings Breakdown ──────────────────────────────────────────── */
 
+const SERVICE_LABELS = {
+  electrical: 'Electrical', plumbing: 'Plumbing', ac_repair: 'AC Repair',
+  carpenter: 'Carpentry', helper: 'Helper', cleaning: 'Cleaning',
+  painting: 'Painting', delivery: 'Delivery', laundry: 'Laundry',
+  beauty: 'Beauty & Grooming', gardening: 'Gardening', appliance: 'Appliance Repair',
+  screen_replacement: 'Screen Replacement', battery_replacement: 'Battery Replacement',
+  charging_issue: 'Charging Issue', speaker_mic_issue: 'Speaker/Mic Repair',
+  software_issue: 'Software Issue', water_damage_check: 'Water Damage',
+  mason: 'Mason', puncture: 'Puncture Repair', battery_jump_start: 'Battery Jump Start',
+  fuel_delivery: 'Fuel Delivery', bike_wash: 'Bike Wash', car_wash: 'Car Wash',
+  minor_roadside_repair: 'Roadside Repair',
+};
+function toLabel(slug) {
+  return SERVICE_LABELS[slug] || (slug || 'Service').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 async function getJobEarnings(req, res, next) {
   try {
     const Order = require('../order/order.model');
     const page = Number(req.query.page) || 1;
-    const limit = 20;
-    const orders = await Order.find({ workerId: req.auth.sub, status: 'completed' })
-      .sort({ completedAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .select('service pricing earnings completedAt createdAt promoCode surgeMultiplier tip')
-      .lean();
+    const limit = 25;
+    const { period } = req.query; // week | month | 3months
+
+    const now = new Date();
+    let since = null;
+    if (period === 'week') { since = new Date(now); since.setDate(now.getDate() - 7); }
+    else if (period === 'month') { since = new Date(now); since.setMonth(now.getMonth() - 1); }
+    else if (period === '3months') { since = new Date(now); since.setMonth(now.getMonth() - 3); }
+
+    const matchQuery = { workerId: req.auth.sub, status: 'completed' };
+    if (since) matchQuery.completedAt = { $gte: since };
+
+    const [orders, total, agg] = await Promise.all([
+      Order.find(matchQuery)
+        .sort({ completedAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .select('service pricing earnings completedAt orderId surgeMultiplier tip')
+        .lean(),
+      Order.countDocuments(matchQuery),
+      Order.aggregate([
+        { $match: matchQuery },
+        { $group: {
+          _id: null,
+          totalNet: { $sum: '$earnings.workerPaise' },
+          totalTips: { $sum: '$tip' },
+          totalBonus: { $sum: '$earnings.bonusPaise' },
+          count: { $sum: 1 },
+          surgeCount: { $sum: { $cond: [{ $gt: ['$surgeMultiplier', 1] }, 1, 0] } },
+        }},
+      ]),
+    ]);
 
     const jobs = orders.map(o => {
-      const gross = o.pricing?.total || 0;
-      const workerNet = Math.round((o.earnings?.workerPaise || gross * 80) / 100);
-      const platform = Math.round((o.earnings?.platformPaise || gross * 20) / 100);
-      const bonus = Math.round((o.earnings?.bonusPaise || 0) / 100);
-      const tip = Math.round((o.tip || 0));
+      const grossPaise = (o.pricing?.total || 0) * 100;
+      const workerPaise = o.earnings?.workerPaise || Math.round(grossPaise * 0.8);
+      const platformPaise = o.earnings?.platformPaise || Math.round(grossPaise * 0.2);
+      const bonusPaise = o.earnings?.bonusPaise || 0;
+      const tipPaise = o.tip || 0;
       return {
         _id: o._id,
+        orderId: o.orderId || String(o._id).slice(-8).toUpperCase(),
         service: o.service,
+        serviceLabel: toLabel(o.service),
         completedAt: o.completedAt,
-        grossRupees: gross,
-        platformFeeRupees: platform,
-        netRupees: workerNet + bonus + tip,
-        bonusRupees: bonus,
-        tipRupees: tip,
+        gross: grossPaise,
+        platformFee: platformPaise,
+        net: workerPaise + bonusPaise + tipPaise,
+        bonus: bonusPaise,
+        tip: tipPaise,
         surgeMultiplier: o.surgeMultiplier || 1,
-        commissionPct: gross > 0 ? Math.round((platform / gross) * 100) : 20,
+        commissionPct: grossPaise > 0 ? Math.round((platformPaise / grossPaise) * 100) : 20,
       };
     });
 
-    const total = await Order.countDocuments({ workerId: req.auth.sub, status: 'completed' });
-    res.json({ jobs, total, page, totalPages: Math.ceil(total / limit) });
+    const s = agg[0] || {};
+    res.json({
+      jobs,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      summary: {
+        totalNet: (s.totalNet || 0) + (s.totalTips || 0) + (s.totalBonus || 0),
+        totalTips: s.totalTips || 0,
+        count: s.count || 0,
+        surgeCount: s.surgeCount || 0,
+      },
+    });
   } catch (err) { next(err); }
 }
 
@@ -603,15 +675,34 @@ async function updateSkills(req, res, next) {
 
 async function getGoals(req, res, next) {
   try {
-    const worker = await Worker.findById(req.auth.sub).select('goals earningsToday earningsThisWeek').lean();
+    const Order = require('../order/order.model');
+    const worker = await Worker.findById(req.auth.sub).select('goals').lean();
     if (!worker) return res.status(404).json({ error: 'Not found' });
+
+    const now = new Date();
+    const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0, 0, 0, 0);
+
+    const [dailyAgg, weeklyAgg] = await Promise.all([
+      Order.aggregate([
+        { $match: { workerId: require('mongoose').Types.ObjectId.createFromHexString(req.auth.sub), status: 'completed', completedAt: { $gte: startOfDay } } },
+        { $group: { _id: null, totalPaise: { $sum: { $add: ['$earnings.workerPaise', '$tip', '$earnings.bonusPaise'] } } } },
+      ]),
+      Order.aggregate([
+        { $match: { workerId: require('mongoose').Types.ObjectId.createFromHexString(req.auth.sub), status: 'completed', completedAt: { $gte: startOfWeek } } },
+        { $group: { _id: null, totalPaise: { $sum: { $add: ['$earnings.workerPaise', '$tip', '$earnings.bonusPaise'] } } } },
+      ]),
+    ]);
+
+    const dailyEarned = dailyAgg[0]?.totalPaise ?? 0;
+    const weeklyEarned = weeklyAgg[0]?.totalPaise ?? 0;
+
     const goals = (worker.goals ?? []).map(g => ({
       ...g,
-      earnedPaise: g.period === 'daily'
-        ? Math.round((worker.earningsToday ?? 0) * 100)
-        : Math.round((worker.earningsThisWeek ?? 0) * 100),
+      earnedPaise: g.period === 'daily' ? dailyEarned : weeklyEarned,
     }));
-    res.json({ goals });
+    res.json({ goals, dailyEarned, weeklyEarned });
   } catch (err) { next(err); }
 }
 
