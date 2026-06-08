@@ -29,7 +29,7 @@ export const SERVICE_FILTER_OPTIONS = ['all', ...SERVICE_SLUGS];
 /** Emoji shown on nearby-worker map markers when that service is active */
 export const SERVICE_WORKER_EMOJI = {
   // Vehicle
-  puncture:              '🛞',
+  puncture:              '🚲',
   bike_wash:             '🚲',
   car_wash:              '🚗',
   battery_jump_start:    '🔋',

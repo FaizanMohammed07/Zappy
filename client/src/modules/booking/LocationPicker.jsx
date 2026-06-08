@@ -16,7 +16,7 @@ import { useGeolocation } from '../../hooks/useGeolocation';
 import { SERVICE_WORKER_EMOJI, SERVICE_COLORS } from '../../constants/services';
 
 const TOKEN    = import.meta.env.VITE_MAPBOX_TOKEN;
-const SHEET_H  = 230;
+const SHEET_H  = 140;
 
 const ACCURACY_GOOD_M = 50;
 const ACCURACY_WARN_M = 150;
@@ -52,53 +52,181 @@ function ensureLocPickStyles() {
       0%   { transform:scale(1);   opacity:.6; }
       100% { transform:scale(3.5); opacity:0;  }
     }
+    @keyframes zlp-wheel-spin {
+      from { transform:rotate(0deg); }
+      to   { transform:rotate(360deg); }
+    }
+    @keyframes zlp-bike-bounce {
+      0%,100% { transform:translateY(0px)   rotate(-1.5deg); }
+      30%      { transform:translateY(-5px)  rotate(1.5deg);  }
+      60%      { transform:translateY(-2px)  rotate(2deg);    }
+      80%      { transform:translateY(-6px)  rotate(-1deg);   }
+    }
+    @keyframes zlp-speed-line {
+      0%   { transform:scaleX(1)   translateX(0);   opacity:.85; }
+      60%  { transform:scaleX(0.4) translateX(6px); opacity:.3;  }
+      100% { transform:scaleX(0)   translateX(10px);opacity:0;   }
+    }
+    @keyframes zlp-worker-shadow {
+      0%,100% { transform:scaleX(1);   opacity:0.4; }
+      50%      { transform:scaleX(0.6); opacity:0.2; }
+    }
+    @keyframes zlp-neon-pulse {
+      0%,100% { opacity:.7; }
+      50%      { opacity:1;  }
+    }
   `;
   document.head.appendChild(s);
 }
 
-function makeWorkerDot(emoji = '👷', accentColor = '#22c55e') {
+const VEHICLE_SERVICES = new Set([
+  'puncture','bike_wash','car_wash','battery_jump_start','fuel_delivery','minor_roadside_repair',
+]);
+
+function makeWorkerDot(emoji = '👷', accentColor = '#22c55e', serviceSlug = '', animDelay = '0s') {
   ensureLocPickStyles();
+  const isVehicle = VEHICLE_SERVICES.has(serviceSlug);
+  const c = accentColor;
+  const dur = isVehicle ? '1.1s' : '1.8s';
+
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;cursor:default;user-select:none;';
-
-  const badge = document.createElement('div');
-  badge.style.cssText = `
-    display:flex;align-items:center;gap:3px;
-    background:rgba(10,13,28,0.9);
-    border:1.5px solid ${accentColor}66;
-    border-radius:20px;
-    padding:3px 7px 3px 5px;
-    box-shadow:0 3px 14px rgba(0,0,0,0.55),0 0 0 1px rgba(255,255,255,0.05);
-    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  wrap.style.cssText = `
+    position:relative;display:flex;flex-direction:column;align-items:center;
+    cursor:default;user-select:none;
+    animation:zlp-bike-bounce ${dur} ease-in-out infinite;
+    animation-delay:${animDelay};
+    transform-origin:center bottom;
   `;
 
-  const emojiSpan = document.createElement('span');
-  emojiSpan.style.cssText = 'font-size:13px;line-height:1;display:block;';
-  emojiSpan.textContent = emoji;
+  if (isVehicle) {
+    // ── SVG Bike with spinning wheels ─────────────────────────────
+    const r = 10; // wheel radius
+    const bikeW = 56, bikeH = 34;
+    const wheelSpeedDur = isVehicle ? '0.55s' : '1.2s';
+    const svgNs = 'http://www.w3.org/2000/svg';
 
-  const dot = document.createElement('span');
-  dot.style.cssText = `
-    width:6px;height:6px;border-radius:50%;
-    background:${accentColor};box-shadow:0 0 6px ${accentColor};
-    display:block;flex-shrink:0;
-    animation:zlp-worker-pulse 2s ease-out infinite;
+    // Speed lines container (left of bike)
+    const lines = document.createElement('div');
+    lines.style.cssText = `
+      position:absolute;left:-18px;top:50%;transform:translateY(-50%);
+      display:flex;flex-direction:column;gap:3px;
+    `;
+    [1, 0.7, 0.45].forEach((op, i) => {
+      const ln = document.createElement('div');
+      ln.style.cssText = `
+        width:${12 - i * 3}px;height:2px;border-radius:2px;
+        background:${c};opacity:${op};
+        animation:zlp-speed-line ${0.5 + i * 0.12}s ease-out infinite;
+        animation-delay:${(i * 0.15 + parseFloat(animDelay))}s;
+      `;
+      lines.appendChild(ln);
+    });
+    wrap.appendChild(lines);
+
+    // SVG bike
+    const svg = document.createElementNS(svgNs, 'svg');
+    svg.setAttribute('width', bikeW);
+    svg.setAttribute('height', bikeH);
+    svg.setAttribute('viewBox', `0 0 ${bikeW} ${bikeH}`);
+    svg.style.cssText = `display:block;filter:drop-shadow(0 0 6px ${c}cc) drop-shadow(0 2px 8px rgba(0,0,0,0.8));`;
+
+    const mk = (tag, attrs) => {
+      const el = document.createElementNS(svgNs, tag);
+      Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+      return el;
+    };
+
+    // Wheel centres
+    const lx = 11, rx = bikeW - 11, wy = bikeH - r - 1;
+
+    // Defs for spinning wheel groups
+    const defs = mk('defs', {});
+
+    // Left wheel group (spinning)
+    const gL = mk('g', { style: `transform-origin:${lx}px ${wy}px;animation:zlp-wheel-spin ${wheelSpeedDur} linear infinite;animation-delay:${animDelay};` });
+    gL.appendChild(mk('circle', { cx: lx, cy: wy, r, stroke: c, 'stroke-width': '2.2', fill: 'none' }));
+    // spokes
+    [0,60,120].forEach(a => {
+      const rad = a * Math.PI / 180;
+      gL.appendChild(mk('line', {
+        x1: lx, y1: wy,
+        x2: lx + r * 0.85 * Math.cos(rad), y2: wy + r * 0.85 * Math.sin(rad),
+        stroke: c, 'stroke-width': '1', opacity: '0.6',
+      }));
+    });
+    gL.appendChild(mk('circle', { cx: lx, cy: wy, r: '2', fill: c }));
+
+    // Right wheel group (spinning)
+    const gR = mk('g', { style: `transform-origin:${rx}px ${wy}px;animation:zlp-wheel-spin ${wheelSpeedDur} linear infinite;animation-delay:${animDelay};` });
+    gR.appendChild(mk('circle', { cx: rx, cy: wy, r, stroke: c, 'stroke-width': '2.2', fill: 'none' }));
+    [0,60,120].forEach(a => {
+      const rad = a * Math.PI / 180;
+      gR.appendChild(mk('line', {
+        x1: rx, y1: wy,
+        x2: rx + r * 0.85 * Math.cos(rad), y2: wy + r * 0.85 * Math.sin(rad),
+        stroke: c, 'stroke-width': '1', opacity: '0.6',
+      }));
+    });
+    gR.appendChild(mk('circle', { cx: rx, cy: wy, r: '2', fill: c }));
+
+    // Frame: seat-stay (seat→rear axle), chain-stay (BB→rear), down-tube, top-tube, fork
+    const BB = { x: lx + 16, y: wy - 2 };  // bottom bracket
+    const HT = { x: rx - 6,  y: 5 };        // head tube top
+    const ST = { x: lx + 12, y: 6 };        // seat top
+
+    const frameLines = [
+      [BB.x, BB.y, lx, wy],          // chain-stay L
+      [BB.x, BB.y, rx, wy],          // chain-stay R (drive side)
+      [BB.x, BB.y, ST.x, ST.y],      // seat tube
+      [ST.x, ST.y, HT.x, HT.y],     // top tube
+      [BB.x, BB.y, HT.x + 2, HT.y + 8], // down tube
+      [rx, wy, HT.x + 2, HT.y + 8], // fork
+      [ST.x, ST.y, ST.x - 6, ST.y - 3], // saddle
+    ];
+    frameLines.forEach(([x1,y1,x2,y2]) => {
+      svg.appendChild(mk('line', { x1, y1, x2, y2, stroke: c, 'stroke-width': '2', 'stroke-linecap': 'round' }));
+    });
+
+    // Rider silhouette (simple: torso + helmet)
+    svg.appendChild(mk('line', { x1: ST.x, y1: ST.y - 1, x2: HT.x - 2, y2: HT.y + 4, stroke: '#fff', 'stroke-width': '2.2', 'stroke-linecap': 'round', opacity: '0.85' }));
+    svg.appendChild(mk('circle', { cx: HT.x - 3, cy: HT.y + 1, r: '4.5', fill: '#fff', opacity: '0.85' }));
+
+    svg.appendChild(defs);
+    svg.appendChild(gL);
+    svg.appendChild(gR);
+    wrap.appendChild(svg);
+
+    // Neon glow ring under wheels
+    const glow = document.createElement('div');
+    glow.style.cssText = `
+      width:${bikeW}px;height:6px;border-radius:50%;margin-top:-2px;
+      background:radial-gradient(ellipse at center, ${c}88 0%, transparent 70%);
+      animation:zlp-neon-pulse 1.1s ease-in-out infinite;
+      animation-delay:${animDelay};
+    `;
+    wrap.appendChild(glow);
+
+  } else {
+    // Non-vehicle services: large emoji with glow
+    const emojiSpan = document.createElement('span');
+    emojiSpan.style.cssText = `
+      font-size:28px;line-height:1;display:block;
+      filter:drop-shadow(0 2px 6px rgba(0,0,0,0.8)) drop-shadow(0 0 10px ${c}99);
+    `;
+    emojiSpan.textContent = emoji;
+    wrap.appendChild(emojiSpan);
+  }
+
+  // Ground shadow
+  const shadow = document.createElement('div');
+  shadow.style.cssText = `
+    width:28px;height:5px;border-radius:50%;
+    background:rgba(0,0,0,0.5);filter:blur(3px);
+    margin-top:1px;
+    animation:zlp-worker-shadow ${dur} ease-in-out infinite;
+    animation-delay:${animDelay};
   `;
-
-  badge.appendChild(emojiSpan);
-  badge.appendChild(dot);
-
-  // Callout triangle pointing down
-  const tip = document.createElement('div');
-  tip.style.cssText = `
-    width:0;height:0;
-    border-left:5px solid transparent;
-    border-right:5px solid transparent;
-    border-top:5px solid rgba(10,13,28,0.9);
-    margin-top:-1px;
-  `;
-
-  wrap.appendChild(badge);
-  wrap.appendChild(tip);
+  wrap.appendChild(shadow);
   return wrap;
 }
 
@@ -150,8 +278,9 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
 
   const mapRef        = useRef(null);
   const stateRef      = useRef({ pendingCenter: null, ready: false, userLocMarker: null });
-  const workerMarkers = useRef([]);
+  const workerMarkers = useRef([]);   // { marker, baseLng, baseLat }[]
   const revTimer      = useRef(null);
+  const moveTimer     = useRef(null);
 
   const { data: addrData }  = useGetAddressesQuery();
   const [saveRecent]         = useSaveRecentLocationMutation();
@@ -316,7 +445,8 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(revTimer.current);
-      workerMarkers.current.forEach((m) => m.remove());
+      clearInterval(moveTimer.current);
+      workerMarkers.current.forEach((w) => w.marker?.remove?.() || w.remove?.());
       workerMarkers.current = [];
       stateRef.current.userLocMarker?.remove();
       stateRef.current.userLocMarker = null;
@@ -329,18 +459,37 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
   async function _loadNearbyWorkers(map, loc) {
     const workerEmoji = SERVICE_WORKER_EMOJI[service] ?? '👷';
     const workerColor = SERVICE_COLORS[service]       ?? '#22c55e';
+    const serviceSlug = service ?? '';
+
+    // Clear previous markers + movement interval
+    clearInterval(moveTimer.current);
+    workerMarkers.current.forEach((w) => w.marker.remove());
+    workerMarkers.current = [];
+
     try {
       const res = await fetchNearby({ lat: loc.lat, lng: loc.lng }).unwrap();
       const workers = res?.workers || [];
       setNearbyCount(workers.length);
-      workerMarkers.current.forEach((m) => m.remove());
-      workerMarkers.current = [];
-      workers.forEach((w) => {
-        const marker = new mapboxgl.Marker({ element: makeWorkerDot(workerEmoji, workerColor), anchor: 'bottom' })
+
+      workers.forEach((w, i) => {
+        const delay = `${(i * 0.22).toFixed(2)}s`;
+        const el = makeWorkerDot(workerEmoji, workerColor, serviceSlug, delay);
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
           .setLngLat([w.lng, w.lat])
           .addTo(map);
-        workerMarkers.current.push(marker);
+        workerMarkers.current.push({ marker, baseLng: w.lng, baseLat: w.lat });
       });
+
+      // Simulate real-time movement — drift each worker ±~25m every 2.5s
+      moveTimer.current = setInterval(() => {
+        workerMarkers.current.forEach(({ marker, baseLng, baseLat }) => {
+          const jitter = 0.00025; // ~25m
+          const newLng = baseLng + (Math.random() - 0.5) * jitter;
+          const newLat = baseLat + (Math.random() - 0.5) * jitter;
+          marker.setLngLat([newLng, newLat]);
+        });
+      }, 2500);
+
     } catch { /* non-critical */ }
   }
 
@@ -869,7 +1018,7 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
 
       {/* ── Premium Dark Glass Bottom Sheet ───────────────────────── */}
       <div
-        className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl overflow-hidden"
+        className="absolute bottom-0 md:bottom-6 left-1/2 -translate-x-1/2 w-full max-w-lg z-20 rounded-t-3xl md:rounded-3xl overflow-hidden"
         style={{
           height: SHEET_H,
           background: 'rgba(10,13,28,0.88)',
@@ -938,7 +1087,7 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
           <motion.button
             onClick={confirmLocation}
             disabled={!coords || !address || geocoding}
-            className="w-full h-11 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all"
+            className="w-full h-10 rounded-xl font-black text-[13px] flex items-center justify-center gap-2 transition-all"
             style={{
               background: coords && address && !geocoding
                 ? 'linear-gradient(135deg, #f97316, #ea580c)'
