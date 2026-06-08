@@ -92,7 +92,7 @@ export const api = createApi({
   // Disable refetch-on-focus — dashboard fires 6-8 queries; tab switching floods the limiter
   refetchOnFocus: false,
   refetchOnReconnect: true,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -1107,6 +1107,90 @@ export const api = createApi({
       query: ({ id, block }) => ({ url: adminApiPath(`/events/partners/${id}/block`), method: 'POST', body: { block } }),
       invalidatesTags: ['EventPartner'],
     }),
+
+    // --- Admin: Fraud Detection ---
+    adminFraudSummary: b.query({
+      query: () => adminApiPath('/fraud/summary'),
+      providesTags: ['Fraud'],
+    }),
+    adminFraudEvents: b.query({
+      query: ({ status, severity, type, page = 1, limit = 50 } = {}) => ({
+        url: adminApiPath('/fraud/events'),
+        params: { ...(status && { status }), ...(severity && { severity }), ...(type && { type }), page, limit },
+      }),
+      providesTags: ['Fraud'],
+    }),
+    adminFraudActorEvents: b.query({
+      query: ({ actorKind, actorId }) => adminApiPath(`/fraud/events/${actorKind}/${actorId}`),
+    }),
+    adminResolveFraudEvent: b.mutation({
+      query: ({ id, status, adminNote }) => ({
+        url: adminApiPath(`/fraud/events/${id}`),
+        method: 'PATCH',
+        body: { status, ...(adminNote != null && { adminNote }) },
+      }),
+      invalidatesTags: ['Fraud', 'Worker', 'AdminUsers'],
+    }),
+
+    // --- Admin: Zones / Geofences ---
+    adminZones: b.query({
+      query: () => adminApiPath('/zones'),
+      providesTags: ['Zone'],
+    }),
+    adminCreateZone: b.mutation({
+      query: (body) => ({ url: adminApiPath('/zones'), method: 'POST', body }),
+      invalidatesTags: ['Zone'],
+    }),
+    adminUpdateZone: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/zones/${id}`), method: 'PUT', body }),
+      invalidatesTags: ['Zone'],
+    }),
+    adminDeleteZone: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/zones/${id}`), method: 'DELETE' }),
+      invalidatesTags: ['Zone'],
+    }),
+    adminZoneStats: b.query({
+      query: (id) => adminApiPath(`/zones/${id}/stats`),
+    }),
+
+    // --- Admin: Order Intervention ---
+    adminOrderNearbyWorkers: b.query({
+      query: (id) => adminApiPath(`/orders/${id}/nearby-workers`),
+    }),
+    adminReassignOrder: b.mutation({
+      query: ({ id, workerId }) => ({ url: adminApiPath(`/orders/${id}/reassign`), method: 'POST', body: { workerId } }),
+      invalidatesTags: ['Order'],
+    }),
+    adminForceOrderStatus: b.mutation({
+      query: ({ id, status, reason }) => ({ url: adminApiPath(`/orders/${id}/force-status`), method: 'POST', body: { status, reason } }),
+      invalidatesTags: ['Order'],
+    }),
+    adminForceCancelOrder: b.mutation({
+      query: ({ id, reason, refundFull }) => ({ url: adminApiPath(`/orders/${id}/force-cancel`), method: 'POST', body: { reason, refundFull } }),
+      invalidatesTags: ['Order'],
+    }),
+    adminAddOrderNote: b.mutation({
+      query: ({ id, note }) => ({ url: adminApiPath(`/orders/${id}/note`), method: 'POST', body: { note } }),
+      invalidatesTags: ['Order'],
+    }),
+
+    // --- Admin: Worker Earnings Drill-down ---
+    adminWorkerEarnings: b.query({
+      query: ({ id, period, from, to }) => ({
+        url: adminApiPath(`/workers/${id}/earnings`),
+        params: { ...(period && { period }), ...(from && { from }), ...(to && { to }) },
+      }),
+      providesTags: (r, e, a) => [{ type: 'Earnings', id: a?.id }],
+    }),
+    adminWorkerTimeline: b.query({
+      query: (id) => adminApiPath(`/workers/${id}/timeline`),
+    }),
+    adminWorkerDeductions: b.query({
+      query: (id) => adminApiPath(`/workers/${id}/deductions`),
+    }),
+    adminWorkerIncentives: b.query({
+      query: (id) => adminApiPath(`/workers/${id}/incentives`),
+    }),
   }),
 });
 
@@ -1384,4 +1468,26 @@ export const {
   useAdminApproveEventPartnerKycMutation,
   useAdminRejectEventPartnerKycMutation,
   useAdminBlockEventPartnerMutation,
+  // Fraud Detection
+  useAdminFraudSummaryQuery,
+  useAdminFraudEventsQuery,
+  useAdminFraudActorEventsQuery,
+  useAdminResolveFraudEventMutation,
+  // Zones
+  useAdminZonesQuery,
+  useAdminCreateZoneMutation,
+  useAdminUpdateZoneMutation,
+  useAdminDeleteZoneMutation,
+  useAdminZoneStatsQuery,
+  // Order Intervention
+  useAdminOrderNearbyWorkersQuery,
+  useAdminReassignOrderMutation,
+  useAdminForceOrderStatusMutation,
+  useAdminForceCancelOrderMutation,
+  useAdminAddOrderNoteMutation,
+  // Worker Earnings
+  useAdminWorkerEarningsQuery,
+  useAdminWorkerTimelineQuery,
+  useAdminWorkerDeductionsQuery,
+  useAdminWorkerIncentivesQuery,
 } = api;

@@ -6,6 +6,8 @@ import {
   useAdminWorkersQuery, useAdminBlockWorkerMutation,
   useAdminWorkerPenaltiesQuery, useAdminKycDocUrlsQuery,
   useAdminDeleteWorkerMutation,
+  useAdminWorkerEarningsQuery, useAdminWorkerTimelineQuery,
+  useAdminWorkerDeductionsQuery, useAdminWorkerIncentivesQuery,
 } from '../../services/api';
 
 /* ─── Permanent doc hook — server-proxied, no URL expiry ─────────────────── */
@@ -212,6 +214,138 @@ function KycDocViewer({ workerId, onClose }) {
   );
 }
 
+/* ─── Earnings tab ───────────────────────────────────────────────────────── */
+const REASON_LABEL = {
+  cancellation_fee: 'Cancellation Fee',
+  platform_commission: 'Commission',
+  admin_adjustment_debit: 'Adjustment',
+  referral_reward: 'Referral',
+  admin_adjustment_credit: 'Bonus',
+  shield_payout: 'Shield Fund',
+};
+
+function EarningsSummaryCard({ label, value, color = 'text-slate-900' }) {
+  return (
+    <div className="bg-slate-50 rounded-xl p-3 text-center">
+      <p className={`text-base font-extrabold tabular-nums ${color}`}>{value}</p>
+      <p className="text-[11px] text-slate-400 mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+function WorkerEarningsTab({ workerId }) {
+  const [period, setPeriod] = useState('monthly');
+  const { data: earn, isLoading: earnLoading } = useAdminWorkerEarningsQuery({ id: workerId, period });
+  const { data: timeline } = useAdminWorkerTimelineQuery(workerId);
+  const { data: deductions } = useAdminWorkerDeductionsQuery(workerId);
+  const { data: incentives } = useAdminWorkerIncentivesQuery(workerId);
+
+  if (earnLoading) return <PageLoader />;
+
+  const e = earn || {};
+  const days = timeline?.timeline || [];
+  const maxEarn = Math.max(...days.map((d) => d.earningsPaise), 1);
+
+  const cash = e.cashOrdersPaise || 0;
+  const digital = e.digitalOrdersPaise || 0;
+  const splitTotal = cash + digital || 1;
+
+  return (
+    <div className="space-y-4">
+      {/* period selector */}
+      <div className="flex gap-1.5">
+        {[['weekly', '7 days'], ['monthly', '30 days'], ['quarterly', '90 days']].map(([id, label]) => (
+          <button key={id}
+            onClick={() => setPeriod(id === 'quarterly' ? 'monthly' : id)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${
+              (period === id || (id === 'monthly' && period === 'monthly'))
+                ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* summary cards */}
+      <div className="grid grid-cols-3 gap-2">
+        <EarningsSummaryCard label="Gross"      value={fmt(e.grossEarningsPaise || 0)} />
+        <EarningsSummaryCard label="Net"        value={fmt(e.netEarningsPaise || 0)} color="text-indigo-700" />
+        <EarningsSummaryCard label="Jobs"       value={e.totalJobsCompleted || 0} />
+        <EarningsSummaryCard label="Tips"       value={fmt(e.tipsPaise || 0)} color="text-emerald-600" />
+        <EarningsSummaryCard label="Penalties"  value={fmt(e.totalDeductionsPaise || 0)} color="text-red-600" />
+        <EarningsSummaryCard label="Incentives" value={fmt(e.totalIncentivesPaise || 0)} color="text-green-600" />
+      </div>
+
+      {/* daily chart */}
+      {days.length > 0 && (
+        <div>
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">Last 30 Days</p>
+          <div className="flex items-end gap-0.5 h-24 bg-slate-50 rounded-xl p-2">
+            {days.map((d) => (
+              <div key={d.date} className="flex-1 flex flex-col justify-end group relative h-full">
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap z-10 -translate-y-full">
+                  {d.date.slice(5)}: {fmt(d.earningsPaise)} · {d.ordersCompleted} jobs
+                </div>
+                <div className="w-full rounded-sm bg-indigo-500" style={{ height: `${Math.max((d.earningsPaise / maxEarn) * 100, 2)}%` }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* cash vs digital split */}
+      <div>
+        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">Cash vs Digital</p>
+        <div className="space-y-2">
+          <div>
+            <div className="flex justify-between text-[11px] mb-0.5"><span className="text-slate-500">Cash</span><span className="font-semibold">{fmt(cash)}</span></div>
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-amber-400" style={{ width: `${(cash / splitTotal) * 100}%` }} /></div>
+          </div>
+          <div>
+            <div className="flex justify-between text-[11px] mb-0.5"><span className="text-slate-500">Digital</span><span className="font-semibold">{fmt(digital)}</span></div>
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{ width: `${(digital / splitTotal) * 100}%` }} /></div>
+          </div>
+        </div>
+      </div>
+
+      {/* deductions */}
+      <div>
+        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">Deductions</p>
+        {!deductions?.items?.length ? <p className="text-xs text-slate-400">No deductions</p> : (
+          <div className="space-y-1.5">
+            {deductions.items.slice(0, 10).map((d) => (
+              <div key={d.id} className="flex items-center justify-between bg-red-50/50 rounded-lg px-3 py-2 text-xs">
+                <div>
+                  <p className="font-semibold text-slate-700">{REASON_LABEL[d.reason] || d.reason}</p>
+                  <p className="text-[10px] text-slate-400">{fmtDate(d.date)}{d.orderId ? ` · #${String(d.orderId).slice(-6)}` : ''}</p>
+                </div>
+                <span className="font-bold text-red-600">-{fmt(d.amountPaise)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* incentives */}
+      <div>
+        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">Incentives</p>
+        {!incentives?.items?.length ? <p className="text-xs text-slate-400">No incentives</p> : (
+          <div className="space-y-1.5">
+            {incentives.items.slice(0, 10).map((d) => (
+              <div key={d.id} className="flex items-center justify-between bg-green-50/50 rounded-lg px-3 py-2 text-xs">
+                <div>
+                  <p className="font-semibold text-slate-700">{REASON_LABEL[d.reason] || d.reason}</p>
+                  <p className="text-[10px] text-slate-400">{fmtDate(d.date)}</p>
+                </div>
+                <span className="font-bold text-green-600">+{fmt(d.amountPaise)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Worker detail side panel ───────────────────────────────────────────── */
 function WorkerDetailPanel({ worker, onClose, onRefetch }) {
   const [tab, setTab]           = useState('details');
@@ -279,7 +413,7 @@ function WorkerDetailPanel({ worker, onClose, onRefetch }) {
 
           {/* tab bar */}
           <div className="flex border-b border-slate-100 shrink-0">
-            {['details', 'penalties', 'actions'].map(t => (
+            {['details', 'earnings', 'penalties', 'actions'].map(t => (
               <button key={t}
                 onClick={() => setTab(t)}
                 className={`flex-1 py-2.5 text-xs font-bold capitalize transition ${tab === t ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
@@ -368,6 +502,8 @@ function WorkerDetailPanel({ worker, onClose, onRefetch }) {
                 </div>
               </div>
             )}
+
+            {tab === 'earnings' && <WorkerEarningsTab workerId={worker._id} />}
 
             {tab === 'penalties' && (
               <div className="space-y-3">

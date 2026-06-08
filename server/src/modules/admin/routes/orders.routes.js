@@ -9,6 +9,41 @@ const router = express.Router();
 
 router.get('/orders', ctrl.listOrders);
 
+/* ─── Manual Order Intervention ──────────────────────────────────────────── */
+const ORDER_STATUSES = Order.STATUSES;
+
+router.get('/orders/:id/nearby-workers', ctrl.nearbyWorkers);
+
+router.post(
+  '/orders/:id/reassign',
+  validate(Joi.object({ workerId: Joi.string().pattern(/^[a-f0-9]{24}$/).required() })),
+  ctrl.reassignOrder,
+);
+
+router.post(
+  '/orders/:id/force-status',
+  validate(Joi.object({
+    status: Joi.string().valid(...ORDER_STATUSES).required(),
+    reason: Joi.string().min(3).max(300).required(),
+  })),
+  ctrl.forceStatus,
+);
+
+router.post(
+  '/orders/:id/force-cancel',
+  validate(Joi.object({
+    reason: Joi.string().min(3).max(300).required(),
+    refundFull: Joi.boolean().default(false),
+  })),
+  ctrl.forceCancel,
+);
+
+router.post(
+  '/orders/:id/note',
+  validate(Joi.object({ note: Joi.string().min(1).max(1000).required() })),
+  ctrl.addAdminNote,
+);
+
 router.post(
   '/orders/:id/refund',
   validate(Joi.object({
