@@ -47,8 +47,10 @@ function WorkerETACard({ deadlineAt, etaMins }) {
     return () => clearInterval(t);
   }, [deadlineAt]);
 
-  const isLate     = secsLeft < 0;
-  const lateSecs   = isLate ? Math.abs(secsLeft) : 0;
+  const GRACE_SECS  = 5 * 60; // 5-min grace — no penalty within this window
+  const isInGrace   = secsLeft < 0 && Math.abs(secsLeft) <= GRACE_SECS;
+  const isLate      = secsLeft < -GRACE_SECS;
+  const lateSecs    = isLate ? Math.abs(secsLeft) - GRACE_SECS : 0;
   const lateMinutes = Math.ceil(lateSecs / 60);
   const penalty     = lateMinutes * 2; // ₹2/min — mirrors server default
 
@@ -56,14 +58,21 @@ function WorkerETACard({ deadlineAt, etaMins }) {
   const sLeft     = Math.max(0, secsLeft) % 60;
   const deadlineStr = deadlineAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
+  // Grace countdown: seconds remaining inside the 5-min grace window
+  const graceSecsLeft = isInGrace ? GRACE_SECS - Math.abs(secsLeft) : 0;
+  const graceMinsLeft = Math.floor(graceSecsLeft / 60);
+  const graceSecRem   = graceSecsLeft % 60;
+
   return (
     <motion.div
       className="rounded-2xl overflow-hidden"
       style={isLate
         ? { background: 'linear-gradient(135deg,#1c0505,#7f1d1d)', border: '1.5px solid rgba(239,68,68,0.4)', boxShadow: '0 6px 24px rgba(239,68,68,0.3)' }
-        : secsLeft < 120
-          ? { background: 'linear-gradient(135deg,#1c0f00,#7c2d12)', border: '1.5px solid rgba(249,115,22,0.4)', boxShadow: '0 6px 24px rgba(249,115,22,0.25)' }
-          : { background: 'linear-gradient(135deg,#0f172a,#1e293b)', border: '1px solid rgba(99,102,241,0.25)', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }
+        : isInGrace
+          ? { background: 'linear-gradient(135deg,#1c1200,#78350f)', border: '1.5px solid rgba(245,158,11,0.5)', boxShadow: '0 6px 24px rgba(245,158,11,0.25)' }
+          : secsLeft < 120
+            ? { background: 'linear-gradient(135deg,#1c0f00,#7c2d12)', border: '1.5px solid rgba(249,115,22,0.4)', boxShadow: '0 6px 24px rgba(249,115,22,0.25)' }
+            : { background: 'linear-gradient(135deg,#0f172a,#1e293b)', border: '1px solid rgba(99,102,241,0.25)', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }
       }
       animate={isLate ? { borderColor: ['rgba(239,68,68,0.4)', 'rgba(239,68,68,0.9)', 'rgba(239,68,68,0.4)'] } : {}}
       transition={{ duration: 1, repeat: Infinity }}
@@ -73,22 +82,26 @@ function WorkerETACard({ deadlineAt, etaMins }) {
         <div className="flex items-center gap-2">
           <motion.span
             className="text-lg"
-            animate={isLate ? { scale: [1, 1.2, 1], rotate: [-5, 5, -5, 0] } : { x: [0, 4, 0] }}
-            transition={{ duration: isLate ? 0.5 : 1.5, repeat: Infinity }}
+            animate={isLate ? { scale: [1, 1.2, 1], rotate: [-5, 5, -5, 0] } : isInGrace ? { scale: [1, 1.15, 1] } : { x: [0, 4, 0] }}
+            transition={{ duration: isLate ? 0.5 : isInGrace ? 0.8 : 1.5, repeat: Infinity }}
           >
-            {isLate ? '⚠️' : secsLeft < 120 ? '🔥' : '🛵'}
+            {isLate ? '⚠️' : isInGrace ? '⏳' : secsLeft < 120 ? '🔥' : '🛵'}
           </motion.span>
           <div>
-            <p className={`text-[12px] font-black ${isLate ? 'text-red-300' : secsLeft < 120 ? 'text-orange-300' : 'text-indigo-200'}`}>
-              {isLate ? `Late by ${lateMinutes} min — penalty active` : 'Arrive by deadline to avoid penalty'}
+            <p className={`text-[12px] font-black ${isLate ? 'text-red-300' : isInGrace ? 'text-amber-300' : secsLeft < 120 ? 'text-orange-300' : 'text-indigo-200'}`}>
+              {isLate
+                ? `Late by ${lateMinutes} min — penalty active`
+                : isInGrace
+                  ? '5-min grace period — no penalty yet'
+                  : 'Arrive by deadline to avoid penalty'}
             </p>
             <p className="text-[10px] text-white/40 mt-0.5">
-              Deadline: {deadlineStr} · ₹2 per extra minute
+              Deadline: {deadlineStr} · ₹2/min after 5-min grace
             </p>
           </div>
         </div>
 
-        {/* Penalty preview */}
+        {/* Penalty preview (only after grace ends) */}
         {isLate && (
           <motion.div
             className="shrink-0 px-3 py-1.5 rounded-xl bg-red-500/20 text-right"
@@ -97,6 +110,20 @@ function WorkerETACard({ deadlineAt, etaMins }) {
           >
             <p className="text-[9px] font-bold text-red-400 uppercase tracking-wide">Deducting</p>
             <p className="text-base font-black text-red-300">-₹{penalty}</p>
+          </motion.div>
+        )}
+
+        {/* Grace window badge */}
+        {isInGrace && (
+          <motion.div
+            className="shrink-0 px-3 py-1.5 rounded-xl bg-amber-500/20 text-right"
+            animate={{ opacity: [1, 0.6, 1] }}
+            transition={{ duration: 1, repeat: Infinity }}
+          >
+            <p className="text-[9px] font-bold text-amber-400 uppercase tracking-wide">Grace ends in</p>
+            <p className="text-base font-black text-amber-300 tabular-nums">
+              {String(graceMinsLeft).padStart(2,'0')}:{String(graceSecRem).padStart(2,'0')}
+            </p>
           </motion.div>
         )}
       </div>
@@ -108,6 +135,13 @@ function WorkerETACard({ deadlineAt, etaMins }) {
             <p className="text-xs text-red-400 font-bold mb-1">Overdue by</p>
             <p className="text-3xl font-black text-red-300 tabular-nums">
               {String(Math.floor(lateSecs / 60)).padStart(2, '0')}:{String(lateSecs % 60).padStart(2, '0')}
+            </p>
+          </div>
+        ) : isInGrace ? (
+          <div className="flex-1">
+            <p className="text-xs text-amber-400 font-bold mb-1">Grace period — hurry!</p>
+            <p className="text-3xl font-black text-amber-200 tabular-nums">
+              {String(graceMinsLeft).padStart(2,'0')}:{String(graceSecRem).padStart(2,'0')}
             </p>
           </div>
         ) : (
@@ -126,16 +160,20 @@ function WorkerETACard({ deadlineAt, etaMins }) {
         </div>
       </div>
 
-      {/* Progress bar draining to zero */}
+      {/* Progress bar — drains to zero during countdown, amber during grace */}
       {!isLate && (
         <div className="h-1 bg-white/10 mx-4 mb-3 rounded-full overflow-hidden">
           <motion.div
             className="h-full rounded-full"
             style={{
-              background: secsLeft < 120
-                ? 'linear-gradient(90deg,#ef4444,#f97316)'
-                : 'linear-gradient(90deg,#4f46e5,#818cf8)',
-              width: `${Math.max(0, (secsLeft / (etaMins * 60)) * 100)}%`,
+              background: isInGrace
+                ? 'linear-gradient(90deg,#f59e0b,#fbbf24)'
+                : secsLeft < 120
+                  ? 'linear-gradient(90deg,#ef4444,#f97316)'
+                  : 'linear-gradient(90deg,#4f46e5,#818cf8)',
+              width: isInGrace
+                ? `${(graceSecsLeft / GRACE_SECS) * 100}%`
+                : `${Math.max(0, (secsLeft / (etaMins * 60)) * 100)}%`,
             }}
             transition={{ duration: 0.9 }}
           />
@@ -701,9 +739,9 @@ export default function WorkerJobPage() {
   }
 
   return (
-    <div className="min-h-screen pb-[350px]" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #f8fafc 200px)' }}>
-
-      {/* Socket degraded banner */}
+    <div className="min-h-screen md:h-screen md:overflow-hidden md:flex md:flex-row bg-slate-50">
+      
+      {/* Socket degraded banner (Absolute overlay on desktop) */}
       <AnimatePresence>
         {socketStatus !== 'connected' && (
           <motion.div
@@ -725,39 +763,40 @@ export default function WorkerJobPage() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <header className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e3a5f 100%)' }}>
-        <motion.div
-          className="absolute right-0 top-0 w-40 h-40 rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%)', filter: 'blur(30px)' }}
-          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <div className="relative max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
-          <motion.button onClick={() => nav('/worker')}
-            className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center shrink-0"
-            whileTap={{ scale: 0.92 }}>
-            <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
-          </motion.button>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Active Job</p>
-            <p className="font-black text-white capitalize truncate leading-tight">{order.service.replace(/_/g, ' ')}</p>
+      {/* ── Desktop Map Column (Right) / Mobile Map Row (Top) ── */}
+      {pickup && (
+        <div className="w-full h-[40vh] md:h-full md:flex-1 relative z-0 md:order-2">
+          {/* Map header overlay on mobile, or just standard header on desktop */}
+          <header className="absolute top-0 inset-x-0 z-20" style={{ background: 'linear-gradient(180deg, rgba(15,23,42,0.9) 0%, transparent 100%)' }}>
+            <div className="px-4 py-4 flex items-center gap-3">
+              <motion.button onClick={() => nav('/worker')}
+                className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0"
+                whileTap={{ scale: 0.92 }}>
+                <ArrowLeft size={20} strokeWidth={2.5} className="text-white" />
+              </motion.button>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-white/80" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>Active Job</p>
+                <p className="font-black text-white capitalize truncate leading-tight text-lg" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{order.service.replace(/_/g, ' ')}</p>
+              </div>
+              <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md border border-white/10 ${chipCfg.color.replace('bg-slate-500/15', 'bg-black/40 text-white')}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${chipCfg.dot} animate-pulse`} />
+                {chipCfg.label}
+              </motion.div>
+            </div>
+          </header>
+          
+          <div className="absolute inset-0">
+            <LiveTrackingMap pickup={pickup} workerLocation={myLocation} service={order.service} height="100%" />
           </div>
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ring-1 ${chipCfg.color}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${chipCfg.dot} animate-pulse`} />
-            {chipCfg.label}
-          </motion.div>
         </div>
-        <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-      </header>
+      )}
 
-      <div className="max-w-lg mx-auto px-4 pt-4 space-y-3 pb-2">
-
-        {/* Live map */}
-        {pickup && (
-          <LiveTrackingMap pickup={pickup} workerLocation={myLocation} service={order.service} height="38vh" />
-        )}
+      {/* ── Scrollable Panel Column (Left/Bottom) ── */}
+      <div className={`w-full md:w-[450px] shrink-0 bg-slate-50 relative z-10 flex flex-col md:order-1 ${pickup ? 'rounded-t-3xl -mt-6 md:mt-0 md:rounded-none shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-[10px_0_40px_rgba(0,0,0,0.1)]' : ''} h-[calc(100vh-40vh+24px)] md:h-full`}>
+        
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-4 pt-6 md:pt-8 space-y-4 pb-32">
 
         {/* Location + navigation */}
         {order.pickupLocation?.address && (
@@ -1064,16 +1103,15 @@ export default function WorkerJobPage() {
               )}
             </motion.div>
 
-            {/* Phone: health certificate — shown after proof photo so worker finishes work first */}
             {isPhone && <PhoneHealthPanel orderId={order._id} />}
           </>
         )}
       </div>
 
-      {/* Fixed action bar */}
-      <div className="fixed bottom-0 inset-x-0"
-        style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(16px)', boxShadow: '0 -8px 32px rgba(0,0,0,0.08)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-        <div className="max-w-lg mx-auto px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {/* Fixed action bar (Docked at the bottom of the scrollable panel) */}
+      <div className="absolute bottom-0 inset-x-0 z-20"
+        style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)', boxShadow: '0 -8px 32px rgba(0,0,0,0.06)', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+        <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
 
           {status === 'assigned' && (
             <motion.button onClick={onStartTrip} disabled={starting}

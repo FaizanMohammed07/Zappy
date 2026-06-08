@@ -144,7 +144,7 @@ function toView(doc) {
     emergencyFundContributionRate: doc.emergencyFundContributionRate ?? 0.005,
     // Late arrival penalty
     lateArrivalPenaltyPaisePerMin: doc.lateArrivalPenaltyPaisePerMin ?? 200,
-    lateArrivalGraceMinutes:       doc.lateArrivalGraceMinutes       ?? 2,
+    lateArrivalGraceMinutes:       doc.lateArrivalGraceMinutes       ?? 5,
     // Service tiers
     tierMultiplierPriority:  doc.tierMultiplierPriority  ?? 1.2,
     tierMultiplierExpress:   doc.tierMultiplierExpress   ?? 1.4,
@@ -253,7 +253,7 @@ function envFallback() {
     ],
     // Late arrival penalty
     lateArrivalPenaltyPaisePerMin: 200,
-    lateArrivalGraceMinutes:       2,
+    lateArrivalGraceMinutes:       5,
     // Offer boost
     boostEnabled:        true,
     boostMaxPaise:       20000,
