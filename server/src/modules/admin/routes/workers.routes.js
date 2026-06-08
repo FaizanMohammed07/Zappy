@@ -2,6 +2,7 @@ const express = require('express');
 const Joi = require('joi');
 const { validate } = require('../../../middlewares/validate');
 const ctrl = require('../controllers/workers.controller');
+const earningsCtrl = require('../controllers/worker-earnings.controller');
 
 const router = express.Router();
 
@@ -36,6 +37,23 @@ router.post(
   ctrl.kycRequestClarification,
 );
 router.get('/workers/:id/penalties', ctrl.getWorkerPenaltyStats);
+
+// Worker earnings drill-down
+router.get(
+  '/workers/:id/earnings',
+  validate(
+    Joi.object({
+      period: Joi.string().valid('daily', 'weekly', 'monthly').optional(),
+      from: Joi.date().iso().optional(),
+      to: Joi.date().iso().optional(),
+    }),
+    'query',
+  ),
+  earningsCtrl.getWorkerEarnings,
+);
+router.get('/workers/:id/deductions', earningsCtrl.getWorkerDeductions);
+router.get('/workers/:id/incentives', earningsCtrl.getWorkerIncentives);
+router.get('/workers/:id/timeline', earningsCtrl.getWorkerTimeline);
 router.delete(
   '/workers/:id',
   validate(Joi.object({ reason: Joi.string().min(3).max(500).required() })),

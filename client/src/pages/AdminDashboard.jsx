@@ -8,7 +8,7 @@ import {
   FileText, LogOut, Menu, X, ChevronRight, FileCheck, Crown,
   Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
   HeadphonesIcon, Radio, Globe, Layers, Zap, Sparkles, TrendingUp,
-  Shield, PartyPopper, PawPrint,
+  Shield, PartyPopper, PawPrint, ShieldAlert, Map as MapIcon,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
 import { useLogoutMutation } from '../services/api';
@@ -44,6 +44,9 @@ import NotificationsAdmin from './admin/Notifications';
 import ShieldFund from './admin/ShieldFund';
 import Events from './admin/Events';
 import PetAssistance from './admin/PetAssistance';
+import Fraud from './admin/Fraud';
+import Zones from './admin/Zones';
+import Intervention from './admin/Intervention';
 
 /* ─── Navigation groups ────────────────────────────────────────────────── */
 const NAV_GROUPS = [
@@ -75,6 +78,9 @@ const NAV_GROUPS = [
     label: 'Operations',
     items: [
       { id: 'liveops',      label: 'Live Ops',         icon: Radio },
+      { id: 'intervention', label: 'Intervention',     icon: Zap },
+      { id: 'fraud',        label: 'Fraud Detection',  icon: ShieldAlert },
+      { id: 'zones',        label: 'Zones',            icon: MapIcon },
       { id: 'disputes',     label: 'Disputes',         icon: Scale },
       { id: 'cancellation', label: 'Cancellation',     icon: XCircle },
       { id: 'incentives',   label: 'Incentives',       icon: Gift },
@@ -126,6 +132,7 @@ const SECTION_MAP = {
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
   events: Events,
   'pet-assistance': PetAssistance,
+  fraud: Fraud, zones: Zones, intervention: Intervention,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */

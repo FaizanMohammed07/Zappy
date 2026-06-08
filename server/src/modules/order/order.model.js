@@ -219,6 +219,34 @@ const orderSchema = new mongoose.Schema(
 
     // Deferred cancellation fee from a previous order — shown as line item at checkout
     pendingCancellationFeePaise: { type: Number, default: 0 },
+
+    // Admin manual intervention — set when an admin force-changes status
+    adminOverride: {
+      by: { type: String },
+      reason: { type: String },
+      previousStatus: { type: String },
+      at: { type: Date },
+    },
+
+    // Free-text admin notes (intervention center)
+    adminNotes: [
+      {
+        text: { type: String, maxlength: 1000 },
+        by: { type: String },
+        at: { type: Date, default: Date.now },
+      },
+    ],
+
+    // Reassignment audit trail
+    reassignHistory: [
+      {
+        fromWorkerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Worker' },
+        toWorkerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Worker' },
+        by: { type: String },
+        reason: { type: String },
+        at: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

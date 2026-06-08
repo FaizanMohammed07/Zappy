@@ -4,7 +4,7 @@ import { SectionHeader, Card, FormRow, Input, Select, SaveBtn } from './_shared'
 import toast from 'react-hot-toast';
 
 export default function Wallet() {
-  const [form, setForm] = useState({ kind: 'user', id: '', type: 'credit', amountPaise: '', description: '' });
+  const [form, setForm] = useState({ kind: 'user', id: '', type: 'credit', amountRupees: '', description: '' });
   const [reconcile, setReconcile] = useState({ kind: 'user', id: '' });
   const [adjust, { isLoading: adjusting }] = useAdminWalletAdjustMutation();
   const [doReconcile, { isLoading: reconciling }] = useAdminWalletReconcileMutation();
@@ -13,12 +13,13 @@ export default function Wallet() {
 
   async function submitAdjust() {
     if (!form.id.match(/^[a-f0-9]{24}$/i)) { toast.error('Enter a valid 24-character MongoDB ID'); return; }
-    const amount = parseInt(form.amountPaise);
-    if (!amount || amount < 1) { toast.error('Enter a valid amount in paise (min 1)'); return; }
+    const rupees = parseFloat(form.amountRupees);
+    if (!rupees || rupees < 1) { toast.error('Enter a valid amount in ₹ (min ₹1)'); return; }
+    const amountPaise = Math.round(rupees * 100);
     try {
-      const result = await adjust({ ...form, amountPaise: amount }).unwrap();
-      toast.success(`Wallet ${form.type}ed ₹${Math.round(amount / 100)} — new balance: ₹${Math.round(result.newBalancePaise / 100)}`);
-      setForm(p => ({ ...p, id: '', amountPaise: '', description: '' }));
+      const result = await adjust({ ...form, amountPaise }).unwrap();
+      toast.success(`Wallet ${form.type}ed ₹${rupees} — new balance: ₹${Math.round(result.newBalancePaise / 100)}`);
+      setForm(p => ({ ...p, id: '', amountRupees: '', description: '' }));
     } catch (err) {
       toast.error(err.data?.error || 'Adjustment failed');
     }
@@ -57,8 +58,8 @@ export default function Wallet() {
               <option value="debit">Debit (deduct money)</option>
             </Select>
           </FormRow>
-          <FormRow label="Amount (paise)" hint="100 paise = ₹1. Min 1.">
-            <Input type="number" {...f('amountPaise')} placeholder="e.g. 5000 = ₹50" min="1" />
+          <FormRow label="Amount (₹)" hint="Enter amount in rupees. e.g. 50 = ₹50">
+            <Input type="number" {...f('amountRupees')} placeholder="e.g. 50" min="1" step="1" />
           </FormRow>
           <FormRow label="Description (optional)" className="sm:col-span-2">
             <Input {...f('description')} placeholder="Reason for adjustment…" />

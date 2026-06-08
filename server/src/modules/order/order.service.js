@@ -351,6 +351,9 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     data: { orderId: String(order._id) },
   }).catch(() => {});
 
+  // Fraud: velocity-abuse check (non-blocking — must not delay order response).
+  require('../fraud/fraud.service').detectVelocityAbuse(userId).catch(() => {});
+
   return order;
 }
 

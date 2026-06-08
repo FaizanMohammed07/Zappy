@@ -166,6 +166,10 @@ function initSockets(httpServer) {
           // 150 km/h ≈ 41.7 m/s — flag anything faster as suspicious
           if (speedMps > 41.7) {
             logger.warn({ workerId: id, speedMps: Math.round(speedMps), distMetres: Math.round(distMetres) }, '[SPOOFING] Suspicious GPS jump — location update rejected');
+            // Record a fraud event for ops review (non-blocking).
+            require('../modules/fraud/fraud.service')
+              .logGpsSpoofEvent(id, { speedMps, distMetres })
+              .catch(() => {});
             return;
           }
         } catch { /* malformed prev — allow through */ }
