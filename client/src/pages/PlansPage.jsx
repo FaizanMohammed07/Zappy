@@ -152,6 +152,9 @@ export default function PlansPage() {
           </div>
         </div>
 
+        {/* Commission Calculator — workers only */}
+        {audience === 'worker' && <CommissionCalculator plans={plansData?.plans ?? []} activePlanCode={activeSub?.planCode} />}
+
         {/* Plans */}
         {(plansData?.plans?.length === 0) && (
           <div className="text-center py-12 text-slate-400">
@@ -274,6 +277,78 @@ function PlanBenefits({ effects, audience }) {
           <span className="text-sm text-slate-700 font-semibold leading-snug">{text}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function CommissionCalculator({ plans, activePlanCode }) {
+  const [weeklyJobs, setWeeklyJobs] = useState(10);
+  const [avgJobRs, setAvgJobRs] = useState(500);
+
+  const basePct = 20;
+  const weeklyGross = weeklyJobs * avgJobRs;
+
+  return (
+    <div className="card space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+          <TrendingUp size={15} strokeWidth={2} className="text-emerald-600" />
+        </div>
+        <p className="font-bold text-[#0F172A] text-sm">Commission Savings Calculator</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-slate-500 mb-1">Jobs per week</p>
+          <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2">
+            <input type="number" min={1} max={100} value={weeklyJobs} onChange={e => setWeeklyJobs(Number(e.target.value) || 1)}
+              className="flex-1 text-base font-bold text-slate-800 outline-none bg-transparent w-12" />
+          </div>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500 mb-1">Avg job value (₹)</p>
+          <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2">
+            <span className="text-slate-400 text-sm">₹</span>
+            <input type="number" min={100} max={10000} step={50} value={avgJobRs} onChange={e => setAvgJobRs(Number(e.target.value) || 100)}
+              className="flex-1 text-base font-bold text-slate-800 outline-none bg-transparent w-16" />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
+          <div>
+            <p className="text-xs font-semibold text-slate-700">Basic (current)</p>
+            <p className="text-[10px] text-slate-400">{basePct}% platform fee</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-bold text-slate-800">₹{Math.round(weeklyGross * (1 - basePct / 100)).toLocaleString('en-IN')}/wk</p>
+            <p className="text-[10px] text-red-400">-₹{Math.round(weeklyGross * basePct / 100).toLocaleString('en-IN')} fee</p>
+          </div>
+        </div>
+        {plans.filter(p => p.audience === 'worker' || !p.audience).map(plan => {
+          const commPct = basePct + (plan.effects?.commissionDelta ?? 0) * 100;
+          const net = Math.round(weeklyGross * (1 - commPct / 100));
+          const feeAmt = Math.round(weeklyGross * commPct / 100);
+          const baseNet = Math.round(weeklyGross * (1 - basePct / 100));
+          const savingsWk = net - baseNet;
+          const savingsMo = savingsWk * 4.3;
+          const isActive = activePlanCode === plan.code;
+          return (
+            <div key={plan.code} className={`flex items-center justify-between px-3 py-2 rounded-xl border ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50 border-indigo-100'}`}>
+              <div>
+                <p className={`text-xs font-semibold ${isActive ? 'text-emerald-700' : 'text-indigo-700'}`}>{plan.name} {isActive ? '(active)' : ''}</p>
+                <p className="text-[10px] text-slate-500">{Math.round(commPct)}% fee · ₹{Math.round(plan.priceInPaise / 100)}/mo</p>
+              </div>
+              <div className="text-right">
+                <p className={`text-sm font-bold ${isActive ? 'text-emerald-700' : 'text-indigo-700'}`}>₹{net.toLocaleString('en-IN')}/wk</p>
+                {savingsWk > 0 && <p className="text-[10px] text-emerald-600 font-semibold">+₹{Math.round(savingsMo).toLocaleString('en-IN')}/mo saved</p>}
+                {savingsWk <= 0 && <p className="text-[10px] text-red-400">-₹{feeAmt.toLocaleString('en-IN')} fee</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-slate-400 text-center">Estimated savings based on your inputs. Actual earnings may vary.</p>
     </div>
   );
 }

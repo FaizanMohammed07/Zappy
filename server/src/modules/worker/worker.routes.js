@@ -90,6 +90,71 @@ router.get('/leaderboard', authenticate, ctrl.getLeaderboard);
 /* ── Public profile — customer-facing ── */
 router.get('/:id/public', authenticate, ctrl.getPublicProfile);
 
+/* ── Bank Accounts + UPI ── */
+router.get('/bank-accounts', authenticate, requireRole('worker'), ctrl.getBankAccounts);
+router.post(
+  '/bank-accounts',
+  authenticate,
+  requireRole('worker'),
+  validate(Joi.object({
+    type: Joi.string().valid('bank', 'upi').required(),
+    label: Joi.string().max(80).allow('', null),
+    accountName: Joi.string().max(100).when('type', { is: 'bank', then: Joi.required() }),
+    accountNumber: Joi.string().max(20).when('type', { is: 'bank', then: Joi.required() }),
+    bankName: Joi.string().max(80).allow('', null),
+    ifsc: Joi.string().length(11).when('type', { is: 'bank', then: Joi.required() }),
+    upiId: Joi.string().max(100).when('type', { is: 'upi', then: Joi.required() }),
+    upiLabel: Joi.string().max(60).allow('', null),
+  })),
+  ctrl.addBankAccount
+);
+router.delete('/bank-accounts/:type/:id', authenticate, requireRole('worker'), ctrl.deleteBankAccount);
+router.patch('/bank-accounts/:type/:id/default', authenticate, requireRole('worker'), ctrl.setDefaultBankAccount);
+
+/* ── Customer Block ── */
+router.post(
+  '/block-customer',
+  authenticate,
+  requireRole('worker'),
+  validate(Joi.object({
+    userId:  Joi.string().hex().length(24).required(),
+    orderId: Joi.string().hex().length(24).optional(),
+    reason:  Joi.string().max(300).optional(),
+  })),
+  ctrl.blockCustomer
+);
+
+/* ── Zone Benchmark ── */
+router.get('/zone-benchmark', authenticate, requireRole('worker'), ctrl.getZoneBenchmark);
+
+/* ── Per-job earnings ── */
+router.get('/job-earnings', authenticate, requireRole('worker'), ctrl.getJobEarnings);
+
+/* ── Skills specialisation ── */
+router.patch(
+  '/skills',
+  authenticate,
+  requireRole('worker'),
+  validate(Joi.object({
+    skills:       Joi.array().items(Joi.string().max(60)).max(15).optional(),
+    skillPrimary: Joi.string().max(60).allow(null, '').optional(),
+  }).min(1)),
+  ctrl.updateSkills
+);
+
+/* ── Earnings goals ── */
+router.get('/goals', authenticate, requireRole('worker'), ctrl.getGoals);
+router.post(
+  '/goals',
+  authenticate,
+  requireRole('worker'),
+  validate(Joi.object({
+    period:      Joi.string().valid('daily', 'weekly').required(),
+    targetPaise: Joi.number().integer().min(100).max(100000000).required(),
+  })),
+  ctrl.setGoal
+);
+
 /* ── Device token (FCM push notifications) ── */
 router.post(
   '/device-token',

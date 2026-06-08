@@ -55,6 +55,13 @@ const NotificationPrefsPage        = lazy(() => import('./pages/NotificationPref
 const PromosHubPage                = lazy(() => import('./pages/PromosHubPage'));
 const ScheduledBookingsPage        = lazy(() => import('./pages/ScheduledBookingsPage'));
 const AccountSecurityPage          = lazy(() => import('./pages/AccountSecurityPage'));
+const WorkerBankPage               = lazy(() => import('./pages/WorkerBankPage'));
+const WorkerWithdrawPage           = lazy(() => import('./pages/WorkerWithdrawPage'));
+const WorkerAppealsPage            = lazy(() => import('./pages/WorkerAppealsPage'));
+const WorkerEarningsPage           = lazy(() => import('./pages/WorkerEarningsPage'));
+const WorkerSkillsPage             = lazy(() => import('./pages/WorkerSkillsPage'));
+const WorkerTrainingPage           = lazy(() => import('./pages/WorkerTrainingPage'));
+const WorkerGoalsPage              = lazy(() => import('./pages/WorkerGoalsPage'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -125,6 +132,13 @@ export default function App() {
         <Route path="/worker/kyc" element={<RequireAuth role="worker"><WorkerKycPage /></RequireAuth>} />
         <Route path="/worker/profile" element={<RequireAuth role="worker"><WorkerEditProfilePage /></RequireAuth>} />
         <Route path="/worker/notifications" element={<RequireAuth role="worker"><WorkerNotificationsPage /></RequireAuth>} />
+        <Route path="/worker/bank" element={<RequireAuth role="worker"><WorkerBankPage /></RequireAuth>} />
+        <Route path="/worker/withdraw" element={<RequireAuth role="worker"><WorkerWithdrawPage /></RequireAuth>} />
+        <Route path="/worker/appeals" element={<RequireAuth role="worker"><WorkerAppealsPage /></RequireAuth>} />
+        <Route path="/worker/earnings" element={<RequireAuth role="worker"><WorkerEarningsPage /></RequireAuth>} />
+        <Route path="/worker/skills" element={<RequireAuth role="worker"><WorkerSkillsPage /></RequireAuth>} />
+        <Route path="/worker/training" element={<RequireAuth role="worker"><WorkerTrainingPage /></RequireAuth>} />
+        <Route path="/worker/goals" element={<RequireAuth role="worker"><WorkerGoalsPage /></RequireAuth>} />
 
         {/* Event Partner */}
         <Route path="/partner/login" element={token ? <RedirectByRole role={role} /> : <PartnerLoginPage />} />

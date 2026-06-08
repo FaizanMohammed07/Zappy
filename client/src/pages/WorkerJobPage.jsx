@@ -24,6 +24,7 @@ import {
   useSubmitVehicleHealthReportMutation,
   useWorkerReportNoResponseMutation,
   useWorkerReportPartUnavailableMutation,
+  useBlockCustomerByWorkerMutation,
 } from '../services/api';
 import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
 import { useGeolocation } from '../hooks/useGeolocation';
@@ -490,6 +491,7 @@ export default function WorkerJobPage() {
   const [presign]                                        = usePresignUploadMutation();
   const [reportNoResponse, { isLoading: reportingNoResponse }] = useWorkerReportNoResponseMutation();
   const [reportPartUnavailable, { isLoading: reportingPart }]  = useWorkerReportPartUnavailableMutation();
+  const [blockCustomer, { isLoading: blocking }]               = useBlockCustomerByWorkerMutation();
   const [otp, setOtp]                     = useState('');
   const [myLocation, setMyLocation]       = useState(null);
   const [proofPhotos, setProofPhotos]     = useState([]);
@@ -1286,12 +1288,29 @@ export default function WorkerJobPage() {
           )}
 
           {terminal && (
-            <motion.button onClick={() => nav('/worker')}
-              className="w-full rounded-2xl py-4 flex items-center justify-center gap-2.5 font-black text-base"
-              style={{ background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', color: '#0f172a' }}
-              whileTap={{ scale: 0.98 }}>
-              <ArrowLeft size={18} strokeWidth={2.5} />Back to Dashboard
-            </motion.button>
+            <div className="space-y-2">
+              <motion.button onClick={() => nav('/worker')}
+                className="w-full rounded-2xl py-4 flex items-center justify-center gap-2.5 font-black text-base"
+                style={{ background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', color: '#0f172a' }}
+                whileTap={{ scale: 0.98 }}>
+                <ArrowLeft size={18} strokeWidth={2.5} />Back to Dashboard
+              </motion.button>
+              {status === 'completed' && order?.userId && (
+                <button
+                  onClick={async () => {
+                    if (!window.confirm('Flag this customer as unsafe or abusive? Our team will review.')) return;
+                    try {
+                      await blockCustomer({ userId: order.userId, orderId: order._id, reason: 'Worker flagged via job page' }).unwrap();
+                      toast.success('Customer flagged for review');
+                    } catch { toast.error('Failed to flag customer'); }
+                  }}
+                  disabled={blocking}
+                  className="w-full py-2.5 rounded-xl text-xs font-bold text-red-500 bg-red-50 ring-1 ring-red-100 flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  {blocking ? <Loader2 size={12} className="animate-spin" /> : <AlertCircle size={12} />}
+                  Flag Customer as Unsafe / Abusive
+                </button>
+              )}
+            </div>
           )}
 
           {!terminal && (

@@ -257,7 +257,7 @@ export const api = createApi({
     }),
 
     // --- Worker ---
-    getWorkerMe: b.query({ query: () => '/workers/me', providesTags: ['Me'] }),
+    getWorkerMe: b.query({ query: () => '/workers/me', providesTags: ['Me', 'Worker'] }),
     updateWorkerProfile: b.mutation({
       query: (body) => ({ url: '/workers/profile', method: 'PATCH', body }),
       invalidatesTags: ['Me'],
@@ -950,6 +950,97 @@ export const api = createApi({
       providesTags: ['Worker'],
     }),
 
+    // --- Worker: Bank Accounts ---
+    getWorkerBankAccounts: b.query({
+      query: () => '/workers/bank-accounts',
+      providesTags: ['Worker'],
+    }),
+    addWorkerBankAccount: b.mutation({
+      query: (body) => ({ url: '/workers/bank-accounts', method: 'POST', body }),
+      invalidatesTags: ['Worker'],
+    }),
+    deleteWorkerBankAccount: b.mutation({
+      query: ({ id, type }) => ({ url: `/workers/bank-accounts/${type}/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Worker'],
+    }),
+    setDefaultWorkerBankAccount: b.mutation({
+      query: ({ id, type }) => ({ url: `/workers/bank-accounts/${type}/${id}/default`, method: 'PATCH' }),
+      invalidatesTags: ['Worker'],
+    }),
+
+    // --- Worker: Appeals ---
+    getWorkerAppeals: b.query({
+      query: () => '/worker/appeals',
+      providesTags: ['Worker'],
+    }),
+    createWorkerAppeal: b.mutation({
+      query: (body) => ({ url: '/worker/appeals', method: 'POST', body }),
+      invalidatesTags: ['Worker'],
+    }),
+    getWorkerAppeal: b.query({
+      query: (id) => `/worker/appeals/${id}`,
+    }),
+
+    // --- Worker: Training ---
+    getTrainingModules: b.query({
+      query: () => '/worker/training',
+      providesTags: ['Worker'],
+    }),
+    getTrainingModule: b.query({
+      query: (id) => `/worker/training/${id}`,
+    }),
+    submitTrainingQuiz: b.mutation({
+      query: ({ id, answers }) => ({ url: `/worker/training/${id}/submit`, method: 'POST', body: { answers } }),
+      invalidatesTags: ['Worker', 'Me'],
+    }),
+
+    // --- Worker: Analytics ---
+    getJobEarnings: b.query({
+      query: (page = 1) => `/workers/job-earnings?page=${page}`,
+      providesTags: ['Earnings'],
+    }),
+    getZoneBenchmark: b.query({
+      query: () => '/workers/zone-benchmark',
+      providesTags: ['Worker'],
+    }),
+
+    // --- Worker: Block Customer ---
+    blockCustomerByWorker: b.mutation({
+      query: (body) => ({ url: '/workers/block-customer', method: 'POST', body }),
+    }),
+
+    // --- Worker: Profile & Skills ---
+    getWorkerProfile: b.query({
+      query: () => '/workers/me',
+      providesTags: ['Worker'],
+    }),
+    updateWorkerSkills: b.mutation({
+      query: (body) => ({ url: '/workers/skills', method: 'PATCH', body }),
+      invalidatesTags: ['Worker'],
+    }),
+
+    // --- Worker: Goals ---
+    getWorkerGoals: b.query({
+      query: () => '/workers/goals',
+      providesTags: ['WorkerGoals'],
+    }),
+    setWorkerGoal: b.mutation({
+      query: (body) => ({ url: '/workers/goals', method: 'POST', body }),
+      invalidatesTags: ['WorkerGoals'],
+    }),
+
+    // --- Worker: Payout (withdrawal) ---
+    requestPayout: b.mutation({
+      query: (body) => ({ url: '/payouts/request', method: 'POST', body }),
+      invalidatesTags: ['Wallet'],
+    }),
+
+    // --- Plans ---
+    getPlans: b.query({
+      query: () => '/subscriptions/plans',
+      providesTags: ['Plans'],
+    }),
+
     // --- Referrals ---
     getReferralCode: b.query({
       query: () => '/referrals/my-code',
@@ -1623,6 +1714,26 @@ export const {
   useAdminUpdateCityMutation,
   useAdminDeleteCityMutation,
   useAdminToggleCityActiveMutation,
+  // Worker features batch
+  useGetWorkerBankAccountsQuery,
+  useAddWorkerBankAccountMutation,
+  useDeleteWorkerBankAccountMutation,
+  useSetDefaultWorkerBankAccountMutation,
+  useGetWorkerAppealsQuery,
+  useCreateWorkerAppealMutation,
+  useGetWorkerAppealQuery,
+  useGetTrainingModulesQuery,
+  useGetTrainingModuleQuery,
+  useSubmitTrainingQuizMutation,
+  useGetJobEarningsQuery,
+  useGetZoneBenchmarkQuery,
+  useBlockCustomerByWorkerMutation,
+  useGetWorkerProfileQuery,
+  useUpdateWorkerSkillsMutation,
+  useGetWorkerGoalsQuery,
+  useSetWorkerGoalMutation,
+  useRequestPayoutMutation,
+  useGetPlansQuery,
   // Batch 2 user features
   useGetNotificationPrefsQuery,
   useUpdateNotificationPrefsMutation,
