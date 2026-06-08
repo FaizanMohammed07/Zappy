@@ -148,6 +148,13 @@ router.patch(
   })),
   ctrl.updatePickupLocation,
 );
+router.patch(
+  '/:id/reschedule',
+  authenticate,
+  requireRole('user'),
+  validate(Joi.object({ scheduledAt: Joi.date().iso().greater('now').required() })),
+  ctrl.rescheduleOrder,
+);
 router.post('/:id/rate', authenticate, requireRole('user'), ratingLimiter, validate(rateSchema), ctrl.rateOrder);
 router.post('/:id/rate-user', authenticate, requireRole('worker'), ratingLimiter, validate(rateSchema), ctrl.workerRateUser);
 router.get('/:id/timeline', authenticate, ctrl.getTimeline);

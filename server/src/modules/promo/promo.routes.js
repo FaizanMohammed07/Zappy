@@ -6,6 +6,9 @@ const { validate } = require('../../middlewares/validate');
 
 const router = express.Router();
 
+// User: browse all currently active promos
+router.get('/available', authenticate, ctrl.listAvailable);
+
 // User: validate promo at checkout
 router.post('/validate', authenticate, validate(Joi.object({
   code:            Joi.string().required(),

@@ -50,6 +50,11 @@ const EventSavedThemesPage         = lazy(() => import('./pages/events/EventSave
 const PartnerLoginPage             = lazy(() => import('./pages/events/PartnerLoginPage'));
 const PartnerDashboard             = lazy(() => import('./pages/events/PartnerDashboard'));
 const AdvertiserDashboard          = lazy(() => import('./pages/AdvertiserDashboard'));
+const SpendingPage                 = lazy(() => import('./pages/SpendingPage'));
+const NotificationPrefsPage        = lazy(() => import('./pages/NotificationPrefsPage'));
+const PromosHubPage                = lazy(() => import('./pages/PromosHubPage'));
+const ScheduledBookingsPage        = lazy(() => import('./pages/ScheduledBookingsPage'));
+const AccountSecurityPage          = lazy(() => import('./pages/AccountSecurityPage'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -103,6 +108,11 @@ export default function App() {
         <Route path="/disputes" element={<RequireAuth role="user"><DisputesPage /></RequireAuth>} />
         <Route path="/support" element={<RequireAuth role="user"><SupportPage /></RequireAuth>} />
         <Route path="/payments" element={<RequireAuth role="user"><PaymentMethodsPage /></RequireAuth>} />
+        <Route path="/spending" element={<RequireAuth role="user"><SpendingPage /></RequireAuth>} />
+        <Route path="/notification-prefs" element={<RequireAuth role="user"><NotificationPrefsPage /></RequireAuth>} />
+        <Route path="/promos" element={<RequireAuth role="user"><PromosHubPage /></RequireAuth>} />
+        <Route path="/scheduled" element={<RequireAuth role="user"><ScheduledBookingsPage /></RequireAuth>} />
+        <Route path="/account-security" element={<RequireAuth role="user"><AccountSecurityPage /></RequireAuth>} />
         <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
 
         {/* Plans + Wallet — available to both users and workers */}

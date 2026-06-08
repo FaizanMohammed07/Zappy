@@ -44,6 +44,28 @@ const userSchema = new mongoose.Schema(
       lastFreezeAt:           { type: Date },
     },
 
+    // Per-channel notification opt-in flags
+    notificationPrefs: {
+      orderUpdates:  { type: Boolean, default: true },
+      workerArrival: { type: Boolean, default: true },
+      payments:      { type: Boolean, default: true },
+      disputes:      { type: Boolean, default: true },
+      promotions:    { type: Boolean, default: true },
+      marketing:     { type: Boolean, default: false },
+    },
+
+    // Rolling last-10 login records for the account-security screen
+    loginHistory: [{
+      at:        { type: Date, default: Date.now },
+      ip:        String,
+      device:    String, // parsed UA: "Chrome on Windows"
+      userAgent: { type: String, select: false },
+    }],
+
+    // Soft delete — retained 30 days then hard-purged by a scheduled job
+    isDeleted:  { type: Boolean, default: false, index: true },
+    deletedAt:  Date,
+
     // Gamification — XP, levels, streaks, badges (mirrors worker incentive system)
     gamification: {
       xp:            { type: Number, default: 0 },

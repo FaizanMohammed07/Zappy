@@ -10,10 +10,11 @@ import {
   Clock, Wallet, User, ShieldCheck,
   CheckCircle, Lock, TrendingUp, MapPin, Loader2,
   Laptop, Tv, Wifi, Camera, Heart, PartyPopper, Dog,
-  ShieldAlert, Cpu, MonitorSmartphone,
+  ShieldAlert, Cpu, MonitorSmartphone, Repeat2,
 } from 'lucide-react';
 import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
 import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery } from '../services/api';
+import { serviceLabel } from '../constants/services';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import BottomNav from '../components/layout/BottomNav';
 import Footer from '../components/layout/Footer';
@@ -307,6 +308,20 @@ export default function HomePage() {
   const gam            = gamData?.gamification;
   const recommendations = recData?.recommendations || [];
 
+  // Quick rebook: last 3 distinct services from completed orders
+  const quickRebooks = (() => {
+    const seen = new Set();
+    const result = [];
+    for (const o of (data?.orders ?? [])) {
+      if (o.status === 'completed' && !seen.has(o.service)) {
+        seen.add(o.service);
+        result.push(o.service);
+        if (result.length === 3) break;
+      }
+    }
+    return result;
+  })();
+
   // Re-engagement banner (#99): show "book again" nudge if last completed order was >7 days ago
   const lastCompleted = data?.orders?.find(o => o.status === 'completed');
   const daysSinceLastOrder = lastCompleted
@@ -520,6 +535,30 @@ export default function HomePage() {
             <HeroCarousel />
           </motion.div>
         </div>
+
+        {/* ─── Quick Rebook ─────────────────────────────────────────── */}
+        {quickRebooks.length > 0 && (
+          <div className="max-w-5xl mx-auto px-5 mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Repeat2 size={15} className="text-indigo-500" />
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Book Again</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+              {quickRebooks.map(service => (
+                <motion.button
+                  key={service}
+                  onClick={() => nav(`/book/${service}`)}
+                  className="flex-shrink-0 flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm"
+                  whileHover={{ y: -2, boxShadow: '0 8px 20px rgba(99,102,241,0.12)' }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <span className="text-sm font-semibold text-slate-700">{serviceLabel(service)}</span>
+                  <ChevronRight size={14} className="text-indigo-400" />
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ─── Premium Dashboard Widgets (Gamification & Quick Actions) ─── */}
         <div className="max-w-5xl mx-auto px-5 mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
