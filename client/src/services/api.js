@@ -92,7 +92,7 @@ export const api = createApi({
   // Disable refetch-on-focus — dashboard fires 6-8 queries; tab switching floods the limiter
   refetchOnFocus: false,
   refetchOnReconnect: true,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -1191,6 +1191,27 @@ export const api = createApi({
     adminWorkerIncentives: b.query({
       query: (id) => adminApiPath(`/workers/${id}/incentives`),
     }),
+    // Cities / SEO
+    adminCities: b.query({
+      query: () => adminApiPath('/cities'),
+      providesTags: ['City'],
+    }),
+    adminCreateCity: b.mutation({
+      query: (body) => ({ url: adminApiPath('/cities'), method: 'POST', body }),
+      invalidatesTags: ['City'],
+    }),
+    adminUpdateCity: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/cities/${id}`), method: 'PUT', body }),
+      invalidatesTags: ['City'],
+    }),
+    adminDeleteCity: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/cities/${id}`), method: 'DELETE' }),
+      invalidatesTags: ['City'],
+    }),
+    adminToggleCityActive: b.mutation({
+      query: ({ id, isActive }) => ({ url: adminApiPath(`/cities/${id}/active`), method: 'PATCH', body: { isActive } }),
+      invalidatesTags: ['City'],
+    }),
   }),
 });
 
@@ -1490,4 +1511,10 @@ export const {
   useAdminWorkerTimelineQuery,
   useAdminWorkerDeductionsQuery,
   useAdminWorkerIncentivesQuery,
+  // Cities
+  useAdminCitiesQuery,
+  useAdminCreateCityMutation,
+  useAdminUpdateCityMutation,
+  useAdminDeleteCityMutation,
+  useAdminToggleCityActiveMutation,
 } = api;

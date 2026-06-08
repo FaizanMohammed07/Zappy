@@ -6,14 +6,29 @@
  * GET /in/:city             — city landing page
  * GET /in/:city/:category   — category + city page
  * GET /in/:city/:area/:cat  — area + category + city page
+ *
+ * City data: reads from MongoDB (admin-editable). Falls back to the static
+ * seo-data.js if the DB collection is empty (first deploy / no cities seeded).
  */
 const express = require('express');
-const { CITY_MAP, CATEGORY_MAP, CITIES, CATEGORIES } = require('./seo-data');
+const { CITY_MAP: STATIC_CITY_MAP, CATEGORY_MAP, CITIES: STATIC_CITIES, CATEGORIES } = require('./seo-data');
 const { cityPage, categoryPage, areaPage } = require('./template');
 const { generateSitemap } = require('./sitemap');
-const { BASE_URL } = require('./schema');
+const City = require('./city.model');
 
 const router = express.Router();
+
+// Build runtime city map from DB rows (or fall back to static).
+async function getCityMap() {
+  try {
+    const dbCities = await City.find({ isActive: true }).lean();
+    if (dbCities.length === 0) return { cityMap: STATIC_CITY_MAP, cities: STATIC_CITIES };
+    const cityMap = Object.fromEntries(dbCities.map(c => [c.slug, c]));
+    return { cityMap, cities: dbCities };
+  } catch {
+    return { cityMap: STATIC_CITY_MAP, cities: STATIC_CITIES };
+  }
+}
 
 // ── robots.txt ───────────────────────────────────────────────────────────────
 router.get('/robots.txt', (req, res) => {
@@ -41,28 +56,28 @@ router.get('/sitemap.xml', async (req, res) => {
 });
 
 // ── City page (/in/:city) ────────────────────────────────────────────────────
-router.get('/in/:city', (req, res) => {
-  const city = CITY_MAP[req.params.city];
+router.get('/in/:city', async (req, res) => {
+  const { cityMap, cities } = await getCityMap();
+  const city = cityMap[req.params.city];
   if (!city) return res.status(404).send('City not found');
   res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=3600')
      .type('text/html')
-     .send(cityPage(city, CATEGORIES, CITIES));
+     .send(cityPage(city, CATEGORIES, cities));
 });
 
 // ── Category + City page (/in/:city/:slug) ───────────────────────────────────
-// Must distinguish between area slugs and category slugs
-router.get('/in/:city/:slug', (req, res) => {
-  const city = CITY_MAP[req.params.city];
+router.get('/in/:city/:slug', async (req, res) => {
+  const { cityMap, cities } = await getCityMap();
+  const city = cityMap[req.params.city];
   if (!city) return res.status(404).send('City not found');
 
   const category = CATEGORY_MAP[req.params.slug];
   if (category) {
     return res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=3600')
               .type('text/html')
-              .send(categoryPage(city, category, CATEGORIES, CITIES));
+              .send(categoryPage(city, category, CATEGORIES, cities));
   }
 
-  // Treat as area landing (area only — redirect to first category for now)
   const area = city.areas.find(a => a.slug === req.params.slug);
   if (area) {
     return res.redirect(301, `/in/${city.slug}/${area.slug}/mobile-repair`);
@@ -72,8 +87,9 @@ router.get('/in/:city/:slug', (req, res) => {
 });
 
 // ── Area + Category + City (/in/:city/:area/:category) ───────────────────────
-router.get('/in/:city/:area/:category', (req, res) => {
-  const city = CITY_MAP[req.params.city];
+router.get('/in/:city/:area/:category', async (req, res) => {
+  const { cityMap } = await getCityMap();
+  const city = cityMap[req.params.city];
   if (!city) return res.status(404).send('City not found');
 
   const area = city.areas.find(a => a.slug === req.params.area);
@@ -84,7 +100,7 @@ router.get('/in/:city/:area/:category', (req, res) => {
 
   res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=3600')
      .type('text/html')
-     .send(areaPage(city, area, category, CATEGORIES, CITIES));
+     .send(areaPage(city, area, category, CATEGORIES, [city]));
 });
 
 module.exports = router;

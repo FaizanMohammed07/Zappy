@@ -20,5 +20,6 @@ router.use('/', require('./routes/audit.routes'));
 router.use('/', require('./routes/shield.routes'));
 router.use('/', require('../fraud/fraud.routes'));
 router.use('/', require('../zone/zone.routes'));
+router.use('/', require('./routes/cities.routes'));
 
 module.exports = router;

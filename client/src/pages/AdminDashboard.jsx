@@ -47,6 +47,7 @@ import PetAssistance from './admin/PetAssistance';
 import Fraud from './admin/Fraud';
 import Zones from './admin/Zones';
 import Intervention from './admin/Intervention';
+import Cities from './admin/Cities';
 
 /* ─── Navigation groups ────────────────────────────────────────────────── */
 const NAV_GROUPS = [
@@ -81,6 +82,7 @@ const NAV_GROUPS = [
       { id: 'intervention', label: 'Intervention',     icon: Zap },
       { id: 'fraud',        label: 'Fraud Detection',  icon: ShieldAlert },
       { id: 'zones',        label: 'Zones',            icon: MapIcon },
+      { id: 'cities',       label: 'Cities & Areas',   icon: Globe },
       { id: 'disputes',     label: 'Disputes',         icon: Scale },
       { id: 'cancellation', label: 'Cancellation',     icon: XCircle },
       { id: 'incentives',   label: 'Incentives',       icon: Gift },
@@ -132,7 +134,7 @@ const SECTION_MAP = {
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
   events: Events,
   'pet-assistance': PetAssistance,
-  fraud: Fraud, zones: Zones, intervention: Intervention,
+  fraud: Fraud, zones: Zones, intervention: Intervention, cities: Cities,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */
