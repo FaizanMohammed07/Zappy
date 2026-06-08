@@ -98,8 +98,8 @@ const pricingConfigSchema = new mongoose.Schema(
     // Deducted from worker earnings per extra minute beyond ETA.
     // Set to 0 to disable. Default: ₹2/min (200 paise).
     lateArrivalPenaltyPaisePerMin: { type: Number, default: 200, min: 0 },
-    // Grace period before penalty kicks in (minutes). Default: 2 min buffer.
-    lateArrivalGraceMinutes: { type: Number, default: 2, min: 0 },
+    // Grace period before penalty kicks in (minutes). Default: 5 min buffer.
+    lateArrivalGraceMinutes: { type: Number, default: 5, min: 0 },
 
     // ── Service tiers (booking-time speed/quality premium) ────────────────────
     // Multipliers applied on top of the base quote price.

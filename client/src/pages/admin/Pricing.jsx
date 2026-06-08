@@ -77,7 +77,7 @@ export default function Pricing() {
   });
   const [penalty, setPenalty] = useState({
     lateArrivalPenaltyRsPerMin: 2,
-    lateArrivalGraceMinutes: 2,
+    lateArrivalGraceMinutes: 5,
   });
   const [tiers, setTiers] = useState({
     tierMultiplierPriority:  1.2,
@@ -454,7 +454,7 @@ export default function Pricing() {
           </FormRow>
         </div>
         <p className="text-[11px] text-slate-400 mt-3 bg-red-50 rounded-lg px-3 py-2">
-          Example: ETA = 8 min · Worker arrives in 12 min · Grace = 2 min → Late by 2 min → Deduct <strong>₹{penalty.lateArrivalPenaltyRsPerMin * 2}</strong>
+          Example: ETA = 8 min · Worker arrives in 15 min · Grace = {penalty.lateArrivalGraceMinutes} min → Late by {Math.max(0,15-8-penalty.lateArrivalGraceMinutes)} min → Deduct <strong>₹{Math.max(0,15-8-penalty.lateArrivalGraceMinutes) * penalty.lateArrivalPenaltyRsPerMin}</strong>
         </p>
         <div className="mt-5">
           <SaveBtn loading={saving} onClick={() => saveSection({
