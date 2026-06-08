@@ -347,6 +347,7 @@ export default function BookingPage() {
   const [activeOrderId, setActiveOrderId] = useState(null);
   const [diagnosisAnswers, setDiagnosisAnswers] = useState(null);
   const [showDiagnosis,    setShowDiagnosis]    = useState(false);
+  const [noWorkersModal,   setNoWorkersModal]   = useState(false);
 
   // Mobile-specific state
   const [deviceBrand,   setDeviceBrand]   = useState('');
@@ -514,6 +515,10 @@ export default function BookingPage() {
       }, 4500);
     } catch (err) {
       setPricingMode('now');
+      if (err.data?.code === 'NO_WORKERS_IN_AREA') {
+        setNoWorkersModal(true);
+        return;
+      }
       const msg = err.data?.error || 'Failed to place order';
       if (err.data?.activeOrderId) {
         toast.error(`${msg} — redirecting…`);
@@ -1498,6 +1503,96 @@ export default function BookingPage() {
           </AnimatePresence>
 
           {/* Boost is on the Order Tracking page (/orders/:id) after redirect */}
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* ── No workers in area — emotional expansion modal ─────────────── */}
+    <AnimatePresence>
+      {noWorkersModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(8px)' }}
+        >
+          <motion.div
+            initial={{ y: 80, opacity: 0, scale: 0.96 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 60, opacity: 0, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+            className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl"
+          >
+            {/* Gradient header */}
+            <div className="relative px-6 pt-10 pb-8 text-center"
+              style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #7c3aed 100%)' }}>
+              {/* Floating rings */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                {[0,1,2].map(i => (
+                  <motion.div key={i}
+                    animate={{ scale: [1, 1.6, 1], opacity: [0.15, 0, 0.15] }}
+                    transition={{ duration: 3, delay: i * 0.9, repeat: Infinity }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white"
+                    style={{ width: 80 + i * 60, height: 80 + i * 60 }}
+                  />
+                ))}
+              </div>
+              {/* Rocket icon */}
+              <motion.div
+                animate={{ y: [0, -8, 0] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                className="relative z-10 text-6xl mb-3"
+              >🚀</motion.div>
+              <h2 className="relative z-10 text-white text-xl font-bold leading-snug">
+                We&apos;re not in your area yet
+              </h2>
+              <p className="relative z-10 text-blue-200 text-sm mt-1 font-medium">
+                But we&apos;re expanding fast!
+              </p>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-6 text-center space-y-4">
+              <p className="text-slate-700 text-sm leading-relaxed">
+                Zappy is growing city by city across India — and your area is next on our radar. 🌏
+                <br /><br />
+                <span className="font-semibold text-slate-900">
+                  We&apos;re onboarding verified professionals near you right now.
+                </span>{' '}
+                Very soon you&apos;ll get the fastest, most reliable service at your doorstep.
+              </p>
+
+              {/* Timeline pill */}
+              <div className="flex items-center justify-center gap-2 bg-amber-50 border border-amber-100 rounded-2xl py-3 px-4">
+                <span className="text-amber-500 text-lg">⚡</span>
+                <span className="text-amber-800 text-xs font-semibold">
+                  Launching in your city within weeks
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2 pt-1">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    setNoWorkersModal(false);
+                    nav('/services');
+                  }}
+                  className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white"
+                  style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)' }}
+                >
+                  Explore Available Services
+                </motion.button>
+                <button
+                  onClick={() => setNoWorkersModal(false)}
+                  className="w-full py-3 rounded-2xl text-sm font-medium text-slate-500 hover:text-slate-700"
+                >
+                  Go back
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
