@@ -11,7 +11,7 @@ router.put(
   '/incentives/milestones',
   validate(Joi.object({
     milestones: Joi.array().items(
-      Joi.object({ jobs: Joi.number().integer().min(1).required(), bonusPaise: Joi.number().integer().min(0).required() }),
+      Joi.object({ jobs: Joi.number().integer().min(1).required(), bonusPaise: Joi.number().integer().min(0).required(), label: Joi.string().trim().min(1).required() }),
     ).min(1).required(),
   })),
   ctrl.setIncentiveMilestones,
