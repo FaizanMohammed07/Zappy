@@ -540,6 +540,7 @@ export default function WorkerJobPage() {
   const otpInputRef                       = useRef(null);
   const watchCancelRef                    = useRef(null);
   const lastSentRef                       = useRef(0);
+  const [idleSeconds,  setIdleSeconds]    = useState(0);
 
   useOrderSocket(id);
   const socketStatus = useSocketStatus();
@@ -641,6 +642,17 @@ export default function WorkerJobPage() {
       </div>
     );
   }
+
+  /* ── Idle alert: count seconds since order was assigned ── */
+  useEffect(() => {
+    if (status !== 'assigned' || !order) return;
+    const assignedEntry = order.statusHistory?.slice().reverse().find(h => h.status === 'assigned');
+    const assignedAt    = assignedEntry ? new Date(assignedEntry.at).getTime() : Date.now();
+    const tick = () => setIdleSeconds(Math.floor((Date.now() - assignedAt) / 1000));
+    tick();
+    const t = setInterval(tick, 5000);
+    return () => clearInterval(t);
+  }, [status, order]);
 
   if (isError || !order) {
     return (
@@ -1113,14 +1125,85 @@ export default function WorkerJobPage() {
         style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)', boxShadow: '0 -8px 32px rgba(0,0,0,0.06)', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
         <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
 
-          {status === 'assigned' && (
-            <motion.button onClick={onStartTrip} disabled={starting}
-              className="w-full relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-black text-base disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #4f46e5 100%)', boxShadow: '0 8px 24px rgba(79,70,229,0.4)' }}
-              whileTap={{ scale: 0.98 }}>
-              {starting ? <><Loader2 size={18} className="animate-spin" /> Starting…</> : <><Navigation size={18} strokeWidth={2.5} /> Start Trip to Customer</>}
-            </motion.button>
-          )}
+          {status === 'assigned' && (() => {
+            const idleMin   = Math.floor(idleSeconds / 60);
+            const isUrgent  = idleSeconds >= 300;  // 5 min — amber warning
+            const isCritical= idleSeconds >= 600;  // 10 min — red critical
+            const isNearby  = myLocation && pickup && haversineMeters(myLocation, pickup) <= 200;
+            return (
+              <div className="space-y-2">
+
+                {/* Nearby order — service must start soon */}
+                {isNearby && (
+                  <motion.div
+                    className="rounded-2xl px-4 py-3 flex items-center gap-3"
+                    style={{ background: 'linear-gradient(135deg,#14532d,#15803d)', border: '1.5px solid rgba(34,197,94,0.4)' }}
+                    animate={{ boxShadow: ['0 0 0 0px rgba(34,197,94,0.3)','0 0 0 6px rgba(34,197,94,0)','0 0 0 0px rgba(34,197,94,0)'] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <span className="text-xl">📍</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-black text-green-200">You're already nearby!</p>
+                      <p className="text-xs text-green-400 mt-0.5">Start trip now — customer is within 200 m</p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Idle alert — amber at 5 min, red at 10 min */}
+                {isUrgent && (
+                  <motion.div
+                    className="rounded-2xl px-4 py-3 flex items-center gap-3"
+                    style={isCritical
+                      ? { background: 'linear-gradient(135deg,#450a0a,#991b1b)', border: '1.5px solid rgba(239,68,68,0.5)' }
+                      : { background: 'linear-gradient(135deg,#431407,#c2410c)', border: '1.5px solid rgba(249,115,22,0.5)' }}
+                    animate={isCritical ? { scale: [1, 1.02, 1] } : {}}
+                    transition={{ duration: 0.6, repeat: Infinity }}
+                  >
+                    <motion.span
+                      className="text-xl shrink-0"
+                      animate={{ rotate: isCritical ? [-10,10,-10,0] : [0] }}
+                      transition={{ duration: 0.4, repeat: Infinity }}
+                    >
+                      {isCritical ? '🚨' : '⚠️'}
+                    </motion.span>
+                    <div className="flex-1">
+                      <p className={`text-sm font-black ${isCritical ? 'text-red-200' : 'text-orange-200'}`}>
+                        {isCritical
+                          ? `10 min passed — start NOW or order may cancel!`
+                          : `${idleMin} min idle — customer is waiting!`}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${isCritical ? 'text-red-400' : 'text-orange-400'}`}>
+                        Assigned {idleMin} min ago · tap Start Trip below
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Action row: Start Trip + Navigate side by side */}
+                <div className="flex gap-2">
+                  <motion.button onClick={onStartTrip} disabled={starting}
+                    className="flex-1 relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2 text-white font-black text-sm disabled:opacity-60"
+                    style={isCritical
+                      ? { background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 8px 24px rgba(220,38,38,0.5)' }
+                      : { background: 'linear-gradient(135deg,#1d4ed8,#4f46e5)', boxShadow: '0 8px 24px rgba(79,70,229,0.4)' }}
+                    whileTap={{ scale: 0.98 }}>
+                    {starting ? <><Loader2 size={17} className="animate-spin" /> Starting…</> : <><Navigation size={17} strokeWidth={2.5} /> Start Trip</>}
+                  </motion.button>
+
+                  {pickup && (
+                    <motion.button onClick={openNavigation}
+                      className="w-14 rounded-2xl flex items-center justify-center shrink-0"
+                      style={{ background: 'linear-gradient(135deg,#065f46,#047857)', boxShadow: '0 4px 16px rgba(4,120,87,0.4)' }}
+                      whileTap={{ scale: 0.92 }}
+                      aria-label="Open navigation"
+                    >
+                      <span className="text-xl">🗺️</span>
+                    </motion.button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {status === 'on_the_way' && (() => {
             const distM   = myLocation && pickup ? haversineMeters(myLocation, pickup) : null;
@@ -1188,23 +1271,36 @@ export default function WorkerJobPage() {
                   </div>
                 )}
 
-                {/* Arrived button — locked until inside geofence */}
-                <motion.button
-                  onClick={onArrive}
-                  disabled={arriving || !withinFence}
-                  className="w-full relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2.5 text-white font-black text-base transition-all"
-                  style={withinFence
-                    ? { background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', boxShadow: '0 8px 24px rgba(22,163,74,0.45)' }
-                    : { background: 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)', opacity: 0.7 }
-                  }
-                  whileTap={withinFence ? { scale: 0.98 } : {}}>
-                  {arriving
-                    ? <><Loader2 size={18} className="animate-spin" /> Updating…</>
-                    : withinFence
-                    ? <><CheckCircle2 size={18} strokeWidth={2.5} /> I've Arrived</>
-                    : <><MapPin size={18} strokeWidth={2.5} /> {distM !== null ? `${Math.round(distM)} m away` : 'Waiting for GPS…'}</>
-                  }
-                </motion.button>
+                {/* Arrived button + Navigate side by side */}
+                <div className="flex gap-2">
+                  <motion.button
+                    onClick={onArrive}
+                    disabled={arriving || !withinFence}
+                    className="flex-1 relative overflow-hidden rounded-2xl py-4 flex items-center justify-center gap-2 text-white font-black text-sm transition-all"
+                    style={withinFence
+                      ? { background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', boxShadow: '0 8px 24px rgba(22,163,74,0.45)' }
+                      : { background: 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)', opacity: 0.7 }
+                    }
+                    whileTap={withinFence ? { scale: 0.98 } : {}}>
+                    {arriving
+                      ? <><Loader2 size={17} className="animate-spin" /> Updating…</>
+                      : withinFence
+                      ? <><CheckCircle2 size={17} strokeWidth={2.5} /> I've Arrived</>
+                      : <><MapPin size={17} strokeWidth={2.5} /> {distM !== null ? `${Math.round(distM)} m away` : 'Waiting for GPS…'}</>
+                    }
+                  </motion.button>
+
+                  {pickup && (
+                    <motion.button onClick={openNavigation}
+                      className="w-14 rounded-2xl flex items-center justify-center shrink-0"
+                      style={{ background: 'linear-gradient(135deg,#065f46,#047857)', boxShadow: '0 4px 16px rgba(4,120,87,0.4)' }}
+                      whileTap={{ scale: 0.92 }}
+                      aria-label="Open navigation"
+                    >
+                      <span className="text-xl">🗺️</span>
+                    </motion.button>
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -1357,6 +1453,7 @@ export default function WorkerJobPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
