@@ -47,7 +47,7 @@ function CashbackConfig() {
     setForm({
       enabled:             cfg.enabled ?? true,
       rate:                ((cfg.rate ?? 0.05) * 100).toFixed(0),
-      capPaise:            cfg.capPaise ?? 5000,
+      capPaise:            Math.round((cfg.capPaise ?? 5000) / 100),
       firstOrderRate:      ((cfg.firstOrderRate ?? 0.10) * 100).toFixed(0),
       firstOrderThreshold: cfg.firstOrderThreshold ?? 3,
     });
@@ -58,7 +58,7 @@ function CashbackConfig() {
       await save({
         enabled:             form.enabled,
         rate:                Number(form.rate) / 100,
-        capPaise:            Number(form.capPaise),
+        capPaise:            Math.round(Number(form.capPaise) * 100),
         firstOrderRate:      Number(form.firstOrderRate) / 100,
         firstOrderThreshold: Number(form.firstOrderThreshold),
       }).unwrap();
@@ -101,11 +101,8 @@ function CashbackConfig() {
             <span className="text-sm font-bold text-slate-600 w-8">%</span>
           </div>
         </FormRow>
-        <FormRow label="Max Cashback Cap (paise)" hint="e.g. 5000 = ₹50 max per order">
-          <div className="flex items-center gap-2">
-            <Input type="number" min="0" step="100" {...f('capPaise')} />
-            <span className="text-xs text-slate-400">= ₹{Math.round(Number(form.capPaise) / 100)}</span>
-          </div>
+        <FormRow label="Max Cashback Cap (₹)" hint="Maximum cashback per order">
+          <Input type="number" min="0" step="1" {...f('capPaise')} />
         </FormRow>
         <FormRow label="First-Order Cashback Rate (%)" hint="Higher rate for new users' first N orders">
           <div className="flex items-center gap-2">

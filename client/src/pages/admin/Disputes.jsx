@@ -22,8 +22,8 @@ export default function Disputes() {
         id: resolving._id,
         type: form.type,
         adminNotes: form.adminNotes || undefined,
-        refundAmountPaise: form.refundAmountPaise ? Number(form.refundAmountPaise) : undefined,
-        penaltyAmountPaise: form.penaltyAmountPaise ? Number(form.penaltyAmountPaise) : undefined,
+        refundAmountPaise:  form.refundAmountPaise  ? Math.round(Number(form.refundAmountPaise)  * 100) : undefined,
+        penaltyAmountPaise: form.penaltyAmountPaise ? Math.round(Number(form.penaltyAmountPaise) * 100) : undefined,
       };
       await resolveDispute(body).unwrap();
       toast.success('Dispute resolved');
@@ -110,16 +110,16 @@ export default function Disputes() {
               </div>
               {(form.type === 'partial_refund' || form.type === 'full_refund') && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Refund Amount (paise)</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Refund Amount (₹)</label>
                   <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    type="number" placeholder="e.g. 5000 = ₹50"
+                    type="number" placeholder="e.g. 50"
                     value={form.refundAmountPaise} onChange={e => setForm(p => ({ ...p, refundAmountPaise: e.target.value }))} />
                 </div>
               )}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Penalty on Worker (paise, optional)</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Penalty on Worker (₹, optional)</label>
                 <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  type="number" placeholder="e.g. 2000 = ₹20"
+                  type="number" placeholder="e.g. 20"
                   value={form.penaltyAmountPaise} onChange={e => setForm(p => ({ ...p, penaltyAmountPaise: e.target.value }))} />
               </div>
               <div>

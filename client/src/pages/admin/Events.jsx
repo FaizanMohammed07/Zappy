@@ -719,7 +719,13 @@ function ConfigTab() {
       <div className="grid grid-cols-2 gap-4">
         {field('advancePaymentPct',     'Advance Payment %')}
         {field('platformCommissionPct', 'Platform Commission %')}
-        {field('travelFeePerKmPaise',   'Travel Fee / km (paise)')}
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Travel Fee / km (₹)</label>
+          <input type="number" min="0" step="1"
+            value={Math.round((values.travelFeePerKmPaise || 0) / 100)}
+            onChange={e => setForm(p => ({ ...(p || values), travelFeePerKmPaise: Math.round(Number(e.target.value) * 100) }))}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 outline-none" />
+        </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Min Advance Booking (hrs)</label>
           <input type="number" min="1" max="72" value={values.minAdvanceBookingHours ?? ''} onChange={e => setForm(p => ({ ...(p || values), minAdvanceBookingHours: Number(e.target.value) }))}
