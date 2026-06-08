@@ -25,6 +25,7 @@ import { useWorkerOfferSocket } from '../hooks/useSocket';
 import { setOffer, clearOffer, setOnline, selectWorker } from '../modules/worker/workerSlice';
 import { selectAuth, logout } from '../modules/auth/authSlice';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { reverseGeocode } from '../utils/reverseGeocode';
 import { getSocket } from '../services/socket';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import WorkerOnboarding from './WorkerOnboarding';
@@ -200,6 +201,7 @@ export default function WorkerDashboard() {
   const [myLat, setMyLat] = useState(null);
   const [myLng, setMyLng] = useState(null);
   const [gpsOn,        setGpsOn]        = useState(false);
+  const [areaName,     setAreaName]     = useState(null);
   const [toggling,     setToggling]     = useState(false);
   const [onlineTimer,  setOnlineTimer]  = useState(0); // seconds online this session
   const onlineStart = useRef(null);
@@ -406,12 +408,17 @@ export default function WorkerDashboard() {
     try {
       if (isOnline) {
         await goOffline().unwrap();
+        setAreaName(null);
         toast.success('You are now offline');
       } else {
         const pos = await getCurrent();
         setGpsOn(true);
         await goOnline({ lat: pos.lat, lng: pos.lng }).unwrap();
         toast.success('You are now online');
+        // Reverse geocode in background — non-blocking
+        reverseGeocode(pos.lat, pos.lng).then(({ primary, secondary }) => {
+          setAreaName(secondary ? `${primary}, ${secondary.split(',')[0]}` : primary);
+        }).catch(() => {});
       }
       refetchMe();
     } catch (err) {
@@ -707,8 +714,12 @@ export default function WorkerDashboard() {
                     animate={gpsOn ? { opacity: [1, 0.4, 1] } : {}}
                     transition={{ duration: 1.5, repeat: Infinity }}
                   />
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    {gpsOn ? 'GPS active' : 'GPS off'}
+                  <p className="text-[11px] text-slate-500 font-medium truncate max-w-[180px]">
+                    {gpsOn
+                      ? areaName
+                        ? <><span className="text-green-600 font-semibold">{areaName}</span></>
+                        : 'GPS active'
+                      : 'GPS off'}
                     {fmtTimer && <span className="text-green-600 font-bold"> · {fmtTimer}</span>}
                   </p>
                 </div>
