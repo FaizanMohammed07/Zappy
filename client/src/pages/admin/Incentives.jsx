@@ -35,14 +35,18 @@ export default function Incentives() {
     const parsed = milestones.map(m => ({
       jobs: Number(m.jobs),
       bonusPaise: Math.round(Number(m.bonusPaise) * 100),
-      label: m.label || undefined,
+      label: (m.label || '').trim(),
     }));
     if (parsed.some(m => !m.jobs || m.jobs < 1 || !m.bonusPaise || m.bonusPaise < 1)) {
       toast.error('Each milestone needs valid jobs count and bonus amount');
       return;
     }
+    if (parsed.some(m => !m.label)) {
+      toast.error('Each milestone needs a label (e.g. Silver Achiever)');
+      return;
+    }
     try {
-      await setMilestones({ milestones: parsed }).unwrap();
+      await setMilestones(parsed).unwrap();
       toast.success('Milestones saved');
       refetch();
     } catch (err) {
@@ -95,7 +99,7 @@ export default function Incentives() {
                     placeholder="e.g. 50"
                   />
                 </FormRow>
-                <FormRow label={i === 0 ? 'Label (optional)' : ''}>
+                <FormRow label={i === 0 ? 'Label' : ''}>
                   <Input
                     value={m.label || ''}
                     onChange={e => updateMilestone(i, 'label', e.target.value)}
