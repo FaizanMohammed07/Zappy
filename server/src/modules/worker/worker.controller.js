@@ -429,6 +429,207 @@ async function streamAvatar(req, res, next) {
   }
 }
 
+/* ── Bank Account Management ──────────────────────────────────────────────── */
+
+async function getBankAccounts(req, res, next) {
+  try {
+    const worker = await Worker.findById(req.auth.sub).select('savedBankAccounts savedUpiIds').lean();
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+    const banks = (worker.savedBankAccounts || []).map(b => ({
+      ...b,
+      accountNumber: `XXXX${b.accountNumber.slice(-4)}`,
+    }));
+    res.json({ banks, upiIds: worker.savedUpiIds || [] });
+  } catch (err) { next(err); }
+}
+
+async function addBankAccount(req, res, next) {
+  try {
+    const { label, accountName, accountNumber, bankName, ifsc, type, upiId, upiLabel } = req.body;
+    if (type === 'upi') {
+      await Worker.updateOne({ _id: req.auth.sub }, { $push: { savedUpiIds: { upiId, label: upiLabel || upiId, isDefault: false } } });
+    } else {
+      await Worker.updateOne({ _id: req.auth.sub }, { $push: { savedBankAccounts: { label, accountName, accountNumber, bankName, ifsc, isDefault: false } } });
+    }
+    const w = await Worker.findById(req.auth.sub).select('savedBankAccounts savedUpiIds').lean();
+    res.status(201).json({
+      banks: (w.savedBankAccounts || []).map(b => ({ ...b, accountNumber: `XXXX${b.accountNumber.slice(-4)}` })),
+      upiIds: w.savedUpiIds || [],
+    });
+  } catch (err) { next(err); }
+}
+
+async function deleteBankAccount(req, res, next) {
+  try {
+    const { id, type } = req.params;
+    if (type === 'upi') {
+      await Worker.updateOne({ _id: req.auth.sub }, { $pull: { savedUpiIds: { _id: id } } });
+    } else {
+      await Worker.updateOne({ _id: req.auth.sub }, { $pull: { savedBankAccounts: { _id: id } } });
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+async function setDefaultBankAccount(req, res, next) {
+  try {
+    const { id, type } = req.params;
+    if (type === 'upi') {
+      await Worker.updateOne({ _id: req.auth.sub }, { $set: { 'savedUpiIds.$[].isDefault': false } });
+      await Worker.updateOne({ _id: req.auth.sub, 'savedUpiIds._id': id }, { $set: { 'savedUpiIds.$.isDefault': true } });
+    } else {
+      await Worker.updateOne({ _id: req.auth.sub }, { $set: { 'savedBankAccounts.$[].isDefault': false } });
+      await Worker.updateOne({ _id: req.auth.sub, 'savedBankAccounts._id': id }, { $set: { 'savedBankAccounts.$.isDefault': true } });
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+/* ── Block Customer ───────────────────────────────────────────────────────── */
+
+async function blockCustomer(req, res, next) {
+  try {
+    const { userId, orderId, reason } = req.body;
+    const mongoose = require('mongoose');
+    const uid = new mongoose.Types.ObjectId(userId);
+    await Worker.updateOne({ _id: req.auth.sub }, { $addToSet: { 'trust.blockedFromUserIds': uid } });
+    // Log the block with context for admin review
+    const logger = require('../../utils/logger');
+    logger.info({ workerId: req.auth.sub, userId, orderId, reason }, '[WORKER] Customer blocked by worker — pending admin review');
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+/* ── Zone Benchmark ───────────────────────────────────────────────────────── */
+
+async function getZoneBenchmark(req, res, next) {
+  try {
+    const Order = require('../order/order.model');
+    const mongoose = require('mongoose');
+    const wid = new mongoose.Types.ObjectId(String(req.auth.sub));
+
+    const since30d = new Date(Date.now() - 30 * 86400000);
+    const worker = await Worker.findById(req.auth.sub).select('currentLocation rating completedJobs wallet').lean();
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+    // My earnings this month
+    const myAgg = await Order.aggregate([
+      { $match: { workerId: wid, status: 'completed', completedAt: { $gte: since30d } } },
+      { $group: { _id: null, earningsPaise: { $sum: { $ifNull: ['$earnings.workerPaise', { $multiply: ['$pricing.total', 80] }] } }, jobs: { $sum: 1 } } },
+    ]);
+    const myEarnings = (myAgg[0]?.earningsPaise || 0);
+    const myJobs = myAgg[0]?.jobs || 0;
+
+    // Zone average — all workers who completed jobs in a 10km radius
+    const [lng, lat] = worker.currentLocation?.coordinates || [78.9629, 20.5937];
+    const nearbyWorkerIds = await Worker.find({
+      currentLocation: { $near: { $geometry: { type: 'Point', coordinates: [lng, lat] }, $maxDistance: 10000 } },
+      completedJobs: { $gt: 0 },
+    }).select('_id').lean().then(ws => ws.map(w => w._id));
+
+    const zoneAgg = await Order.aggregate([
+      { $match: { workerId: { $in: nearbyWorkerIds }, status: 'completed', completedAt: { $gte: since30d } } },
+      { $group: { _id: '$workerId', earningsPaise: { $sum: { $ifNull: ['$earnings.workerPaise', { $multiply: ['$pricing.total', 80] }] } } } },
+    ]);
+
+    const earnings = zoneAgg.map(w => w.earningsPaise).sort((a, b) => a - b);
+    const zoneAvg = earnings.length ? Math.round(earnings.reduce((s, v) => s + v, 0) / earnings.length) : 0;
+    const rank = earnings.filter(e => e < myEarnings).length;
+    const percentile = earnings.length > 1 ? Math.round((rank / (earnings.length - 1)) * 100) : 100;
+
+    res.json({
+      myEarningsPaise: myEarnings,
+      myEarningsRupees: Math.round(myEarnings / 100),
+      myJobs,
+      zoneAvgPaise: zoneAvg,
+      zoneAvgRupees: Math.round(zoneAvg / 100),
+      zoneWorkerCount: nearbyWorkerIds.length,
+      percentile,
+      myRating: worker.rating,
+      myCompletedJobs: worker.completedJobs,
+    });
+  } catch (err) { next(err); }
+}
+
+/* ── Per-Job Earnings Breakdown ──────────────────────────────────────────── */
+
+async function getJobEarnings(req, res, next) {
+  try {
+    const Order = require('../order/order.model');
+    const page = Number(req.query.page) || 1;
+    const limit = 20;
+    const orders = await Order.find({ workerId: req.auth.sub, status: 'completed' })
+      .sort({ completedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .select('service pricing earnings completedAt createdAt promoCode surgeMultiplier tip')
+      .lean();
+
+    const jobs = orders.map(o => {
+      const gross = o.pricing?.total || 0;
+      const workerNet = Math.round((o.earnings?.workerPaise || gross * 80) / 100);
+      const platform = Math.round((o.earnings?.platformPaise || gross * 20) / 100);
+      const bonus = Math.round((o.earnings?.bonusPaise || 0) / 100);
+      const tip = Math.round((o.tip || 0));
+      return {
+        _id: o._id,
+        service: o.service,
+        completedAt: o.completedAt,
+        grossRupees: gross,
+        platformFeeRupees: platform,
+        netRupees: workerNet + bonus + tip,
+        bonusRupees: bonus,
+        tipRupees: tip,
+        surgeMultiplier: o.surgeMultiplier || 1,
+        commissionPct: gross > 0 ? Math.round((platform / gross) * 100) : 20,
+      };
+    });
+
+    const total = await Order.countDocuments({ workerId: req.auth.sub, status: 'completed' });
+    res.json({ jobs, total, page, totalPages: Math.ceil(total / limit) });
+  } catch (err) { next(err); }
+}
+
+async function updateSkills(req, res, next) {
+  try {
+    const { skills, skillPrimary } = req.body;
+    const update = {};
+    if (Array.isArray(skills)) update.skills = skills;
+    if (skillPrimary !== undefined) update.skillPrimary = skillPrimary ?? null;
+    await Worker.updateOne({ _id: req.auth.sub }, { $set: update });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+async function getGoals(req, res, next) {
+  try {
+    const worker = await Worker.findById(req.auth.sub).select('goals earningsToday earningsThisWeek').lean();
+    if (!worker) return res.status(404).json({ error: 'Not found' });
+    const goals = (worker.goals ?? []).map(g => ({
+      ...g,
+      earnedPaise: g.period === 'daily'
+        ? Math.round((worker.earningsToday ?? 0) * 100)
+        : Math.round((worker.earningsThisWeek ?? 0) * 100),
+    }));
+    res.json({ goals });
+  } catch (err) { next(err); }
+}
+
+async function setGoal(req, res, next) {
+  try {
+    const { period, targetPaise } = req.body;
+    await Worker.updateOne(
+      { _id: req.auth.sub },
+      { $pull: { goals: { period } } }
+    );
+    await Worker.updateOne(
+      { _id: req.auth.sub },
+      { $push: { goals: { period, targetPaise } } }
+    );
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   getMe, goOnline, goOffline, updateLocation, getEarnings,
   getOrders, getNearbyWorkers, getDemandZones,
@@ -440,4 +641,11 @@ module.exports = {
   updateProfile,
   completeOnboarding,
   streamAvatar,
+  getBankAccounts, addBankAccount, deleteBankAccount, setDefaultBankAccount,
+  blockCustomer,
+  getZoneBenchmark,
+  getJobEarnings,
+  updateSkills,
+  getGoals,
+  setGoal,
 };

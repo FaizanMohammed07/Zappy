@@ -97,6 +97,41 @@ const workerSchema = new mongoose.Schema(
       totalEarnings: { type: Number, default: 0 },
     },
 
+    // Saved payout destinations — worker manages these; used to pre-fill withdrawal forms
+    savedBankAccounts: [{
+      label:         { type: String, maxlength: 80 },
+      accountName:   { type: String, required: true, maxlength: 100 },
+      accountNumber: { type: String, required: true, maxlength: 20 },
+      bankName:      { type: String, maxlength: 80 },
+      ifsc:          { type: String, required: true, maxlength: 11, uppercase: true },
+      isDefault:     { type: Boolean, default: false },
+      addedAt:       { type: Date, default: Date.now },
+    }],
+    savedUpiIds: [{
+      upiId:     { type: String, required: true, maxlength: 100 },
+      label:     { type: String, maxlength: 60 },
+      isDefault: { type: Boolean, default: false },
+      addedAt:   { type: Date, default: Date.now },
+    }],
+
+    // Skill specialisation — primary skill for priority dispatch + higher-paying job unlock
+    skillPrimary: { type: String, default: null },
+
+    // Training certifications earned through in-app modules
+    certifications: [{
+      moduleId:   { type: String, required: true },
+      moduleName: { type: String, required: true },
+      score:      { type: Number, default: 0 },
+      earnedAt:   { type: Date, default: Date.now },
+    }],
+
+    // Earnings goals (daily / weekly targets set by worker)
+    goals: [{
+      period:      { type: String, enum: ['daily', 'weekly'], required: true },
+      targetPaise: { type: Number, required: true, min: 100 },
+      setAt:       { type: Date, default: Date.now },
+    }],
+
     // Persistent penalty stats — source of truth for dispatch score degradation.
     // Redis sliding window in abuse.service is the short-term signal;
     // this is the lifetime ledger used for scoring and admin reports.

@@ -19,6 +19,7 @@ import {
   useGetEarningsQuery, useWorkerAcceptMutation, useWorkerRejectMutation,
   useGetKycStatusQuery, useGetWorkerOrdersQuery, useGetDemandZonesQuery,
   useGetWorkerLeaderboardQuery, useListNotificationsQuery, useLogoutMutation,
+  useGetWorkerGoalsQuery, useGetZoneBenchmarkQuery,
 } from '../services/api';
 import { useWorkerOfferSocket } from '../hooks/useSocket';
 import { setOffer, clearOffer, setOnline, selectWorker } from '../modules/worker/workerSlice';
@@ -1033,6 +1034,12 @@ export default function WorkerDashboard() {
         {/* ── Demand Zones ─────────────────────────────────────── */}
         {isOnline && <DemandZonesWidget />}
 
+        {/* ── Earnings Goals ───────────────────────────────────── */}
+        <GoalsWidget />
+
+        {/* ── Zone Benchmark ───────────────────────────────────── */}
+        <BenchmarkWidget />
+
         {/* ── Quick Actions ────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}
@@ -1351,6 +1358,80 @@ const LEVEL_META = {
   low:       { label: 'Low',       bg: 'bg-slate-50', ring: 'ring-slate-100', dot: 'bg-slate-300', text: 'text-slate-500', bar: 'bg-slate-200'  },
 };
 
+function GoalsWidget() {
+  const nav = useNavigate();
+  const { data } = useGetWorkerGoalsQuery();
+  const goals = data?.goals ?? [];
+  if (goals.length === 0) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}
+      className="bg-white rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
+            <Target size={13} strokeWidth={2.5} className="text-indigo-600" />
+          </div>
+          <p className="text-xs font-bold text-[#0F172A]">Earnings Goals</p>
+        </div>
+        <button onClick={() => nav('/worker/goals')} className="text-[10px] font-bold text-blue-600 flex items-center gap-0.5">
+          Details <ChevronRight size={10} strokeWidth={2.5} />
+        </button>
+      </div>
+      <div className="space-y-2">
+        {goals.map(g => {
+          const pct = g.targetPaise > 0 ? Math.min(100, Math.round((g.earnedPaise / g.targetPaise) * 100)) : 0;
+          const color = pct >= 100 ? '#10b981' : pct >= 60 ? '#6366f1' : '#f59e0b';
+          return (
+            <div key={g.period}>
+              <div className="flex justify-between text-[11px] mb-1">
+                <span className="font-semibold text-slate-600 capitalize">{g.period} goal</span>
+                <span className="font-bold" style={{ color }}>{pct}% · ₹{(g.earnedPaise / 100).toFixed(0)} / ₹{(g.targetPaise / 100).toFixed(0)}</span>
+              </div>
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+function BenchmarkWidget() {
+  const nav = useNavigate();
+  const { data } = useGetZoneBenchmarkQuery();
+  if (!data) return null;
+  const top = Math.round(100 - data.percentile);
+  const color = top <= 20 ? '#10b981' : top <= 50 ? '#6366f1' : '#f59e0b';
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }}
+      className="bg-white rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+          <TrendingUp size={16} strokeWidth={2} className="text-indigo-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-[#0F172A]">Zone Ranking</p>
+          <p className="text-[10px] text-slate-400">vs workers in your area</p>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-extrabold" style={{ color }}>Top {top}%</p>
+          <p className="text-[10px] text-slate-400">avg ₹{(data.zoneAvgPaise / 100).toFixed(0)}/wk</p>
+        </div>
+      </div>
+      <div className="mt-3 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${data.percentile}%`, backgroundColor: color }} />
+      </div>
+      <button onClick={() => nav('/worker/goals')} className="mt-2 text-[10px] text-blue-600 font-bold flex items-center gap-0.5">
+        Set earnings goal <ChevronRight size={10} strokeWidth={2.5} />
+      </button>
+    </motion.div>
+  );
+}
+
 function DemandZonesWidget() {
   const [expanded, setExpanded] = useState(false);
   const [coords, setCoords]     = useState(null);
@@ -1438,6 +1519,12 @@ function DemandZonesWidget() {
             <span className={`ml-1.5 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-white/60 ${topMeta.text}`}>
               {topMeta.label}
             </span>
+            {top.level === 'very_high' && (
+              <span className="ml-1 text-[9px] font-extrabold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">2× Surge</span>
+            )}
+            {top.level === 'high' && (
+              <span className="ml-1 text-[9px] font-extrabold bg-orange-400 text-white px-1.5 py-0.5 rounded-full">1.5× Surge</span>
+            )}
           </p>
           <p className="text-[10px] text-slate-500 mt-0.5">
             {top.distKm} km away · jobs in {top.waitMin} min
@@ -1461,6 +1548,8 @@ function DemandZonesWidget() {
                   <div key={z.name} className="flex items-center gap-2.5 px-1 py-1.5">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${m.dot}`} />
                     <p className="text-xs font-semibold text-[#0F172A] flex-1">{z.name}</p>
+                    {z.level === 'very_high' && <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">2×</span>}
+                    {z.level === 'high' && <span className="text-[9px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">1.5×</span>}
                     <span className={`text-[9px] font-bold ${m.text}`}>{m.label}</span>
                     <span className="text-[10px] text-slate-400">{z.distKm} km</span>
                   </div>
@@ -1702,6 +1791,17 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
                     >
                       <Star size={9} strokeWidth={2.5} />
                       Priority Request
+                    </motion.span>
+                  )}
+                  {offer.surgeMultiplier > 1 && (
+                    <motion.span
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: [1, 1.08, 1], opacity: 1 }}
+                      transition={{ duration: 1.2, repeat: Infinity }}
+                      className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-300 px-2 py-0.5 rounded-full ring-1 ring-amber-400"
+                    >
+                      <Zap size={9} strokeWidth={2.5} />
+                      {offer.surgeMultiplier}× Surge
                     </motion.span>
                   )}
                   {offer.boostedBy ? (

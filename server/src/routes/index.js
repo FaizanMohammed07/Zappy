@@ -25,6 +25,8 @@ const engagementRoutes = require('../modules/engagement/engagement.routes');
 const adRoutes = require('../modules/ads/ad.routes');
 const promoRoutes = require('../modules/promo/promo.routes');
 const { router: eventRoutes, adminRouter: eventAdminRoutes, partnerRouter: eventPartnerRoutes } = require('../modules/events/event.routes');
+const appealRoutes = require('../modules/worker/appeal.routes');
+const trainingRoutes = require('../modules/worker/training.routes');
 
 function mountRoutes(app) {
   const slug = process.env.ADMIN_LOGIN_SLUG;
@@ -46,6 +48,10 @@ function mountRoutes(app) {
   app.use('/api/orders', featuresRoutes);              // Feature routes: /api/orders/:id/service-photos, /tip, etc.
   app.use('/api/orders', serviceOrderRouter);          // Service features: materials, checklist, spare-parts, inspection
   app.use('/api/workers', workerFeaturesRoutes);       // Worker features: /sos, /earned-wage, /emergency-fund, /area-notes
+  app.use('/api/worker/appeals', appealRoutes);
+  app.use('/api/worker/training', trainingRoutes);
+  app.use(`/api/${slug}/worker/appeals`, appealRoutes.adminRouter);
+  app.use(`/api/${slug}/worker/training`, trainingRoutes.adminRouter);
   app.use('/api/service-memory', serviceMemoryRoutes); // Appliance passport
   app.use('/api/service-features', serviceFeaturesRouter); // Diagnosis, warranty, maintenance plans, portfolio, time-estimate
   app.use('/api/vertical-features', verticalFeaturesRouter); // Phone catalog/health, vehicle profiles/health, construction timer/site-visit
