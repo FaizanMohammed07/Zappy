@@ -11,21 +11,16 @@ import useZoneNames    from './hooks/useZoneNames';
 import useMapLayers    from './hooks/useMapLayers';
 import ZoneList        from './components/heatmap/ZoneLeaderboard';
 import { HourlyChart, DowChart, ServiceBreakdown } from './components/heatmap/DemandPatterns';
+import { SERVICE_FILTER_OPTIONS, SERVICE_COLORS } from '../../constants/services';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
 const INDIA_CENTER = [78.9629, 20.5937];
 const INDIA_ZOOM   = 4.5;
-const SERVICES     = ['all', 'puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair', 'cleaning', 'painting'];
+const SERVICES     = SERVICE_FILTER_OPTIONS;
 const DAY_OPTIONS  = [7, 14, 30, 60, 90];
 const DOW_LABELS   = ['', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const SERVICE_COLORS = {
-  puncture: '#ef4444', plumbing: '#3b82f6', electrical: '#eab308',
-  helper: '#6b7280', carpenter: '#f59e0b', ac_repair: '#06b6d4',
-  cleaning: '#22c55e', painting: '#a855f7',
-};
 
 const VIEWS = [
   { id: 'demand',  label: 'Demand Heatmap',   Icon: Flame,       color: '#f97316', desc: 'Order density — hottest areas = most bookings' },

@@ -8,6 +8,7 @@ import {
 } from './_shared';
 import { Tag, Plus, Pencil, Trash2, Copy, CheckCircle2, ToggleLeft, ToggleRight } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { SERVICE_FILTER_OPTIONS, serviceLabel } from '../../constants/services';
 
 const TYPE_OPTIONS = [
   { value: 'flat',        label: 'Flat Discount (₹)' },
@@ -16,17 +17,7 @@ const TYPE_OPTIONS = [
   { value: 'loyalty',     label: 'Loyalty Reward' },
 ];
 
-const SERVICES = [
-  'all',
-  // Home
-  'electrical','plumbing','ac_repair','carpenter','helper','cleaning','painting','delivery','laundry','beauty','gardening','security','appliance','internet',
-  // Mobile
-  'screen_replacement','battery_replacement','charging_issue','speaker_mic_issue','software_issue','water_damage_check',
-  // Construction
-  'mason',
-  // Vehicle
-  'puncture','battery_jump_start','fuel_delivery','bike_wash','car_wash','minor_roadside_repair',
-];
+const SERVICES = SERVICE_FILTER_OPTIONS;
 
 const EMPTY_FORM = {
   code: '', name: '', description: '', type: 'flat',
@@ -292,7 +283,7 @@ export default function Promos() {
                   {SERVICES.filter(s => s !== 'all').map(s => (
                     <button key={s} type="button" onClick={() => toggleService(s)}
                       className={`px-3 py-1 rounded-full text-xs font-semibold transition ${form.services.includes(s) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                      {s.replace('_', ' ')}
+                      {serviceLabel(s)}
                     </button>
                   ))}
                 </div>

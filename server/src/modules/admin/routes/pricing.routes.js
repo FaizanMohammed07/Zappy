@@ -9,21 +9,51 @@ router.get('/pricing-config', ctrl.getPricingConfig);
 router.put(
   '/pricing-config',
   validate(Joi.object({
-    baseFee: Joi.number().min(0),
-    perKmFee: Joi.number().min(0),
-    perMinFee: Joi.number().min(0),
-    platformFee: Joi.number().min(0).max(100),
-    minFare: Joi.number().min(0).max(1000),
-    surgeMaxMultiplier: Joi.number().min(1).max(3),
-    commissionRate: Joi.number().min(0).max(0.45),
-    earnedWageAdvanceEnabled: Joi.boolean(),
-    earnedWageAdvanceRate:    Joi.number().min(0.1).max(0.9),
-    emergencyFundContributionRate: Joi.number().min(0).max(0.02),
+    // Fare
+    baseFeePaise:    Joi.number().integer().min(0),
+    perKmFeePaise:   Joi.number().integer().min(0),
+    perMinFeePaise:  Joi.number().integer().min(0),
+    platformFeePaise: Joi.number().integer().min(0).max(10000),
+    minFarePaise:    Joi.number().integer().min(0).max(100000),
+    surgeMaxCap:     Joi.number().min(1).max(10),
+    // Commission
+    commissionRate:       Joi.number().min(0).max(0.50),
+    couponCommissionRate: Joi.number().min(0).max(0.50),
+    // Tips
     tipMaxPaise:  Joi.number().integer().min(0).max(100000),
     tipOptions:   Joi.array().items(Joi.number().integer().min(1)).max(6),
+    // Boost
+    boostEnabled:        Joi.boolean(),
+    boostMaxPaise:       Joi.number().integer().min(0).max(100000),
+    boostOptions:        Joi.array().items(Joi.number().integer().min(1)).max(8),
+    boostDispatchWeight: Joi.number().min(0).max(10),
+    // Dispatch behaviour
+    forceAssignBonusPaise:       Joi.number().integer().min(0).max(10000),
+    workerAutoOfflineRejectRate: Joi.number().min(0.1).max(1),
+    workerRejectWarnRate:        Joi.number().min(0.1).max(1),
+    rejectRatePenaltyWeight:     Joi.number().min(0).max(20),
+    cancelRatePenaltyWeight:     Joi.number().min(0).max(20),
+    minWorkerRating:             Joi.number().min(1).max(5),
+    // Stale watchdog
+    staleNudgeMinutes:      Joi.number().integer().min(1).max(30),
+    staleRedispatchMinutes: Joi.number().integer().min(2).max(60),
+    staleOtwAlertMinutes:   Joi.number().integer().min(5).max(120),
+    // Referral
     referralReferrerBonusPaise: Joi.number().integer().min(0).max(100000),
     referralRefereeBonusPaise:  Joi.number().integer().min(0).max(50000),
-  })),
+    // Worker finance
+    earnedWageAdvanceEnabled:      Joi.boolean(),
+    earnedWageAdvanceRate:         Joi.number().min(0.1).max(0.9),
+    emergencyFundContributionRate: Joi.number().min(0).max(0.05),
+    // Late arrival penalty
+    lateArrivalPenaltyPaisePerMin: Joi.number().integer().min(0).max(5000),
+    lateArrivalGraceMinutes:       Joi.number().integer().min(0).max(15),
+    // Service tiers
+    tierMultiplierPriority:  Joi.number().min(1).max(3),
+    tierMultiplierExpress:   Joi.number().min(1).max(3),
+    tierExpressMaxSearchMs:  Joi.number().integer().min(10000).max(600000),
+    tierPriorityMaxSearchMs: Joi.number().integer().min(10000).max(600000),
+  }).min(1)),
   ctrl.setPricingConfig,
 );
 
