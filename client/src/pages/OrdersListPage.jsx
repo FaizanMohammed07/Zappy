@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { ClipboardList, ChevronRight, Circle, ChevronLeft, FileDown, Star, Calendar, Loader2 } from 'lucide-react';
+import { ClipboardList, ChevronRight, Circle, ChevronLeft, FileDown, Star, Calendar, Loader2, Repeat2 } from 'lucide-react';
 import { useListOrdersQuery } from '../services/api';
 import { selectAuth } from '../modules/auth/authSlice';
 import BottomNav from '../components/layout/BottomNav';
@@ -240,9 +240,9 @@ export default function OrdersListPage() {
                     </div>
                   </button>
 
-                  {/* Invoice download */}
+                  {/* Invoice download + Book Again */}
                   {isCompleted && (
-                    <div className="px-4 pb-3 border-t border-slate-50 flex items-center justify-between mt-1">
+                    <div className="px-4 pb-3 border-t border-slate-50 flex items-center gap-2 flex-wrap mt-1">
                       <button
                         onClick={(e) => downloadInvoice(e, order._id)}
                         disabled={downloadingId === order._id}
@@ -251,7 +251,7 @@ export default function OrdersListPage() {
                         {downloadingId === order._id
                           ? <Loader2 size={11} className="animate-spin" />
                           : <FileDown size={11} strokeWidth={2.5} />}
-                        {downloadingId === order._id ? 'Generating…' : 'Download Invoice'}
+                        {downloadingId === order._id ? 'Generating…' : 'Invoice'}
                       </button>
                       {order.userRating == null && (
                         <button
@@ -259,9 +259,16 @@ export default function OrdersListPage() {
                           className="flex items-center gap-1 text-[11px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg hover:bg-amber-100 transition mt-2"
                         >
                           <Star size={10} className="fill-amber-400 text-amber-400" />
-                          Rate Service
+                          Rate
                         </button>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); nav(`/book/${order.service}`); }}
+                        className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition mt-2 ml-auto"
+                      >
+                        <Repeat2 size={10} strokeWidth={2.5} />
+                        Book Again
+                      </button>
                     </div>
                   )}
                 </motion.div>

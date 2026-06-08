@@ -92,7 +92,7 @@ export const api = createApi({
   // Disable refetch-on-focus — dashboard fires 6-8 queries; tab switching floods the limiter
   refetchOnFocus: false,
   refetchOnReconnect: true,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -130,6 +130,65 @@ export const api = createApi({
     deleteAddress: b.mutation({
       query: (addrId) => ({ url: `/users/addresses/${addrId}`, method: 'DELETE' }),
       invalidatesTags: ['Addresses'],
+    }),
+    editAddress: b.mutation({
+      query: ({ addrId, ...body }) => ({ url: `/users/addresses/${addrId}`, method: 'PATCH', body }),
+      invalidatesTags: ['Addresses'],
+    }),
+    setDefaultAddress: b.mutation({
+      query: (addrId) => ({ url: `/users/addresses/${addrId}/default`, method: 'PATCH' }),
+      invalidatesTags: ['Addresses'],
+    }),
+    // Payment methods
+    getPaymentMethods: b.query({
+      query: () => '/users/payment-methods',
+      providesTags: ['PaymentMethods'],
+    }),
+    addPaymentMethod: b.mutation({
+      query: (body) => ({ url: '/users/payment-methods', method: 'POST', body }),
+      invalidatesTags: ['PaymentMethods'],
+    }),
+    deletePaymentMethod: b.mutation({
+      query: (methodId) => ({ url: `/users/payment-methods/${methodId}`, method: 'DELETE' }),
+      invalidatesTags: ['PaymentMethods'],
+    }),
+    setDefaultPaymentMethod: b.mutation({
+      query: (methodId) => ({ url: `/users/payment-methods/${methodId}/default`, method: 'PATCH' }),
+      invalidatesTags: ['PaymentMethods'],
+    }),
+    // Disputes (user-facing)
+    getMyDisputes: b.query({
+      query: () => '/disputes/mine',
+      providesTags: ['UserDisputes'],
+    }),
+    getDispute: b.query({
+      query: (id) => `/disputes/${id}`,
+      providesTags: (r, e, id) => [{ type: 'UserDisputes', id }],
+    }),
+    openDispute: b.mutation({
+      query: (body) => ({ url: '/disputes', method: 'POST', body }),
+      invalidatesTags: ['UserDisputes'],
+    }),
+    addDisputeMessage: b.mutation({
+      query: ({ id, text }) => ({ url: `/disputes/${id}/messages`, method: 'POST', body: { text } }),
+      invalidatesTags: (r, e, a) => [{ type: 'UserDisputes', id: a.id }],
+    }),
+    // Support tickets (user-facing)
+    getMyTickets: b.query({
+      query: () => '/support/mine',
+      providesTags: ['UserTickets'],
+    }),
+    getTicket: b.query({
+      query: (id) => `/support/${id}`,
+      providesTags: (r, e, id) => [{ type: 'UserTickets', id }],
+    }),
+    createTicket: b.mutation({
+      query: (body) => ({ url: '/support', method: 'POST', body }),
+      invalidatesTags: ['UserTickets'],
+    }),
+    addTicketMessage: b.mutation({
+      query: ({ id, text }) => ({ url: `/support/${id}/messages`, method: 'POST', body: { text } }),
+      invalidatesTags: (r, e, a) => [{ type: 'UserTickets', id: a.id }],
     }),
     saveRecentLocation: b.mutation({
       query: (body) => ({ url: '/users/recent-location', method: 'POST', body }),
@@ -1316,6 +1375,20 @@ export const {
   useGetAddressesQuery,
   useAddAddressMutation,
   useDeleteAddressMutation,
+  useEditAddressMutation,
+  useSetDefaultAddressMutation,
+  useGetPaymentMethodsQuery,
+  useAddPaymentMethodMutation,
+  useDeletePaymentMethodMutation,
+  useSetDefaultPaymentMethodMutation,
+  useGetMyDisputesQuery,
+  useGetDisputeQuery,
+  useOpenDisputeMutation,
+  useAddDisputeMessageMutation,
+  useGetMyTicketsQuery,
+  useGetTicketQuery,
+  useCreateTicketMutation,
+  useAddTicketMessageMutation,
   useSaveRecentLocationMutation,
   useRegisterDeviceTokenMutation,
   useRegisterWorkerDeviceTokenMutation,

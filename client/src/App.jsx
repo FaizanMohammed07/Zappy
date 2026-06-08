@@ -34,6 +34,9 @@ const AdminLoginPage      = lazy(() => import('./pages/AdminLoginPage'));
 const PlansPage           = lazy(() => import('./pages/PlansPage'));
 const WalletPage          = lazy(() => import('./pages/WalletPage'));
 const ReferralPage        = lazy(() => import('./pages/ReferralPage'));
+const DisputesPage        = lazy(() => import('./pages/DisputesPage'));
+const SupportPage         = lazy(() => import('./pages/SupportPage'));
+const PaymentMethodsPage  = lazy(() => import('./pages/PaymentMethodsPage'));
 const WorkerProfilePage     = lazy(() => import('./pages/WorkerProfilePage'));
 const WorkerEditProfilePage        = lazy(() => import('./pages/WorkerEditProfilePage'));
 const WorkerNotificationsPage      = lazy(() => import('./pages/WorkerNotificationsPage'));
@@ -97,6 +100,9 @@ export default function App() {
         <Route path="/profile" element={<RequireAuth role="user"><ProfilePage /></RequireAuth>} />
         <Route path="/notifications" element={<RequireAuth role="user"><NotificationsPage /></RequireAuth>} />
         <Route path="/referral" element={<RequireAuth role="user"><ReferralPage /></RequireAuth>} />
+        <Route path="/disputes" element={<RequireAuth role="user"><DisputesPage /></RequireAuth>} />
+        <Route path="/support" element={<RequireAuth role="user"><SupportPage /></RequireAuth>} />
+        <Route path="/payments" element={<RequireAuth role="user"><PaymentMethodsPage /></RequireAuth>} />
         <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
 
         {/* Plans + Wallet — available to both users and workers */}

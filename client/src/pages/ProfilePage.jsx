@@ -5,11 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardList, Wallet, Bell, Star, MapPin, HelpCircle,
   LogOut, ChevronRight, ShieldCheck, Home, Briefcase, Plus,
-  Trash2, X, Loader2,
+  Trash2, X, Loader2, Scale, HeadphonesIcon, CreditCard,
+  Pencil, Check,
 } from 'lucide-react';
 import { selectAuth, logout } from '../modules/auth/authSlice';
 import {
-  useGetMeQuery, useGetAddressesQuery, useAddAddressMutation, useDeleteAddressMutation,
+  useGetMeQuery, useGetAddressesQuery, useAddAddressMutation,
+  useDeleteAddressMutation, useEditAddressMutation, useSetDefaultAddressMutation,
 } from '../services/api';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
@@ -33,9 +35,13 @@ export default function ProfilePage() {
   const { data: addrData } = useGetAddressesQuery();
   const [addAddress, { isLoading: addingAddr }] = useAddAddressMutation();
   const [deleteAddress] = useDeleteAddressMutation();
+  const [editAddress, { isLoading: editingAddr }] = useEditAddressMutation();
+  const [setDefaultAddress] = useSetDefaultAddressMutation();
   const [showLogout,    setShowLogout]    = useState(false);
   const [showAddrForm,  setShowAddrForm]  = useState(false);
+  const [editingAddrId, setEditingAddrId] = useState(null);
   const [newAddr,       setNewAddr]       = useState(EMPTY_ADDR);
+  const [editAddr,      setEditAddr]      = useState(EMPTY_ADDR);
   const [addrGeoErr,    setAddrGeoErr]    = useState('');
 
   const user      = data?.user || profile;
@@ -90,6 +96,45 @@ export default function ProfilePage() {
       await deleteAddress(addrId).unwrap();
       toast.success(`Removed ${label}`);
     } catch { toast.error('Could not delete address'); }
+  }
+
+  function startEditAddr(a) {
+    const [lng, lat] = a.location?.coordinates || [0, 0];
+    setEditAddr({
+      label: a.label || '',
+      address: a.address || '',
+      lat: String(lat),
+      lng: String(lng),
+      tag: a.tag || 'other',
+    });
+    setEditingAddrId(a._id);
+  }
+
+  async function submitEditAddr(e) {
+    e.preventDefault();
+    if (!editAddr.label.trim() || !editAddr.address.trim()) {
+      toast.error('Label and address are required');
+      return;
+    }
+    try {
+      await editAddress({
+        addrId: editingAddrId,
+        label: editAddr.label,
+        address: editAddr.address,
+        lat: parseFloat(editAddr.lat),
+        lng: parseFloat(editAddr.lng),
+        tag: editAddr.tag,
+      }).unwrap();
+      toast.success('Address updated');
+      setEditingAddrId(null);
+    } catch { toast.error('Could not update address'); }
+  }
+
+  async function handleSetDefault(addrId) {
+    try {
+      await setDefaultAddress(addrId).unwrap();
+      toast.success('Default address set');
+    } catch { toast.error('Could not set default'); }
   }
 
   return (
@@ -148,6 +193,7 @@ export default function ProfilePage() {
                 <MenuSection title="Activity">
                   <MenuItem Icon={ClipboardList} label="My Bookings" sublabel="View order history" onClick={() => nav('/orders')} />
                   <MenuItem Icon={Wallet} label="Wallet" sublabel="Balance & transactions" onClick={() => nav('/wallet')} />
+                  <MenuItem Icon={CreditCard} label="Payment Methods" sublabel="Cards, UPI & more" onClick={() => nav('/payments')} />
                   <MenuItem Icon={Bell} label="Notifications" onClick={() => nav('/notifications')} />
                 </MenuSection>
               </motion.div>
@@ -249,21 +295,85 @@ export default function ProfilePage() {
                     {addresses.map((a) => {
                       const m = TAG_META[a.tag] || TAG_META.other;
                       const Icon = m.icon;
+                      const isEditing = editingAddrId === a._id;
                       return (
-                        <div key={a._id} className="flex items-center gap-3 px-4 py-3">
-                          <div className={`w-8 h-8 rounded-lg ${m.bg} flex items-center justify-center shrink-0`}>
-                            <Icon size={13} strokeWidth={2} className={m.text} />
+                        <div key={a._id}>
+                          <div className="flex items-center gap-3 px-4 py-3">
+                            <div className={`w-8 h-8 rounded-lg ${m.bg} flex items-center justify-center shrink-0`}>
+                              <Icon size={13} strokeWidth={2} className={m.text} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{a.label}</p>
+                                {a.isDefault && (
+                                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">DEFAULT</span>
+                                )}
+                              </div>
+                              <p className="text-sm font-medium text-[#0F172A] truncate">{a.address}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {!a.isDefault && (
+                                <button
+                                  onClick={() => handleSetDefault(a._id)}
+                                  title="Set as default"
+                                  className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center hover:bg-amber-100 transition"
+                                >
+                                  <Check size={11} strokeWidth={2.5} className="text-amber-600" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => isEditing ? setEditingAddrId(null) : startEditAddr(a)}
+                                className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center hover:bg-blue-100 transition"
+                              >
+                                <Pencil size={11} strokeWidth={2} className="text-blue-600" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAddr(a._id, a.label)}
+                                className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center hover:bg-red-100 transition"
+                              >
+                                <Trash2 size={11} strokeWidth={2} className="text-red-500" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{a.label}</p>
-                            <p className="text-sm font-medium text-[#0F172A] truncate">{a.address}</p>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteAddr(a._id, a.label)}
-                            className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center shrink-0 hover:bg-red-100 transition"
-                          >
-                            <Trash2 size={12} strokeWidth={2} className="text-red-500" />
-                          </button>
+                          {/* Inline edit form */}
+                          <AnimatePresence>
+                            {isEditing && (
+                              <motion.form
+                                onSubmit={submitEditAddr}
+                                initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="px-4 pb-3 pt-1 bg-slate-50 space-y-2 border-t border-slate-100">
+                                  <div className="flex gap-2">
+                                    {['home', 'work', 'other'].map(tag => (
+                                      <button key={tag} type="button"
+                                        onClick={() => setEditAddr(p => ({ ...p, tag }))}
+                                        className={`flex-1 py-1 rounded-lg text-xs font-bold capitalize transition ${
+                                          editAddr.tag === tag ? 'bg-[#0F172A] text-white' : 'bg-white text-slate-600 border border-slate-200'
+                                        }`}
+                                      >
+                                        {tag}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <input className="input text-sm w-full" placeholder="Label"
+                                    value={editAddr.label} onChange={e => setEditAddr(p => ({ ...p, label: e.target.value }))} />
+                                  <input className="input text-sm w-full" placeholder="Full address"
+                                    value={editAddr.address} onChange={e => setEditAddr(p => ({ ...p, address: e.target.value }))} />
+                                  <div className="flex gap-2 pt-1">
+                                    <button type="button" onClick={() => setEditingAddrId(null)}
+                                      className="flex-1 h-9 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600">Cancel</button>
+                                    <button type="submit" disabled={editingAddr}
+                                      className="flex-1 h-9 rounded-lg bg-[#0F172A] text-white text-xs font-bold flex items-center justify-center gap-1.5">
+                                      {editingAddr ? <Loader2 size={12} className="animate-spin" /> : null}
+                                      Save
+                                    </button>
+                                  </div>
+                                </div>
+                              </motion.form>
+                            )}
+                          </AnimatePresence>
                         </div>
                       );
                     })}
@@ -287,7 +397,8 @@ export default function ProfilePage() {
 
               <motion.div variants={fadeInUp}>
                 <MenuSection title="Help">
-                  <MenuItem Icon={HelpCircle} label="Help & Support" sublabel="FAQs & contact us" onClick={() => toast('Opening support…')} />
+                  <MenuItem Icon={HeadphonesIcon} label="Help & Support" sublabel="Create a support ticket" onClick={() => nav('/support')} />
+                  <MenuItem Icon={Scale} label="Disputes" sublabel="Raise or track an issue" onClick={() => nav('/disputes')} />
                 </MenuSection>
               </motion.div>
 

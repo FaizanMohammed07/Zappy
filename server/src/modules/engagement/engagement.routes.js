@@ -55,6 +55,7 @@ router.post(
 );
 
 router.get('/support/mine', authenticate, ctrl.listMyTickets);
+router.get('/support/:id', authenticate, ctrl.getTicket);
 
 // Smart recommendations
 router.get('/recommendations', authenticate, async (req, res, next) => {

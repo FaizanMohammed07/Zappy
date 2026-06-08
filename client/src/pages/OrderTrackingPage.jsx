@@ -6,7 +6,7 @@ import {
   ArrowLeft, Phone, MessageCircle, Star, CheckCircle,
   Clock, MapPin, AlertCircle, Loader2, ShieldCheck, RefreshCw,
   Zap, X, ChevronRight, AlertTriangle, Wallet, HeadphonesIcon, FileText,
-  Repeat2, CheckCircle2, UserCheck, HelpCircle,
+  Repeat2, CheckCircle2, UserCheck, HelpCircle, Share2, ShieldAlert, Copy,
 } from 'lucide-react';
 import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery, useGetPricingConfigQuery, useSendTipMutation } from '../services/api';
 import BoostOfferCard from '../components/tracking/BoostOfferCard';
@@ -63,6 +63,8 @@ export default function OrderTrackingPage() {
   const [cancelReason, setCancelReason]       = useState('');
   const [showMatchSheet, setShowMatchSheet]   = useState(false);
   const [cashbackPop, setCashbackPop]         = useState(null); // { amountPaise }
+  const [showShareTrip, setShowShareTrip]     = useState(false);
+  const [showSOSConfirm, setShowSOSConfirm]   = useState(false);
   const completionShownRef = useRef(false);
   const matchShownRef      = useRef(false);
   const liveOrder = useSelector(selectOrder);
@@ -241,6 +243,30 @@ export default function OrderTrackingPage() {
     }
   }
 
+  function triggerSOS() {
+    setShowSOSConfirm(false);
+    // Call emergency — open dialer to 112 + notify server
+    fetch(`/api/orders/${id}/sos`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: pickup?.lat, lng: pickup?.lng }),
+    }).catch(() => {});
+    window.location.href = 'tel:112';
+    toast('SOS triggered — emergency services dialled', { icon: '🚨', duration: 6000 });
+  }
+
+  function shareTripLink() {
+    const url = `${window.location.origin}/track?order=${id}`;
+    if (navigator.share) {
+      navigator.share({ title: 'Track my Zappy service', text: 'Follow my live service tracking', url })
+        .catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url)
+        .then(() => toast.success('Link copied to clipboard'))
+        .catch(() => toast('Copy this link: ' + url, { duration: 8000 }));
+    }
+  }
+
   const workerForSheet = order.workerId
     ? {
         name: order.workerName,
@@ -306,9 +332,31 @@ export default function OrderTrackingPage() {
               {order.service.replace(/_/g, ' ')}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Total</p>
-            <p className="font-black text-white">₹{order.pricing?.total}</p>
+          <div className="flex items-center gap-2 shrink-0">
+            {!terminal && (
+              <motion.button
+                onClick={() => setShowShareTrip(true)}
+                className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center"
+                whileTap={{ scale: 0.92 }}
+                aria-label="Share trip"
+              >
+                <Share2 size={15} strokeWidth={2} className="text-white/80" />
+              </motion.button>
+            )}
+            {!terminal && order.workerId && (
+              <motion.button
+                onClick={() => setShowSOSConfirm(true)}
+                className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center"
+                whileTap={{ scale: 0.92 }}
+                aria-label="SOS"
+              >
+                <ShieldAlert size={15} strokeWidth={2.5} className="text-red-300" />
+              </motion.button>
+            )}
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Total</p>
+              <p className="font-black text-white">₹{order.pricing?.total}</p>
+            </div>
           </div>
         </div>
         <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -891,6 +939,116 @@ export default function OrderTrackingPage() {
             worker={workerForSheet}
             onDismiss={() => setShowMatchSheet(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── SOS confirmation sheet ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showSOSConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex flex-col justify-end"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowSOSConfirm(false)} />
+            <motion.div
+              className="relative bg-white rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))]"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+            >
+              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-5" />
+              <div className="flex flex-col items-center px-6 gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center"
+                  style={{ boxShadow: '0 8px 24px rgba(239,68,68,0.3)' }}>
+                  <ShieldAlert size={28} strokeWidth={2} className="text-red-600" />
+                </div>
+                <p className="text-xl font-black text-[#0F172A] text-center">Emergency SOS?</p>
+                <p className="text-sm text-slate-500 text-center leading-relaxed">
+                  This will call <strong>112 (Emergency Services)</strong> and notify Zappy support about your location.
+                  Only use in a genuine emergency.
+                </p>
+                <div className="w-full space-y-2.5 mt-2">
+                  <motion.button
+                    onClick={triggerSOS}
+                    whileTap={{ scale: 0.97 }}
+                    className="w-full h-14 rounded-2xl bg-red-600 text-white font-extrabold text-base flex items-center justify-center gap-2.5"
+                    style={{ boxShadow: '0 8px 24px rgba(220,38,38,0.4)' }}
+                  >
+                    <ShieldAlert size={20} strokeWidth={2.5} />
+                    Call 112 — I Need Help
+                  </motion.button>
+                  <button
+                    onClick={() => setShowSOSConfirm(false)}
+                    className="w-full h-12 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                  >
+                    Cancel — I'm safe
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Share Trip sheet ──────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showShareTrip && (
+          <motion.div
+            className="fixed inset-0 z-50 flex flex-col justify-end"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div className="absolute inset-0 bg-black/50"
+              onClick={() => setShowShareTrip(false)} />
+            <motion.div
+              className="relative bg-white rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))]"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+            >
+              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-5" />
+              <div className="flex flex-col items-center px-6 gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center">
+                  <Share2 size={24} strokeWidth={2} className="text-blue-600" />
+                </div>
+                <p className="text-lg font-black text-[#0F172A] text-center">Share Trip</p>
+                <p className="text-sm text-slate-500 text-center leading-relaxed">
+                  Share your live tracking link with a trusted contact so they can follow your service in real time.
+                </p>
+                {/* Track link preview */}
+                <div className="w-full flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2.5">
+                  <p className="text-xs font-mono text-slate-600 flex-1 truncate">
+                    {window.location.origin}/track?order={id.slice(-8)}…
+                  </p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/track?order=${id}`)
+                        .then(() => toast.success('Link copied!'))
+                        .catch(() => {});
+                    }}
+                    className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition"
+                  >
+                    <Copy size={13} className="text-slate-500" />
+                  </button>
+                </div>
+                <div className="w-full space-y-2.5">
+                  <motion.button
+                    onClick={() => { shareTripLink(); setShowShareTrip(false); }}
+                    whileTap={{ scale: 0.97 }}
+                    className="w-full h-14 rounded-2xl font-extrabold text-white flex items-center justify-center gap-2.5"
+                    style={{ background: 'linear-gradient(135deg,#0F172A,#1e293b)', boxShadow: '0 8px 24px rgba(15,23,42,0.3)' }}
+                  >
+                    <Share2 size={18} strokeWidth={2.5} />
+                    Share Now
+                  </motion.button>
+                  <button
+                    onClick={() => setShowShareTrip(false)}
+                    className="w-full h-12 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

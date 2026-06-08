@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema(
         flatNumber: String,
         notes: String,
         tag: { type: String, enum: ['home', 'work', 'other'], default: 'other' },
+        isDefault: { type: Boolean, default: false },
       },
     ],
     recentLocations: [
