@@ -9,6 +9,7 @@ import {
   Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
   HeadphonesIcon, Radio, Globe, Layers, Zap, Sparkles, TrendingUp,
   Shield, PartyPopper, PawPrint, ShieldAlert, Map as MapIcon,
+  AlertCircle, GraduationCap,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
 import { useLogoutMutation } from '../services/api';
@@ -48,6 +49,8 @@ import Fraud from './admin/Fraud';
 import Zones from './admin/Zones';
 import Intervention from './admin/Intervention';
 import Cities from './admin/Cities';
+import Appeals from './admin/Appeals';
+import Training from './admin/Training';
 
 /* ─── Navigation groups ────────────────────────────────────────────────── */
 const NAV_GROUPS = [
@@ -84,6 +87,8 @@ const NAV_GROUPS = [
       { id: 'zones',        label: 'Zones',            icon: MapIcon },
       { id: 'cities',       label: 'Cities & Areas',   icon: Globe },
       { id: 'disputes',     label: 'Disputes',         icon: Scale },
+      { id: 'appeals',      label: 'Worker Appeals',   icon: AlertCircle },
+      { id: 'training',     label: 'Training',         icon: GraduationCap },
       { id: 'cancellation', label: 'Cancellation',     icon: XCircle },
       { id: 'incentives',   label: 'Incentives',       icon: Gift },
       { id: 'retention',    label: 'Retention',        icon: Repeat2 },
@@ -135,6 +140,7 @@ const SECTION_MAP = {
   events: Events,
   'pet-assistance': PetAssistance,
   fraud: Fraud, zones: Zones, intervention: Intervention, cities: Cities,
+  appeals: Appeals, training: Training,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */

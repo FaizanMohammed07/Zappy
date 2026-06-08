@@ -36,7 +36,9 @@ function NewAppealSheet({ onClose }) {
       await create(form).unwrap();
       toast.success('Appeal submitted');
       onClose();
-    } catch (err) { toast.error(err?.data?.error || 'Failed to submit appeal'); }
+    } catch (err) {
+      toast.error(err?.data?.error || 'Failed to submit appeal. Please try again.');
+    }
   }
 
   return (

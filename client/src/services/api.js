@@ -92,7 +92,7 @@ export const api = createApi({
   // Disable refetch-on-focus — dashboard fires 6-8 queries; tab switching floods the limiter
   refetchOnFocus: false,
   refetchOnReconnect: true,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -1395,6 +1395,37 @@ export const api = createApi({
       query: ({ id, isActive }) => ({ url: adminApiPath(`/cities/${id}/active`), method: 'PATCH', body: { isActive } }),
       invalidatesTags: ['City'],
     }),
+
+    // --- Admin: Worker Appeals ---
+    adminGetAppeals: b.query({
+      query: ({ status, page = 1 } = {}) => ({
+        url: adminApiPath('/worker/appeals'),
+        params: { ...(status && { status }), page },
+      }),
+      providesTags: ['AdminAppeals'],
+    }),
+    adminResolveAppeal: b.mutation({
+      query: ({ id, status, adminNote }) => ({
+        url: adminApiPath(`/worker/appeals/${id}`),
+        method: 'PATCH',
+        body: { status, ...(adminNote && { adminNote }) },
+      }),
+      invalidatesTags: ['AdminAppeals'],
+    }),
+
+    // --- Admin: Training Modules ---
+    adminGetTrainingModules: b.query({
+      query: () => adminApiPath('/worker/training'),
+      providesTags: ['AdminTraining'],
+    }),
+    adminCreateTrainingModule: b.mutation({
+      query: (body) => ({ url: adminApiPath('/worker/training'), method: 'POST', body }),
+      invalidatesTags: ['AdminTraining'],
+    }),
+    adminUpdateTrainingModule: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/worker/training/${id}`), method: 'PATCH', body }),
+      invalidatesTags: ['AdminTraining'],
+    }),
   }),
 });
 
@@ -1741,4 +1772,11 @@ export const {
   useDeleteAccountMutation,
   useGetAvailablePromosQuery,
   useRescheduleOrderMutation,
+  // Admin: Appeals
+  useAdminGetAppealsQuery,
+  useAdminResolveAppealMutation,
+  // Admin: Training
+  useAdminGetTrainingModulesQuery,
+  useAdminCreateTrainingModuleMutation,
+  useAdminUpdateTrainingModuleMutation,
 } = api;

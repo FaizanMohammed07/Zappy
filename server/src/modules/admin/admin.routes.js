@@ -21,5 +21,7 @@ router.use('/', require('./routes/shield.routes'));
 router.use('/', require('../fraud/fraud.routes'));
 router.use('/', require('../zone/zone.routes'));
 router.use('/', require('./routes/cities.routes'));
+router.use('/worker/appeals',  require('../worker/appeal.routes').adminRouter);
+router.use('/worker/training', require('../worker/training.routes').adminRouter);
 
 module.exports = router;

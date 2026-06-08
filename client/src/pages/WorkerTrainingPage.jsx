@@ -51,11 +51,19 @@ function QuizModal({ moduleId, onClose }) {
 
   async function handleSubmit() {
     const quizAnswers = mod.quiz.map((_, i) => answers[i] ?? -1);
-    if (quizAnswers.includes(-1)) return toast.error('Answer all questions');
+    if (quizAnswers.includes(-1)) return toast.error('Please answer all questions before submitting');
     try {
-      const res = await submit({ moduleId, answers: quizAnswers }).unwrap();
+      const res = await submit({ id: moduleId, answers: quizAnswers }).unwrap();
       setResult(res);
-    } catch (err) { toast.error(err?.data?.error || 'Submission failed'); }
+    } catch (err) {
+      // Server returns 400 with score data when failed (not passed) — handle gracefully
+      const errData = err?.data;
+      if (errData?.passed === false) {
+        setResult({ passed: false, score: errData.score, passingScore: mod.passingScore });
+      } else {
+        toast.error(errData?.error || errData?.message || 'Submission failed. Try again.');
+      }
+    }
   }
 
   return (
@@ -87,8 +95,9 @@ function QuizModal({ moduleId, onClose }) {
                   <AlertCircle size={28} className="text-red-400" />
                 </div>
                 <p className="text-xl font-bold text-slate-800">Not Passed</p>
-                <p className="text-slate-500 text-sm">You scored <strong>{result.score}%</strong>. You need {mod.passingScore}% to pass. Try again!</p>
-                <button onClick={() => { setResult(null); setAnswers({}); }} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold">Retry Quiz</button>
+                <p className="text-slate-500 text-sm">You scored <strong>{result.score}%</strong>. You need {result.passingScore ?? mod?.passingScore}% to pass.</p>
+                <p className="text-slate-400 text-xs">Review the training video and try again.</p>
+                <button onClick={() => { setResult(null); setAnswers({}); setVideoWatched(false); }} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold">Watch Video & Retry</button>
               </>
             )}
           </div>

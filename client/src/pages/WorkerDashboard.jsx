@@ -1040,34 +1040,8 @@ export default function WorkerDashboard() {
         {/* ── Zone Benchmark ───────────────────────────────────── */}
         <BenchmarkWidget />
 
-        {/* ── Quick Actions ────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.28 }}
-          className="grid grid-cols-2 gap-3"
-        >
-          <button
-            onClick={() => nav('/plans')}
-            className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 text-left ring-1 ring-amber-100 active:scale-[0.97] transition"
-          >
-            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center mb-2.5">
-              <TrendingUp size={16} strokeWidth={2} className="text-amber-600" />
-            </div>
-            <p className="font-bold text-sm text-[#0F172A]">Go Pro</p>
-            <p className="text-[11px] text-amber-700 mt-0.5">Lower commission</p>
-          </button>
-          <button
-            onClick={() => nav('/wallet')}
-            className="bg-white rounded-2xl p-4 text-left ring-1 ring-slate-100 shadow-sm active:scale-[0.97] transition"
-          >
-            <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center mb-2.5">
-              <BadgeIndianRupee size={16} strokeWidth={2} className="text-green-600" />
-            </div>
-            <p className="font-bold text-sm text-[#0F172A]">Wallet</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">₹{totalWallet} total</p>
-          </button>
-        </motion.div>
+        {/* ── Worker Tools Grid ─────────────────────────────────── */}
+        <WorkerToolsGrid nav={nav} totalWallet={totalWallet} />
       </div>
 
       {/* ── Offer Modal ──────────────────────────────────────── */}
@@ -1357,6 +1331,38 @@ const LEVEL_META = {
   medium:    { label: 'Moderate',  bg: 'bg-blue-50',  ring: 'ring-blue-100',  dot: 'bg-blue-400',  text: 'text-blue-700',  bar: 'bg-blue-300'   },
   low:       { label: 'Low',       bg: 'bg-slate-50', ring: 'ring-slate-100', dot: 'bg-slate-300', text: 'text-slate-500', bar: 'bg-slate-200'  },
 };
+
+const TOOLS = [
+  { to: '/worker/earnings',  emoji: '📊', label: 'Earnings',   sub: 'Job breakdown',       bg: 'from-indigo-50 to-indigo-100',  ring: 'ring-indigo-100' },
+  { to: '/worker/goals',     emoji: '🎯', label: 'Goals',      sub: 'Daily & weekly',      bg: 'from-purple-50 to-purple-100',  ring: 'ring-purple-100' },
+  { to: '/worker/bank',      emoji: '🏦', label: 'Bank & UPI', sub: 'Add accounts',        bg: 'from-blue-50 to-blue-100',      ring: 'ring-blue-100' },
+  { to: '/worker/withdraw',  emoji: '💸', label: 'Withdraw',   sub: 'Transfer to bank',    bg: 'from-emerald-50 to-emerald-100', ring: 'ring-emerald-100' },
+  { to: '/worker/skills',    emoji: '⭐', label: 'Skills',     sub: 'Specialise & earn',   bg: 'from-amber-50 to-amber-100',    ring: 'ring-amber-100' },
+  { to: '/worker/training',  emoji: '🎓', label: 'Training',   sub: 'Get certified',       bg: 'from-rose-50 to-rose-100',      ring: 'ring-rose-100' },
+  { to: '/worker/appeals',   emoji: '⚖️', label: 'Appeals',    sub: 'Contest ratings',     bg: 'from-orange-50 to-orange-100',  ring: 'ring-orange-100' },
+  { to: '/plans',            emoji: '💎', label: 'Go Pro',     sub: 'Lower commission',    bg: 'from-amber-50 to-orange-50',    ring: 'ring-amber-100' },
+  { to: '/wallet',           emoji: '💰', label: 'Wallet',     sub: null,                  bg: 'from-green-50 to-emerald-50',   ring: 'ring-green-100' },
+];
+
+function WorkerToolsGrid({ nav, totalWallet }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-0.5">Quick Access</p>
+      <div className="grid grid-cols-3 gap-2">
+        {TOOLS.map(t => (
+          <button key={t.to + t.label} onClick={() => nav(t.to)}
+            className={`bg-gradient-to-br ${t.bg} rounded-2xl p-3 text-left ring-1 ${t.ring} active:scale-[0.96] transition`}>
+            <span className="text-lg">{t.emoji}</span>
+            <p className="font-bold text-xs text-[#0F172A] mt-1.5 leading-tight">{t.label}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+              {t.label === 'Wallet' ? `₹${totalWallet} available` : t.sub}
+            </p>
+          </button>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
 
 function GoalsWidget() {
   const nav = useNavigate();
