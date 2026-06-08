@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
 import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery } from '../services/api';
+import { useGeolocation, loadGeoLocation } from '../hooks/useGeolocation';
 import { serviceLabel } from '../constants/services';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import BottomNav from '../components/layout/BottomNav';
@@ -329,33 +330,81 @@ export default function HomePage() {
     : null;
   const showReengagement = daysSinceLastOrder !== null && daysSinceLastOrder >= 7 && !activeOrder;
 
-  /* ── GPS location detection ───────────────────────────────────────── */
-  const [loc, setLoc] = useState({ primary: 'Detecting location…', secondary: null, loading: true });
+  /* ── GPS location detection — high-accuracy multi-sample + smart reverse geocode ── */
+  const { getCurrent } = useGeolocation();
+  const [loc, setLoc] = useState(() => {
+    const cached = loadGeoLocation();
+    return cached
+      ? { primary: 'Detecting location…', secondary: null, loading: true, lat: cached.lat, lng: cached.lng }
+      : { primary: 'Detecting location…', secondary: null, loading: true };
+  });
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setLoc({ primary: 'Location unavailable', secondary: null, loading: false });
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords: { latitude: lat, longitude: lon } }) => {
+    const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+
+    async function reverseGeocode(lat, lng) {
+      // 1. Try Mapbox — best accuracy for Indian neighbourhoods
+      if (MAPBOX_TOKEN) {
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=14&addressdetails=1`,
+          const r = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json` +
+            `?access_token=${MAPBOX_TOKEN}&language=en&types=neighborhood,locality,place&limit=1`,
           );
-          const data = await res.json();
-          const a = data.address || {};
-          const primary   = a.neighbourhood || a.suburb || a.village || a.town || a.city || 'Your Location';
-          const secondary = [a.city || a.town, a.state].filter(Boolean).join(', ') || null;
-          setLoc({ primary, secondary, loading: false });
-        } catch {
-          setLoc({ primary: 'Location found', secondary: null, loading: false });
+          const d = await r.json();
+          const feat = d.features?.[0];
+          if (feat) {
+            const ctx = feat.context || [];
+            const get = (prefix) => ctx.find(c => c.id?.startsWith(prefix))?.text ?? null;
+            // neighbourhood > locality > district > place
+            const primary   = feat.place_type?.[0] === 'neighborhood' ? feat.text
+              : get('neighborhood') || get('locality') || get('district') || feat.text;
+            const city      = get('place') || get('district');
+            const state     = get('region');
+            const secondary = [city, state].filter(Boolean).join(', ') || null;
+            if (primary) return { primary, secondary };
+          }
+        } catch { /* fall through to Nominatim */ }
+      }
+
+      // 2. Nominatim fallback — zoom=18 for street-level, better Indian field order
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}` +
+          `&format=json&zoom=18&addressdetails=1&accept-language=en`,
+          { headers: { 'Accept-Language': 'en' } },
+        );
+        const d = await r.json();
+        const a = d.address || {};
+        // Indian address priority: quarter > neighbourhood > city_district > suburb > locality > village > town > city
+        const primary = a.quarter || a.neighbourhood || a.city_district
+          || a.suburb || a.locality || a.county
+          || (a.village && a.city ? a.suburb || a.city_district || a.city : a.village)
+          || a.town || a.city || 'Your Area';
+        const city    = a.city || a.town || a.county;
+        const state   = a.state;
+        const secondary = [city, state].filter(Boolean).join(', ') || null;
+        return { primary, secondary };
+      } catch { /* ignored */ }
+
+      return { primary: 'Location found', secondary: null };
+    }
+
+    getCurrent()
+      .then(async ({ lat, lng }) => {
+        const { primary, secondary } = await reverseGeocode(lat, lng);
+        setLoc({ primary, secondary, loading: false });
+      })
+      .catch(() => {
+        // Try cached coords for reverse geocode on GPS denial
+        const cached = loadGeoLocation();
+        if (cached) {
+          reverseGeocode(cached.lat, cached.lng)
+            .then(({ primary, secondary }) => setLoc({ primary, secondary, loading: false }));
+        } else {
+          setLoc({ primary: 'Set your location', secondary: 'Tap to choose', loading: false });
         }
-      },
-      () => setLoc({ primary: 'Moinabad, India', secondary: null, loading: false }),
-      { timeout: 10000, enableHighAccuracy: false, maximumAge: 120000 },
-    );
-  }, []);
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <PageTransition>
