@@ -3,6 +3,7 @@ const Joi = require('joi');
 const ctrl = require('./auth.controller');
 const { validate } = require('../../middlewares/validate');
 const { authLimiter, adminAuthLimiter } = require('../../middlewares/rateLimit');
+const { authenticate } = require('../../middlewares/auth');
 
 const router = express.Router();
 
@@ -66,5 +67,18 @@ router.post(
 // body (legacy). Nothing meaningful to validate at the route level.
 router.post('/refresh', authLimiter, ctrl.refresh);
 router.post('/logout', ctrl.logout);
+
+// Revoke all sessions for the authenticated user (sign out everywhere).
+router.post('/revoke-all', authenticate, ctrl.revokeAll);
+
+// Re-verify OTP for sensitive actions (payout, bank account changes).
+// Must have first requested an OTP via /otp/request for their phone number.
+router.post(
+  '/otp/verify-action',
+  authLimiter,
+  authenticate,
+  validate(Joi.object({ otp: Joi.string().length(6).required() })),
+  ctrl.verifySensitiveOtp,
+);
 
 module.exports = router;

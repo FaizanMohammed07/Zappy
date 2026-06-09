@@ -1,7 +1,7 @@
 const express = require('express');
 const Joi = require('joi');
 const ctrl = require('./worker.controller');
-const { authenticate, requireRole } = require('../../middlewares/auth');
+const { authenticate, requireRole, requireRecentOtp } = require('../../middlewares/auth');
 const { validate } = require('../../middlewares/validate');
 const { nearbyLimiter, workerOnlineLimiter } = require('../../middlewares/rateLimit');
 
@@ -96,6 +96,7 @@ router.post(
   '/bank-accounts',
   authenticate,
   requireRole('worker'),
+  requireRecentOtp,          // bank details change needs recent OTP
   validate(Joi.object({
     type: Joi.string().valid('bank', 'upi').required(),
     label: Joi.string().max(80).allow('', null),

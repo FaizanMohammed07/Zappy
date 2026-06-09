@@ -36,6 +36,8 @@ async function blockUser(req, res, next) {
       { $set: { isBlocked: req.body.blocked } },
       { new: true },
     );
+    const { invalidateBanCache } = require('../../../middlewares/auth');
+    invalidateBanCache('user', String(req.params.id)).catch(() => {});
     await auditService.fromRequest(
       req,
       req.body.blocked ? 'admin.user_block' : 'admin.user_unblock',
