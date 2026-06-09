@@ -483,6 +483,12 @@ async function onOrderAssigned(order, workerId, losers = []) {
 
   await emitToOrderRoom(order._id, 'order.assigned', { workerId, orderId });
 
+  // Push worker's current GPS position immediately so the customer map shows
+  // the worker dot without waiting for the next periodic location broadcast.
+  geoService.getWorkerPosition(workerId).then((pos) => {
+    if (pos) emitToOrderRoom(order._id, 'worker.location', { ...pos, at: Date.now(), hdg: null, spd: null });
+  }).catch(() => {});
+
   for (const wId of losers) {
     redis.publish('worker:offer_cancel', JSON.stringify({ workerId: wId, orderId })).catch(() => {});
   }
@@ -514,6 +520,10 @@ async function onForceAssigned(order, workerId) {
   const orderId = String(order._id);
 
   await emitToOrderRoom(order._id, 'order.assigned', { workerId, orderId, forceAssigned: true });
+
+  geoService.getWorkerPosition(workerId).then((pos) => {
+    if (pos) emitToOrderRoom(order._id, 'worker.location', { ...pos, at: Date.now(), hdg: null, spd: null });
+  }).catch(() => {});
 
   await redis.publish('worker:assigned', JSON.stringify({
     workerId,

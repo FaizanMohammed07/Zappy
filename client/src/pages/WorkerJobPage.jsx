@@ -590,8 +590,6 @@ export default function WorkerJobPage() {
         // Parked: heartbeat every 60s. Moving: every 4s.
         const minInterval = isParked ? 60000 : 4000;
         if (now - lastSentRef.current < minInterval) return;
-        // Skip if parked and position unchanged (pure noise)
-        if (isParked && !moved) return;
 
         lastSentRef.current = now;
         if (moved) lastJobPos = cur;

@@ -193,12 +193,12 @@ function initSockets(httpServer) {
         }
       }
 
-      // Distance gate: skip broadcast for micro-movements < 5 metres (GPS noise).
-      // We still update the alive heartbeat and geo cache for freshness, but don't
-      // wake up the customer's map for a 2-metre jitter while the worker is parked.
-      const MIN_BROADCAST_METRES = 5;
+      // Distance gate: suppress customer-map broadcasts for micro-jitter (<1m GPS noise).
+      // When the worker has an active order, always forward (the 1s throttle above is the
+      // true rate-limiter). When there's no active order, require ≥5m movement to avoid
+      // waking up nearby-worker map tiles for every noise wiggle.
       let movedEnough = true;
-      if (prevRaw) {
+      if (!orderId && prevRaw) {
         try {
           const prev = JSON.parse(prevRaw);
           const R = 6371000;
@@ -206,7 +206,7 @@ function initSockets(httpServer) {
           const dLng = (lng - prev.lng) * Math.PI / 180;
           const a = Math.sin(dLat / 2) ** 2 + Math.cos(prev.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
           const distMetres = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          if (distMetres < MIN_BROADCAST_METRES) movedEnough = false;
+          if (distMetres < 5) movedEnough = false;
         } catch { /* allow */ }
       }
 
