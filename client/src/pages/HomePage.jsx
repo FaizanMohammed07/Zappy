@@ -140,11 +140,11 @@ function LiveBadge() {
     return () => clearInterval(id);
   }, []);
   return (
-    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 ring-1 ring-green-200">
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 ring-1 ring-green-200 whitespace-nowrap shrink-0">
       <motion.span className="w-1.5 h-1.5 rounded-full bg-green-500"
         animate={{ opacity: [1, 0.3, 1], scale: [1, 0.8, 1] }}
         transition={{ duration: 1.5, repeat: Infinity }} />
-      <span className="text-[11px] font-bold text-green-700">{n} workers live</span>
+      <span className="text-[11px] font-bold text-green-700 whitespace-nowrap">{n} workers live</span>
     </div>
   );
 }
@@ -413,7 +413,7 @@ export default function HomePage() {
 
               {/* Location text */}
               <div className="flex-1 min-w-0 flex flex-col justify-center gap-[2px]">
-                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest leading-none">
+                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest leading-none whitespace-nowrap truncate block">
                   Delivering to
                 </span>
                 <AnimatePresence mode="wait">

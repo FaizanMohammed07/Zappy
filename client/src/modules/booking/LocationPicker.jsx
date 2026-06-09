@@ -92,11 +92,17 @@ function makeWorkerDot(emoji = '👷', accentColor = '#22c55e', serviceSlug = ''
   const wrap = document.createElement('div');
   wrap.style.cssText = `
     position:relative;display:flex;flex-direction:column;align-items:center;
-    cursor:default;user-select:none;
-    animation:zlp-bike-bounce ${dur} ease-in-out infinite;
-    animation-delay:${animDelay};
-    transform-origin:center bottom;
+    cursor:default;user-select:none;transition:transform 0.35s ease;
   `;
+
+  const bikeEl = document.createElement('div');
+  bikeEl.style.cssText = `
+    display:flex;flex-direction:column;align-items:center;
+    animation:zlp-bike-bounce ${dur} ease-in-out infinite;
+    animation-delay:${animDelay};transform-origin:center bottom;
+  `;
+  wrap._bikeEl = bikeEl;
+  wrap.appendChild(bikeEl);
 
   if (isVehicle) {
     // ── SVG Bike with spinning wheels ─────────────────────────────
@@ -121,7 +127,7 @@ function makeWorkerDot(emoji = '👷', accentColor = '#22c55e', serviceSlug = ''
       `;
       lines.appendChild(ln);
     });
-    wrap.appendChild(lines);
+    bikeEl.appendChild(lines);
 
     // SVG bike
     const svg = document.createElementNS(svgNs, 'svg');
@@ -194,7 +200,7 @@ function makeWorkerDot(emoji = '👷', accentColor = '#22c55e', serviceSlug = ''
     svg.appendChild(defs);
     svg.appendChild(gL);
     svg.appendChild(gR);
-    wrap.appendChild(svg);
+    bikeEl.appendChild(svg);
 
     // Neon glow ring under wheels
     const glow = document.createElement('div');
@@ -204,7 +210,7 @@ function makeWorkerDot(emoji = '👷', accentColor = '#22c55e', serviceSlug = ''
       animation:zlp-neon-pulse 1.1s ease-in-out infinite;
       animation-delay:${animDelay};
     `;
-    wrap.appendChild(glow);
+    bikeEl.appendChild(glow);
 
   } else {
     // Non-vehicle services: large emoji with glow
@@ -214,7 +220,7 @@ function makeWorkerDot(emoji = '👷', accentColor = '#22c55e', serviceSlug = ''
       filter:drop-shadow(0 2px 6px rgba(0,0,0,0.8)) drop-shadow(0 0 10px ${c}99);
     `;
     emojiSpan.textContent = emoji;
-    wrap.appendChild(emojiSpan);
+    bikeEl.appendChild(emojiSpan);
   }
 
   // Ground shadow
@@ -445,7 +451,7 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(revTimer.current);
-      clearInterval(moveTimer.current);
+      cancelAnimationFrame(moveTimer.current);
       workerMarkers.current.forEach((w) => w.marker?.remove?.() || w.remove?.());
       workerMarkers.current = [];
       stateRef.current.userLocMarker?.remove();
@@ -461,8 +467,9 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
     const workerColor = SERVICE_COLORS[service]       ?? '#22c55e';
     const serviceSlug = service ?? '';
 
-    // Clear previous markers + movement interval
-    clearInterval(moveTimer.current);
+    // Clear previous markers
+    cancelAnimationFrame(moveTimer.current);
+    moveTimer.current = null;
     workerMarkers.current.forEach((w) => w.marker.remove());
     workerMarkers.current = [];
 
@@ -474,21 +481,12 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
       workers.forEach((w, i) => {
         const delay = `${(i * 0.22).toFixed(2)}s`;
         const el = makeWorkerDot(workerEmoji, workerColor, serviceSlug, delay);
+        // Pin at worker's real last-known GPS position — no simulated drift
         const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
           .setLngLat([w.lng, w.lat])
           .addTo(map);
-        workerMarkers.current.push({ marker, baseLng: w.lng, baseLat: w.lat });
+        workerMarkers.current.push({ marker });
       });
-
-      // Simulate real-time movement — drift each worker ±~25m every 2.5s
-      moveTimer.current = setInterval(() => {
-        workerMarkers.current.forEach(({ marker, baseLng, baseLat }) => {
-          const jitter = 0.00025; // ~25m
-          const newLng = baseLng + (Math.random() - 0.5) * jitter;
-          const newLat = baseLat + (Math.random() - 0.5) * jitter;
-          marker.setLngLat([newLng, newLat]);
-        });
-      }, 2500);
 
     } catch { /* non-critical */ }
   }

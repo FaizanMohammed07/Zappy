@@ -581,21 +581,44 @@ async function onForceAssigned(order, workerId) {
   );
 }
 
+/* ─── Shared pub/sub subscriber for all concurrent dispatch batches ─
+   One connection handles all in-flight batches instead of one per job.
+   Saves up to concurrency (10) connections simultaneously.            */
+
+let _batchSub = null;
+const _batchHandlers = new Map(); // channel → (message: string) => void
+
+function getBatchSub() {
+  if (_batchSub) return _batchSub;
+  _batchSub = createBullConnection();
+  _batchSub.on('message', (ch, msg) => {
+    const handler = _batchHandlers.get(ch);
+    if (handler) handler(msg);
+  });
+  _batchSub.on('error', () => {
+    // On connection error drop and recreate next call
+    _batchSub = null;
+    _batchHandlers.clear();
+  });
+  return _batchSub;
+}
+
 /* ─── Wait for any worker in the batch to accept within the window ─ */
 
 function waitForBatchWindow(orderId, workerIds, windowMs) {
   return new Promise((resolve) => {
     const acceptCh = `dispatch:accepted:${orderId}`;
     const rejectCh = `dispatch:rejected:${orderId}`;
-    const sub = createBullConnection();
+    const sub = getBatchSub();
 
     const remaining = new Set(workerIds.map(String));
     const rejected  = [];
 
     const cleanup = () => {
       clearTimeout(timer);
+      _batchHandlers.delete(acceptCh);
+      _batchHandlers.delete(rejectCh);
       sub.unsubscribe(acceptCh, rejectCh).catch(() => {});
-      sub.quit().catch(() => {});
     };
 
     const timer = setTimeout(() => {
@@ -603,12 +626,11 @@ function waitForBatchWindow(orderId, workerIds, windowMs) {
       resolve({ acceptedBy: null, rejected, ignored: [...remaining] });
     }, windowMs);
 
-    sub.on('message', (ch, raw) => {
+    const onMessage = (ch, raw) => {
       try {
         const data = JSON.parse(raw);
         const wId  = String(data.workerId);
         if (!remaining.has(wId)) return;
-
         if (ch === acceptCh) {
           cleanup();
           remaining.delete(wId);
@@ -622,7 +644,10 @@ function waitForBatchWindow(orderId, workerIds, windowMs) {
           }
         }
       } catch { /* ignore */ }
-    });
+    };
+
+    _batchHandlers.set(acceptCh, (msg) => onMessage(acceptCh, msg));
+    _batchHandlers.set(rejectCh, (msg) => onMessage(rejectCh, msg));
 
     sub.subscribe(acceptCh, rejectCh).catch(() => {
       cleanup();

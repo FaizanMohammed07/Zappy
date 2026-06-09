@@ -91,8 +91,11 @@ const emergencyDispatchQueue = new Queue(QUEUES.DISPATCH_EMERGENCY, {
   },
 });
 
-const dispatchEvents = new QueueEvents(QUEUES.DISPATCH, { connection: createBullConnection() });
-const emergencyDispatchEvents = new QueueEvents(QUEUES.DISPATCH_EMERGENCY, { connection: createBullConnection() });
+// Share one extra connection between both QueueEvents — saves 1 connection vs 2.
+// BullMQ still creates internal BlockingConnections per QueueEvents for XREAD.
+const eventsConn = createBullConnection();
+const dispatchEvents = new QueueEvents(QUEUES.DISPATCH, { connection: eventsConn });
+const emergencyDispatchEvents = new QueueEvents(QUEUES.DISPATCH_EMERGENCY, { connection: eventsConn });
 
 function routeToDlq(queue) {
   return async ({ jobId, failedReason }) => {

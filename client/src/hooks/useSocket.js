@@ -168,7 +168,7 @@ export function useOrderSocket(orderId, callbacks = {}) {
  * without any client-side room rejoin. We only need to re-register event
  * listeners — which useEffect does on remount / token change.
  */
-export function useWorkerOfferSocket(onOffer, onCancelled, onForceAssigned, onBoost) {
+export function useWorkerOfferSocket(onOffer, onCancelled, onForceAssigned, onBoost, onJobPulled) {
   const { accessToken: token } = useSelector(selectAuth);
 
   useEffect(() => {
@@ -179,19 +179,23 @@ export function useWorkerOfferSocket(onOffer, onCancelled, onForceAssigned, onBo
     const cancelledHandler     = (p)     => onCancelled?.(p);
     const forceAssignedHandler = (data)  => onForceAssigned?.(data);
     const boostHandler         = (data)  => onBoost?.(data);
+    // Fired on worker's personal room when a job they held is reassigned/cancelled by admin or stale-watchdog
+    const jobPulledHandler     = (p)     => onJobPulled?.(p);
 
     socket.on('new_job_request', offerHandler);
     socket.on('offer.cancelled', cancelledHandler);
     socket.on('job.assigned',    forceAssignedHandler);
     socket.on('offer.boosted',   boostHandler);
+    socket.on('order.cancelled', jobPulledHandler);
 
     return () => {
       socket.off('new_job_request', offerHandler);
       socket.off('offer.cancelled', cancelledHandler);
       socket.off('job.assigned',    forceAssignedHandler);
       socket.off('offer.boosted',   boostHandler);
+      socket.off('order.cancelled', jobPulledHandler);
     };
-  }, [token, onOffer, onCancelled, onForceAssigned, onBoost]);
+  }, [token, onOffer, onCancelled, onForceAssigned, onBoost, onJobPulled]);
 }
 
 export function useDisconnectOnLogout() {

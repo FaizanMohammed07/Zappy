@@ -1,47 +1,62 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, TrendingUp, Download, Zap, ChevronDown, ChevronUp, Loader2, Info } from 'lucide-react';
 import { useGetJobEarningsQuery } from '../services/api';
 
 const fmt = v => `₹${(v / 100).toFixed(2)}`;
 
-function EarningRow({ job, expanded, onToggle }) {
+function EarningRow({ job, expanded, onToggle, index }) {
   const hasSurge = job.surgeMultiplier && job.surgeMultiplier > 1;
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-2">
-      <button className="w-full flex items-center gap-3 p-4 text-left" onClick={onToggle}>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${hasSurge ? 'bg-amber-100' : 'bg-indigo-50'}`}>
-          {hasSurge ? <Zap size={16} className="text-amber-600" /> : <TrendingUp size={16} className="text-indigo-400" />}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className="bg-white rounded-[1.25rem] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden mb-3"
+    >
+      <button className="w-full flex items-center gap-4 p-4 text-left active:bg-slate-50 transition" onClick={onToggle}>
+        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${hasSurge ? 'bg-gradient-to-br from-amber-400 to-orange-500' : 'bg-gradient-to-br from-indigo-500 to-violet-600'}`}>
+          {hasSurge ? <Zap size={18} className="text-white fill-white" /> : <TrendingUp size={18} className="text-white" />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-800 truncate">{job.serviceLabel ?? 'Service'}</p>
-          <p className="text-xs text-slate-400">{new Date(job.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+          <p className="text-[15px] font-black text-slate-800 truncate leading-tight mb-0.5">{job.serviceLabel ?? 'Service'}</p>
+          <p className="text-xs font-semibold text-slate-400">{new Date(job.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="font-bold text-slate-800">{fmt(job.net)}</p>
-          {hasSurge && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">{job.surgeMultiplier}×</span>}
+          <p className="font-black text-lg text-slate-800">{fmt(job.net)}</p>
+          {hasSurge && <span className="inline-block mt-0.5 text-[10px] font-extrabold tracking-wide bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shadow-sm">{job.surgeMultiplier}×</span>}
         </div>
-        {expanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+        {expanded ? <ChevronUp size={16} className="text-indigo-400" /> : <ChevronDown size={16} className="text-slate-300" />}
       </button>
 
-      {expanded && (
-        <div className="border-t border-slate-100 px-4 pb-4 pt-3 bg-slate-50 space-y-1.5 text-sm">
-          <div className="flex justify-between"><span className="text-slate-500">Gross earnings</span><span className="font-medium">{fmt(job.gross)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Platform fee</span><span className="text-red-500">-{fmt(job.platformFee)}</span></div>
-          {job.tip > 0 && <div className="flex justify-between"><span className="text-slate-500">Customer tip</span><span className="text-emerald-600">+{fmt(job.tip)}</span></div>}
-          {job.bonus > 0 && <div className="flex justify-between"><span className="text-slate-500">Bonus</span><span className="text-emerald-600">+{fmt(job.bonus)}</span></div>}
-          {hasSurge && (
-            <div className="flex justify-between"><span className="text-slate-500">Surge multiplier</span>
-              <span className="text-amber-600 font-semibold">{job.surgeMultiplier}× <span className="text-xs font-normal">demand zone</span></span>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-slate-50 px-5 pb-5 pt-4 bg-slate-50/50 space-y-2.5 text-sm">
+              <div className="flex justify-between items-center"><span className="text-slate-500 font-medium">Gross earnings</span><span className="font-bold text-slate-700">{fmt(job.gross)}</span></div>
+              <div className="flex justify-between items-center"><span className="text-slate-500 font-medium">Platform fee</span><span className="font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md">-{fmt(job.platformFee)}</span></div>
+              {job.tip > 0 && <div className="flex justify-between items-center"><span className="text-slate-500 font-medium">Customer tip</span><span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">+{fmt(job.tip)}</span></div>}
+              {job.bonus > 0 && <div className="flex justify-between items-center"><span className="text-slate-500 font-medium">Bonus</span><span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">+{fmt(job.bonus)}</span></div>}
+              {hasSurge && (
+                <div className="flex justify-between items-center"><span className="text-slate-500 font-medium">Surge multiplier</span>
+                  <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md">{job.surgeMultiplier}×</span>
+                </div>
+              )}
+              <div className="border-t border-slate-200/60 pt-3 mt-1 flex justify-between items-center">
+                <span className="text-slate-800 font-black">Net payout</span><span className="text-indigo-600 font-black text-lg">{fmt(job.net)}</span>
+              </div>
+              {job.orderId && <p className="text-[10px] text-slate-400 font-semibold pt-1">Order ID: {job.orderId}</p>}
             </div>
-          )}
-          <div className="border-t border-slate-200 pt-1.5 flex justify-between font-semibold">
-            <span className="text-slate-700">Net payout</span><span className="text-indigo-700">{fmt(job.net)}</span>
-          </div>
-          {job.orderId && <p className="text-[10px] text-slate-400 pt-0.5">Order {job.orderId}</p>}
-        </div>
-      )}
-    </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
 
@@ -70,7 +85,7 @@ function generatePayslipCSV(jobs, period) {
 const PERIODS = [
   { id: 'week', label: 'This Week' },
   { id: 'month', label: 'This Month' },
-  { id: '3months', label: 'Last 3 Months' },
+  { id: '3months', label: '3 Months' },
 ];
 
 export default function WorkerEarningsPage() {
@@ -85,64 +100,87 @@ export default function WorkerEarningsPage() {
   function toggle(id) { setExpanded(p => p === id ? null : id); }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={() => nav(-1)} className="p-1.5 rounded-lg hover:bg-slate-100"><ArrowLeft size={18} /></button>
-        <h1 className="font-semibold text-slate-800">Earnings Breakdown</h1>
-        <button onClick={() => generatePayslipCSV(jobs, period)} className="ml-auto flex items-center gap-1.5 text-xs font-medium text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-50">
-          <Download size={12} /> Payslip CSV
-        </button>
-      </header>
-
-      <div className="p-4 space-y-4">
-        {/* Period tabs */}
-        <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
-          {PERIODS.map(p => (
-            <button key={p.id} onClick={() => setPeriod(p.id)}
-              className={`flex-1 text-xs font-semibold py-1.5 rounded-lg transition ${period === p.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <p className="text-xs text-slate-500">Total Net</p>
-            <p className="text-xl font-bold text-slate-800">{fmt(summary.totalNet ?? 0)}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <p className="text-xs text-slate-500">Jobs Done</p>
-            <p className="text-xl font-bold text-slate-800">{summary.count ?? 0}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <p className="text-xs text-slate-500">Tips</p>
-            <p className="text-xl font-bold text-emerald-600">{fmt(summary.totalTips ?? 0)}</p>
-          </div>
-          <div className="bg-amber-50 rounded-xl border border-amber-100 p-3">
-            <p className="text-xs text-amber-700">Surge Jobs</p>
-            <p className="text-xl font-bold text-amber-700">{summary.surgeCount ?? 0}</p>
-          </div>
-        </div>
-
-        {/* Platform fee info */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex gap-2 text-xs text-slate-600">
-          <Info size={13} className="shrink-0 mt-0.5 text-slate-400" />
-          Platform fee is deducted per job. Reduce it by upgrading your subscription plan.
-        </div>
-
-        {/* Jobs list */}
-        <div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Job Breakdown</p>
-          {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
-          ) : jobs.length === 0 ? (
-            <div className="bg-white rounded-xl border border-dashed border-slate-200 p-10 text-center text-sm text-slate-400">
-              No completed jobs in this period
+    <div className="min-h-screen bg-slate-50 md:flex md:justify-center">
+      <div className="w-full max-w-lg bg-slate-50 min-h-screen relative shadow-[0_0_40px_rgba(0,0,0,0.05)] md:border-x border-slate-200/60">
+        
+        {/* Cinematic Header */}
+        <header className="relative pt-6 pb-24 overflow-hidden rounded-b-[2.5rem] shadow-sm z-10" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e3a5f 100%)' }}>
+          <motion.div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 4, repeat: Infinity }} />
+          <motion.div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 5, repeat: Infinity, delay: 1 }} />
+          
+          <div className="relative z-10 px-5">
+            <div className="flex items-center justify-between mb-8">
+              <motion.button onClick={() => nav(-1)} whileTap={{ scale: 0.9 }} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white">
+                <ArrowLeft size={20} strokeWidth={2.5} />
+              </motion.button>
+              <h1 className="text-white font-black tracking-wide text-lg">Earnings</h1>
+              <motion.button onClick={() => generatePayslipCSV(jobs, period)} whileTap={{ scale: 0.9 }} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white" title="Download CSV">
+                <Download size={18} strokeWidth={2} />
+              </motion.button>
             </div>
-          ) : jobs.map(j => (
-            <EarningRow key={j._id} job={j} expanded={expanded === j._id} onToggle={() => toggle(j._id)} />
-          ))}
+
+            <div className="text-center">
+              <p className="text-white/60 text-xs font-bold uppercase tracking-widest mb-1.5">Total Net Earnings</p>
+              <h2 className="text-white font-black text-5xl tracking-tight drop-shadow-lg">{fmt(summary.totalNet ?? 0)}</h2>
+            </div>
+          </div>
+        </header>
+
+        {/* Content Container (pulled up over header) */}
+        <div className="relative z-20 px-4 -mt-16 pb-20">
+          
+          {/* Period Tabs */}
+          <div className="bg-white/80 backdrop-blur-xl p-1.5 rounded-2xl shadow-lg ring-1 ring-black/5 flex gap-1 mb-6 max-w-sm mx-auto">
+            {PERIODS.map(p => (
+              <button key={p.id} onClick={() => setPeriod(p.id)}
+                className={`flex-1 text-[13px] font-bold py-2.5 rounded-xl transition-all duration-300 ${period === p.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Quick Stats Grid */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="grid grid-cols-3 gap-3 mb-6">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Jobs Done</p>
+              <p className="text-xl font-black text-slate-800">{summary.count ?? 0}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tips</p>
+              <p className="text-xl font-black text-emerald-500">{fmt(summary.totalTips ?? 0)}</p>
+            </div>
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 shadow-sm border border-amber-100 text-center">
+              <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-wider mb-1">Surge Jobs</p>
+              <p className="text-xl font-black text-amber-600">{summary.surgeCount ?? 0}</p>
+            </div>
+          </motion.div>
+
+          {/* Platform fee info */}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-4 flex gap-3 text-[13px] text-indigo-800/80 mb-8 font-medium">
+            <Info size={16} className="shrink-0 mt-0.5 text-indigo-500" />
+            <p>Platform fee is deducted per job. You can reduce it by upgrading your subscription plan to <b>Go Pro</b>.</p>
+          </motion.div>
+
+          {/* Jobs list */}
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Job Breakdown</p>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 size={24} className="animate-spin text-indigo-400 mb-3" />
+                <p className="text-sm font-semibold text-slate-400">Loading earnings...</p>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="bg-white rounded-[1.5rem] border border-dashed border-slate-200 p-12 text-center shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-4">
+                  <BarChart2 size={24} className="text-slate-300" />
+                </div>
+                <p className="font-bold text-slate-500">No earnings found</p>
+                <p className="text-sm text-slate-400 mt-1">Complete jobs in this period to see them here.</p>
+              </div>
+            ) : jobs.map((j, i) => (
+              <EarningRow key={j._id} job={j} index={i} expanded={expanded === j._id} onToggle={() => toggle(j._id)} />
+            ))}
+          </div>
         </div>
       </div>
     </div>

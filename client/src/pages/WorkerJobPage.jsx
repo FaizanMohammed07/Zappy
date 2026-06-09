@@ -521,7 +521,7 @@ export default function WorkerJobPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { accessToken: token } = useSelector(selectAuth);
-  const { data, isLoading, isError, refetch } = useGetOrderQuery(id, { skip: !token || !id });
+  const { data, isLoading, isError, error, refetch } = useGetOrderQuery(id, { skip: !token || !id });
   const [startTrip,    { isLoading: starting }]        = useWorkerStartTripMutation();
   const [arrive,       { isLoading: arriving }]         = useWorkerArriveMutation();
   const [startService, { isLoading: startingService }]  = useWorkerStartServiceMutation();
@@ -575,7 +575,7 @@ export default function WorkerJobPage() {
 
     watchCancelRef.current = watch(
       (pos) => {
-        setMyLocation({ lat: pos.lat, lng: pos.lng });
+        setMyLocation({ lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy ?? null });
         const now = Date.now();
         const cur = { lat: pos.lat, lng: pos.lng };
         const distMoved = lastJobPos ? jobHaverMetres(lastJobPos, cur) : 999;
@@ -642,6 +642,14 @@ export default function WorkerJobPage() {
     return () => clearInterval(t);
   }, [status, order]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ── Redirect if job pulled away (reassigned back to searching) ── */
+  useEffect(() => {
+    if (status !== 'searching') return;
+    // status flipping back to searching means the server reassigned the order
+    toast.error('Job reassigned — you were inactive too long. Penalty applied.', { duration: 5000 });
+    nav('/worker');
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Loading / error states ── */
   if (isLoading) {
     return (
@@ -655,6 +663,32 @@ export default function WorkerJobPage() {
   }
 
   if (isError || !order) {
+    // 403 = worker is no longer assigned to this order (reassigned or cancelled)
+    const isReassigned = error?.status === 403;
+    if (isReassigned) {
+      // Auto-redirect after 4 seconds so worker always ends up on dashboard
+      // (socket event may have been missed while app was backgrounded)
+      setTimeout(() => nav('/worker'), 4000);
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center"
+          style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+            style={{ background: 'rgba(249,115,22,0.15)', border: '1.5px solid rgba(249,115,22,0.3)' }}>
+            <span className="text-3xl">🔄</span>
+          </div>
+          <div>
+            <p className="text-white font-black text-lg">Job Reassigned</p>
+            <p className="text-white/50 text-sm mt-1">This order has been assigned to another worker.<br />Redirecting you to dashboard…</p>
+          </div>
+          <div className="w-32 h-1.5 rounded-full overflow-hidden bg-white/10">
+            <div className="h-full rounded-full bg-orange-500"
+              style={{ animation: 'reassign-bar 4s linear forwards' }} />
+          </div>
+          <style>{`@keyframes reassign-bar{from{width:0%}to{width:100%}}`}</style>
+          <button onClick={() => nav('/worker')} className="text-white/40 text-sm mt-1">Go now</button>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}>
         <AlertCircle size={36} className="text-red-400" />
@@ -674,10 +708,11 @@ export default function WorkerJobPage() {
 
   function openNavigation() {
     if (!pickup) return;
-    const dest = `${pickup.lat},${pickup.lng}`;
+    const dest   = `${pickup.lat},${pickup.lng}`;
+    const origin = myLocation ? `${myLocation.lat},${myLocation.lng}` : '';
     const url = /iPhone|iPad|iPod/i.test(navigator.userAgent)
-      ? `maps://maps.apple.com/?daddr=${dest}&dirflg=d`
-      : `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
+      ? `maps://maps.apple.com/?${origin ? `saddr=${origin}&` : ''}daddr=${dest}&dirflg=d`
+      : `https://www.google.com/maps/dir/?api=1${origin ? `&origin=${origin}` : ''}&destination=${dest}&travelmode=driving`;
     window.open(url, '_blank', 'noopener');
   }
 
@@ -799,16 +834,16 @@ export default function WorkerJobPage() {
           </header>
           
           <div className="absolute inset-0">
-            <LiveTrackingMap pickup={pickup} workerLocation={myLocation} service={order.service} height="100%" />
+            <LiveTrackingMap pickup={pickup} workerLocation={myLocation} service={order.service} status={status} height="100%" />
           </div>
         </div>
       )}
 
       {/* ── Scrollable Panel Column (Left/Bottom) ── */}
-      <div className={`w-full md:w-[450px] shrink-0 bg-slate-50 relative z-10 flex flex-col md:order-1 ${pickup ? 'rounded-t-3xl -mt-6 md:mt-0 md:rounded-none shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-[10px_0_40px_rgba(0,0,0,0.1)]' : ''} h-[calc(100vh-40vh+24px)] md:h-full`}>
+      <div className={`w-full md:w-[450px] shrink-0 bg-slate-50 relative z-10 flex flex-col md:order-1 ${pickup ? 'rounded-t-3xl -mt-6 md:mt-0 md:rounded-none shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-[10px_0_40px_rgba(0,0,0,0.1)]' : ''} h-[calc(100vh-40vh+24px)] md:h-full overflow-hidden`}>
         
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto px-4 pt-6 md:pt-8 space-y-4 pb-32">
+        <div className="flex-1 overflow-y-auto px-4 pt-6 md:pt-8 space-y-4 pb-6 min-h-0 custom-scrollbar">
 
         {/* Location + navigation */}
         {order.pickupLocation?.address && (
@@ -1121,15 +1156,22 @@ export default function WorkerJobPage() {
       </div>
 
       {/* Fixed action bar (Docked at the bottom of the scrollable panel) */}
-      <div className="absolute bottom-0 inset-x-0 z-20"
+      <div className="shrink-0 z-20"
         style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)', boxShadow: '0 -8px 32px rgba(0,0,0,0.06)', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
         <div className="px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
 
           {status === 'assigned' && (() => {
-            const idleMin   = Math.floor(idleSeconds / 60);
-            const isUrgent  = idleSeconds >= 300;  // 5 min — amber warning
-            const isCritical= idleSeconds >= 600;  // 10 min — red critical
-            const isNearby  = myLocation && pickup && haversineMeters(myLocation, pickup) <= 200;
+            const idleMin        = Math.floor(idleSeconds / 60);
+            const isUrgent       = idleSeconds >= 240;   // 4 min — amber warning
+            const isCritical     = idleSeconds >= 360;   // 6 min — red, reassignment imminent
+            const isReassigning  = idleSeconds >= 480;   // 8 min — server sweep already fired
+            // Countdown shown from 4–6 min: seconds left before auto-reassign
+            const secsToRedispatch = Math.max(0, 360 - idleSeconds);
+            const ctdMin = Math.floor(secsToRedispatch / 60);
+            const ctdSec = secsToRedispatch % 60;
+            const isNearby  = myLocation && pickup
+              && (myLocation.accuracy == null || myLocation.accuracy <= 120)
+              && haversineMeters(myLocation, pickup) <= 200;
             return (
               <div className="space-y-2">
 
@@ -1149,31 +1191,41 @@ export default function WorkerJobPage() {
                   </motion.div>
                 )}
 
-                {/* Idle alert — amber at 5 min, red at 10 min */}
+                {/* Idle alert — amber at 5 min, red at 10 min, pulsing at 12 min */}
                 {isUrgent && (
                   <motion.div
                     className="rounded-2xl px-4 py-3 flex items-center gap-3"
-                    style={isCritical
+                    style={isReassigning
+                      ? { background: 'linear-gradient(135deg,#1a0505,#450a0a)', border: '2px solid rgba(239,68,68,0.8)' }
+                      : isCritical
                       ? { background: 'linear-gradient(135deg,#450a0a,#991b1b)', border: '1.5px solid rgba(239,68,68,0.5)' }
                       : { background: 'linear-gradient(135deg,#431407,#c2410c)', border: '1.5px solid rgba(249,115,22,0.5)' }}
-                    animate={isCritical ? { scale: [1, 1.02, 1] } : {}}
-                    transition={{ duration: 0.6, repeat: Infinity }}
+                    animate={isReassigning
+                      ? { scale: [1, 1.03, 1], opacity: [1, 0.85, 1] }
+                      : isCritical ? { scale: [1, 1.02, 1] } : {}}
+                    transition={{ duration: isReassigning ? 0.8 : 0.6, repeat: Infinity }}
                   >
                     <motion.span
                       className="text-xl shrink-0"
-                      animate={{ rotate: isCritical ? [-10,10,-10,0] : [0] }}
+                      animate={{ rotate: (isCritical || isReassigning) ? [-10,10,-10,0] : [0] }}
                       transition={{ duration: 0.4, repeat: Infinity }}
                     >
-                      {isCritical ? '🚨' : '⚠️'}
+                      {isReassigning ? '⛔' : isCritical ? '🚨' : '⚠️'}
                     </motion.span>
                     <div className="flex-1">
-                      <p className={`text-sm font-black ${isCritical ? 'text-red-200' : 'text-orange-200'}`}>
-                        {isCritical
-                          ? `10 min passed — start NOW or order may cancel!`
+                      <p className={`text-sm font-black ${(isCritical || isReassigning) ? 'text-red-200' : 'text-orange-200'}`}>
+                        {isReassigning
+                          ? 'Reassigning your job now…'
+                          : isCritical
+                          ? 'Auto-reassign triggered — start NOW!'
                           : `${idleMin} min idle — customer is waiting!`}
                       </p>
-                      <p className={`text-xs mt-0.5 ${isCritical ? 'text-red-400' : 'text-orange-400'}`}>
-                        Assigned {idleMin} min ago · tap Start Trip below
+                      <p className={`text-xs mt-0.5 ${(isCritical || isReassigning) ? 'text-red-400' : 'text-orange-400'}`}>
+                        {isReassigning
+                          ? 'You will lose this job and receive a penalty'
+                          : isCritical
+                          ? `Assigned ${idleMin} min ago · reassignment in progress`
+                          : `Auto-cancel in ${ctdMin}:${String(ctdSec).padStart(2,'0')} · tap Start Trip`}
                       </p>
                     </div>
                   </motion.div>

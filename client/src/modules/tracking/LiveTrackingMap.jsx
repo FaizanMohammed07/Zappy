@@ -89,22 +89,45 @@ function getBikeSvg(color) {
   </svg>`;
 }
 
-/* ─── Destination pin (red — user's location) ───────────────────── */
+/* ─── Destination pin (red — customer's location) ───────────────────── */
 function makePickupEl() {
+  ensureStyles();
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'width:40px;height:52px;filter:drop-shadow(0 6px 18px rgba(239,68,68,.7))';
+  wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;';
   wrap.innerHTML = `
-    <svg width="40" height="52" viewBox="0 0 40 52" fill="none">
-      <defs>
-        <radialGradient id="pgr" cx="40%" cy="30%" r="70%">
-          <stop offset="0%" stop-color="#FF6B6B"/>
-          <stop offset="100%" stop-color="#EF4444"/>
-        </radialGradient>
-      </defs>
-      <path d="M20 0C8.954 0 0 8.954 0 20C0 36.5 20 52 20 52C20 52 40 36.5 40 20C40 8.954 31.046 0 20 0Z" fill="url(#pgr)"/>
-      <circle cx="20" cy="20" r="9" fill="white" opacity="0.95"/>
-      <circle cx="20" cy="20" r="4.5" fill="#EF4444"/>
-    </svg>`;
+    <!-- pulsing halo behind pin -->
+    <div style="position:relative;width:48px;height:60px;filter:drop-shadow(0 6px 20px rgba(239,68,68,.85))">
+      <div style="
+        position:absolute;left:50%;top:50%;transform:translate(-50%,-60%);
+        width:56px;height:56px;border-radius:50%;
+        background:rgba(239,68,68,0.25);
+        animation:lt2-pulse-a 1.8s ease-out infinite;
+      "></div>
+      <svg width="48" height="60" viewBox="0 0 48 60" fill="none" style="position:relative;z-index:2">
+        <defs>
+          <radialGradient id="pgr2" cx="40%" cy="25%" r="70%">
+            <stop offset="0%" stop-color="#FF6B6B"/>
+            <stop offset="100%" stop-color="#DC2626"/>
+          </radialGradient>
+        </defs>
+        <path d="M24 0C10.745 0 0 10.745 0 24C0 42 24 60 24 60C24 60 48 42 48 24C48 10.745 37.255 0 24 0Z" fill="url(#pgr2)"/>
+        <circle cx="24" cy="24" r="11" fill="white" opacity="0.95"/>
+        <circle cx="24" cy="24" r="5.5" fill="#EF4444"/>
+      </svg>
+    </div>
+    <!-- label chip -->
+    <div style="
+      background:rgba(220,38,38,0.92);
+      backdrop-filter:blur(8px);
+      border-radius:20px;
+      padding:3px 10px;
+      font-size:10px;font-weight:900;
+      color:#fff;
+      white-space:nowrap;
+      letter-spacing:0.03em;
+      box-shadow:0 2px 8px rgba(0,0,0,0.4);
+      border:1px solid rgba(255,255,255,0.2);
+    ">📍 Go Here</div>`;
   return wrap;
 }
 
@@ -113,38 +136,54 @@ function makeWorkerEl(service, bearing = 0) {
   ensureStyles();
   const color = svcColor(service);
   const wrap  = document.createElement('div');
-  // no background — bike floats directly on the map
-  wrap.style.cssText = 'position:relative;width:56px;height:56px;';
+  wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;';
 
   wrap.innerHTML = `
-    <!-- outer bloom ring -->
+    <div style="position:relative;width:56px;height:56px;">
+      <!-- outer bloom ring -->
+      <div style="
+        position:absolute;inset:-14px;border-radius:50%;
+        background:${color}35;z-index:1;
+        animation:lt2-pulse-a 2.2s ease-out infinite;
+      "></div>
+      <!-- wider softer ring -->
+      <div style="
+        position:absolute;inset:-22px;border-radius:50%;
+        background:${color}18;z-index:0;
+        animation:lt2-pulse-b 2.4s ease-out infinite .65s;
+      "></div>
+      <!-- bike icon -->
+      <div class="lt2-bike-rot" style="
+        --wc:${color};
+        position:absolute;inset:0;z-index:3;
+        display:flex;align-items:center;justify-content:center;
+        transform:rotate(${bearing}deg);
+        transition:transform 1.1s cubic-bezier(.25,.46,.45,.94);
+        animation:lt2-glow 2.2s ease-in-out infinite;
+      ">
+        ${getBikeSvg(color)}
+      </div>
+    </div>
+    <!-- "You" label chip -->
     <div style="
-      position:absolute;inset:-14px;border-radius:50%;
-      background:${color}35;z-index:1;
-      animation:lt2-pulse-a 2.2s ease-out infinite;
-    "></div>
-    <!-- wider softer ring -->
-    <div style="
-      position:absolute;inset:-22px;border-radius:50%;
-      background:${color}18;z-index:0;
-      animation:lt2-pulse-b 2.4s ease-out infinite .65s;
-    "></div>
-    <!-- bike icon — no background, neon glow animates via keyframe -->
-    <div class="lt2-bike-rot" style="
-      --wc:${color};
-      position:absolute;inset:0;z-index:3;
-      display:flex;align-items:center;justify-content:center;
-      transform:rotate(${bearing}deg);
-      transition:transform 1.1s cubic-bezier(.25,.46,.45,.94);
-      animation:lt2-glow 2.2s ease-in-out infinite;
-    ">
-      ${getBikeSvg(color)}
-    </div>`;
+      background:rgba(15,23,42,0.88);
+      backdrop-filter:blur(8px);
+      border-radius:20px;
+      padding:2px 9px;
+      font-size:10px;font-weight:900;
+      color:${color};
+      white-space:nowrap;
+      letter-spacing:0.04em;
+      border:1px solid ${color}55;
+      box-shadow:0 2px 8px rgba(0,0,0,0.4);
+    ">You</div>`;
 
   wrap._setBearing = (b) => {
     const el = wrap.querySelector('.lt2-bike-rot');
     if (el) el.style.transform = `rotate(${b}deg)`;
   };
+  // expose for Marker anchor offset — outer wrap is now taller due to label
+  wrap._bikeHeight = 56;
 
   return wrap;
 }
@@ -211,15 +250,16 @@ function animateMarkerTo(marker, from, to) {
 function fitBounds(map, pickup, worker) {
   if (!pickup) return;
   if (!worker) {
-    map.easeTo({ center: [pickup.lng, pickup.lat], zoom: 16, duration: 800 });
+    map.easeTo({ center: [pickup.lng, pickup.lat], zoom: 17, duration: 800 });
     return;
   }
   const bounds = new mapboxgl.LngLatBounds()
     .extend([pickup.lng, pickup.lat])
     .extend([worker.lng, worker.lat]);
   map.fitBounds(bounds, {
-    padding:  { top: 80, bottom: 100, left: 60, right: 60 },
-    maxZoom:  17,
+    // extra bottom padding keeps pins above the action-bar panel
+    padding:  { top: 100, bottom: 160, left: 80, right: 80 },
+    maxZoom:  18,
     duration: 900,
     easing:   t => 1 - Math.pow(1 - t, 4),
   });
@@ -256,7 +296,8 @@ function animateRouteDraw(map, st, allCoords) {
 async function fetchRoute(map, st, from, to) {
   if (!TOKEN) return;
   const now = Date.now();
-  if (now - st.lastRoute < ROUTE_COOLDOWN) return;
+  // Always fetch on first call (lastRoute === 0); then enforce cooldown
+  if (st.lastRoute !== 0 && now - st.lastRoute < ROUTE_COOLDOWN) return;
   st.lastRoute = now;
   try {
     const url =
@@ -398,7 +439,7 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, statu
       }
       if (w) {
         const el = makeWorkerEl(st.workerService);
-        st.workerMarker = new mapboxgl.Marker({ element: el })
+        st.workerMarker = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([w.lng, w.lat]).addTo(map);
         st.prevWorkerPos = w;
       }
@@ -451,7 +492,7 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, statu
       animateMarkerTo(st.workerMarker, from, workerLocation);
     } else {
       const el = makeWorkerEl(st.workerService);
-      st.workerMarker = new mapboxgl.Marker({ element: el })
+      st.workerMarker = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat([workerLocation.lng, workerLocation.lat]).addTo(st.map);
     }
     st.prevWorkerPos = workerLocation;
@@ -508,7 +549,7 @@ export default function LiveTrackingMap({ pickup, workerLocation, service, statu
     if (!pos) return;
     st.workerMarker.remove();
     const el = makeWorkerEl(service);
-    st.workerMarker = new mapboxgl.Marker({ element: el })
+    st.workerMarker = new mapboxgl.Marker({ element: el, anchor: 'center' })
       .setLngLat([pos.lng, pos.lat]).addTo(st.map);
     if (st.map.getLayer('trail-dots')) {
       st.map.setPaintProperty('trail-dots', 'circle-color', svcColor(service));

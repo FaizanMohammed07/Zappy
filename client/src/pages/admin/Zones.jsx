@@ -133,13 +133,13 @@ function ZoneDrawer({ initial, coordinates, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <motion.div
         initial={{ y: 60, opacity: 0, scale: 0.97 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: 60, opacity: 0, scale: 0.97 }}
         transition={{ type: 'spring', damping: 28, stiffness: 340 }}
-        className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl"
+        className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative z-10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -285,11 +285,14 @@ export default function Zones() {
   const zones = data?.zones || [];
   const selected = zones.find((z) => z._id === selectedId) || null;
 
-  // Init Leaflet map once — use rAF so the container has painted and has real pixel dimensions
+  // Init Leaflet map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     let map;
+    let ro;
+
+    // Use rAF + a longer timeout so the grid layout has fully painted
     const raf = requestAnimationFrame(() => {
       if (!containerRef.current) return;
 
@@ -301,10 +304,14 @@ export default function Zones() {
         preferCanvas: true,
       });
 
-      // Tile layer — use direct URL without {r} retina placeholder to avoid blank tiles
       const tile = L.tileLayer(
         'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        { attribution: TILE_LAYERS.light.attr, maxZoom: 19, subdomains: 'abcd' }
+        {
+          attribution: TILE_LAYERS.light.attr,
+          maxZoom: 19,
+          subdomains: 'abcd',
+          detectRetina: false,
+        }
       ).addTo(map);
       tileLayerRef.current = tile;
 
@@ -315,16 +322,31 @@ export default function Zones() {
 
       mapRef.current = map;
 
-      // Force Leaflet to recalculate container size after paint
-      setTimeout(() => {
+      // First invalidate at 200ms — enough for grid layout to settle
+      const t1 = setTimeout(() => { map.invalidateSize({ animate: false }); }, 200);
+      // Second pass at 600ms catches any residual flex/scroll recalculation
+      const t2 = setTimeout(() => {
         map.invalidateSize({ animate: false });
         setMapReady(true);
-      }, 50);
+      }, 600);
+
+      // ResizeObserver keeps tiles correct if the panel is resized later
+      if (typeof ResizeObserver !== 'undefined') {
+        ro = new ResizeObserver(() => {
+          if (mapRef.current) mapRef.current.invalidateSize({ animate: false });
+        });
+        ro.observe(containerRef.current);
+      }
+
+      // Stash cleanup refs
+      mapRef.current._cleanupTimers = () => { clearTimeout(t1); clearTimeout(t2); };
     });
 
     return () => {
       cancelAnimationFrame(raf);
+      ro?.disconnect();
       if (mapRef.current) {
+        mapRef.current._cleanupTimers?.();
         mapRef.current.remove();
         mapRef.current = null;
         tileLayerRef.current = null;
@@ -610,9 +632,9 @@ export default function Zones() {
 
         {/* Right: map */}
         <div className="lg:col-span-3">
-          <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm" style={{ overflow: 'visible' }}>
             {/* Map toolbar */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/60">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/60 rounded-t-2xl">
               <div className="flex items-center gap-1">
                 {Object.entries(TILE_LAYERS).map(([key, cfg]) => (
                   <button
@@ -637,9 +659,9 @@ export default function Zones() {
               </div>
             </div>
 
-            {/* Map container — explicit px height so Leaflet reads non-zero dimensions at init */}
-            <div className="relative" style={{ height: '460px' }}>
-              <div ref={containerRef} style={{ width: '100%', height: '460px' }} />
+            {/* Map container — overflow:hidden here only, not on the outer card */}
+            <div className="relative rounded-b-2xl overflow-hidden" style={{ height: '460px' }}>
+              <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
               {/* Drawing mode banner */}
               <AnimatePresence>
