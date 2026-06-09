@@ -14,27 +14,37 @@ import { ZappyLogo } from '../components/common/ZappyLogo';
 import toast from 'react-hot-toast';
 
 const ALL_SKILLS = [
-  { id: 'puncture',          label: 'Puncture Repair',      emoji: '🛞' },
-  { id: 'bike_wash',         label: 'Bike Wash',            emoji: '🏍️' },
-  { id: 'bike_service',      label: 'Bike Service',         emoji: '🔧' },
-  { id: 'bike_chain_issue',  label: 'Bike Chain',           emoji: '⛓️' },
-  { id: 'bike_brake_issue',  label: 'Bike Brakes',          emoji: '🛑' },
-  { id: 'car_wash',          label: 'Car Wash',             emoji: '🚗' },
-  { id: 'car_service',       label: 'Car Service',          emoji: '🔩' },
-  { id: 'car_puncture',      label: 'Car Tyre',             emoji: '🛞' },
-  { id: 'battery_jump_start',label: 'Battery Jump Start',   emoji: '⚡' },
-  { id: 'fuel_delivery',     label: 'Fuel Delivery',        emoji: '⛽' },
-  { id: 'plumbing',          label: 'Plumbing',             emoji: '🚿' },
-  { id: 'electrical',        label: 'Electrical',           emoji: '💡' },
-  { id: 'ac_repair',         label: 'AC Repair',            emoji: '❄️' },
-  { id: 'carpenter',         label: 'Carpentry',            emoji: '🪚' },
-  { id: 'cleaning',          label: 'Cleaning',             emoji: '🧹' },
-  { id: 'painting',          label: 'Painting',             emoji: '🎨' },
-  { id: 'helper',            label: 'Helper / Labour',      emoji: '🧑‍🔧' },
-  { id: 'screen_replacement',label: 'Phone Screen Repair',  emoji: '📱' },
-  { id: 'battery_replacement',label: 'Phone Battery',       emoji: '🔋' },
-  { id: 'laptop_slow',       label: 'Laptop Repair',        emoji: '💻' },
-  { id: 'pet_grooming',      label: 'Pet Grooming',         emoji: '🐾' },
+  // Vehicle
+  { id: 'puncture',              label: 'Puncture Repair',        emoji: '🛞' },
+  { id: 'bike_wash',             label: 'Bike Wash',              emoji: '🏍️' },
+  { id: 'car_wash',              label: 'Car Wash',               emoji: '🚗' },
+  { id: 'battery_jump_start',    label: 'Battery Jump Start',     emoji: '⚡' },
+  { id: 'fuel_delivery',         label: 'Fuel Delivery',          emoji: '⛽' },
+  { id: 'minor_roadside_repair', label: 'Minor Roadside Repair',  emoji: '🔧' },
+  // Home services
+  { id: 'electrical',            label: 'Electrical',             emoji: '💡' },
+  { id: 'plumbing',              label: 'Plumbing',               emoji: '🚿' },
+  { id: 'ac_repair',             label: 'AC Repair',              emoji: '❄️' },
+  { id: 'carpenter',             label: 'Carpentry',              emoji: '🪚' },
+  { id: 'cleaning',              label: 'Cleaning',               emoji: '🧹' },
+  { id: 'painting',              label: 'Painting',               emoji: '🎨' },
+  { id: 'helper',                label: 'Helper / Labour',        emoji: '🧑‍🔧' },
+  { id: 'delivery',              label: 'Delivery',               emoji: '📦' },
+  { id: 'laundry',               label: 'Laundry',                emoji: '👕' },
+  { id: 'beauty',                label: 'Beauty / Grooming',      emoji: '💇' },
+  { id: 'gardening',             label: 'Gardening',              emoji: '🌱' },
+  { id: 'security',              label: 'Security',               emoji: '🔒' },
+  { id: 'appliance',             label: 'Appliance Repair',       emoji: '🔌' },
+  { id: 'internet',              label: 'Internet / Networking',  emoji: '📡' },
+  // Mobile repair
+  { id: 'screen_replacement',    label: 'Phone Screen Repair',    emoji: '📱' },
+  { id: 'battery_replacement',   label: 'Phone Battery',          emoji: '🔋' },
+  { id: 'charging_issue',        label: 'Charging Issue',         emoji: '🔌' },
+  { id: 'speaker_mic_issue',     label: 'Speaker / Mic Repair',   emoji: '🎙️' },
+  { id: 'software_issue',        label: 'Software Issue',         emoji: '💻' },
+  { id: 'water_damage_check',    label: 'Water Damage Check',     emoji: '💧' },
+  // Construction
+  { id: 'mason',                 label: 'Masonry / Construction', emoji: '🧱' },
 ];
 
 const STEPS = ['name', 'skills', 'emergency'];

@@ -73,8 +73,8 @@ export default function WalletPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-slate-50 md:flex md:justify-center pb-20">
-        <div className="w-full max-w-lg bg-slate-50 min-h-screen relative shadow-[0_0_40px_rgba(0,0,0,0.05)] md:border-x border-slate-200/60 overflow-hidden">
+      <div className="min-h-screen bg-slate-50 md:flex md:justify-center">
+        <div className="w-full max-w-md bg-slate-50 min-h-screen relative shadow-[0_0_40px_rgba(0,0,0,0.05)] md:border-x border-slate-200/60 overflow-hidden">
           
           {/* Dark Premium Wallet Header */}
           <header className="relative pt-6 pb-28 overflow-hidden rounded-b-[2.5rem] shadow-sm z-10" style={{ background: 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e1b4b 100%)' }}>
@@ -121,7 +121,7 @@ export default function WalletPage() {
             </div>
           </header>
 
-          <div className="relative z-20 px-4 -mt-12 space-y-5 pb-8">
+          <div className="relative z-20 px-4 -mt-12 space-y-5 pb-36">
             
             <AnimatePresence>
               {showAddMoney && !isFrozen && (

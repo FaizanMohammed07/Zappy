@@ -1,24 +1,43 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Star, Zap, CheckCircle, Loader2, ChevronRight, Wind, Droplets, Bolt, Hammer, Sparkles, Paintbrush2, PlugZap, Bug, Scissors, HeartPulse, BookOpen, ChefHat, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Star, Zap, CheckCircle, Loader2, ChevronRight, Wind, Droplets, Bolt, Hammer, Sparkles, Paintbrush2, PlugZap, Scissors, Lock, ShieldCheck, Truck, Shirt, Leaf, Shield, Wifi, Smartphone, Battery, Plug, Mic, Code, Droplet, Layers, Wrench, Car, Bike, Fuel, Flame } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useGetWorkerProfileQuery, useUpdateWorkerSkillsMutation } from '../services/api';
 import { useGetPlansQuery } from '../services/api';
 
 const ALL_SKILLS = [
-  { id: 'ac_service', label: 'AC Repair & Service', Icon: Wind, color: 'text-cyan-500', bg: 'bg-cyan-50', unlockAt: null },
-  { id: 'plumbing', label: 'Plumbing', Icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-50', unlockAt: null },
-  { id: 'electrical', label: 'Electrical Work', Icon: Bolt, color: 'text-amber-500', bg: 'bg-amber-50', unlockAt: null },
-  { id: 'carpentry', label: 'Carpentry & Furniture', Icon: Hammer, color: 'text-orange-500', bg: 'bg-orange-50', unlockAt: null },
-  { id: 'cleaning', label: 'Deep Cleaning', Icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-50', unlockAt: null },
-  { id: 'painting', label: 'Painting', Icon: Paintbrush2, color: 'text-pink-500', bg: 'bg-pink-50', unlockAt: null },
-  { id: 'appliance_repair', label: 'Appliance Repair', Icon: PlugZap, color: 'text-indigo-500', bg: 'bg-indigo-50', unlockAt: null },
-  { id: 'pest_control', label: 'Pest Control', Icon: Bug, color: 'text-emerald-500', bg: 'bg-emerald-50', unlockAt: 'certified' },
-  { id: 'beauty', label: 'Beauty & Grooming', Icon: Scissors, color: 'text-rose-500', bg: 'bg-rose-50', unlockAt: null },
-  { id: 'massage', label: 'Massage Therapy', Icon: HeartPulse, color: 'text-red-500', bg: 'bg-red-50', unlockAt: 'certified' },
-  { id: 'tutoring', label: 'Home Tutoring', Icon: BookOpen, color: 'text-sky-500', bg: 'bg-sky-50', unlockAt: null },
-  { id: 'cooking', label: 'Personal Chef', Icon: ChefHat, color: 'text-stone-500', bg: 'bg-stone-50', unlockAt: null },
+  // Vehicle
+  { id: 'puncture',              label: 'Puncture Repair',        Icon: Bike,       color: 'text-red-500',    bg: 'bg-red-50',    unlockAt: null },
+  { id: 'bike_wash',             label: 'Bike Wash',              Icon: Bike,       color: 'text-cyan-500',   bg: 'bg-cyan-50',   unlockAt: null },
+  { id: 'car_wash',              label: 'Car Wash',               Icon: Car,        color: 'text-blue-500',   bg: 'bg-blue-50',   unlockAt: null },
+  { id: 'battery_jump_start',    label: 'Battery Jump Start',     Icon: Zap,        color: 'text-yellow-500', bg: 'bg-yellow-50', unlockAt: null },
+  { id: 'fuel_delivery',         label: 'Fuel Delivery',          Icon: Fuel,       color: 'text-orange-500', bg: 'bg-orange-50', unlockAt: null },
+  { id: 'minor_roadside_repair', label: 'Minor Roadside Repair',  Icon: Wrench,     color: 'text-stone-500',  bg: 'bg-stone-50',  unlockAt: null },
+  // Home services
+  { id: 'electrical',            label: 'Electrical Work',        Icon: Bolt,       color: 'text-amber-500',  bg: 'bg-amber-50',  unlockAt: null },
+  { id: 'plumbing',              label: 'Plumbing',               Icon: Droplets,   color: 'text-blue-500',   bg: 'bg-blue-50',   unlockAt: null },
+  { id: 'ac_repair',             label: 'AC Repair & Service',    Icon: Wind,       color: 'text-cyan-500',   bg: 'bg-cyan-50',   unlockAt: null },
+  { id: 'carpenter',             label: 'Carpentry & Furniture',  Icon: Hammer,     color: 'text-orange-500', bg: 'bg-orange-50', unlockAt: null },
+  { id: 'cleaning',              label: 'Deep Cleaning',          Icon: Sparkles,   color: 'text-purple-500', bg: 'bg-purple-50', unlockAt: null },
+  { id: 'painting',              label: 'Painting',               Icon: Paintbrush2,color: 'text-pink-500',   bg: 'bg-pink-50',   unlockAt: null },
+  { id: 'helper',                label: 'Helper / Labour',        Icon: Layers,     color: 'text-slate-500',  bg: 'bg-slate-50',  unlockAt: null },
+  { id: 'delivery',              label: 'Delivery',               Icon: Truck,      color: 'text-indigo-500', bg: 'bg-indigo-50', unlockAt: null },
+  { id: 'laundry',               label: 'Laundry',                Icon: Shirt,      color: 'text-teal-500',   bg: 'bg-teal-50',   unlockAt: null },
+  { id: 'beauty',                label: 'Beauty & Grooming',      Icon: Scissors,   color: 'text-rose-500',   bg: 'bg-rose-50',   unlockAt: null },
+  { id: 'gardening',             label: 'Gardening',              Icon: Leaf,       color: 'text-green-500',  bg: 'bg-green-50',  unlockAt: null },
+  { id: 'security',              label: 'Security',               Icon: Shield,     color: 'text-slate-600',  bg: 'bg-slate-100', unlockAt: null },
+  { id: 'appliance',             label: 'Appliance Repair',       Icon: PlugZap,    color: 'text-violet-500', bg: 'bg-violet-50', unlockAt: null },
+  { id: 'internet',              label: 'Internet / Networking',  Icon: Wifi,       color: 'text-sky-500',    bg: 'bg-sky-50',    unlockAt: null },
+  // Mobile repair
+  { id: 'screen_replacement',    label: 'Phone Screen Repair',    Icon: Smartphone, color: 'text-pink-500',   bg: 'bg-pink-50',   unlockAt: null },
+  { id: 'battery_replacement',   label: 'Phone Battery',          Icon: Battery,    color: 'text-orange-400', bg: 'bg-orange-50', unlockAt: null },
+  { id: 'charging_issue',        label: 'Charging Issue',         Icon: Plug,       color: 'text-yellow-500', bg: 'bg-yellow-50', unlockAt: null },
+  { id: 'speaker_mic_issue',     label: 'Speaker / Mic Repair',   Icon: Mic,        color: 'text-lime-500',   bg: 'bg-lime-50',   unlockAt: null },
+  { id: 'software_issue',        label: 'Software Issue',         Icon: Code,       color: 'text-emerald-500',bg: 'bg-emerald-50',unlockAt: null },
+  { id: 'water_damage_check',    label: 'Water Damage Check',     Icon: Droplet,    color: 'text-blue-400',   bg: 'bg-blue-50',   unlockAt: null },
+  // Construction
+  { id: 'mason',                 label: 'Masonry / Construction', Icon: Layers,     color: 'text-yellow-700', bg: 'bg-yellow-50', unlockAt: null },
 ];
 
 export default function WorkerSkillsPage() {
