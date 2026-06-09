@@ -96,7 +96,11 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
 
   logger.info({ radiusKm, skill, geoHits: geoResult.length }, '[GEO] Raw geo results');
 
-  const nearbyIds = geoResult.map((r) => r[0]).filter((id) => !excludeSet.has(id));
+  // Keep distance paired with each id so filtering doesn't break index alignment
+  const nearbyEntries = geoResult
+    .map((r) => ({ id: r[0], dist: parseFloat(r[1]) }))
+    .filter((e) => !excludeSet.has(e.id));
+  const nearbyIds = nearbyEntries.map((e) => e.id);
 
   if (nearbyIds.length === 0) {
     return mongoFallback({ lng, lat, skill, excludeIds, radiusKm, skipSkillFilter });
@@ -126,8 +130,7 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
     const isFresh    = lastSeen === 0 || lastSeen >= freshnessThreshold; // 0 = legacy, allow through
 
     if (isAvail && hasSkill && isFresh) {
-      const dist = parseFloat(geoResult[i][1]);
-      filtered.push({ workerId: nearbyIds[i], distanceKm: dist });
+      filtered.push({ workerId: nearbyIds[i], distanceKm: nearbyEntries[i].dist });
     }
     if (filtered.length >= maxCandidates) break;
   }
