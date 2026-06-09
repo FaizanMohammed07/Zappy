@@ -27,8 +27,8 @@ const logger = require('../utils/logger');
 const { dispatchQueue } = require('./index');
 
 // Defaults — overridden by admin pricing config at runtime
-let ASSIGNED_NUDGE_MIN      = 5;
-let ASSIGNED_REDISPATCH_MIN = 10;
+let ASSIGNED_NUDGE_MIN      = 4;
+let ASSIGNED_REDISPATCH_MIN = 6;
 let OTW_ALERT_MIN           = 20;
 const SEARCHING_STALE_MIN   = 6;   // always fixed — dispatch restart threshold
 const ARRIVED_STALE_MIN     = 15;  // worker marked arrived but never entered OTP — auto-cancel after 15 min
@@ -226,6 +226,13 @@ async function redispatchFromAssigned(order) {
     orderId,
     event: 'order.dispatch_update',
     payload: { message: 'Reassigning — finding a new worker for you…' },
+  }));
+
+  // Inform the worker's client that the job was pulled — triggers redirect
+  await redis.publish('order:event', JSON.stringify({
+    orderId,
+    event: 'order.status',
+    payload: { status: 'searching', at: new Date().toISOString() },
   }));
 }
 

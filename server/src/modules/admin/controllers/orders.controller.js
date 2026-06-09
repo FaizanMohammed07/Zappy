@@ -281,6 +281,19 @@ async function reassignOrder(req, res, next) {
       });
     }
 
+    // Push notification to new worker — socket alone is silently dropped when app is backgrounded
+    const notificationService = require('../../../modules/notification/notification.service');
+    const svcLabel = order.service.replace(/_/g, ' ');
+    const totalRs  = order.pricing?.total != null ? `₹${Math.round(order.pricing.total / 100)}` : '';
+    notificationService.notify({
+      recipient: { kind: 'worker', id: worker._id },
+      type:      'job_assigned',
+      title:     'New job assigned to you',
+      body:      `${svcLabel}${totalRs ? ` — ${totalRs}` : ''}. Admin has assigned this order directly to you. Please start your trip.`,
+      deepLink:  `/worker/jobs/${String(order._id)}`,
+      data:      { orderId: String(order._id), adminAssigned: 'true' },
+    }).catch(() => {});
+
     await auditService.fromRequest(
       req,
       'admin.order_reassign',

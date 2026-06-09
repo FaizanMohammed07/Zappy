@@ -136,7 +136,7 @@ function startDispatchWorker() {
       processDispatchJob,
       {
         connection:   createBullConnection(),
-        concurrency:  10,
+        concurrency:  5,   // was 10 — each concurrent job held a Redis sub-connection
         lockDuration: 300_000,
       },
     );

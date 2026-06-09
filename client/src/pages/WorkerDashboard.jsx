@@ -12,7 +12,8 @@ import {
   ChevronDown, ChevronUp, ArrowRight, BadgeIndianRupee,
   ShieldCheck, TrendingDown, Siren, ArrowUpRight,
   ArrowDownRight, Minus, Smartphone, Battery, Layers,
-  Home, Bike, Fuel, Pencil, Bell,
+  Home, Bike, Fuel, Pencil, Bell, Building2, ArrowRightLeft,
+  GraduationCap, Scale, Wallet
 } from 'lucide-react';
 import {
   useGetWorkerMeQuery, useGoOnlineMutation, useGoOfflineMutation,
@@ -329,7 +330,13 @@ export default function WorkerDashboard() {
     }
   }, [dispatch, worker.currentOffer]);
 
-  useWorkerOfferSocket(handleOffer, handleOfferCancelled, handleForceAssigned, handleOfferBoosted);
+  // Active job pulled away (admin reassign or stale-watchdog) — clear banner immediately
+  const handleJobPulled = useCallback(() => {
+    refetchMe();
+    toast.error('Your job was reassigned. Stay online for the next one.', { duration: 5000 });
+  }, [refetchMe]);
+
+  useWorkerOfferSocket(handleOffer, handleOfferCancelled, handleForceAssigned, handleOfferBoosted, handleJobPulled);
 
   // Continuous location broadcast — socket (fast) + REST fallback (reliable)
   // Client-side gates: 4s time throttle + 10m distance threshold.
@@ -1362,32 +1369,44 @@ const LEVEL_META = {
 };
 
 const TOOLS = [
-  { to: '/worker/earnings',  emoji: '📊', label: 'Earnings',   sub: 'Job breakdown',       bg: 'from-indigo-50 to-indigo-100',  ring: 'ring-indigo-100' },
-  { to: '/worker/goals',     emoji: '🎯', label: 'Goals',      sub: 'Daily & weekly',      bg: 'from-purple-50 to-purple-100',  ring: 'ring-purple-100' },
-  { to: '/worker/bank',      emoji: '🏦', label: 'Bank & UPI', sub: 'Add accounts',        bg: 'from-blue-50 to-blue-100',      ring: 'ring-blue-100' },
-  { to: '/worker/withdraw',  emoji: '💸', label: 'Withdraw',   sub: 'Transfer to bank',    bg: 'from-emerald-50 to-emerald-100', ring: 'ring-emerald-100' },
-  { to: '/worker/skills',    emoji: '⭐', label: 'Skills',     sub: 'Specialise & earn',   bg: 'from-amber-50 to-amber-100',    ring: 'ring-amber-100' },
-  { to: '/worker/training',  emoji: '🎓', label: 'Training',   sub: 'Get certified',       bg: 'from-rose-50 to-rose-100',      ring: 'ring-rose-100' },
-  { to: '/worker/appeals',   emoji: '⚖️', label: 'Appeals',    sub: 'Contest ratings',     bg: 'from-orange-50 to-orange-100',  ring: 'ring-orange-100' },
-  { to: '/plans',            emoji: '💎', label: 'Go Pro',     sub: 'Lower commission',    bg: 'from-amber-50 to-orange-50',    ring: 'ring-amber-100' },
-  { to: '/wallet',           emoji: '💰', label: 'Wallet',     sub: null,                  bg: 'from-green-50 to-emerald-50',   ring: 'ring-green-100' },
+  { to: '/worker/earnings',  icon: BarChart2,     label: 'Earnings',   sub: 'Job breakdown',       bg: 'from-indigo-50/80 to-indigo-100/80',  ring: 'ring-indigo-200/50',   iconColor: 'text-indigo-600',   iconBg: 'bg-white/60' },
+  { to: '/worker/goals',     icon: Target,        label: 'Goals',      sub: 'Daily & weekly',      bg: 'from-purple-50/80 to-purple-100/80',  ring: 'ring-purple-200/50',   iconColor: 'text-purple-600',   iconBg: 'bg-white/60' },
+  { to: '/worker/bank',      icon: Building2,     label: 'Bank & UPI', sub: 'Add accounts',        bg: 'from-blue-50/80 to-blue-100/80',      ring: 'ring-blue-200/50',     iconColor: 'text-blue-600',     iconBg: 'bg-white/60' },
+  { to: '/worker/withdraw',  icon: ArrowRightLeft,label: 'Withdraw',   sub: 'Transfer to bank',    bg: 'from-emerald-50/80 to-emerald-100/80', ring: 'ring-emerald-200/50', iconColor: 'text-emerald-600',  iconBg: 'bg-white/60' },
+  { to: '/worker/skills',    icon: Star,          label: 'Skills',     sub: 'Specialise & earn',   bg: 'from-amber-50/80 to-amber-100/80',    ring: 'ring-amber-200/50',    iconColor: 'text-amber-600',    iconBg: 'bg-white/60' },
+  { to: '/worker/training',  icon: GraduationCap, label: 'Training',   sub: 'Get certified',       bg: 'from-rose-50/80 to-rose-100/80',      ring: 'ring-rose-200/50',     iconColor: 'text-rose-600',     iconBg: 'bg-white/60' },
+  { to: '/worker/appeals',   icon: Scale,         label: 'Appeals',    sub: 'Contest ratings',     bg: 'from-orange-50/80 to-orange-100/80',  ring: 'ring-orange-200/50',   iconColor: 'text-orange-600',   iconBg: 'bg-white/60' },
+  { to: '/plans',            icon: Gem,           label: 'Go Pro',     sub: 'Lower commission',    bg: 'from-stone-50/80 to-stone-100/80',    ring: 'ring-stone-200/50',    iconColor: 'text-stone-600',    iconBg: 'bg-white/60' },
+  { to: '/wallet',           icon: Wallet,        label: 'Wallet',     sub: null,                  bg: 'from-teal-50/80 to-teal-100/80',      ring: 'ring-teal-200/50',     iconColor: 'text-teal-600',     iconBg: 'bg-white/60' },
 ];
 
 function WorkerToolsGrid({ nav, totalWallet }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-0.5">Quick Access</p>
-      <div className="grid grid-cols-3 gap-2">
-        {TOOLS.map(t => (
-          <button key={t.to + t.label} onClick={() => nav(t.to)}
-            className={`bg-gradient-to-br ${t.bg} rounded-2xl p-3 text-left ring-1 ${t.ring} active:scale-[0.96] transition`}>
-            <span className="text-lg">{t.emoji}</span>
-            <p className="font-bold text-xs text-[#0F172A] mt-1.5 leading-tight">{t.label}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-              {t.label === 'Wallet' ? `₹${totalWallet} available` : t.sub}
-            </p>
-          </button>
-        ))}
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }} className="mt-8">
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Quick Access</p>
+      <div className="grid grid-cols-3 gap-3">
+        {TOOLS.map((t, i) => {
+          const Icon = t.icon;
+          return (
+            <motion.button key={t.to + t.label} onClick={() => nav(t.to)}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 + (i * 0.05) }}
+              className={`bg-gradient-to-br ${t.bg} rounded-[1.25rem] p-3.5 text-left ring-1 ${t.ring} shadow-sm active:scale-[0.94] hover:shadow-md transition-all duration-200 group overflow-hidden relative`}
+            >
+              {/* Decorative background blur */}
+              <div className={`absolute -right-4 -bottom-4 w-16 h-16 rounded-full blur-2xl opacity-40 group-hover:opacity-60 transition-opacity bg-current ${t.iconColor}`} />
+              
+              <div className={`w-8 h-8 rounded-xl ${t.iconBg} flex items-center justify-center mb-2.5 shadow-sm ring-1 ring-black/5`}>
+                <Icon size={16} strokeWidth={2.5} className={t.iconColor} />
+              </div>
+              <p className="font-black text-[13px] text-slate-800 leading-tight mb-0.5">{t.label}</p>
+              <p className="text-[10px] font-medium text-slate-500 leading-tight truncate relative z-10">
+                {t.label === 'Wallet' ? `₹${totalWallet} available` : t.sub}
+              </p>
+            </motion.button>
+          );
+        })}
       </div>
     </motion.div>
   );

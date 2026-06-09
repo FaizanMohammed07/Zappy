@@ -243,6 +243,13 @@ function NoteModal({ order, onClose, onDone }) {
 /* ─── Order card ────────────────────────────────────────────────────────── */
 function OrderCard({ o, onAction }) {
   const stale = isStale(o);
+  // Reassign is only meaningful before the worker has physically arrived.
+  // Once arrived or in_progress, the worker is on-site — reassigning would
+  // leave the customer stranded mid-service.
+  const canReassign = !['arrived', 'in_progress'].includes(o.status);
+  // Cancel is blocked once service has actively started (in_progress).
+  // arrived is still cancellable — worker is on-site but hasn't begun work.
+  const canCancel = o.status !== 'in_progress';
   return (
     <Card className={`p-4 ${stale ? 'ring-1 ring-amber-300' : ''}`}>
       <div className="flex items-start justify-between gap-2">
@@ -279,18 +286,54 @@ function OrderCard({ o, onAction }) {
       </div>
 
       <div className="grid grid-cols-2 gap-1.5 mt-3">
-        <button onClick={() => onAction('reassign', o)} className="flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
-          <ArrowRightLeft size={12} /> Reassign
-        </button>
+        <div className="relative group">
+          <button
+            onClick={() => canReassign && onAction('reassign', o)}
+            disabled={!canReassign}
+            className={`w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded-lg transition ${
+              canReassign
+                ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
+            }`}
+          >
+            <ArrowRightLeft size={12} /> Reassign
+          </button>
+          {!canReassign && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
+              <div className="bg-slate-800 text-white text-[10px] font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+                Worker is {o.status === 'arrived' ? 'on-site' : 'in progress'} — cannot reassign
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800" />
+              </div>
+            </div>
+          )}
+        </div>
         <button onClick={() => onAction('force', o)} className="flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200">
           <UserCog size={12} /> Force Status
         </button>
         <button onClick={() => onAction('note', o)} className="flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100">
           <StickyNote size={12} /> Note{o.adminNotes?.length ? ` (${o.adminNotes.length})` : ''}
         </button>
-        <button onClick={() => onAction('cancel', o)} className="flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">
-          <Ban size={12} /> Cancel
-        </button>
+        <div className="relative group">
+          <button
+            onClick={() => canCancel && onAction('cancel', o)}
+            disabled={!canCancel}
+            className={`w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded-lg transition ${
+              canCancel
+                ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
+            }`}
+          >
+            <Ban size={12} /> Cancel
+          </button>
+          {!canCancel && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
+              <div className="bg-slate-800 text-white text-[10px] font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+                Service in progress — use Force Status to resolve
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800" />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );
