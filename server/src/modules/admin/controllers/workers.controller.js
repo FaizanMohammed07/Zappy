@@ -53,6 +53,10 @@ async function blockWorker(req, res, next) {
     const geoService = require('../../worker/geo.service');
     await geoService.markOffline(String(req.params.id));
 
+    // Invalidate the 60-second ban cache so the new status takes effect immediately.
+    const { invalidateBanCache } = require('../../../middlewares/auth');
+    invalidateBanCache('worker', String(req.params.id)).catch(() => {});
+
     // When BLOCKING: find any active order and re-dispatch so the user is not
     // left stranded with an assigned-but-blocked worker.
     if (req.body.blocked) {

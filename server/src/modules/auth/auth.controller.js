@@ -114,4 +114,39 @@ async function logout(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { requestOtp, loginUser, loginWorker, loginPartner, googlePartnerLogin, loginAdmin, refresh, logout };
+/**
+ * Revoke ALL sessions for the authenticated user across every device.
+ * Requires a valid access token — this is the "sign out everywhere" button.
+ */
+async function revokeAll(req, res, next) {
+  try {
+    const { sub } = req.auth;
+    const count = await authService.revokeAll(sub);
+    clearRtCookie(res);
+    res.json({ ok: true, sessionsRevoked: count });
+  } catch (err) { next(err); }
+}
+
+/**
+ * Re-verify OTP for sensitive actions (payout, bank changes).
+ * The OTP must have been requested via /otp/request for the authenticated user's phone.
+ * On success sets a 10-minute Redis flag — subsequent sensitive requests are allowed.
+ */
+async function verifySensitiveOtp(req, res, next) {
+  try {
+    const { otp } = req.body;
+    const { sub, role, phone } = req.auth;
+    if (!phone) return res.status(400).json({ error: 'No phone on session', code: 'NO_PHONE' });
+
+    const ok = await authService.verifyOtp(phone, otp);
+    if (!ok) return res.status(401).json({ error: 'Invalid OTP', code: 'OTP_INVALID' });
+
+    await authService.markOtpActionVerified(sub);
+    res.json({ ok: true, expiresIn: 600 });
+  } catch (err) { next(err); }
+}
+
+module.exports = {
+  requestOtp, loginUser, loginWorker, loginPartner, googlePartnerLogin,
+  loginAdmin, refresh, logout, revokeAll, verifySensitiveOtp,
+};

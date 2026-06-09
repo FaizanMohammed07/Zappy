@@ -174,6 +174,14 @@ async function verifyOtp(phone, otp) {
   return true;
 }
 
+/**
+ * Mark a user as having recently verified their OTP for sensitive actions.
+ * Expires after 10 minutes — caller must call this after a successful OTP verify.
+ */
+async function markOtpActionVerified(userId) {
+  await redis.setex(`otp_action:${userId}`, 600, '1');
+}
+
 async function loginUserWithOtp({ phone, otp, name }) {
   const ok = await verifyOtp(phone, otp);
   if (!ok) throw Object.assign(new Error('Invalid OTP'), { status: 401, code: 'OTP_INVALID' });
@@ -362,6 +370,7 @@ module.exports = {
   comparePassword,
   requestOtp,
   verifyOtp,
+  markOtpActionVerified,
   loginUserWithOtp,
   loginWorkerWithOtp,
   loginEventPartnerWithOtp,

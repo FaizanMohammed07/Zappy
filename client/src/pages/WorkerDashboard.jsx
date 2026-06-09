@@ -18,7 +18,7 @@ import {
   useGetWorkerMeQuery, useGoOnlineMutation, useGoOfflineMutation,
   useGetEarningsQuery, useWorkerAcceptMutation, useWorkerRejectMutation,
   useGetKycStatusQuery, useGetWorkerOrdersQuery, useGetDemandZonesQuery,
-  useGetWorkerLeaderboardQuery, useListNotificationsQuery, useLogoutMutation,
+  useGetWorkerLeaderboardQuery, useListNotificationsQuery, useLogoutMutation, useRevokeAllSessionsMutation,
   useGetWorkerGoalsQuery, useGetZoneBenchmarkQuery,
 } from '../services/api';
 import { useWorkerOfferSocket } from '../hooks/useSocket';
@@ -194,7 +194,8 @@ export default function WorkerDashboard() {
   const [goOffline] = useGoOfflineMutation();
   const [acceptOffer, { isLoading: accepting }] = useWorkerAcceptMutation();
   const [rejectOffer] = useWorkerRejectMutation();
-  const [callLogout] = useLogoutMutation();
+  const [callLogout]     = useLogoutMutation();
+  const [revokeAll]      = useRevokeAllSessionsMutation();
 
   const { getCurrent, watch } = useGeolocation();
   const watchRef   = useRef(null);
@@ -482,15 +483,32 @@ export default function WorkerDashboard() {
             <div className="flex items-center gap-2">
               {/* Notification bell */}
               <NotifBell token={token} onTap={() => nav('/worker/notifications')} />
-              <motion.button
-                onClick={async () => { try { await callLogout().unwrap(); } catch {} dispatch(logout()); nav('/worker/login'); }}
-                className="flex items-center gap-1.5 text-[11px] font-bold text-white/50 px-3.5 py-2 rounded-full transition-colors hover:text-white/80"
-                style={{ border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
-                whileTap={{ scale: 0.93 }}
-              >
-                <LogOut size={12} strokeWidth={2.5} />
-                Logout
-              </motion.button>
+              <div className="flex items-center gap-1.5">
+                <motion.button
+                  onClick={async () => { try { await callLogout().unwrap(); } catch {} dispatch(logout()); nav('/worker/login'); }}
+                  className="flex items-center gap-1.5 text-[11px] font-bold text-white/50 px-3.5 py-2 rounded-full transition-colors hover:text-white/80"
+                  style={{ border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
+                  whileTap={{ scale: 0.93 }}
+                >
+                  <LogOut size={12} strokeWidth={2.5} />
+                  Logout
+                </motion.button>
+                <motion.button
+                  onClick={async () => {
+                    if (!window.confirm('Sign out from ALL devices? You will need to log in again.')) return;
+                    try { await revokeAll().unwrap(); } catch {}
+                    dispatch(logout());
+                    nav('/worker/login');
+                  }}
+                  className="flex items-center gap-1 text-[10px] font-bold text-red-400/70 px-2.5 py-2 rounded-full hover:text-red-400"
+                  style={{ border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.06)' }}
+                  whileTap={{ scale: 0.93 }}
+                  title="Sign out from all devices"
+                >
+                  <LogOut size={11} strokeWidth={2.5} />
+                  All devices
+                </motion.button>
+              </div>
             </div>
           </div>
 

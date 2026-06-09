@@ -116,6 +116,12 @@ export const api = createApi({
     logout: b.mutation({
       query: (refreshToken) => ({ url: '/auth/logout', method: 'POST', body: { refreshToken } }),
     }),
+    revokeAllSessions: b.mutation({
+      query: () => ({ url: '/auth/revoke-all', method: 'POST' }),
+    }),
+    verifySensitiveOtp: b.mutation({
+      query: (otp) => ({ url: '/auth/otp/verify-action', method: 'POST', body: { otp } }),
+    }),
 
     // --- User ---
     getMe: b.query({ query: () => '/users/me', providesTags: ['Me'] }),
@@ -1435,6 +1441,8 @@ export const {
   useLoginWorkerMutation,
   useLoginAdminMutation,
   useLogoutMutation,
+  useRevokeAllSessionsMutation,
+  useVerifySensitiveOtpMutation,
   useGetMeQuery,
   useGetQuoteQuery,
   useLazyGetQuoteQuery,
