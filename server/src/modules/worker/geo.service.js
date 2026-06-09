@@ -297,6 +297,21 @@ async function findNearbyWorkers({ lat, lng, radiusKm = 5, limit = 25 }) {
   }
 }
 
+/**
+ * Returns { lat, lng } of a worker from the Redis GEO set, or null if not found.
+ * Used to emit initial worker position to the order room immediately on assignment.
+ */
+async function getWorkerPosition(workerId) {
+  try {
+    const result = await redis.geopos(ONLINE_GEO_KEY, String(workerId));
+    const pos = result?.[0];
+    if (!pos || pos[0] == null || pos[1] == null) return null;
+    return { lng: parseFloat(pos[0]), lat: parseFloat(pos[1]) };
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   markOnline,
   markOffline,
@@ -304,4 +319,5 @@ module.exports = {
   setAvailability,
   findCandidates,
   findNearbyWorkers,
+  getWorkerPosition,
 };
