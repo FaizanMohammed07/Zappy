@@ -340,11 +340,24 @@ export default function HomePage() {
       : { primary: 'Detecting location…', secondary: null, loading: true };
   });
 
+  const [locSheet, setLocSheet] = useState(false);
+  const [locSearch, setLocSearch] = useState('');
+  const [locResults, setLocResults] = useState([]);
+  const [locSearching, setLocSearching] = useState(false);
+  const [locDetecting, setLocDetecting] = useState(false);
+
   useEffect(() => {
     getCurrent()
-      .then(async ({ lat, lng }) => {
+      .then(async ({ lat, lng, accuracy }) => {
+        // If accuracy is worse than 500m (IP-based location on laptops/desktops),
+        // don't trust the auto-detected name — open the sheet so user can pin exactly.
+        if (accuracy && accuracy > 500) {
+          setLoc({ primary: 'Set your location', secondary: 'Tap to choose', loading: false });
+          setLocSheet(true);
+          return;
+        }
         const { primary, secondary } = await reverseGeocode(lat, lng);
-        setLoc({ primary, secondary, loading: false });
+        setLoc({ primary, secondary, loading: false, lat, lng });
       })
       .catch(() => {
         // Try cached coords for reverse geocode on GPS denial
@@ -354,9 +367,61 @@ export default function HomePage() {
             .then(({ primary, secondary }) => setLoc({ primary, secondary, loading: false }));
         } else {
           setLoc({ primary: 'Set your location', secondary: 'Tap to choose', loading: false });
+          setLocSheet(true);
         }
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mapbox address search for location sheet
+  useEffect(() => {
+    if (!locSearch.trim() || locSearch.length < 3) { setLocResults([]); return; }
+    const token = import.meta.env.VITE_MAPBOX_TOKEN;
+    if (!token) return;
+    const ctrl = new AbortController();
+    setLocSearching(true);
+    fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(locSearch)}.json` +
+      `?access_token=${token}&language=en&country=IN&types=address,neighborhood,locality,place&limit=5`,
+      { signal: ctrl.signal },
+    )
+      .then(r => r.json())
+      .then(d => {
+        setLocResults(d.features || []);
+        setLocSearching(false);
+      })
+      .catch(() => setLocSearching(false));
+    return () => ctrl.abort();
+  }, [locSearch]);
+
+  async function detectCurrentLocation() {
+    setLocDetecting(true);
+    try {
+      const { lat, lng } = await getCurrent();
+      const { primary, secondary } = await reverseGeocode(lat, lng);
+      setLoc({ primary, secondary, loading: false, lat, lng });
+      setLocSheet(false);
+    } catch {
+      // ignore
+    } finally {
+      setLocDetecting(false);
+    }
+  }
+
+  function pickLocResult(feat) {
+    const [lng, lat] = feat.center;
+    const ctx = feat.context || [];
+    const get = (prefix) => ctx.find(c => c.id?.startsWith(prefix))?.text ?? null;
+    const neighborhood = get('neighborhood');
+    const locality = get('locality');
+    const place = get('place');
+    const region = get('region');
+    const primary = neighborhood || locality || feat.text;
+    const secondary = [place || locality, region].filter(Boolean).join(', ') || null;
+    setLoc({ primary, secondary, loading: false, lat, lng });
+    setLocSheet(false);
+    setLocSearch('');
+    setLocResults([]);
+  }
 
   return (
     <PageTransition>
@@ -377,6 +442,7 @@ export default function HomePage() {
 
             {/* Location widget ─ world-class GPS chip */}
             <motion.button
+              onClick={() => setLocSheet(true)}
               className="flex-1 md:flex-none md:w-[280px] min-w-0 flex items-center gap-3 px-4 h-10 md:h-12 rounded-xl relative overflow-hidden text-left"
               style={{
                 background: 'linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%)',
@@ -426,13 +492,11 @@ export default function HomePage() {
                   ) : (
                     <motion.div key="found" initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                      className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-sm font-black text-slate-900 truncate">{loc.primary}</span>
-                      {loc.secondary && (
-                        <span className="text-[11px] text-slate-400 font-medium truncate hidden sm:block">
-                          {loc.secondary}
-                        </span>
-                      )}
+                      className="flex flex-col min-w-0">
+                      <span className="text-sm font-black text-slate-900 leading-tight truncate">{loc.primary}</span>
+                      <span className="text-[10px] text-slate-400 font-medium leading-tight truncate">
+                        {loc.secondary || 'Tap to set exact location'}
+                      </span>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -774,6 +838,87 @@ export default function HomePage() {
         <Footer />
         <BottomNav active="home" />
       </div>
+
+      {/* ── Location Search Sheet ── */}
+      <AnimatePresence>
+        {locSheet && (
+          <>
+            {/* backdrop */}
+            <motion.div
+              className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => { setLocSheet(false); setLocSearch(''); setLocResults([]); }}
+            />
+            {/* bottom sheet */}
+            <motion.div
+              className="fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+            >
+              {/* drag pill */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-slate-200" />
+              </div>
+
+              <div className="px-5 pt-2 pb-6">
+                <h2 className="text-lg font-black text-slate-900 mb-4">Set your location</h2>
+
+                {/* Search input */}
+                <div className="relative mb-4">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search area, street, landmark…"
+                    value={locSearch}
+                    onChange={e => setLocSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  />
+                  {locSearching && (
+                    <Loader2 size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-indigo-400 animate-spin" />
+                  )}
+                </div>
+
+                {/* Use current location */}
+                <button
+                  onClick={detectCurrentLocation}
+                  disabled={locDetecting}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl mb-3 text-left transition-colors"
+                  style={{ background: '#f0f4ff', border: '1px solid rgba(99,102,241,0.2)' }}
+                >
+                  {locDetecting
+                    ? <Loader2 size={18} className="text-indigo-500 animate-spin shrink-0" />
+                    : <MapPin size={18} className="text-indigo-500 shrink-0" />
+                  }
+                  <div>
+                    <p className="text-sm font-bold text-indigo-700">Use current location</p>
+                    <p className="text-[11px] text-indigo-400">Detect via GPS</p>
+                  </div>
+                </button>
+
+                {/* Search results */}
+                {locResults.length > 0 && (
+                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 overflow-hidden">
+                    {locResults.map((feat) => (
+                      <button
+                        key={feat.id}
+                        onClick={() => pickLocResult(feat)}
+                        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                      >
+                        <MapPin size={15} className="text-slate-400 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate">{feat.text}</p>
+                          <p className="text-[11px] text-slate-400 truncate">{feat.place_name}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </PageTransition>
   );
 }
