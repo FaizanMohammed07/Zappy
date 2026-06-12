@@ -48,7 +48,17 @@ function buildApp() {
     referrerPolicy:  { policy: 'strict-origin-when-cross-origin' },
     hsts:            { maxAge: 31536000, includeSubDomains: true, preload: true },
   }));
-  const allowedOrigin = process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? false : true);
+  // ── CORS — hardcoded allowed origins ──────────────────────────────────
+  // Production: only our domains. Dev: allow everything for localhost.
+  const PRODUCTION_ORIGINS = [
+    'https://www.zappyone.com',
+    'https://zappyone.com',
+  ];
+  // Optionally add a custom CLIENT_URL from env (e.g. staging domain)
+  if (process.env.CLIENT_URL && !PRODUCTION_ORIGINS.includes(process.env.CLIENT_URL)) {
+    PRODUCTION_ORIGINS.push(process.env.CLIENT_URL);
+  }
+  const allowedOrigin = process.env.NODE_ENV === 'production' ? PRODUCTION_ORIGINS : true;
   app.use(cors({ origin: allowedOrigin, credentials: true }));
 
   // CRITICAL ORDERING:
