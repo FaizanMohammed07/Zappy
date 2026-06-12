@@ -421,6 +421,14 @@ export default function WorkerDashboard() {
       } else {
         const pos = await getCurrent();
         setGpsOn(true);
+        // Poor accuracy (>500m = IP-based location on laptops) — warn the worker
+        // so they know their position in the dispatch system may be wrong.
+        if (pos.accuracy && pos.accuracy > 500) {
+          toast('⚠️ GPS accuracy is low — your location may be off. Use a phone for accurate dispatch.', {
+            duration: 6000,
+            icon: null,
+          });
+        }
         await goOnline({ lat: pos.lat, lng: pos.lng }).unwrap();
         toast.success('You are now online');
         // Reverse geocode in background — non-blocking
