@@ -822,28 +822,18 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
     };
   }
 
-  // ── Global auto-pricing surge for vertical-specific engines ─────────────
-  // The generic path already applies surge internally (surgeMultiplier is set).
-  // Vertical engines (vehicle, mobile, laptop, pet, etc.) skip computeSurge —
-  // apply it here so night/rain/peak/weekend pricing affects every service type.
+  // ── Catalog floor/ceiling + global surge — order: FLOOR → SURGE → CEILING ──
+  // Applying surge AFTER the floor means ₹150 floor × 1.3× night = ₹195,
+  // not ₹50 base × 1.3 = ₹65 → floored back to ₹150 (surge invisible).
+  // Generic path already has surgeMultiplier set so _pendingSurge is 1.0 (no-op).
+  let _pendingSurge = 1.0;
   if (result.surgeMultiplier == null) {
     try {
       const surgeCfg = await getActiveConfig();
-      const surgeVal = await computeSurge(origin.lat, origin.lng, surgeCfg);
-      if (surgeVal > 1.0) {
-        const basePaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
-        const surgedPaise = Math.round(basePaise * surgeVal);
-        if (result.paise) result.paise.total = surgedPaise;
-        result.total = paiseToRupees(surgedPaise);
-        result.surgeMultiplier = surgeVal;
-      }
-    } catch (_) { /* non-fatal — vertical price still valid without surge */ }
+      _pendingSurge = await computeSurge(origin.lat, origin.lng, surgeCfg);
+    } catch (_) { /* non-fatal */ }
   }
 
-  // ── Admin floor + ceiling from catalog ──────────────────────────────────
-  // Floor: quote never below priceRangeMinPaise (set by admin).
-  // Ceiling: quote never above priceRangeMaxPaise (protects retention). (#82)
-  // Both are admin-controlled via the Services pricing page.
   try {
     const ServiceCatalog = require('../service/service-catalog.model');
     const catalogEntry = await ServiceCatalog.findOne(
@@ -852,17 +842,26 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
     ).lean();
 
     if (catalogEntry) {
-      const currentPaise = result.paise?.total ?? result.total * 100;
-
-      // Floor
-      if (catalogEntry.priceRangeMinPaise && currentPaise < catalogEntry.priceRangeMinPaise) {
-        if (result.paise) result.paise.total = catalogEntry.priceRangeMinPaise;
-        result.total = paiseToRupees(catalogEntry.priceRangeMinPaise);
+      // Step 1 — Floor on raw pre-surge price
+      if (catalogEntry.priceRangeMinPaise) {
+        const rawPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        if (rawPaise < catalogEntry.priceRangeMinPaise) {
+          if (result.paise) result.paise.total = catalogEntry.priceRangeMinPaise;
+          result.total = paiseToRupees(catalogEntry.priceRangeMinPaise);
+        }
       }
 
-      // Ceiling (#82): cap at max to prevent sticker shock that kills conversions.
-      // Only apply when max is set and is meaningfully above the floor.
-      const finalPaise = result.paise?.total ?? result.total * 100;
+      // Step 2 — Surge on the floored price (no-op for generic path which already has surgeMultiplier)
+      if (_pendingSurge > 1.0) {
+        const flooredPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        const surgedPaise  = Math.round(flooredPaise * _pendingSurge);
+        if (result.paise) result.paise.total = surgedPaise;
+        result.total = paiseToRupees(surgedPaise);
+        result.surgeMultiplier = _pendingSurge;
+      }
+
+      // Step 3 — Ceiling (hard cap even after surge)
+      const finalPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
       if (
         catalogEntry.priceRangeMaxPaise &&
         catalogEntry.priceRangeMaxPaise > (catalogEntry.priceRangeMinPaise || 0) &&
@@ -870,7 +869,16 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
       ) {
         if (result.paise) result.paise.total = catalogEntry.priceRangeMaxPaise;
         result.total = paiseToRupees(catalogEntry.priceRangeMaxPaise);
-        result.ceilingApplied = true; // flag so admin analytics can detect this
+        result.ceilingApplied = true;
+      }
+    } else {
+      // No catalog entry — apply surge directly to raw price
+      if (_pendingSurge > 1.0) {
+        const rawPaise    = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        const surgedPaise = Math.round(rawPaise * _pendingSurge);
+        if (result.paise) result.paise.total = surgedPaise;
+        result.total = paiseToRupees(surgedPaise);
+        result.surgeMultiplier = _pendingSurge;
       }
     }
   } catch (_) { /* non-fatal — pricing still works if catalog lookup fails */ }
