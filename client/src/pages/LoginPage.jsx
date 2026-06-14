@@ -158,9 +158,9 @@ export default function LoginPage({ role = 'user' }) {
       }
       nav(loc.state?.from || (role === 'worker' ? '/worker' : '/'), { replace: true });
     } catch (err) {
-      const detail = err.data?.details?.[0] || err.data?.error || 'Verification failed';
+      const detail = typeof err.data?.details?.[0] === 'string' ? err.data.details[0] : err.data?.error || 'Verification failed';
       toast.error(detail);
-      console.error('[verify] error:', err.data);
+      console.error('[verify] status:', err.status, 'body:', err.data);
     }
   }
 
