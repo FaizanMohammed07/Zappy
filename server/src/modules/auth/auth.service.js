@@ -25,13 +25,13 @@ const OTP_MAX_RESENDS   = parseInt(process.env.OTP_MAX_RESENDS     || '3',  10);
 const OTP_HOURLY_LIMIT  = 5;  // max fresh OTP sends per phone per hour
 
 // ---- 2Factor AUTOGEN (production primary) ----
-// Sends OTP via approved ZappyOTP template; 2Factor generates the code.
-// Returns sessionId (used later to verify the OTP the user enters).
+// Plain AUTOGEN — no named template, 2Factor sends 6-digit SMS OTP from their
+// DLT-approved pool. Returns sessionId used to verify the user's input.
 async function send2FactorAutogen(phone) {
   const apiKey  = process.env.TWO_FACTOR_API_KEY;
   const mobile91 = phone.startsWith('+91') ? phone : phone.startsWith('91') ? `+${phone}` : `+91${phone}`;
   return new Promise((resolve, reject) => {
-    const url = `https://2factor.in/API/V1/${apiKey}/SMS/${mobile91}/AUTOGEN/ZappyOTP`;
+    const url = `https://2factor.in/API/V1/${apiKey}/SMS/${mobile91}/AUTOGEN`;
     const req = https.get(url, (res) => {
       let body = '';
       res.on('data', (c) => { body += c; });

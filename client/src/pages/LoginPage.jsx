@@ -53,7 +53,7 @@ function OtpInput({ value, onChange, onKeyDown, inputRef, filled }) {
 
 export default function LoginPage({ role = 'user' }) {
   const [phone, setPhone]       = useState('');
-  const OTP_LEN = 4; // ZappyOTP template uses XXXX — 4-digit OTP from 2Factor AUTOGEN
+  const OTP_LEN = 6; // 2Factor plain AUTOGEN (no template) sends 6-digit SMS OTP
   const [otpDigits, setOtpDigits] = useState(Array(OTP_LEN).fill(''));
   const [name, setName]         = useState('');
   const [email, setEmail]       = useState('');
