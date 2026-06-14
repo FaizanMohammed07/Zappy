@@ -452,6 +452,9 @@ export const api = createApi({
     adminAnalytics: b.query({
       query: (days = 30) => adminApiPath(`/analytics?days=${days}`),
     }),
+    adminOtpAnalytics: b.query({
+      query: (days = 7) => adminApiPath(`/otp-analytics?days=${days}`),
+    }),
     // Founder Audit (scenarios 96-98)
     adminOrderAudit: b.query({
       query: (orderId) => adminApiPath(`/audit/order/${orderId}`),
@@ -1792,4 +1795,5 @@ export const {
   useAdminGetTrainingModulesQuery,
   useAdminCreateTrainingModuleMutation,
   useAdminUpdateTrainingModuleMutation,
+  useAdminOtpAnalyticsQuery,
 } = api;
