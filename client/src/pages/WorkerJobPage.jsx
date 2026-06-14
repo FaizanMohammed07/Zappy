@@ -520,7 +520,7 @@ function PhoneHealthPanel({ orderId }) {
 export default function WorkerJobPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { accessToken: token } = useSelector(selectAuth);
+  const { accessToken: token, profile } = useSelector(selectAuth);
   const { data, isLoading, isError, error, refetch } = useGetOrderQuery(id, { skip: !token || !id });
   const [startTrip,    { isLoading: starting }]        = useWorkerStartTripMutation();
   const [arrive,       { isLoading: arriving }]         = useWorkerArriveMutation();
@@ -643,10 +643,33 @@ export default function WorkerJobPage() {
   /* ── Redirect if job pulled away (reassigned back to searching) ── */
   useEffect(() => {
     if (status !== 'searching') return;
-    // status flipping back to searching means the server reassigned the order
     toast.error('Job reassigned — you were inactive too long. Penalty applied.', { duration: 5000 });
     nav('/worker');
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Direct socket event when stale-order watchdog pulls the job ── */
+  useEffect(() => {
+    if (!token || !id) return;
+    const socket = getSocket(token);
+    function onJobPulled({ orderId: pulledId }) {
+      if (String(pulledId) !== String(id)) return;
+      toast.error('Job reassigned — you were inactive too long. Penalty applied.', { duration: 5000 });
+      nav('/worker');
+    }
+    socket.on('job.pulled', onJobPulled);
+    return () => socket.off('job.pulled', onJobPulled);
+  }, [token, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Safety fallback: if order is now assigned to a different worker, leave ── */
+  useEffect(() => {
+    if (!order || !profile?._id) return;
+    const orderWorkerId = order.workerId ? String(order.workerId) : null;
+    if (!orderWorkerId) return;
+    if (orderWorkerId !== String(profile._id)) {
+      toast.error('This job has been reassigned.', { duration: 5000 });
+      nav('/worker');
+    }
+  }, [order?.workerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Loading / error states ── */
   if (isLoading) {

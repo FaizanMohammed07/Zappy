@@ -178,6 +178,9 @@ async function redispatchFromAssigned(order) {
     );
     await geoService.setAvailability(workerId, true);
 
+    // Tell the old worker's job page to dismiss immediately
+    await redis.publish('worker:job_pulled', JSON.stringify({ workerId: String(workerId), orderId }));
+
     notificationService.notify({
       recipient: { kind: 'worker', id: workerId },
       type: 'job_removed',

@@ -125,6 +125,10 @@ export const api = createApi({
 
     // --- User ---
     getMe: b.query({ query: () => '/users/me', providesTags: ['Me'] }),
+    updateMe: b.mutation({
+      query: (body) => ({ url: '/users/me', method: 'PATCH', body }),
+      invalidatesTags: ['Me'],
+    }),
     getAddresses: b.query({
       query: () => '/users/addresses',
       providesTags: ['Addresses'],
@@ -1444,6 +1448,7 @@ export const {
   useRevokeAllSessionsMutation,
   useVerifySensitiveOtpMutation,
   useGetMeQuery,
+  useUpdateMeMutation,
   useGetQuoteQuery,
   useLazyGetQuoteQuery,
   useCreateOrderMutation,

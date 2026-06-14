@@ -101,8 +101,8 @@ export default function App() {
         />
 
         {/* User app */}
-        <Route path="/"       element={<RequireAuth role="user"><HomePage /></RequireAuth>} />
-        <Route path="/home"   element={<RequireAuth role="user"><HomePage /></RequireAuth>} />
+        <Route path="/"       element={<HomeOrRedirect role={role} token={token} />} />
+        <Route path="/home"   element={<HomeOrRedirect role={role} token={token} />} />
         <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
         <Route path="/book/:service" element={<RequireAuth role="user"><BookingPage /></RequireAuth>} />
         <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
@@ -173,4 +173,10 @@ function RedirectByRole({ role }) {
     : role === 'event_partner' ? '/partner'
     : '/';
   return <Navigate to={dest} replace />;
+}
+
+// Home is public — but logged-in workers/admins/partners still get redirected to their dashboard.
+function HomeOrRedirect({ role, token }) {
+  if (token && role && role !== 'user') return <RedirectByRole role={role} />;
+  return <HomePage />;
 }

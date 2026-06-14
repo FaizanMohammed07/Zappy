@@ -3,8 +3,8 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Phone, ArrowRight, ChevronLeft, CheckCircle2, Loader2, Zap, Shield, Star } from 'lucide-react';
-import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation } from '../services/api';
-import { setAuth } from '../modules/auth/authSlice';
+import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation, useUpdateMeMutation } from '../services/api';
+import { setAuth, updateProfile } from '../modules/auth/authSlice';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import toast from 'react-hot-toast';
 import { easeSoft, springSnap, fadeInUp, staggerContainer } from '../lib/animations';
@@ -55,13 +55,16 @@ export default function LoginPage({ role = 'user' }) {
   const [phone, setPhone]       = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [name, setName]         = useState('');
+  const [email, setEmail]       = useState('');
   const [skills, setSkills]     = useState([]);
   const [step, setStep]         = useState('phone');
   const [isNewUser, setIsNewUser] = useState(true);
+  const [pendingProfile, setPendingProfile] = useState(null);
   const pendingOtp = useRef(null);
   const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
   const [loginUser,  { isLoading: loggingUser }]   = useLoginUserMutation();
   const [loginWorker, { isLoading: loggingWorker }] = useLoginWorkerMutation();
+  const [updateMe,   { isLoading: savingProfile }]  = useUpdateMeMutation();
   const nav      = useNavigate();
   const loc      = useLocation();
   const dispatch = useDispatch();
@@ -139,10 +142,31 @@ export default function LoginPage({ role = 'user' }) {
       const r = await fn({ phone, otp, name, skills }).unwrap();
       const profile = role === 'worker' ? r.worker : r.user;
       dispatch(setAuth({ accessToken: r.accessToken, refreshToken: r.refreshToken, profile, role }));
+      // User-only: if name or email missing, collect before proceeding
+      if (role !== 'worker' && (!profile.name || !profile.email)) {
+        setPendingProfile(profile);
+        setName(profile.name || '');
+        setEmail(profile.email || '');
+        setStep('complete');
+        return;
+      }
       nav(loc.state?.from || (role === 'worker' ? '/worker' : '/'), { replace: true });
     } catch (err) {
       toast.error(err.data?.error || 'Verification failed');
     }
+  }
+
+  async function saveProfileAndContinue() {
+    const updates = {};
+    if (!pendingProfile?.name && name.trim()) updates.name = name.trim();
+    if (!pendingProfile?.email && email.trim()) updates.email = email.trim();
+    if (Object.keys(updates).length) {
+      try {
+        await updateMe(updates).unwrap();
+        dispatch(updateProfile(updates));
+      } catch { /* non-fatal — continue anyway */ }
+    }
+    nav(loc.state?.from || '/', { replace: true });
   }
 
   const isWorker = role === 'worker';
@@ -304,7 +328,7 @@ export default function LoginPage({ role = 'user' }) {
                   )}
                 </motion.p>
               </motion.div>
-            ) : (
+            ) : step === 'otp' ? (
               <motion.div
                 className="space-y-5"
                 variants={staggerContainer}
@@ -398,7 +422,67 @@ export default function LoginPage({ role = 'user' }) {
                   {isLoading ? 'Verifying…' : 'Confirm & Continue'}
                 </motion.button>
               </motion.div>
-            )}
+            ) : step === 'complete' ? (
+              <motion.div
+                className="space-y-5"
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+              >
+                <motion.div variants={fadeInUp}>
+                  <h2 className="text-xl font-black text-slate-900">One last step</h2>
+                  <p className="text-sm text-slate-400 mt-1 font-medium">Complete your profile to continue</p>
+                </motion.div>
+
+                {!pendingProfile?.name && (
+                  <motion.div variants={fadeInUp}>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Name</label>
+                    <input
+                      className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                      placeholder="e.g. Priya Sharma"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      autoFocus
+                    />
+                  </motion.div>
+                )}
+
+                <motion.div variants={fadeInUp}>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Email <span className="text-slate-300 font-medium normal-case">(for receipts)</span></label>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && saveProfileAndContinue()}
+                    autoFocus={!!pendingProfile?.name}
+                  />
+                </motion.div>
+
+                <motion.button
+                  variants={fadeInUp}
+                  onClick={saveProfileAndContinue}
+                  disabled={savingProfile || (!pendingProfile?.name && !name.trim())}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-3.5 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+                  style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)', boxShadow: '0 8px 24px rgba(79,70,229,0.35)' }}
+                >
+                  {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                  {savingProfile ? 'Saving…' : 'Continue'}
+                </motion.button>
+
+                <motion.button
+                  variants={fadeInUp}
+                  onClick={() => nav(loc.state?.from || '/', { replace: true })}
+                  className="w-full text-center text-xs text-slate-400 hover:text-slate-600 py-1 transition-colors"
+                >
+                  Skip for now
+                </motion.button>
+              </motion.div>
+            ) : null}
           </div>
         </motion.div>
       </AnimatePresence>
