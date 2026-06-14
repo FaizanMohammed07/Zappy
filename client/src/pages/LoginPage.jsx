@@ -140,7 +140,12 @@ export default function LoginPage({ role = 'user' }) {
   async function verify() {
     try {
       const fn = role === 'worker' ? loginWorker : loginUser;
-      const r = await fn({ phone, otp, name, skills }).unwrap();
+      const r = await fn({
+        phone,
+        otp,
+        ...(name.trim()   ? { name: name.trim() }     : {}),
+        ...(skills.length  ? { skills }                : {}),
+      }).unwrap();
       const profile = role === 'worker' ? r.worker : r.user;
       dispatch(setAuth({ accessToken: r.accessToken, refreshToken: r.refreshToken, profile, role }));
       // User-only: if name or email missing, collect before proceeding
