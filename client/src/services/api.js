@@ -491,6 +491,10 @@ export const api = createApi({
       query: ({ q, blocked, page = 1 } = {}) => ({ url: adminApiPath('/users'), params: { q, blocked, page } }),
       providesTags: ['AdminUsers'],
     }),
+    adminGetUser: b.query({
+      query: (id) => adminApiPath(`/users/${id}`),
+      providesTags: (r, e, id) => [{ type: 'AdminUsers', id }],
+    }),
     adminBlockUser: b.mutation({
       query: ({ id, blocked }) => ({ url: adminApiPath(`/users/${id}/block`), method: 'POST', body: { blocked } }),
       invalidatesTags: ['AdminUsers'],
@@ -1508,6 +1512,7 @@ export const {
   useAdminGeoReadinessQuery,
   useAdminQuoteAbandonmentQuery,
   useAdminListUsersQuery,
+  useAdminGetUserQuery,
   useAdminBlockUserMutation,
   useAdminGetPricingConfigQuery,
   useAdminSetPricingConfigMutation,

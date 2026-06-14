@@ -433,7 +433,7 @@ export default function OrderTrackingPage() {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={() => {
-                    toast('We'll notify you the moment workers go live in your area!', {
+                    toast("We'll notify you the moment workers go live in your area!", {
                       icon: '🔔',
                       duration: 4000,
                       style: { fontWeight: 600 },

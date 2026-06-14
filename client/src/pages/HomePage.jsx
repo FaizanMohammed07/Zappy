@@ -281,13 +281,13 @@ function CompactImageTile({ svc, nav }) {
 /* ─── Section header ───────────────────────────────────────────────────── */
 function SectionHeader({ title, badge, badgeColor = 'bg-indigo-50 text-indigo-600 ring-indigo-100', onSeeAll }) {
   return (
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-2">
-        <h3 className="text-[17px] font-black text-slate-900">{title}</h3>
-        {badge && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 ${badgeColor}`}>{badge}</span>}
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-[17px] font-black text-slate-900 whitespace-nowrap">{title}</h3>
+        {badge && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 whitespace-nowrap ${badgeColor}`}>{badge}</span>}
       </div>
       {onSeeAll && (
-        <motion.button onClick={onSeeAll} className="text-xs font-bold text-indigo-600 flex items-center gap-0.5" whileHover={{ x: 2 }}>
+        <motion.button onClick={onSeeAll} className="text-xs font-bold text-indigo-600 flex items-center gap-0.5 whitespace-nowrap" whileHover={{ x: 2 }}>
           See all <ChevronRight size={12} strokeWidth={3} />
         </motion.button>
       )}

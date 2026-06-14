@@ -6,6 +6,7 @@ const ctrl = require('../controllers/users.controller');
 const router = express.Router();
 
 router.get('/users', ctrl.listUsers);
+router.get('/users/:id', ctrl.getUser);
 router.post(
   '/users/:id/block',
   validate(Joi.object({ blocked: Joi.boolean().required() })),

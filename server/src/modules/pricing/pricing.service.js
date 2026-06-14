@@ -292,24 +292,32 @@ function geoBucket(lat, lng) {
 }
 
 async function computeSurgeBreakdown(lat, lng, cfg) {
-  if (!cfg.surgeEnabled) return { multiplier: 1.0, factors: [], demand: 0, supply: 0 };
+  const anyAutoPricingOn = cfg.nightSurchargeEnabled || cfg.rainSurchargeEnabled ||
+                           cfg.weekendSurchargeEnabled || cfg.peakHourSurchargeEnabled;
+  if (!cfg.surgeEnabled && !anyAutoPricingOn) {
+    return { multiplier: 1.0, factors: [], demand: 0, supply: 0 };
+  }
 
-  const bucket = geoBucket(lat, lng);
-  const [demand, supply] = await Promise.all([
-    redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
-    redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0),
-  ]);
+  let demand = 0, supply = 0;
+  let surge = 1.0;
 
-  let surge;
-  if (supply === 0 && demand > 0) surge = 2.0;
-  else if (supply === 0) surge = 1.0;
-  else {
-    const ratio = demand / supply;
-    if (ratio < 1) surge = 1.0;
-    else if (ratio < 2) surge = 1.2;
-    else if (ratio < 3) surge = 1.5;
-    else if (ratio < 5) surge = 1.8;
-    else surge = 2.5;
+  // Demand/supply ratio — only when global surge toggle is on
+  if (cfg.surgeEnabled) {
+    const bucket = geoBucket(lat, lng);
+    [demand, supply] = await Promise.all([
+      redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
+      redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0),
+    ]);
+
+    if (supply > 0) {
+      const ratio = demand / supply;
+      if (ratio < 1) surge = 1.0;
+      else if (ratio < 2) surge = 1.2;
+      else if (ratio < 3) surge = 1.5;
+      else if (ratio < 5) surge = 1.8;
+      else surge = 2.5;
+    }
+    // supply === 0 → surge stays 1.0 (no workers = not a surge situation)
   }
 
   const factors = [];
@@ -360,7 +368,8 @@ async function computeSurgeBreakdown(lat, lng, cfg) {
     }
   }
 
-  return { multiplier: Math.min(surge, cfg.surgeMaxCap ?? 2.5), factors, demand, supply };
+  const raw = Math.min(surge, cfg.surgeMaxCap ?? 2.5);
+  return { multiplier: Math.round(raw * 100) / 100, factors, demand, supply };
 }
 
 async function computeSurge(lat, lng, cfg) {
