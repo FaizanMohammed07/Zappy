@@ -85,6 +85,21 @@ export default function Pricing() {
     tierExpressMaxSearchSec:  60,
     tierPriorityMaxSearchSec: 120,
   });
+  const [autoPricing, setAutoPricing] = useState({
+    nightSurchargeEnabled: false,
+    nightSurchargeMultiplier: 1.3,
+    nightStartHour: 22,
+    nightEndHour: 6,
+    rainSurchargeEnabled: false,
+    rainSurchargeMultiplier: 1.2,
+    rainActiveUntil: null,
+    weekendSurchargeEnabled: false,
+    weekendSurchargeMultiplier: 1.1,
+    peakHourSurchargeEnabled: false,
+    peakHourRanges: [],
+    surgeTolerancePct: 10,
+  });
+  const [rainDurationHours, setRainDurationHours] = useState(2);
 
   useEffect(() => {
     const p = data?.pricing;
@@ -146,6 +161,20 @@ export default function Pricing() {
       tierExpressMaxSearchSec:  Math.round((p.tierExpressMaxSearchMs  ?? 60000)  / 1000),
       tierPriorityMaxSearchSec: Math.round((p.tierPriorityMaxSearchMs ?? 120000) / 1000),
     });
+    setAutoPricing({
+      nightSurchargeEnabled:    p.nightSurchargeEnabled    ?? false,
+      nightSurchargeMultiplier: p.nightSurchargeMultiplier ?? 1.3,
+      nightStartHour:           p.nightStartHour           ?? 22,
+      nightEndHour:             p.nightEndHour             ?? 6,
+      rainSurchargeEnabled:     p.rainSurchargeEnabled     ?? false,
+      rainSurchargeMultiplier:  p.rainSurchargeMultiplier  ?? 1.2,
+      rainActiveUntil:          p.rainActiveUntil           ?? null,
+      weekendSurchargeEnabled:    p.weekendSurchargeEnabled    ?? false,
+      weekendSurchargeMultiplier: p.weekendSurchargeMultiplier ?? 1.1,
+      peakHourSurchargeEnabled: p.peakHourSurchargeEnabled ?? false,
+      peakHourRanges:           p.peakHourRanges           ?? [],
+      surgeTolerancePct:        Math.round((p.surgeTolerancePct ?? 0.10) * 100),
+    });
   }, [data]);
 
   const field = (key) => ({
@@ -194,6 +223,53 @@ export default function Pricing() {
 
   const df = (key) => ({ type: 'number', value: dispatch[key] ?? '', onChange: (e) => setDispatch(p => ({ ...p, [key]: Number(e.target.value) })) });
   const sf = (key) => ({ type: 'number', value: stale[key] ?? '', onChange: (e) => setStale(p => ({ ...p, [key]: Number(e.target.value) })) });
+
+  const isRainActive = autoPricing.rainActiveUntil && new Date(autoPricing.rainActiveUntil) > new Date();
+  const rainExpiresIn = isRainActive
+    ? Math.max(0, Math.round((new Date(autoPricing.rainActiveUntil) - Date.now()) / 60000))
+    : 0;
+
+  async function saveAutoPricing() {
+    await saveSection({
+      nightSurchargeEnabled:    autoPricing.nightSurchargeEnabled,
+      nightSurchargeMultiplier: autoPricing.nightSurchargeMultiplier,
+      nightStartHour:           autoPricing.nightStartHour,
+      nightEndHour:             autoPricing.nightEndHour,
+      rainSurchargeEnabled:     autoPricing.rainSurchargeEnabled,
+      rainSurchargeMultiplier:  autoPricing.rainSurchargeMultiplier,
+      weekendSurchargeEnabled:    autoPricing.weekendSurchargeEnabled,
+      weekendSurchargeMultiplier: autoPricing.weekendSurchargeMultiplier,
+      peakHourSurchargeEnabled: autoPricing.peakHourSurchargeEnabled,
+      peakHourRanges:           autoPricing.peakHourRanges,
+      surgeTolerancePct:        autoPricing.surgeTolerancePct / 100,
+    });
+  }
+
+  async function toggleRainMode() {
+    const newUntil = isRainActive
+      ? null
+      : new Date(Date.now() + rainDurationHours * 3600000).toISOString();
+    await saveSection({ rainActiveUntil: newUntil });
+    setAutoPricing(p => ({ ...p, rainActiveUntil: newUntil }));
+  }
+
+  function addPeakRange() {
+    setAutoPricing(p => ({
+      ...p,
+      peakHourRanges: [...p.peakHourRanges, { label: 'Rush Hour', startHour: 8, endHour: 11, multiplier: 1.2 }],
+    }));
+  }
+
+  function removePeakRange(idx) {
+    setAutoPricing(p => ({ ...p, peakHourRanges: p.peakHourRanges.filter((_, i) => i !== idx) }));
+  }
+
+  function updatePeakRange(idx, key, value) {
+    setAutoPricing(p => ({
+      ...p,
+      peakHourRanges: p.peakHourRanges.map((r, i) => i === idx ? { ...r, [key]: value } : r),
+    }));
+  }
 
   if (isLoading) return <PageLoader />;
 
@@ -512,6 +588,171 @@ export default function Pricing() {
             tierExpressMaxSearchMs:  tiers.tierExpressMaxSearchSec  * 1000,
             tierPriorityMaxSearchMs: tiers.tierPriorityMaxSearchSec * 1000,
           })} />
+        </div>
+      </Card>
+
+      {/* ── Auto-Pricing Rules ── */}
+      <Card className="p-6 ring-2 ring-purple-100">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-bold text-slate-700">Auto-Pricing Rules</h3>
+          <span className="text-[10px] bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full">Dynamic Surge</span>
+        </div>
+        <p className="text-xs text-slate-400 mb-4">
+          Automatically apply extra multipliers on top of demand/supply surge. All factors stack multiplicatively.
+          Night × Rain × Weekend × Peak apply on top of the base demand ratio.
+        </p>
+
+        {/* Night */}
+        <div className="border border-slate-100 rounded-xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Night Surcharge</p>
+              <p className="text-xs text-slate-400">Extra multiplier during late-night hours (IST)</p>
+            </div>
+            <Toggle value={autoPricing.nightSurchargeEnabled}
+              onChange={(v) => setAutoPricing(p => ({ ...p, nightSurchargeEnabled: v }))} />
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <FormRow label="Start Hour (IST, 0–23)" hint="e.g. 22 = 10 PM">
+              <Input type="number" value={autoPricing.nightStartHour} min="0" max="23" step="1"
+                onChange={(e) => setAutoPricing(p => ({ ...p, nightStartHour: Number(e.target.value) }))} />
+            </FormRow>
+            <FormRow label="End Hour (IST, 0–23)" hint="e.g. 6 = 6 AM">
+              <Input type="number" value={autoPricing.nightEndHour} min="0" max="23" step="1"
+                onChange={(e) => setAutoPricing(p => ({ ...p, nightEndHour: Number(e.target.value) }))} />
+            </FormRow>
+            <FormRow label="Multiplier" hint="e.g. 1.3 = 30% extra">
+              <Input type="number" value={autoPricing.nightSurchargeMultiplier} min="1.0" max="3.0" step="0.05"
+                onChange={(e) => setAutoPricing(p => ({ ...p, nightSurchargeMultiplier: Number(e.target.value) }))} />
+            </FormRow>
+          </div>
+        </div>
+
+        {/* Weekend */}
+        <div className="border border-slate-100 rounded-xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Weekend Surcharge</p>
+              <p className="text-xs text-slate-400">Extra multiplier on Saturdays and Sundays</p>
+            </div>
+            <Toggle value={autoPricing.weekendSurchargeEnabled}
+              onChange={(v) => setAutoPricing(p => ({ ...p, weekendSurchargeEnabled: v }))} />
+          </div>
+          <div className="grid sm:grid-cols-1 gap-3 max-w-xs">
+            <FormRow label="Multiplier" hint="e.g. 1.1 = 10% extra on weekends">
+              <Input type="number" value={autoPricing.weekendSurchargeMultiplier} min="1.0" max="2.0" step="0.05"
+                onChange={(e) => setAutoPricing(p => ({ ...p, weekendSurchargeMultiplier: Number(e.target.value) }))} />
+            </FormRow>
+          </div>
+        </div>
+
+        {/* Peak hours */}
+        <div className="border border-slate-100 rounded-xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Peak Hour Windows</p>
+              <p className="text-xs text-slate-400">Each window applies its multiplier for orders during those IST hours</p>
+            </div>
+            <Toggle value={autoPricing.peakHourSurchargeEnabled}
+              onChange={(v) => setAutoPricing(p => ({ ...p, peakHourSurchargeEnabled: v }))} />
+          </div>
+          {autoPricing.peakHourRanges.map((r, idx) => (
+            <div key={idx} className="grid grid-cols-5 gap-2 items-end mb-2">
+              <FormRow label="Label">
+                <Input type="text" value={r.label}
+                  onChange={(e) => updatePeakRange(idx, 'label', e.target.value)} />
+              </FormRow>
+              <FormRow label="Start Hr">
+                <Input type="number" value={r.startHour} min="0" max="23" step="1"
+                  onChange={(e) => updatePeakRange(idx, 'startHour', Number(e.target.value))} />
+              </FormRow>
+              <FormRow label="End Hr">
+                <Input type="number" value={r.endHour} min="0" max="23" step="1"
+                  onChange={(e) => updatePeakRange(idx, 'endHour', Number(e.target.value))} />
+              </FormRow>
+              <FormRow label="Multiplier">
+                <Input type="number" value={r.multiplier} min="1.0" max="3.0" step="0.05"
+                  onChange={(e) => updatePeakRange(idx, 'multiplier', Number(e.target.value))} />
+              </FormRow>
+              <button onClick={() => removePeakRange(idx)}
+                className="mb-1 text-xs text-red-500 hover:text-red-700 font-bold px-2 py-1.5 rounded-lg bg-red-50 hover:bg-red-100">
+                Remove
+              </button>
+            </div>
+          ))}
+          <button onClick={addPeakRange}
+            className="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100">
+            + Add Peak Window
+          </button>
+        </div>
+
+        {/* Surge tolerance */}
+        <div className="border border-slate-100 rounded-xl p-4 mb-3">
+          <p className="text-sm font-semibold text-slate-700 mb-1">Surge Tolerance at Booking</p>
+          <p className="text-xs text-slate-400 mb-3">
+            If the price at submit is X% higher than the quoted price, the order is blocked and the customer must re-confirm.
+          </p>
+          <div className="max-w-xs">
+            <FormRow label="Max allowed increase (%)" hint="e.g. 10 = up to 10% increase is silently accepted">
+              <div className="flex items-center gap-2">
+                <Input type="number" value={autoPricing.surgeTolerancePct} min="2" max="50" step="1"
+                  onChange={(e) => setAutoPricing(p => ({ ...p, surgeTolerancePct: Number(e.target.value) }))} />
+                <span className="font-bold text-slate-700">{autoPricing.surgeTolerancePct}%</span>
+              </div>
+            </FormRow>
+          </div>
+        </div>
+
+        <div className="mt-4"><SaveBtn loading={saving} onClick={saveAutoPricing} /></div>
+      </Card>
+
+      {/* ── Rain Mode ── */}
+      <Card className={`p-6 ${isRainActive ? 'ring-2 ring-blue-300 bg-blue-50' : ''}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+              <span>🌧️</span> Rain Surcharge Mode
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {isRainActive
+                ? `ACTIVE — Rain surcharge of ${autoPricing.rainSurchargeMultiplier}× is live. Expires in ${rainExpiresIn} min.`
+                : 'Inactive — manually activate when it is raining to apply extra surge.'}
+            </p>
+          </div>
+          <div className="shrink-0 text-right space-y-2">
+            <div className="flex items-center gap-2">
+              <FormRow label="Multiplier" hint="">
+                <Input type="number" value={autoPricing.rainSurchargeMultiplier} min="1.0" max="3.0" step="0.05"
+                  onChange={(e) => setAutoPricing(p => ({ ...p, rainSurchargeMultiplier: Number(e.target.value) }))} />
+              </FormRow>
+              <FormRow label="Enable rain surge" hint="">
+                <Toggle value={autoPricing.rainSurchargeEnabled}
+                  onChange={(v) => setAutoPricing(p => ({ ...p, rainSurchargeEnabled: v }))} />
+              </FormRow>
+            </div>
+            <div className="flex items-center gap-2 justify-end">
+              {!isRainActive && (
+                <select value={rainDurationHours} onChange={(e) => setRainDurationHours(Number(e.target.value))}
+                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700">
+                  <option value={1}>1 hour</option>
+                  <option value={2}>2 hours</option>
+                  <option value={3}>3 hours</option>
+                  <option value={6}>6 hours</option>
+                </select>
+              )}
+              <button
+                disabled={saving}
+                onClick={toggleRainMode}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                  isRainActive
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-slate-800 text-white hover:bg-slate-900'
+                }`}
+              >
+                {isRainActive ? 'Turn Off Rain Mode' : 'Turn On Rain Mode'}
+              </button>
+            </div>
+          </div>
         </div>
       </Card>
 

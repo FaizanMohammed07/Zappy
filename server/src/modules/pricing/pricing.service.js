@@ -150,6 +150,19 @@ function toView(doc) {
     tierMultiplierExpress:   doc.tierMultiplierExpress   ?? 1.4,
     tierExpressMaxSearchMs:  doc.tierExpressMaxSearchMs  ?? 60000,
     tierPriorityMaxSearchMs: doc.tierPriorityMaxSearchMs ?? 120000,
+    surgeTolerancePct:        doc.surgeTolerancePct        ?? 0.10,
+    // Auto-pricing
+    nightSurchargeEnabled:    doc.nightSurchargeEnabled    ?? false,
+    nightSurchargeMultiplier: doc.nightSurchargeMultiplier ?? 1.3,
+    nightStartHour:           doc.nightStartHour           ?? 22,
+    nightEndHour:             doc.nightEndHour             ?? 6,
+    rainSurchargeEnabled:     doc.rainSurchargeEnabled     ?? false,
+    rainSurchargeMultiplier:  doc.rainSurchargeMultiplier  ?? 1.2,
+    rainActiveUntil:          doc.rainActiveUntil          ?? null,
+    weekendSurchargeEnabled:    doc.weekendSurchargeEnabled    ?? false,
+    weekendSurchargeMultiplier: doc.weekendSurchargeMultiplier ?? 1.1,
+    peakHourSurchargeEnabled: doc.peakHourSurchargeEnabled ?? false,
+    peakHourRanges:           doc.peakHourRanges           ?? [],
   };
 }
 
@@ -278,8 +291,9 @@ function geoBucket(lat, lng) {
   return `${lat.toFixed(2)}:${lng.toFixed(2)}`;
 }
 
-async function computeSurge(lat, lng, cfg) {
-  if (!cfg.surgeEnabled) return 1.0;
+async function computeSurgeBreakdown(lat, lng, cfg) {
+  if (!cfg.surgeEnabled) return { multiplier: 1.0, factors: [], demand: 0, supply: 0 };
+
   const bucket = geoBucket(lat, lng);
   const [demand, supply] = await Promise.all([
     redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
@@ -297,7 +311,61 @@ async function computeSurge(lat, lng, cfg) {
     else if (ratio < 5) surge = 1.8;
     else surge = 2.5;
   }
-  return Math.min(surge, cfg.surgeMaxCap);
+
+  const factors = [];
+  // IST = UTC + 5h30m
+  const nowMs  = Date.now();
+  const istMs  = nowMs + 330 * 60000;
+  const istDate = new Date(istMs);
+  const istHour = istDate.getUTCHours();
+  const istDow  = istDate.getUTCDay(); // 0=Sun, 6=Sat
+
+  if (cfg.nightSurchargeEnabled) {
+    const start = cfg.nightStartHour ?? 22;
+    const end   = cfg.nightEndHour   ?? 6;
+    const m     = cfg.nightSurchargeMultiplier ?? 1.3;
+    const isNight = start > end
+      ? istHour >= start || istHour < end  // crosses midnight e.g. 22–6
+      : istHour >= start && istHour < end;
+    if (isNight && m > 1) {
+      surge *= m;
+      factors.push({ type: 'night', multiplier: m, label: 'Night Surcharge' });
+    }
+  }
+
+  if (cfg.rainSurchargeEnabled && cfg.rainActiveUntil) {
+    const m = cfg.rainSurchargeMultiplier ?? 1.2;
+    if (new Date(cfg.rainActiveUntil) > new Date(nowMs) && m > 1) {
+      surge *= m;
+      factors.push({ type: 'rain', multiplier: m, label: 'Rain Surcharge' });
+    }
+  }
+
+  if (cfg.weekendSurchargeEnabled) {
+    const m = cfg.weekendSurchargeMultiplier ?? 1.1;
+    if ((istDow === 0 || istDow === 6) && m > 1) {
+      surge *= m;
+      factors.push({ type: 'weekend', multiplier: m, label: 'Weekend Surcharge' });
+    }
+  }
+
+  if (cfg.peakHourSurchargeEnabled && Array.isArray(cfg.peakHourRanges)) {
+    for (const range of cfg.peakHourRanges) {
+      const { startHour, endHour, multiplier: m, label } = range;
+      if (istHour >= startHour && istHour < endHour && m > 1) {
+        surge *= m;
+        factors.push({ type: 'peak', multiplier: m, label: label || 'Peak Hour Surcharge' });
+        break;
+      }
+    }
+  }
+
+  return { multiplier: Math.min(surge, cfg.surgeMaxCap ?? 2.5), factors, demand, supply };
+}
+
+async function computeSurge(lat, lng, cfg) {
+  const { multiplier } = await computeSurgeBreakdown(lat, lng, cfg);
+  return multiplier;
 }
 
 async function recordDemand(lat, lng, service) {
@@ -754,6 +822,24 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
     };
   }
 
+  // ── Global auto-pricing surge for vertical-specific engines ─────────────
+  // The generic path already applies surge internally (surgeMultiplier is set).
+  // Vertical engines (vehicle, mobile, laptop, pet, etc.) skip computeSurge —
+  // apply it here so night/rain/peak/weekend pricing affects every service type.
+  if (result.surgeMultiplier == null) {
+    try {
+      const surgeCfg = await getActiveConfig();
+      const surgeVal = await computeSurge(origin.lat, origin.lng, surgeCfg);
+      if (surgeVal > 1.0) {
+        const basePaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        const surgedPaise = Math.round(basePaise * surgeVal);
+        if (result.paise) result.paise.total = surgedPaise;
+        result.total = paiseToRupees(surgedPaise);
+        result.surgeMultiplier = surgeVal;
+      }
+    } catch (_) { /* non-fatal — vertical price still valid without surge */ }
+  }
+
   // ── Admin floor + ceiling from catalog ──────────────────────────────────
   // Floor: quote never below priceRangeMinPaise (set by admin).
   // Ceiling: quote never above priceRangeMaxPaise (protects retention). (#82)
@@ -888,6 +974,7 @@ module.exports = {
   quote, // alias
   calculateEarnings,
   computeSurge,
+  computeSurgeBreakdown,
   recordDemand,
   recordSupply,
   getActiveConfig,

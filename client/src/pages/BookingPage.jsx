@@ -348,6 +348,7 @@ export default function BookingPage() {
   const [diagnosisAnswers, setDiagnosisAnswers] = useState(null);
   const [showDiagnosis,    setShowDiagnosis]    = useState(false);
   const [noWorkersModal,   setNoWorkersModal]   = useState(false);
+  const [priceChangedModal, setPriceChangedModal] = useState(null); // { quotedTotal, freshTotal, pendingBody }
 
   // Mobile-specific state
   const [deviceBrand,   setDeviceBrand]   = useState('');
@@ -477,33 +478,33 @@ export default function BookingPage() {
       ? new Date(`${schedDate}T${schedTime}`).toISOString()
       : undefined;
     setPricingMode('locked');
+    // Prefer the S3 key; fall back to URL (blob URLs are stripped server-side anyway)
+    const uploadedUrls = images.filter(i => i.s3Key || i.url).map(i => i.s3Key || i.url);
+    const body = {
+      service,
+      subCategory: subCategory || undefined,
+      description,
+      images: uploadedUrls,
+      scheduledAt: scheduledAtIso,
+      pickupLocation: location,
+      paymentMethod,
+      promoCode: promoResult?.code || undefined,
+      tier: selectedTier,
+      tipAmount: tipAmount > 0 ? tipAmount : undefined,
+      // Mobile extras
+      ...(isMobile && deviceBrand && { deviceBrand }),
+      ...(isMobile && deviceModel && { deviceModel }),
+      ...(isMobile && { serviceMode }),
+      // Vehicle extras
+      ...(isVehicle && vehicleType && { vehicleType }),
+      // Construction extras
+      ...(isConstruction && { pricingModel }),
+      ...(isConstruction && pricingModel === 'hourly' && { estimatedHours }),
+      // Surge price protection — send tier-adjusted price so server compares apples-to-apples.
+      // Server will apply the same tier multiplier and reject if surge pushed price >20% higher.
+      quotedTotalRupees: tierPrice || undefined,
+    };
     try {
-      // Prefer the S3 key; fall back to URL (blob URLs are stripped server-side anyway)
-      const uploadedUrls = images.filter(i => i.s3Key || i.url).map(i => i.s3Key || i.url);
-      const body = {
-        service,
-        subCategory: subCategory || undefined,
-        description,
-        images: uploadedUrls,
-        scheduledAt: scheduledAtIso,
-        pickupLocation: location,
-        paymentMethod,
-        promoCode: promoResult?.code || undefined,
-        tier: selectedTier,
-        tipAmount: tipAmount > 0 ? tipAmount : undefined,
-        // Mobile extras
-        ...(isMobile && deviceBrand && { deviceBrand }),
-        ...(isMobile && deviceModel && { deviceModel }),
-        ...(isMobile && { serviceMode }),
-        // Vehicle extras
-        ...(isVehicle && vehicleType && { vehicleType }),
-        // Construction extras
-        ...(isConstruction && { pricingModel }),
-        ...(isConstruction && pricingModel === 'hourly' && { estimatedHours }),
-        // Surge price protection — send tier-adjusted price so server compares apples-to-apples.
-        // Server will apply the same tier multiplier and reject if surge pushed price >20% higher.
-        quotedTotalRupees: tierPrice || undefined,
-      };
       const r = await createOrder(body).unwrap();
       setActiveOrderId(r.order._id);
       setShowOverlay(true);  // show overlay in "searching" state — boost sheet slides up
@@ -519,6 +520,14 @@ export default function BookingPage() {
         setNoWorkersModal(true);
         return;
       }
+      if (err.data?.code === 'PRICE_CHANGED') {
+        setPriceChangedModal({
+          quotedTotal: err.data.quotedTotal,
+          freshTotal:  err.data.freshTotal,
+          pendingBody: body,
+        });
+        return;
+      }
       const msg = err.data?.error || 'Failed to place order';
       if (err.data?.activeOrderId) {
         toast.error(`${msg} — redirecting…`);
@@ -526,6 +535,24 @@ export default function BookingPage() {
         return;
       }
       toast.error(msg);
+    }
+  }
+
+  async function confirmPriceChange() {
+    if (!priceChangedModal) return;
+    const { freshTotal, pendingBody } = priceChangedModal;
+    setPriceChangedModal(null);
+    try {
+      const r = await createOrder({ ...pendingBody, quotedTotalRupees: freshTotal }).unwrap();
+      setActiveOrderId(r.order._id);
+      setShowOverlay(true);
+      setTimeout(() => setMatchFound(true), 3000);
+      setTimeout(() => {
+        toast.success(bookMode === 'later' ? 'Booking scheduled!' : 'Order placed — finding a worker');
+        nav(`/orders/${r.order._id}`, { replace: true });
+      }, 4500);
+    } catch (err2) {
+      toast.error(err2.data?.error || 'Failed to place order');
     }
   }
 
@@ -1589,6 +1616,62 @@ export default function BookingPage() {
                   className="w-full py-3 rounded-2xl text-sm font-medium text-slate-500 hover:text-slate-700"
                 >
                   Go back
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* ── Price Changed confirmation modal ────────────────────────────── */}
+    <AnimatePresence>
+      {priceChangedModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }}
+        >
+          <motion.div
+            initial={{ scale: 0.94, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.94, opacity: 0, y: 20 }}
+            className="w-full max-w-sm rounded-3xl overflow-hidden"
+            style={{ background: '#fff' }}
+          >
+            <div className="p-6 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4 text-2xl">⚡</div>
+              <h2 className="text-lg font-black text-slate-900 mb-1">Price Updated</h2>
+              <p className="text-sm text-slate-500 mb-5">
+                Demand just changed in your area. The updated price is shown below.
+              </p>
+              <div className="flex items-center justify-center gap-4 mb-6">
+                <div className="text-center">
+                  <p className="text-xs text-slate-400 mb-0.5">Your quote</p>
+                  <p className="text-2xl font-black text-slate-400 line-through">₹{priceChangedModal.quotedTotal}</p>
+                </div>
+                <div className="text-slate-300 text-xl">→</div>
+                <div className="text-center">
+                  <p className="text-xs text-slate-400 mb-0.5">New price</p>
+                  <p className="text-2xl font-black text-amber-600">₹{priceChangedModal.freshTotal}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <button
+                  onClick={confirmPriceChange}
+                  disabled={creating}
+                  className="w-full py-3.5 rounded-2xl text-sm font-bold text-white disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
+                >
+                  {creating ? 'Booking…' : `Confirm ₹${priceChangedModal.freshTotal}`}
+                </button>
+                <button
+                  onClick={() => setPriceChangedModal(null)}
+                  className="w-full py-3 text-sm font-medium text-slate-500 hover:text-slate-700"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

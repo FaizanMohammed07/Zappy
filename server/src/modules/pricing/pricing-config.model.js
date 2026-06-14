@@ -39,6 +39,27 @@ const pricingConfigSchema = new mongoose.Schema(
     // 0.10 = 10%. User must re-confirm if price spiked beyond this threshold.
     surgeTolerancePct: { type: Number, default: 0.10, min: 0.02, max: 0.50 },
 
+    // ── Auto-pricing: Night surcharge ─────────────────────────────────────────
+    nightSurchargeEnabled:    { type: Boolean, default: false },
+    nightSurchargeMultiplier: { type: Number,  default: 1.3, min: 1.0, max: 3.0 },
+    nightStartHour:           { type: Number,  default: 22,  min: 0,   max: 23  },
+    nightEndHour:             { type: Number,  default: 6,   min: 0,   max: 23  },
+
+    // ── Auto-pricing: Rain surcharge ─────────────────────────────────────────
+    rainSurchargeEnabled:    { type: Boolean, default: false },
+    rainSurchargeMultiplier: { type: Number,  default: 1.2, min: 1.0, max: 3.0 },
+    // Epoch ms — rain surcharge active until this timestamp. null = not active.
+    rainActiveUntil: { type: Date, default: null },
+
+    // ── Auto-pricing: Weekend surcharge ──────────────────────────────────────
+    weekendSurchargeEnabled:    { type: Boolean, default: false },
+    weekendSurchargeMultiplier: { type: Number,  default: 1.1, min: 1.0, max: 2.0 },
+
+    // ── Auto-pricing: Peak hour surcharge ────────────────────────────────────
+    peakHourSurchargeEnabled: { type: Boolean, default: false },
+    // [{ label: string, startHour: 0-23, endHour: 0-23, multiplier: number }]
+    peakHourRanges: { type: Array, default: [] },
+
     // Commission (workers' platform cut)
     commissionRate: { type: Number, default: 0.30, min: 0, max: 0.5 }, // 30%
     // Reduced commission rate when customer used a coupon/promo code.
