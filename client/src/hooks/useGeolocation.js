@@ -5,8 +5,8 @@ export { loadGeoLocation };
 
 // High-accuracy one-shot: wait up to 12s, never use cached position.
 const OPTS_ONE  = { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 };
-// Watch: high accuracy, accept positions up to 4s old.
-const OPTS_WATCH = { enableHighAccuracy: true, timeout: 15000, maximumAge: 4000 };
+// Watch: high accuracy, accept positions up to 1s old — fresher reads = smoother customer map.
+const OPTS_WATCH = { enableHighAccuracy: true, timeout: 15000, maximumAge: 1000 };
 
 // Thresholds
 const ACCURACY_GOOD_M    = 50;   // ≤50m: show as confirmed, green

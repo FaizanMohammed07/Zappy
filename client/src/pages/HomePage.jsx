@@ -562,7 +562,7 @@ export default function HomePage() {
             whileTap={{ scale: 0.99 }}
           >
             <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
-            <span className="text-[15px] font-medium text-slate-400 flex-1 leading-none pt-[2px]">Search for a service…</span>
+            <span className="text-[14px] sm:text-[15px] font-medium text-slate-400 flex-1 leading-none pt-[2px] truncate">Search for a service…</span>
             <motion.span
               className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0 leading-none"
               animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
@@ -574,7 +574,7 @@ export default function HomePage() {
 
         {/* ─── Hero section ─────────────────────────────────────────── */}
         <div className="max-w-[1600px] w-full mx-auto px-4 pt-5 pb-5">
-          <div className="mb-6 flex items-start justify-between">
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div>
               <motion.h1
                 className="text-[26px] font-black text-slate-900 leading-[1.2] mb-2"
@@ -587,7 +587,7 @@ export default function HomePage() {
                 Phones · Laptops · Cars · Elders · Pets · Events
               </motion.p>
             </div>
-            <div className="mt-2">
+            <div className="mt-0 sm:mt-2 self-start">
               <LiveBadge />
             </div>
           </div>
@@ -845,13 +845,13 @@ export default function HomePage() {
           <>
             {/* backdrop */}
             <motion.div
-              className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+              className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => { setLocSheet(false); setLocSearch(''); setLocResults([]); }}
             />
             {/* bottom sheet */}
             <motion.div
-              className="fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl"
+              className="fixed bottom-0 inset-x-0 z-[110] bg-white rounded-t-3xl shadow-2xl"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 380, damping: 38 }}
             >
@@ -860,7 +860,7 @@ export default function HomePage() {
                 <div className="w-10 h-1 rounded-full bg-slate-200" />
               </div>
 
-              <div className="px-5 pt-2 pb-6">
+              <div className="px-5 pt-2 pb-10">
                 <h2 className="text-lg font-black text-slate-900 mb-4">Set your location</h2>
 
                 {/* Search input */}

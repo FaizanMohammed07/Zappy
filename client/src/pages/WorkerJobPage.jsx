@@ -587,8 +587,8 @@ export default function WorkerJobPage() {
         }
 
         const isParked = (now - stationaryRef.lastMovedAt) > 45000;
-        // Parked: heartbeat every 60s. Moving: every 4s.
-        const minInterval = isParked ? 60000 : 4000;
+        // Parked: heartbeat every 30s. Moving: every 2s for smoother customer tracking.
+        const minInterval = isParked ? 30000 : 2000;
         if (now - lastSentRef.current < minInterval) return;
 
         lastSentRef.current = now;

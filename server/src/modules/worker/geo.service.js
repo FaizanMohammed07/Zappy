@@ -24,12 +24,23 @@ async function markOnline(worker) {
   pipe.hset(AVAIL_HASH_KEY, String(_id), isAvailable ? '1' : '0');
   pipe.zadd(ALIVE_ZSET_KEY, now, String(_id)); // heartbeat
   for (const skill of skills) pipe.sadd(`${SKILLS_SET_PREFIX}${skill}`, String(_id));
-  // 10-minute TTL: workers:alive heartbeat re-registers every ~30s via location update,
-  // so any worker silent for >10 min is genuinely offline. 1-hour TTL caused stale
-  // phantom workers to appear in dispatch searches after ungraceful disconnects.
   pipe.expire(ONLINE_GEO_KEY, 600);
   pipe.expire(ALIVE_ZSET_KEY, 600);
   await pipe.exec();
+
+  // Notify any active dispatches that a new worker is available.
+  // Dispatches subscribe to this channel and immediately offer the worker
+  // if they fall within the already-searched radius — eliminates the case
+  // where a worker comes online after their radius step already passed.
+  if (isAvailable) {
+    for (const skill of skills) {
+      redis.publish(`worker:came_online:${skill}`, JSON.stringify({
+        workerId: String(_id),
+        lat,
+        lng,
+      })).catch(() => {});
+    }
+  }
 }
 
 async function markOffline(workerId) {
@@ -58,6 +69,24 @@ async function updateLocation(workerId, lng, lat) {
 
 async function setAvailability(workerId, isAvailable) {
   await redis.hset(AVAIL_HASH_KEY, String(workerId), isAvailable ? '1' : '0');
+  // When a worker marks themselves available again (e.g. after completing a job),
+  // notify active dispatches so they can offer immediately without waiting for the
+  // next radius step.
+  if (isAvailable) {
+    try {
+      const pos = await getWorkerPosition(workerId);
+      const w   = await Worker.findById(workerId).select('skills').lean();
+      if (pos && w?.skills?.length) {
+        for (const skill of w.skills) {
+          redis.publish(`worker:came_online:${skill}`, JSON.stringify({
+            workerId: String(workerId),
+            lat: pos.lat,
+            lng: pos.lng,
+          })).catch(() => {});
+        }
+      }
+    } catch { /* best-effort */ }
+  }
 }
 
 /**
