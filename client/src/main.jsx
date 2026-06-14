@@ -33,7 +33,8 @@ function jwtPayload(token) {
  */
 async function restoreSession() {
   try {
-    const res = await fetch('/api/auth/refresh', {
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    const res = await fetch(`${apiBase}/api/auth/refresh`, {
       method: 'POST',
       credentials: 'include',            // sends the httpOnly RT cookie
       headers: { 'Content-Type': 'application/json' },

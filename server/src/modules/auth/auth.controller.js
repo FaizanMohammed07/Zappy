@@ -4,13 +4,15 @@ const config = require('../../config');
 // Refresh token cookie settings.
 // httpOnly   — JS cannot read it (defeats XSS token theft). (#78)
 // secure     — HTTPS only in production.
-// sameSite   — Strict: never sent cross-origin (CSRF protection).
+// sameSite   — 'none' required for cross-origin Vercel→EC2 split deployment.
+//              'strict' would block the cookie when frontend (zappyone.com)
+//              calls the API subdomain (api.zappyone.com). 'none' requires secure=true.
 // path       — only sent to /api/auth/* endpoints, not every request.
 const RT_COOKIE_NAME = 'zappy_rt';
 const RT_COOKIE_OPTS = {
   httpOnly: true,
-  secure:   config.env === 'production',
-  sameSite: 'strict',
+  secure:   true,   // always true — 'none' requires secure
+  sameSite: config.env === 'production' ? 'none' : 'lax',
   path:     '/api/auth',
   maxAge:   30 * 24 * 60 * 60 * 1000, // 30 days in ms — matches RT_EXPIRES_SEC
 };
