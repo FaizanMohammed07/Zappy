@@ -372,24 +372,90 @@ export default function OrderTrackingPage() {
         animate="animate"
       >
 
-        {/* Failed state */}
+        {/* Failed state — no workers found: turn it into an expansion hype card */}
         {status === 'failed' && (
-          <motion.div variants={fadeInUp} className="card bg-red-50 ring-1 ring-red-100">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-                <AlertCircle size={16} className="text-red-600" />
+          <motion.div
+            variants={fadeInUp}
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #0F172A 0%, #1a1060 60%, #0f2a5e 100%)',
+              boxShadow: '0 12px 40px rgba(15,23,42,0.45)',
+            }}
+          >
+            {/* Top pulse bar */}
+            <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899,#f59e0b)' }} />
+
+            <div className="px-5 pt-5 pb-6">
+              {/* Animated rocket icon */}
+              <motion.div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 mx-auto"
+                style={{ background: 'rgba(99,102,241,0.18)', border: '1.5px solid rgba(99,102,241,0.35)' }}
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <span className="text-3xl">🚀</span>
+              </motion.div>
+
+              {/* Headline */}
+              <p className="text-center font-black text-white text-lg leading-snug mb-1">
+                We're launching in your area soon!
+              </p>
+              <p className="text-center text-xs font-semibold text-indigo-300 mb-4">
+                You're one of our <span className="text-amber-400">early pioneers</span> in this location
+              </p>
+
+              {/* Info pill row */}
+              <div className="flex justify-center gap-2 flex-wrap mb-5">
+                {['⚡ Rapid expansion', '📍 Your area is next', '🎯 Priority launch'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[11px] font-bold px-3 py-1 rounded-full"
+                    style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }}
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
-              <div className="flex-1">
-                <p className="font-bold text-red-800 text-sm">No workers available</p>
-                <p className="text-xs text-red-600 mt-0.5">
-                  All nearby workers are busy. Try again in a few minutes.
-                </p>
+
+              {/* Body copy */}
+              <div
+                className="rounded-xl px-4 py-3 mb-5 text-xs text-indigo-200 text-center leading-relaxed"
+                style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)' }}
+              >
+                No Zappy workers are in your zone <strong className="text-white">yet</strong> — but we're expanding fast.
+                Our team is actively onboarding workers in your locality.
+                <br />
+                <span className="text-amber-300 font-semibold">Sit tight — it won't be long.</span>
+              </div>
+
+              {/* CTA buttons */}
+              <div className="space-y-2.5">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    toast('We'll notify you the moment workers go live in your area!', {
+                      icon: '🔔',
+                      duration: 4000,
+                      style: { fontWeight: 600 },
+                    });
+                  }}
+                  className="w-full h-12 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 text-white"
+                  style={{
+                    background: 'linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%)',
+                    boxShadow: '0 6px 20px rgba(99,102,241,0.45)',
+                  }}
+                >
+                  <span>🔔</span>
+                  Notify me when live here
+                </motion.button>
+
                 <button
                   onClick={() => nav(`/book/${order.service}`)}
-                  className="flex items-center gap-1.5 mt-3 text-xs font-bold text-red-700 bg-red-100 px-3 py-1.5 rounded-lg hover:bg-red-200 transition"
+                  className="w-full h-10 rounded-2xl border font-semibold text-xs flex items-center justify-center gap-1.5 transition"
+                  style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.55)' }}
                 >
                   <RefreshCw size={12} />
-                  Try Again
+                  Try again anyway
                 </button>
               </div>
             </div>
