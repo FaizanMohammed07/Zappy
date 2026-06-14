@@ -158,7 +158,9 @@ export default function LoginPage({ role = 'user' }) {
       }
       nav(loc.state?.from || (role === 'worker' ? '/worker' : '/'), { replace: true });
     } catch (err) {
-      toast.error(err.data?.error || 'Verification failed');
+      const detail = err.data?.details?.[0] || err.data?.error || 'Verification failed';
+      toast.error(detail);
+      console.error('[verify] error:', err.data);
     }
   }
 
