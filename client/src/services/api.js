@@ -4,7 +4,7 @@ import { setAuth, logout } from '../modules/auth/authSlice';
 import { adminApiPath } from '../config/admin';
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: '/api',
+  baseUrl: `${import.meta.env.VITE_API_URL || ''}/api`,
   // credentials: 'include' sends the httpOnly refresh-token cookie on every request.
   // The server only reads it on /auth/refresh and /auth/logout — all other routes
   // ignore it. Required for the silent refresh flow. (#78)
