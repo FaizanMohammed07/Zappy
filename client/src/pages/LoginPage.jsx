@@ -53,7 +53,8 @@ function OtpInput({ value, onChange, onKeyDown, inputRef, filled }) {
 
 export default function LoginPage({ role = 'user' }) {
   const [phone, setPhone]       = useState('');
-  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const OTP_LEN = 4; // ZappyOTP template uses XXXX — 4-digit OTP from 2Factor AUTOGEN
+  const [otpDigits, setOtpDigits] = useState(Array(OTP_LEN).fill(''));
   const [name, setName]         = useState('');
   const [email, setEmail]       = useState('');
   const [skills, setSkills]     = useState([]);
@@ -73,19 +74,19 @@ export default function LoginPage({ role = 'user' }) {
 
   const otp = otpDigits.join('');
 
-  // After OTP form mounts: fill digits from API response
+  // After OTP form mounts: fill digits from API response (dev auto-fill)
   useEffect(() => {
     if (step !== 'otp' || !pendingOtp.current) return;
     const code = String(pendingOtp.current);
     pendingOtp.current = null;
-    const digits = code.slice(0, 6).split('').concat(Array(Math.max(0, 6 - code.length)).fill(''));
+    const digits = code.slice(0, OTP_LEN).split('').concat(Array(Math.max(0, OTP_LEN - code.length)).fill(''));
     setOtpDigits(digits);
-    setTimeout(() => otpRefs.current[5]?.focus(), 80);
+    setTimeout(() => otpRefs.current[OTP_LEN - 1]?.focus(), 80);
   }, [step]);
 
-  // Auto-submit once all 6 digits filled (existing users only — new users must enter name)
+  // Auto-submit once all digits filled (existing users only — new users must enter name)
   useEffect(() => {
-    if (step === 'otp' && otp.length === 6 && !isNewUser) verify();
+    if (step === 'otp' && otp.length === OTP_LEN && !isNewUser) verify();
   }, [otp]);
 
   // Mouse parallax for hero
@@ -104,7 +105,7 @@ export default function LoginPage({ role = 'user' }) {
     const next = [...otpDigits];
     next[i] = d;
     setOtpDigits(next);
-    if (d && i < 5) otpRefs.current[i + 1]?.focus();
+    if (d && i < OTP_LEN - 1) otpRefs.current[i + 1]?.focus();
   }
 
   function handleOtpKey(i, e) {
@@ -117,10 +118,10 @@ export default function LoginPage({ role = 'user' }) {
   }
 
   function handleOtpPaste(e) {
-    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LEN);
     if (text.length >= 4) {
-      setOtpDigits(text.slice(0, 6).split('').concat(Array(Math.max(0, 6 - text.length)).fill('')));
-      otpRefs.current[Math.min(text.length, 5)]?.focus();
+      setOtpDigits(text.split('').concat(Array(Math.max(0, OTP_LEN - text.length)).fill('')));
+      otpRefs.current[Math.min(text.length, OTP_LEN - 1)]?.focus();
     }
   }
 

@@ -31,7 +31,7 @@ router.post(
 router.post(
   '/user/login',
   authLimiter,
-  validate(Joi.object({ phone: phoneSchema, otp: Joi.string().length(6).required(), name: Joi.string().max(100).optional() })),
+  validate(Joi.object({ phone: phoneSchema, otp: Joi.string().min(4).max(6).required(), name: Joi.string().max(100).optional() })),
   ctrl.loginUser
 );
 
@@ -40,7 +40,7 @@ router.post(
   authLimiter,
   validate(Joi.object({
     phone:    phoneSchema,
-    otp:      Joi.string().length(6).required(),
+    otp:      Joi.string().min(4).max(6).required(),
     name:     Joi.string().max(100).optional(),
     skills:   Joi.array().items(Joi.string()).optional(),
     deviceId: Joi.string().max(200).optional(), // hardware fingerprint for multi-account detection
@@ -53,7 +53,7 @@ router.post(
   authLimiter,
   validate(Joi.object({
     phone:        phoneSchema,
-    otp:          Joi.string().length(6).required(),
+    otp:          Joi.string().min(4).max(6).required(),
     businessName: Joi.string().max(150).optional(),
     ownerName:    Joi.string().max(100).optional(),
     cities:       Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.string()).optional(),
@@ -94,7 +94,7 @@ router.post(
   '/otp/verify-action',
   authLimiter,
   authenticate,
-  validate(Joi.object({ otp: Joi.string().length(6).required() })),
+  validate(Joi.object({ otp: Joi.string().min(4).max(6).required() })),
   ctrl.verifySensitiveOtp,
 );
 
