@@ -26,7 +26,15 @@ async function requestOtp(req, res, next) {
   try {
     const { phone, role } = req.body;
     const { otp, isNewUser } = await authService.requestOtp(phone, role);
-    res.json({ ok: true, isNewUser, ...(config.env !== 'production' ? { otp } : {}) });
+    res.json({ ok: true, isNewUser, ...(config.env !== 'production' && otp ? { otp } : {}) });
+  } catch (err) { next(err); }
+}
+
+async function resendOtp(req, res, next) {
+  try {
+    const { phone } = req.body;
+    const { otp } = await authService.resendOtp(phone);
+    res.json({ ok: true, ...(config.env !== 'production' && otp ? { otp } : {}) });
   } catch (err) { next(err); }
 }
 
@@ -147,6 +155,6 @@ async function verifySensitiveOtp(req, res, next) {
 }
 
 module.exports = {
-  requestOtp, loginUser, loginWorker, loginPartner, googlePartnerLogin,
+  requestOtp, resendOtp, loginUser, loginWorker, loginPartner, googlePartnerLogin,
   loginAdmin, refresh, logout, revokeAll, verifySensitiveOtp,
 };

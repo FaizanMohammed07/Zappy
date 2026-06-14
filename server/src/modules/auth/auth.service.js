@@ -17,102 +17,128 @@ function getClientAuth() {
   return app;
 }
 
-// ---- SMS delivery ----
-async function sendSms(phone, otp) {
-  const fast2smsKey = process.env.FAST2SMS_KEY;
-  const factor2Key  = process.env.SMS_2FACTOR_KEY;
-  const msg91Key    = process.env.MSG91_AUTH_KEY;
-  const mobile      = phone.startsWith('91') ? phone.slice(2) : phone; // Fast2SMS wants 10-digit
-  const mobile91    = `91${mobile}`;                                    // 2Factor / MSG91 want 91XXXXXXXXXX
+// ---- OTP config ----
+const OTP_TTL_SEC       = parseInt(process.env.OTP_EXPIRY_MINUTES  || '5',  10) * 60;
+const OTP_COOLDOWN_MS   = parseInt(process.env.OTP_RESEND_COOLDOWN || '30', 10) * 1000;
+const OTP_MAX_ATTEMPTS  = parseInt(process.env.OTP_MAX_ATTEMPTS    || '5',  10);
+const OTP_MAX_RESENDS   = parseInt(process.env.OTP_MAX_RESENDS     || '3',  10);
+const OTP_HOURLY_LIMIT  = 5;  // max fresh OTP sends per phone per hour
 
-  // ── 1. Fast2SMS (primary for dev/testing — no DLT required) ──
+// ---- 2Factor AUTOGEN (production primary) ----
+// Sends OTP via approved ZappyOTP template; 2Factor generates the code.
+// Returns sessionId (used later to verify the OTP the user enters).
+async function send2FactorAutogen(phone) {
+  const apiKey  = process.env.TWO_FACTOR_API_KEY;
+  const mobile91 = phone.startsWith('+91') ? phone : phone.startsWith('91') ? `+${phone}` : `+91${phone}`;
+  return new Promise((resolve, reject) => {
+    const url = `https://2factor.in/API/V1/${apiKey}/SMS/${mobile91}/AUTOGEN/ZappyOTP`;
+    const req = https.get(url, (res) => {
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed.Status === 'Success' && parsed.Details) resolve(parsed.Details);
+          else reject(new Error(`2Factor AUTOGEN: ${parsed.Details || body}`));
+        } catch { reject(new Error(`2Factor bad JSON: ${body}`)); }
+      });
+    });
+    req.setTimeout(8000, () => { req.destroy(); reject(new Error('2Factor timeout')); });
+    req.on('error', reject);
+  });
+}
+
+// Calls 2Factor OTP verify endpoint. Returns true if the OTP matches.
+async function verify2FactorOtp(sessionId, otp) {
+  const apiKey = process.env.TWO_FACTOR_API_KEY;
+  return new Promise((resolve, reject) => {
+    const url = `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY/${sessionId}/${otp}`;
+    const req = https.get(url, (res) => {
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          resolve(parsed.Status === 'Success' && parsed.Details === 'OTP Matched');
+        } catch { reject(new Error(`2Factor verify bad JSON: ${body}`)); }
+      });
+    });
+    req.setTimeout(8000, () => { req.destroy(); reject(new Error('2Factor verify timeout')); });
+    req.on('error', reject);
+  });
+}
+
+// ---- Fallback SMS (dev / when 2Factor key absent) ----
+async function sendFallbackOtp(phone, otp) {
+  const fast2smsKey = process.env.FAST2SMS_KEY;
+  const msg91Key    = process.env.MSG91_AUTH_KEY;
+  const mobile      = phone.replace(/^(\+?91)/, '');  // strip prefix → 10-digit
+  const mobile91    = `91${mobile}`;
+
   if (fast2smsKey) {
     try {
       await new Promise((resolve, reject) => {
         const params = new URLSearchParams({
-          authorization: fast2smsKey,
-          route: 'q',
+          authorization: fast2smsKey, route: 'q', flash: '0', numbers: mobile,
           message: `Your Zappy OTP is ${otp}. Valid for 5 minutes. Do not share with anyone.`,
-          flash: '0',
-          numbers: mobile,
         });
-        const url = `https://www.fast2sms.com/dev/bulkV2?${params.toString()}`;
-        https.get(url, (res) => {
-          let data = '';
-          res.on('data', (c) => { data += c; });
+        const req = https.get(`https://www.fast2sms.com/dev/bulkV2?${params}`, (res) => {
+          let d = '';
+          res.on('data', (c) => { d += c; });
           res.on('end', () => {
             try {
-              const parsed = JSON.parse(data);
-              if (parsed.return === true) resolve();
-              else reject(new Error(`Fast2SMS: ${parsed.message}`));
-            } catch { reject(new Error(`Fast2SMS bad response: ${data}`)); }
+              const p = JSON.parse(d);
+              if (p.return === true) resolve(); else reject(new Error(`Fast2SMS: ${p.message}`));
+            } catch { reject(new Error(`Fast2SMS bad response: ${d}`)); }
           });
-        }).on('error', reject);
+        });
+        req.setTimeout(8000, () => { req.destroy(); reject(new Error('Fast2SMS timeout')); });
+        req.on('error', reject);
       });
-      logger.info(`OTP sent via Fast2SMS to ${mobile}`);
+      logger.info({ phone: mobile91 }, '[OTP] Sent via Fast2SMS');
       return;
     } catch (err) {
-      logger.warn(`Fast2SMS failed: ${err.message} — trying next provider`);
+      logger.warn({ err: err.message }, '[OTP] Fast2SMS failed — trying MSG91');
     }
   }
 
-  // ── 2. 2Factor.in (Indian DLT-compliant, production primary) ──
-  if (factor2Key) {
-    try {
-      await new Promise((resolve, reject) => {
-        const url = `https://2factor.in/API/V1/${factor2Key}/SMS/${mobile91}/${otp}/OTP1`;
-        https.get(url, (res) => {
-          let data = '';
-          res.on('data', (c) => { data += c; });
-          res.on('end', () => {
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.Status === 'Success') resolve();
-              else reject(new Error(`2Factor: ${parsed.Details}`));
-            } catch { reject(new Error(`2Factor bad response: ${data}`)); }
-          });
-        }).on('error', reject);
-      });
-      logger.info(`OTP sent via 2Factor to ${mobile91}`);
-      return;
-    } catch (err) {
-      logger.warn(`2Factor failed: ${err.message} — trying MSG91`);
-    }
-  }
-
-  // ── 3. MSG91 (backup — requires DLT registration in production) ──
   if (msg91Key) {
     try {
       await new Promise((resolve, reject) => {
         const params = new URLSearchParams({
-          authkey: msg91Key,
-          mobiles: mobile91,
-          message: `Your Zappy OTP is ${otp}. Valid for 5 minutes. Do not share.`,
+          authkey: msg91Key, mobiles: mobile91, route: '4', country: '91',
           sender: process.env.MSG91_SENDER_ID || 'ZAPPYO',
-          route: '4',
-          country: '91',
+          message: `Your Zappy OTP is ${otp}. Valid for 5 minutes. Do not share.`,
         });
-        const url = `https://api.msg91.com/api/sendhttp.php?${params.toString()}`;
-        https.get(url, (res) => {
-          let data = '';
-          res.on('data', (c) => { data += c; });
+        const req = https.get(`https://api.msg91.com/api/sendhttp.php?${params}`, (res) => {
+          let d = '';
+          res.on('data', (c) => { d += c; });
           res.on('end', () => {
-            logger.info(`MSG91 response: ${data}`);
-            // MSG91 always returns 200; success body starts with a numeric request ID
-            if (/^\d+/.test(data.trim())) resolve();
-            else reject(new Error(`MSG91: ${data}`));
+            if (/^\d+/.test(d.trim())) resolve(); else reject(new Error(`MSG91: ${d}`));
           });
-        }).on('error', reject);
+        });
+        req.setTimeout(8000, () => { req.destroy(); reject(new Error('MSG91 timeout')); });
+        req.on('error', reject);
       });
-      logger.info(`OTP sent via MSG91 to ${mobile91}`);
+      logger.info({ phone: mobile91 }, '[OTP] Sent via MSG91');
       return;
     } catch (err) {
-      logger.warn(`MSG91 failed: ${err.message} — falling back to console`);
+      logger.warn({ err: err.message }, '[OTP] MSG91 failed — using console');
     }
   }
 
-  // ── 4. Dev fallback ──
-  logger.warn(`[DEV] OTP for ${mobile}: ${otp}`);
+  logger.warn({ phone: mobile, otp }, '[DEV] OTP (no SMS provider configured)');
+}
+
+// ---- OTP analytics (lightweight Redis counters, 90-day retention) ----
+async function trackOtpEvent(event) {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    await redis.multi()
+      .incr(`otp:stats:${event}:${today}`)
+      .expire(`otp:stats:${event}:${today}`, 90 * 86400)
+      .exec();
+  } catch { /* non-fatal — never block auth on analytics */ }
 }
 
 async function hashPassword(pw) {
@@ -124,53 +150,182 @@ async function comparePassword(pw, hash) {
 
 // ---- OTP (phone-based) ----
 async function requestOtp(phone, role) {
-  // Prevent OTP flooding — at most 3 OTPs per phone per 10 min
-  const floodKey = `otp:flood:${phone}`;
-  const count = await redis.incr(floodKey);
-  if (count === 1) await redis.expire(floodKey, 600);
-  if (count > 3) {
-    throw Object.assign(new Error('Too many OTP requests, try again in a few minutes'), {
+  // ── Rate limit: max OTP_HOURLY_LIMIT fresh sends per phone per hour ──────
+  const hourlyKey = `otp:hourly:${phone}`;
+  const hourlyCount = await redis.incr(hourlyKey);
+  if (hourlyCount === 1) await redis.expire(hourlyKey, 3600);
+  if (hourlyCount > OTP_HOURLY_LIMIT) {
+    await trackOtpEvent('blocked');
+    logger.warn({ phone }, '[OTP] Hourly send limit exceeded');
+    throw Object.assign(new Error('Too many OTP requests. Try again in an hour.'), {
       status: 429, code: 'OTP_FLOOD',
     });
   }
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  // Store OTP + failed attempt counter in a hash so we can lock out brute-force
-  // without two separate Redis keys. TTL = 5 min.
-  await redis.hset(`otp:${phone}`, 'code', otp, 'attempts', '0');
-  await redis.expire(`otp:${phone}`, 300);
 
-  await sendSms(phone, otp);
-
-  // Tell the client whether this is a new account so it can skip registration fields
-  let isNewUser = true;
-  if (role === 'worker') {
-    const existing = await Worker.findOne({ phone }).select('_id').lean();
-    isNewUser = !existing;
-  } else if (role === 'user') {
-    const existing = await User.findOne({ phone }).select('_id').lean();
-    isNewUser = !existing;
+  // ── 30-second cooldown — prevent accidental double-sends ─────────────────
+  const existing = await redis.hgetall(`otp:${phone}`);
+  if (existing?.createdAt) {
+    const elapsed = Date.now() - parseInt(existing.createdAt, 10);
+    if (elapsed < OTP_COOLDOWN_MS) {
+      throw Object.assign(
+        new Error(`Please wait ${Math.ceil((OTP_COOLDOWN_MS - elapsed) / 1000)} seconds before requesting another OTP.`),
+        { status: 429, code: 'OTP_COOLDOWN', retryAfterMs: OTP_COOLDOWN_MS - elapsed },
+      );
+    }
   }
 
-  return { otp, isNewUser };
+  // ── Send OTP via 2Factor AUTOGEN (prod) or fallback (dev) ────────────────
+  const use2Factor = !!process.env.TWO_FACTOR_API_KEY;
+  let sessionId = null;
+  let devOtp    = null;
+
+  if (use2Factor) {
+    try {
+      sessionId = await send2FactorAutogen(phone);
+      logger.info({ phone }, '[OTP] Sent via 2Factor AUTOGEN');
+    } catch (err) {
+      logger.error({ err: err.message, phone }, '[OTP] 2Factor AUTOGEN failed');
+      throw Object.assign(new Error('Could not send OTP. Please try again.'), { status: 503, code: 'OTP_SEND_FAILED' });
+    }
+  } else {
+    devOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    try {
+      await sendFallbackOtp(phone, devOtp);
+    } catch (err) {
+      logger.error({ err: err.message, phone }, '[OTP] All fallback providers failed');
+      throw Object.assign(new Error('Could not send OTP. Please try again.'), { status: 503, code: 'OTP_SEND_FAILED' });
+    }
+  }
+
+  // ── Store session in Redis — never store the OTP itself ──────────────────
+  const now = Date.now().toString();
+  const fields = {
+    attempts: '0', resendCount: '0', createdAt: now,
+    ...(sessionId ? { sessionId } : { code: devOtp }),
+  };
+  await redis.hset(`otp:${phone}`, ...Object.entries(fields).flat());
+  await redis.expire(`otp:${phone}`, OTP_TTL_SEC);
+
+  await trackOtpEvent('sent');
+
+  // Tell the client whether this is a new account
+  let isNewUser = true;
+  if (role === 'worker') {
+    const w = await Worker.findOne({ phone }).select('_id').lean();
+    isNewUser = !w;
+  } else if (role === 'user') {
+    const u = await User.findOne({ phone }).select('_id').lean();
+    isNewUser = !u;
+  }
+
+  // devOtp is only returned in non-production so the dev UI can auto-fill
+  return { otp: devOtp, isNewUser };
+}
+
+async function resendOtp(phone) {
+  const session = await redis.hgetall(`otp:${phone}`);
+
+  if (!session?.createdAt) {
+    throw Object.assign(new Error('No active OTP session. Please request a new OTP.'), {
+      status: 400, code: 'OTP_NO_SESSION',
+    });
+  }
+
+  // 30-second cooldown between resends
+  const elapsed = Date.now() - parseInt(session.createdAt, 10);
+  if (elapsed < OTP_COOLDOWN_MS) {
+    throw Object.assign(
+      new Error(`Please wait ${Math.ceil((OTP_COOLDOWN_MS - elapsed) / 1000)} seconds before resending.`),
+      { status: 429, code: 'OTP_COOLDOWN', retryAfterMs: OTP_COOLDOWN_MS - elapsed },
+    );
+  }
+
+  const resendCount = parseInt(session.resendCount || '0', 10);
+  if (resendCount >= OTP_MAX_RESENDS) {
+    throw Object.assign(new Error('Maximum resend attempts reached. Please request a new OTP.'), {
+      status: 429, code: 'OTP_MAX_RESENDS',
+    });
+  }
+
+  // Re-send via 2Factor AUTOGEN or fallback
+  const use2Factor = !!process.env.TWO_FACTOR_API_KEY;
+  let sessionId = null;
+  let devOtp    = null;
+
+  if (use2Factor) {
+    try {
+      sessionId = await send2FactorAutogen(phone);
+      logger.info({ phone, resendCount: resendCount + 1 }, '[OTP] Resent via 2Factor AUTOGEN');
+    } catch (err) {
+      logger.error({ err: err.message, phone }, '[OTP] 2Factor resend failed');
+      throw Object.assign(new Error('Could not resend OTP. Please try again.'), { status: 503, code: 'OTP_SEND_FAILED' });
+    }
+  } else {
+    devOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    try {
+      await sendFallbackOtp(phone, devOtp);
+    } catch (err) {
+      logger.error({ err: err.message, phone }, '[OTP] Fallback resend failed');
+      throw Object.assign(new Error('Could not resend OTP. Please try again.'), { status: 503, code: 'OTP_SEND_FAILED' });
+    }
+  }
+
+  // Update session — reset attempts, bump resend count, new createdAt for cooldown
+  const now = Date.now().toString();
+  const updates = { attempts: '0', resendCount: String(resendCount + 1), createdAt: now };
+  if (sessionId) { updates.sessionId = sessionId; delete updates.code; }
+  else { updates.code = devOtp; delete updates.sessionId; }
+
+  // Replace entire hash atomically
+  await redis.multi()
+    .del(`otp:${phone}`)
+    .hset(`otp:${phone}`, ...Object.entries(updates).flat())
+    .expire(`otp:${phone}`, OTP_TTL_SEC)
+    .exec();
+
+  await trackOtpEvent('resent');
+  return { otp: devOtp }; // null in production — dev auto-fill only
 }
 
 async function verifyOtp(phone, otp) {
-  const data = await redis.hgetall(`otp:${phone}`);
-  if (!data || !data.code) return false;
+  const session = await redis.hgetall(`otp:${phone}`);
+  if (!session || (!session.code && !session.sessionId)) return false;
 
-  // Brute-force lockout: max 5 wrong attempts before the OTP is invalidated.
-  const attempts = parseInt(data.attempts || '0', 10);
-  if (attempts >= 5) {
+  // Brute-force lockout: invalidate session after max wrong attempts
+  const attempts = parseInt(session.attempts || '0', 10);
+  if (attempts >= OTP_MAX_ATTEMPTS) {
     await redis.del(`otp:${phone}`);
+    await trackOtpEvent('blocked');
+    logger.warn({ phone }, '[OTP] Session killed — max attempts exceeded');
     return false;
   }
 
-  if (data.code !== otp) {
+  let isValid = false;
+
+  if (session.sessionId) {
+    // ── 2Factor AUTOGEN verify — OTP never stored server-side ──────────────
+    try {
+      isValid = await verify2FactorOtp(session.sessionId, otp);
+    } catch (err) {
+      logger.error({ err: err.message, phone }, '[OTP] 2Factor verify API failed');
+      // Propagate as 503 — don't burn the session on provider failure
+      throw Object.assign(new Error('OTP verification service unavailable. Please try again.'), {
+        status: 503, code: 'OTP_SERVICE_ERROR',
+      });
+    }
+  } else {
+    // ── Dev/fallback — compare stored code ─────────────────────────────────
+    isValid = session.code === otp;
+  }
+
+  if (!isValid) {
     await redis.hincrby(`otp:${phone}`, 'attempts', 1);
+    await trackOtpEvent('failed');
     return false;
   }
 
   await redis.del(`otp:${phone}`);
+  await trackOtpEvent('verified');
   return true;
 }
 
@@ -365,12 +520,58 @@ async function loginPartnerWithGoogle({ idToken, businessName, ownerName, cities
   return { partner, isNew, ...tokens };
 }
 
+// ---- OTP analytics for admin dashboard ----
+async function getOtpStats(days = 7) {
+  const events = ['sent', 'verified', 'failed', 'resent', 'blocked'];
+  const result = {};
+  const pipeline = redis.pipeline();
+  const dates = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(Date.now() - i * 86400 * 1000).toISOString().slice(0, 10);
+    dates.push(d);
+    for (const ev of events) pipeline.get(`otp:stats:${ev}:${d}`);
+  }
+  const raw = await pipeline.exec();
+  let idx = 0;
+  const byDay = [];
+  for (const date of dates) {
+    const row = { date };
+    for (const ev of events) {
+      row[ev] = parseInt(raw[idx]?.[1] || '0', 10);
+      idx++;
+    }
+    byDay.push(row);
+  }
+  byDay.reverse(); // chronological order
+
+  // Aggregate totals
+  const totals = Object.fromEntries(events.map((ev) => [
+    ev, byDay.reduce((s, r) => s + r[ev], 0),
+  ]));
+  const successRate = totals.sent > 0
+    ? Math.round((totals.verified / totals.sent) * 100)
+    : 0;
+  const failureRate = totals.sent > 0
+    ? Math.round((totals.failed  / totals.sent) * 100)
+    : 0;
+  const resendRate  = totals.sent > 0
+    ? Math.round((totals.resent  / totals.sent) * 100)
+    : 0;
+
+  result.byDay     = byDay;
+  result.totals    = totals;
+  result.rates     = { successRate, failureRate, resendRate };
+  return result;
+}
+
 module.exports = {
   hashPassword,
   comparePassword,
   requestOtp,
+  resendOtp,
   verifyOtp,
   markOtpActionVerified,
+  getOtpStats,
   loginUserWithOtp,
   loginWorkerWithOtp,
   loginEventPartnerWithOtp,

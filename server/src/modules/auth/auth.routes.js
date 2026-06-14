@@ -2,14 +2,31 @@ const express = require('express');
 const Joi = require('joi');
 const ctrl = require('./auth.controller');
 const { validate } = require('../../middlewares/validate');
-const { authLimiter, adminAuthLimiter } = require('../../middlewares/rateLimit');
+const { authLimiter, adminAuthLimiter, otpPhoneLimiter } = require('../../middlewares/rateLimit');
 const { authenticate } = require('../../middlewares/auth');
 
 const router = express.Router();
 
 const phoneSchema = Joi.string().pattern(/^[0-9]{10,15}$/).required();
 
-router.post('/otp/request', authLimiter, validate(Joi.object({ phone: phoneSchema })), ctrl.requestOtp);
+router.post(
+  '/otp/request',
+  otpPhoneLimiter,
+  authLimiter,
+  validate(Joi.object({
+    phone: phoneSchema,
+    role:  Joi.string().valid('user', 'worker', 'event_partner').optional(),
+  })),
+  ctrl.requestOtp,
+);
+
+router.post(
+  '/otp/resend',
+  otpPhoneLimiter,
+  authLimiter,
+  validate(Joi.object({ phone: phoneSchema })),
+  ctrl.resendOtp,
+);
 
 router.post(
   '/user/login',

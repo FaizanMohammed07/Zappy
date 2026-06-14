@@ -564,4 +564,13 @@ async function getAnalytics(req, res, next) {
   }
 }
 
-module.exports = { getRevenue, getMetrics, getAnalytics };
+async function getOtpAnalytics(req, res, next) {
+  try {
+    const authService = require('../../auth/auth.service');
+    const days = Math.min(Number(req.query.days) || 7, 90);
+    const stats = await authService.getOtpStats(days);
+    res.json(stats);
+  } catch (err) { next(err); }
+}
+
+module.exports = { getRevenue, getMetrics, getAnalytics, getOtpAnalytics };
