@@ -26,6 +26,7 @@ import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 import IntroSplash from '../components/common/IntroSplash';
 import HeroCarousel from '../components/home/HeroCarousel';
 import OffersSection from '../components/home/OffersSection';
+import SEO, { HOME_SCHEMA, BASE_URL } from '../components/SEO';
 
 /* ─── Most booked — Electronics Rescue ────────────────────────────────── */
 const MOST_BOOKED = [
@@ -425,6 +426,13 @@ export default function HomePage() {
 
   return (
     <PageTransition>
+      <SEO
+        title="Zappy — Book Verified Professionals Instantly | Home Services India"
+        description="India's fastest on-demand home services app. Puncture repair, phone repair, laptop repair, electrician, plumber, bike mechanic, car wash, pet grooming — verified pros arrive in 30 minutes. Book in 60 seconds."
+        canonical={BASE_URL}
+        keywords="home services near me, on-demand services India, puncture repair, phone repair near me, laptop repair at home, electrician near me, plumber near me, bike mechanic near me, car wash at home, Zappy, instant services"
+        jsonLd={HOME_SCHEMA}
+      />
       <IntroSplash />
       <div className="min-h-screen bg-white">
 

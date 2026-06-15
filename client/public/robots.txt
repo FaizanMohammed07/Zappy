@@ -1,0 +1,45 @@
+# Zappy — zappyone.com
+# robots.txt
+
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /services
+Allow: /how-it-works
+Allow: /pricing
+Allow: /plans
+Allow: /worker/login
+Allow: /images/
+Allow: /assets/
+Allow: /og-default.jpg
+Allow: /logo.png
+
+# Block admin panel, auth internals, API
+Disallow: /api/
+Disallow: /socket.io/
+Disallow: /orders/
+Disallow: /profile/
+Disallow: /wallet/
+Disallow: /partner/
+
+# Block all search-like query params to prevent duplicate content
+Disallow: /*?page=
+Disallow: /*?q=
+Disallow: /*?tab=
+Disallow: /*?ref=
+
+# Block known bot spam
+User-agent: AhrefsBot
+Crawl-delay: 10
+
+User-agent: SemrushBot
+Crawl-delay: 10
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+# Sitemap
+Sitemap: https://www.zappyone.com/sitemap.xml
