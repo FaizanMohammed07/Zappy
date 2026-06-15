@@ -203,6 +203,7 @@ export default function PartnerLoginPage() {
               <div>
                 <p className="text-xs font-semibold text-white/70 mb-1">ENTER 6-DIGIT OTP</p>
                 <p className="text-xs text-white/50">Sent to +91 {phone}</p>
+                <p className="text-[11px] text-amber-400 font-semibold mt-0.5">📞 OTP will be delivered via phone call</p>
               </div>
               <div className="flex gap-2 justify-center">
                 {digits.map((d, i) => (
