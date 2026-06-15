@@ -146,11 +146,9 @@ export default function WorkerKycPage() {
         headers: { 'Content-Type': contentType },
       });
     } catch {
-      // "Failed to fetch" on the S3 PUT means the S3 bucket CORS policy is
-      // blocking this origin. The bucket must allow PUT from the frontend domain.
-      throw new Error('Storage upload blocked — S3 CORS not configured for this domain. Contact support.');
+      throw new Error('Upload failed. Please check your internet connection and try again.');
     }
-    if (!putRes.ok) throw new Error(`Upload failed (S3 ${putRes.status})`);
+    if (!putRes.ok) throw new Error('Upload failed. Please try again or use a smaller file.');
   }
 
   /* ── File upload (Aadhaar / License) ──────────────────────────────────── */
@@ -164,7 +162,7 @@ export default function WorkerKycPage() {
       setUrls((prev) => ({ ...prev, [docKey]: signed.key }));
       toast.success('Document uploaded');
     } catch (err) {
-      toast.error(err.data?.error || err.message || 'Upload failed');
+      toast.error('Document upload failed. Please try again.');
     } finally {
       setUploading(null);
     }
@@ -181,7 +179,7 @@ export default function WorkerKycPage() {
       setSelfieMetadata(metadata);
       toast.success('Selfie captured ✓');
     } catch (err) {
-      toast.error(err.data?.error || err.message || 'Selfie upload failed');
+      toast.error('Selfie upload failed. Please try again.');
     } finally {
       setUploading(null);
     }
