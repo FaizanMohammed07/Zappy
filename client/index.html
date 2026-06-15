@@ -218,6 +218,121 @@
     }
     </script>
 
+    <!-- 1b. AggregateRating + Reviews ─────────────────────────────────── -->
+    <script type="application/ld+json" data-seo="reviews">
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": "Zappy Home Services",
+      "description": "On-demand home services platform connecting users with verified professionals across India",
+      "brand": { "@type": "Brand", "name": "Zappy" },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "reviewCount": "5000",
+        "bestRating": "5",
+        "worstRating": "1"
+      },
+      "review": [
+        {
+          "@type": "Review",
+          "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+          "author": { "@type": "Person", "name": "Priya S." },
+          "reviewBody": "Booked puncture repair through Zappy and the mechanic arrived in 20 minutes! Amazing service. Transparent pricing, no hidden charges. Will definitely use again.",
+          "datePublished": "2025-11-10"
+        },
+        {
+          "@type": "Review",
+          "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+          "author": { "@type": "Person", "name": "Rahul M." },
+          "reviewBody": "Got my phone screen replaced at home by Zappy. Technician was professional, used genuine parts. Cost was reasonable. Live tracking is a great feature!",
+          "datePublished": "2025-12-05"
+        },
+        {
+          "@type": "Review",
+          "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+          "author": { "@type": "Person", "name": "Ananya K." },
+          "reviewBody": "Used Zappy for birthday decoration at home. The decorator was creative and set up everything perfectly within the budget. Highly recommend for event decoration!",
+          "datePublished": "2026-01-15"
+        },
+        {
+          "@type": "Review",
+          "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+          "author": { "@type": "Person", "name": "Vikram R." },
+          "reviewBody": "My laptop was repaired at home within 2 hours. SSD upgrade made it super fast. Technician explained everything clearly. Best laptop repair service at home!",
+          "datePublished": "2026-02-20"
+        },
+        {
+          "@type": "Review",
+          "reviewRating": { "@type": "Rating", "ratingValue": "4", "bestRating": "5" },
+          "author": { "@type": "Person", "name": "Sneha P." },
+          "reviewBody": "Pet grooming service was excellent. My dog was very calm with the groomer. Professional handling and the pup looked great after the grooming session.",
+          "datePublished": "2026-03-08"
+        }
+      ]
+    }
+    </script>
+
+    <!-- 1c. Offer / Promotion schema ──────────────────────────────────── -->
+    <script type="application/ld+json" data-seo="offer">
+    {
+      "@context": "https://schema.org",
+      "@type": "Offer",
+      "name": "First Service Discount on Zappy",
+      "description": "New users get 5% cashback on their first Zappy booking. Verified professionals, transparent pricing, live tracking.",
+      "url": "https://www.zappyone.com/",
+      "seller": { "@id": "https://www.zappyone.com/#organization" },
+      "priceCurrency": "INR",
+      "eligibleRegion": { "@type": "Country", "name": "India" },
+      "availableAtOrFrom": {
+        "@type": "OnlineBusiness",
+        "name": "Zappy",
+        "url": "https://www.zappyone.com"
+      }
+    }
+    </script>
+
+    <!-- 1d. Multi-city LocalBusiness ──────────────────────────────────── -->
+    <script type="application/ld+json" data-seo="local-hyderabad">
+    {
+      "@context": "https://schema.org",
+      "@type": ["LocalBusiness", "HomeAndConstructionBusiness"],
+      "name": "Zappy Hyderabad",
+      "description": "On-demand home services in Hyderabad. Puncture repair, phone repair, laptop repair, electrician, plumber, bike mechanic — verified professionals in 30 minutes.",
+      "url": "https://www.zappyone.com/",
+      "areaServed": { "@type": "City", "name": "Hyderabad" },
+      "priceRange": "₹₹",
+      "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "1200" },
+      "parentOrganization": { "@id": "https://www.zappyone.com/#organization" }
+    }
+    </script>
+    <script type="application/ld+json" data-seo="local-bangalore">
+    {
+      "@context": "https://schema.org",
+      "@type": ["LocalBusiness", "HomeAndConstructionBusiness"],
+      "name": "Zappy Bangalore",
+      "description": "On-demand home services in Bangalore. Puncture repair, phone screen repair, laptop repair, car wash, pet grooming — doorstep service in 30 minutes.",
+      "url": "https://www.zappyone.com/",
+      "areaServed": { "@type": "City", "name": "Bangalore" },
+      "priceRange": "₹₹",
+      "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.7", "reviewCount": "900" },
+      "parentOrganization": { "@id": "https://www.zappyone.com/#organization" }
+    }
+    </script>
+    <script type="application/ld+json" data-seo="local-mumbai">
+    {
+      "@context": "https://schema.org",
+      "@type": ["LocalBusiness", "HomeAndConstructionBusiness"],
+      "name": "Zappy Mumbai",
+      "description": "On-demand home services in Mumbai. Puncture repair, mobile screen repair, laptop repair, car wash, birthday decoration — arrive in 30 minutes.",
+      "url": "https://www.zappyone.com/",
+      "areaServed": { "@type": "City", "name": "Mumbai" },
+      "priceRange": "₹₹",
+      "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "800" },
+      "parentOrganization": { "@id": "https://www.zappyone.com/#organization" }
+    }
+    </script>
+
     <!-- 2. WebSite + SearchBox ─────────────────────────────────────────── -->
     <script type="application/ld+json" data-seo="website">
     {

@@ -7,6 +7,7 @@ import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation, us
 import { setAuth, updateProfile } from '../modules/auth/authSlice';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import toast from 'react-hot-toast';
+import SEO, { LOGIN_SCHEMA, BASE_URL } from '../components/SEO';
 import { easeSoft, springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 
 const SKILLS = [
@@ -180,6 +181,18 @@ export default function LoginPage({ role = 'user' }) {
   const isWorker = role === 'worker';
 
   return (
+    <>
+    <SEO
+      title={isWorker ? 'Worker Login — Join Zappy & Earn Daily | Zappy India' : 'Login to Zappy — Book Home Services Instantly'}
+      description={isWorker
+        ? 'Join Zappy as a service professional. Earn ₹500–₹2000/day. Verified workers get instant job notifications and daily payments.'
+        : 'Login to Zappy with your phone number. Book verified professionals for home services instantly — puncture repair, phone repair, laptop repair and more.'}
+      canonical={isWorker ? `${BASE_URL}/worker/login` : `${BASE_URL}/login`}
+      keywords={isWorker
+        ? 'join Zappy as worker, earn money home services, service professional jobs India'
+        : 'Zappy login, book home services India, on-demand services app login'}
+      jsonLd={LOGIN_SCHEMA}
+    />
     <div
       className="min-h-screen flex flex-col overflow-hidden relative"
       onMouseMove={handleMouseMove}
@@ -496,5 +509,6 @@ export default function LoginPage({ role = 'user' }) {
         </motion.div>
       </AnimatePresence>
     </div>
+    </>
   );
 }

@@ -25,6 +25,7 @@ import {
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp } from '../lib/animations';
 import toast from 'react-hot-toast';
+import SEO, { SERVICE_META as SEO_SERVICE_META, buildServiceJsonLd, BASE_URL } from '../components/SEO';
 
 // ─── Vertical classification (mirrors server pricing.service.js) ─────────────
 const MOBILE_SERVICES = new Set([
@@ -556,10 +557,23 @@ export default function BookingPage() {
     }
   }
 
+  const svcMeta = SEO_SERVICE_META[service] || {};
+  const svcTitle = svcMeta.name
+    ? `${svcMeta.name} Near Me — Book Instantly | Zappy`
+    : `Book ${service?.replace(/_/g, ' ')} — Zappy`;
+  const svcDesc = svcMeta.desc || `Book verified professionals for ${service?.replace(/_/g, ' ')} at your doorstep. Instant booking, live tracking, transparent pricing.`;
+
   /* ── Location stage ── */
   if (stage === 'location') {
     return (
       <div className="h-screen flex flex-col">
+        <SEO
+          title={svcTitle}
+          description={svcDesc}
+          canonical={`${BASE_URL}/book/${service}`}
+          keywords={svcMeta.keywords}
+          jsonLd={buildServiceJsonLd(service)}
+        />
         {/* Premium header with gradient */}
         <header className="shrink-0 relative overflow-hidden" style={{ background: `linear-gradient(135deg, #0F172A 0%, #1e293b 100%)` }}>
           <div className="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
