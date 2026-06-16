@@ -38,7 +38,7 @@
     --zappy-navy:    #0F172A;
     --zappy-success: #22C55E;
     --zappy-accent:  #F59E0B;
-    --zappy-bg:      #F9FAFB;
+    --zappy-bg:      #FAFAFB;
     --zappy-text:    #111827;
   }
 
@@ -51,6 +51,13 @@
     background-color: var(--zappy-bg);
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
+
+    /* Hide global scrollbars for native app feel */
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 
   h1, h2, h3, h4 {
@@ -76,7 +83,8 @@
 
   /* ---- Container system ---- */
   .page-shell {
-    @apply min-h-screen bg-[#F9FAFB] pb-24;
+    @apply min-h-screen pb-24;
+    background: #ffffff;
   }
 
   .page-container {
@@ -109,43 +117,41 @@
 
   /* ---- Buttons ---- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-btn px-5 py-3
-           text-sm font-semibold cursor-pointer
-           transition-all duration-200 ease-out
-           active:scale-[0.97]
+    @apply inline-flex items-center justify-center gap-2 rounded-btn px-5 py-3.5
+           text-[15px] font-bold cursor-pointer tracking-wide
+           transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]
+           active:scale-[0.96]
            disabled:opacity-50 disabled:pointer-events-none;
-    will-change: transform;
+    will-change: transform, box-shadow;
   }
 
   .btn-primary {
-    @apply btn bg-zappy-600 text-white
-           hover:bg-zappy-700
-           hover:shadow-[0_4px_16px_rgba(37,99,235,0.35)]
-           active:bg-zappy-800;
+    @apply btn bg-zappy-600 text-white shadow-glow-blue
+           hover:bg-zappy-500 hover:shadow-lg hover:-translate-y-0.5
+           active:bg-zappy-700 active:translate-y-0 active:shadow-glow-blue;
   }
 
   .btn-success {
-    @apply btn bg-success-500 text-white
-           hover:bg-success-600
-           hover:shadow-[0_4px_16px_rgba(34,197,94,0.35)]
-           active:bg-success-700;
+    @apply btn bg-success-500 text-white shadow-[0_8px_24px_-4px_rgba(34,197,94,0.35)]
+           hover:bg-success-600 hover:shadow-lg hover:-translate-y-0.5
+           active:bg-success-700 active:translate-y-0;
   }
 
   .btn-outline {
-    @apply btn bg-white text-zappy-600 border-2 border-zappy-600
-           hover:bg-zappy-50 hover:border-zappy-700;
+    @apply btn bg-white/80 backdrop-blur-sm text-zappy-700 border-2 border-zappy-100 shadow-sm
+           hover:bg-zappy-50 hover:border-zappy-200 hover:-translate-y-0.5;
   }
 
   .btn-secondary {
-    @apply btn bg-slate-100 text-slate-800
-           hover:bg-slate-200 hover:text-slate-900
+    @apply btn bg-slate-100/80 backdrop-blur-sm text-slate-700 shadow-sm
+           hover:bg-slate-200/80 hover:text-slate-900 hover:-translate-y-0.5
            active:bg-slate-300;
   }
 
   .btn-danger {
-    @apply btn bg-red-500 text-white
-           hover:bg-red-600
-           hover:shadow-[0_4px_16px_rgba(239,68,68,0.30)];
+    @apply btn bg-red-500 text-white shadow-[0_8px_24px_-4px_rgba(239,68,68,0.30)]
+           hover:bg-red-400 hover:shadow-lg hover:-translate-y-0.5
+           active:bg-red-600 active:translate-y-0;
   }
 
   .btn-icon {
@@ -158,8 +164,8 @@
 
   /* ---- Cards ---- */
   .card {
-    @apply rounded-card bg-white shadow-card ring-1 ring-slate-100 p-4
-           transition-all duration-200 ease-out;
+    @apply rounded-[24px] bg-white/90 backdrop-blur-xl shadow-soft ring-1 ring-slate-900/5 p-5
+           transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)];
   }
 
   /* Automatically lift clickable cards */
@@ -178,7 +184,7 @@
   }
 
   .card-elevated {
-    @apply rounded-card bg-white shadow-soft-lg p-5;
+    @apply rounded-[24px] bg-white/95 backdrop-blur-xl shadow-soft-lg ring-1 ring-slate-900/5 p-6;
   }
 
   .card-hero {
@@ -233,25 +239,27 @@
 
   /* ---- Bottom nav ---- */
   .bottom-nav {
-    @apply fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-sm border-t border-slate-100
-           grid grid-cols-5 px-1 pt-1.5 pb-[max(10px,env(safe-area-inset-bottom))]
-           shadow-[0_-1px_0_0_#F1F5F9,0_-8px_24px_rgba(15,23,42,0.05)]
-           z-30;
+    @apply fixed bottom-4 inset-x-4 bg-white/90 backdrop-blur-xl border border-slate-200/50
+           flex justify-around items-center px-2 py-2 rounded-full
+           shadow-[0_8px_32px_-4px_rgba(15,23,42,0.1)]
+           z-30 mx-auto max-w-md;
   }
 
   .bottom-nav-item {
-    /* min-h-[44px] ensures the tap target meets the 44px WCAG minimum. (#68) */
-    @apply flex flex-col items-center justify-center gap-1 py-2 min-h-[44px] rounded-xl
+    @apply flex flex-col items-center justify-center gap-1 py-1 px-3 min-h-[48px] rounded-full
            text-[10px] font-semibold text-slate-400 tracking-wide
-           transition-all duration-200 ease-out
-           hover:text-slate-600 hover:bg-slate-50
+           transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]
+           hover:text-slate-700
            active:scale-95;
   }
 
-  .bottom-nav-item.active {
-    @apply text-zappy-600;
+  /* ---- Clean Typography ---- */
+  .text-uc-heading {
+    font-family: system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
+    font-weight: 700;
   }
-
+  
   /* ---- Chat bubbles ---- */
   .bubble-in {
     @apply bg-white ring-1 ring-slate-100 text-[#111827] rounded-2xl rounded-tl-sm

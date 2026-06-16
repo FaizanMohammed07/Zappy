@@ -465,8 +465,8 @@ export default function OrderTrackingPage() {
         {/* Worker card */}
         {order.workerId && !terminal && status !== 'searching' && (
           <motion.div
-            className="rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100"
-            style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+            className="rounded-[24px] overflow-hidden bg-white/90 backdrop-blur-xl border border-slate-900/5"
+            style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
             variants={fadeInUp}
           >
             {/* Worker gradient banner */}
@@ -535,11 +535,11 @@ export default function OrderTrackingPage() {
 
         {/* Progress stepper */}
         <motion.div
-          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
-          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          className="rounded-[24px] bg-white/95 backdrop-blur-xl border border-slate-900/5 p-6"
+          style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
           variants={fadeInUp}
         >
-          <p className="font-bold text-[#0F172A] text-sm mb-4">Order Progress</p>
+          <p className="font-black tracking-tight text-[#0F172A] text-base mb-5">Order Progress</p>
           <div className="space-y-3">
             {STEPS.map((s, i) => {
               const done    = activeStepIdx > i;
@@ -561,20 +561,20 @@ export default function OrderTrackingPage() {
                       )}
                     </div>
                     {i < STEPS.length - 1 && (
-                      <div className={`w-0.5 h-4 mt-1 rounded-full ${done ? 'bg-green-200' : 'bg-slate-100'}`} />
+                      <div className={`w-0.5 h-6 mt-1.5 rounded-full ${done ? 'bg-gradient-to-b from-green-400 to-green-500' : 'bg-slate-100'}`} />
                     )}
-                  </div>
-                  <div className={`pb-1 pt-1 ${future ? 'opacity-35' : ''}`}>
-                    <p className={`text-sm font-bold leading-tight ${
-                      current ? 'text-blue-700' : done ? 'text-[#0F172A]' : 'text-slate-400'
-                    }`}>
-                      {s.label}
-                    </p>
-                    {current && (
-                      <p className="text-xs text-slate-400 mt-0.5">{s.desc}</p>
-                    )}
-                  </div>
                 </div>
+                <div className={`pb-2 pt-1.5 ${future ? 'opacity-35' : ''}`}>
+                  <p className={`text-[15px] font-black leading-tight tracking-wide ${
+                    current ? 'text-blue-700' : done ? 'text-[#0F172A]' : 'text-slate-400'
+                  }`}>
+                    {s.label}
+                  </p>
+                  {current && (
+                    <p className="text-[13px] font-medium text-slate-500 mt-1 leading-snug">{s.desc}</p>
+                  )}
+                </div>
+              </div>
               );
             })}
           </div>
@@ -622,8 +622,8 @@ export default function OrderTrackingPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="rounded-2xl overflow-hidden ring-1 ring-violet-200"
-                style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}
+                className="rounded-[24px] overflow-hidden border border-violet-200/50"
+                style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', boxShadow: '0 8px 24px -4px rgba(139, 92, 246, 0.15)' }}
               >
                 <div className="px-4 py-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
@@ -648,14 +648,14 @@ export default function OrderTrackingPage() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: 'spring', damping: 20, stiffness: 260 }}
-                className="rounded-2xl overflow-hidden"
+                className="rounded-[24px] overflow-hidden border border-white/10"
                 style={{
                   background: status === 'arrived'
                     ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)'
                     : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                   boxShadow: status === 'arrived'
-                    ? '0 8px 28px rgba(124,58,237,0.35)'
-                    : '0 8px 24px rgba(245,158,11,0.3)',
+                    ? '0 12px 32px -4px rgba(124,58,237,0.4)'
+                    : '0 12px 32px -4px rgba(245,158,11,0.35)',
                 }}
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
@@ -685,8 +685,8 @@ export default function OrderTrackingPage() {
 
         {/* Service location */}
         <motion.div
-          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4 flex items-start gap-3"
-          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          className="rounded-[24px] bg-white/95 backdrop-blur-xl border border-slate-900/5 p-5 flex items-start gap-4"
+          style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
           variants={fadeInUp}
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-sm">

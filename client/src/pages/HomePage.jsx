@@ -26,6 +26,12 @@ import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 import IntroSplash from '../components/common/IntroSplash';
 import HeroCarousel from '../components/home/HeroCarousel';
 import OffersSection from '../components/home/OffersSection';
+import { 
+  PromoBannerVehicle, 
+  PromoBannerElectronics,
+  PromoBannerFamily,
+  PromoBannerEvents
+} from '../components/home/PromoBanners';
 import SEO, { HOME_SCHEMA, BASE_URL } from '../components/SEO';
 
 /* ─── Most booked — Electronics Rescue ────────────────────────────────── */
@@ -152,14 +158,19 @@ function LiveBadge() {
 
 /* ─── UC-style image service card ──────────────────────────────────────── */
 function ServiceImageCard({ item, nav }) {
+  // Generate a deterministic pseudo-random review count based on item name
+  const reviewCount = item.reviews || (() => {
+    const hash = (item.key || item.name || '').split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+    const num = ((hash % 85) + 15) / 10; // e.g. 1.5 to 9.9
+    return num.toFixed(1) + 'K';
+  })();
+
   return (
-    <motion.button
+    <div
       onClick={() => nav(`/book/${item.key}`)}
-      className="shrink-0 w-44 md:w-56 flex flex-col text-left group"
-      whileHover={{ y: -4 }}
-      whileTap={{ scale: 0.96 }}
+      className="shrink-0 w-36 sm:w-44 md:w-[200px] lg:w-[240px] flex flex-col text-left cursor-pointer group"
     >
-      <div className="w-full h-36 md:h-44 rounded-2xl md:rounded-[1.5rem] overflow-hidden bg-slate-100 mb-3 relative shadow-sm border border-slate-100">
+      <div className="w-full aspect-[4/3] sm:aspect-square rounded-[12px] md:rounded-[16px] overflow-hidden bg-slate-100 mb-2.5 relative">
         <img
           src={item.img}
           alt={item.name}
@@ -167,30 +178,17 @@ function ServiceImageCard({ item, nav }) {
           loading="lazy"
           onError={e => { e.target.style.display = 'none'; }}
         />
-        {item.instant && (
-          <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-full px-2.5 py-1 shadow-sm border border-white/20">
-            <Zap size={10} className="text-green-600 fill-green-600" strokeWidth={2.5} />
-            <span className="text-[10px] font-black text-green-600 tracking-wide">Instant</span>
-          </div>
-        )}
       </div>
-      <p className="text-[14px] md:text-base font-black text-slate-900 leading-tight mb-1 group-hover:text-indigo-600 transition-colors">{item.name}</p>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Star size={12} className="text-amber-400 fill-amber-400" />
-        <span className="text-xs font-bold text-slate-700">{item.rating.toFixed(2)}</span>
-        {item.instant && (
-          <>
-            <span className="text-slate-300 mx-0.5">·</span>
-            <Zap size={10} className="text-green-600 fill-green-600" />
-            <span className="text-[10px] font-bold text-green-600">Instant</span>
-          </>
-        )}
+      <p className="text-[13px] md:text-[15px] font-bold text-[#0f172a] leading-snug mb-0.5 truncate">{item.name}</p>
+      <div className="flex items-center gap-1.5 mb-0.5 text-slate-500">
+        <Star size={12} className="fill-black text-black" />
+        <span className="text-[11px] md:text-[13px] font-medium text-slate-600">{(item.rating || 4.8).toFixed(2)} ({reviewCount})</span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm md:text-base font-black text-slate-900">₹{item.price}</span>
-        {item.mrp && <span className="text-xs md:text-[13px] font-semibold text-slate-400 line-through">₹{item.mrp}</span>}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[13px] md:text-[15px] font-medium text-[#0f172a]">₹{item.price || 199}</span>
+        {(item.mrp || null) && <span className="text-[11px] md:text-[13px] text-slate-400 line-through">₹{item.mrp}</span>}
       </div>
-    </motion.button>
+    </div>
   );
 }
 
@@ -200,25 +198,23 @@ function PosterTile({ svc, nav }) {
   return (
     <motion.button onClick={() => nav(`/book/${key}`)} className="w-[104px] sm:w-[124px] md:w-[140px] lg:w-[156px] flex flex-col items-center gap-2.5 group shrink-0"
       whileHover={{ y: -4 }} whileTap={{ scale: 0.92 }} transition={springSnap}>
-      <div className={`w-full aspect-square rounded-[1.25rem] bg-gradient-to-br ${grad} relative overflow-hidden`}
-        style={{ boxShadow: shadow ? `0 6px 20px ${shadow}` : '0 4px 12px rgba(0,0,0,0.15)' }}>
-        <div className="absolute -right-3 -top-3 w-16 h-16 rounded-full bg-white/10" />
-        <div className="absolute -left-2 -bottom-3 w-12 h-12 rounded-full bg-white/10" />
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,0.4) 0px,rgba(255,255,255,0.4) 1px,transparent 1px,transparent 8px)',
-        }} />
+      <div className={`w-full aspect-square rounded-[28px] bg-gradient-to-br ${grad} relative overflow-hidden highlight-edge`}
+        style={{ boxShadow: shadow ? `0 12px 32px -4px ${shadow}` : '0 12px 32px -4px rgba(15,23,42,0.15)' }}>
+        <div className="absolute -right-3 -top-3 w-20 h-20 rounded-full bg-white/20 blur-xl" />
+        <div className="absolute -left-2 -bottom-3 w-16 h-16 rounded-full bg-black/10 blur-xl" />
+        <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-50" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Icon size={32} strokeWidth={1.5} className="text-white drop-shadow-md relative z-10 transition-transform duration-300 group-hover:scale-110" />
+          <Icon size={36} strokeWidth={1.5} className="text-white drop-shadow-lg relative z-10 transition-transform duration-500 group-hover:scale-110 group-hover:-translate-y-1" />
         </div>
         {eta && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
-            <div className="bg-black/30 backdrop-blur-sm rounded-full px-2 py-1 flex items-center gap-1 border border-white/10">
-              <Clock size={10} className="text-white/90" />
-              <span className="text-[10px] font-black text-white uppercase tracking-wider">{eta}</span>
+          <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/20 backdrop-blur-md rounded-full px-2.5 py-1 flex items-center gap-1.5 border border-white/20 highlight-edge">
+              <Clock size={10} className="text-white" />
+              <span className="text-[9px] font-black text-white uppercase tracking-widest">{eta}</span>
             </div>
           </div>
         )}
-        <motion.div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
+        <motion.div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       </div>
       <span className="text-xs sm:text-[13px] font-bold text-slate-700 text-center leading-tight">{name}</span>
     </motion.button>
@@ -233,18 +229,17 @@ function CompactTile({ svc, nav }) {
   return (
     <motion.button onClick={handleClick} className="w-[88px] sm:w-[104px] md:w-[120px] lg:w-[136px] flex flex-col items-center gap-2 group shrink-0"
       whileHover={{ y: -3 }} whileTap={{ scale: 0.93 }}>
-      <div className={`w-full aspect-square rounded-[1.1rem] bg-gradient-to-br ${grad} relative overflow-hidden shadow-sm group-hover:shadow-md transition-shadow`}
-        style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
-        <div className="absolute -right-2 -top-2 w-12 h-12 rounded-full bg-white/10" />
-        <div className="absolute -left-1 -bottom-2 w-8 h-8 rounded-full bg-white/10" />
+      <div className={`w-full aspect-square rounded-[24px] bg-gradient-to-br ${grad} relative overflow-hidden shadow-soft highlight-edge group-hover:shadow-soft-lg transition-shadow`}>
+        <div className="absolute -right-2 -top-2 w-16 h-16 rounded-full bg-white/10 blur-md" />
+        <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-30" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Icon size={24} strokeWidth={1.5} className="text-white relative z-10 transition-transform duration-300 group-hover:scale-110 drop-shadow-sm" />
+          <Icon size={28} strokeWidth={1.5} className="text-white relative z-10 transition-transform duration-500 group-hover:scale-110 drop-shadow-md" />
         </div>
         {eta && (
-          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-10">
-            <div className="bg-black/25 backdrop-blur-sm rounded-full px-1.5 py-0.5 flex items-center gap-0.5 border border-white/10">
-              <Clock size={8} className="text-white/90" />
-              <span className="text-[9px] font-black text-white">{eta}</span>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/20 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center gap-1 border border-white/20 highlight-edge">
+              <Clock size={8} className="text-white" />
+              <span className="text-[8px] font-black text-white uppercase tracking-widest">{eta}</span>
             </div>
           </div>
         )}
@@ -280,17 +275,17 @@ function CompactImageTile({ svc, nav }) {
 }
 
 /* ─── Section header ───────────────────────────────────────────────────── */
-function SectionHeader({ title, badge, badgeColor = 'bg-indigo-50 text-indigo-600 ring-indigo-100', onSeeAll }) {
+function SectionHeader({ title, badge, badgeColor = 'bg-slate-100 text-slate-800', onSeeAll }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 mb-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-[17px] font-black text-slate-900 whitespace-nowrap">{title}</h3>
-        {badge && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 whitespace-nowrap ${badgeColor}`}>{badge}</span>}
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 mb-4 md:mb-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-[20px] md:text-[28px] font-bold text-black tracking-tight">{title}</h2>
+        {badge && <span className={`text-[10px] md:text-xs font-medium px-2 py-0.5 rounded-md ${badgeColor}`}>{badge}</span>}
       </div>
       {onSeeAll && (
-        <motion.button onClick={onSeeAll} className="text-xs font-bold text-indigo-600 flex items-center gap-0.5 whitespace-nowrap" whileHover={{ x: 2 }}>
-          See all <ChevronRight size={12} strokeWidth={3} />
-        </motion.button>
+        <button onClick={onSeeAll} className="text-sm md:text-[15px] font-medium text-black hover:text-slate-600">
+          See all
+        </button>
       )}
     </div>
   );
@@ -434,28 +429,27 @@ export default function HomePage() {
         jsonLd={HOME_SCHEMA}
       />
       <IntroSplash />
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-white bg-noise">
 
         {/* ─── Premium Navbar ───────────────────────────────────────── */}
-        <header className="sticky top-0 z-30 bg-white" style={{ boxShadow: '0 1px 0 0 #f1f5f9, 0 4px 20px rgba(0,0,0,0.05)' }}>
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-900/5">
           {/* Top accent gradient line */}
-          <div className="h-[4px] bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
+          <div className="h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
 
-          <div className="max-w-[1600px] w-full mx-auto px-4 h-[60px] md:h-[80px] flex items-center gap-3 md:gap-8">
+          <div className="max-w-7xl w-full mx-auto px-4 md:px-6 h-[60px] md:h-[84px] flex items-center gap-3 md:gap-8">
             {/* Logo */}
-            <div className="flex items-center gap-2 shrink-0 cursor-pointer" onClick={() => nav('/')}>
-              <ZappyLogo size={32} className="md:w-10 md:h-10" />
-              <span className="hidden lg:block text-2xl font-black tracking-tighter text-slate-900">Zappy</span>
+            <div className="flex items-center shrink-0 cursor-pointer" onClick={() => nav('/')}>
+              <img 
+                src="/branding/zappylogo.png" 
+                alt="Zappy" 
+                className="h-[46px] md:h-[60px] object-contain drop-shadow-sm"
+              />
             </div>
 
             {/* Location widget ─ world-class GPS chip */}
             <motion.button
               onClick={() => setLocSheet(true)}
-              className="flex-1 md:flex-none md:w-[280px] min-w-0 flex items-center gap-3 px-4 h-10 md:h-12 rounded-xl relative overflow-hidden text-left"
-              style={{
-                background: 'linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%)',
-                border: '1px solid rgba(99,102,241,0.15)',
-              }}
+              className="flex-1 md:flex-none md:w-[280px] min-w-0 flex items-center gap-2 md:gap-3 px-3 md:px-4 h-11 md:h-14 rounded-[20px] relative overflow-hidden text-left bg-slate-50/50 hover:bg-indigo-50/50 border border-slate-200/50 hover:border-indigo-200/80 transition-colors"
               whileTap={{ scale: 0.98 }}
             >
               {/* Animated GPS pin */}
@@ -516,9 +510,8 @@ export default function HomePage() {
             <div className="hidden md:block flex-1 max-w-2xl mx-auto">
               <motion.button
                 onClick={() => nav('/services')}
-                className="w-full flex items-center gap-3 rounded-2xl px-5 h-12 text-left"
-                style={{ background: '#f8fafc', border: '2px solid #e2e8f0' }}
-                whileHover={{ borderColor: '#6366f1', background: '#fafbff' }}
+                className="w-full flex items-center gap-3 rounded-[24px] px-6 h-14 text-left bg-slate-50 border border-slate-200/80 shadow-inner"
+                whileHover={{ borderColor: 'rgba(99,102,241,0.4)', backgroundColor: '#fff', boxShadow: '0 4px 20px -2px rgba(15,23,42,0.05)' }}
                 whileTap={{ scale: 0.99 }}
               >
                 <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
@@ -537,7 +530,7 @@ export default function HomePage() {
               {/* Bell */}
               <motion.button
                 onClick={() => nav('/notifications')}
-                className="relative w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 hover:bg-slate-100 transition-colors"
+                className="relative w-11 h-11 md:w-[52px] md:h-[52px] rounded-full bg-white border border-slate-900/5 shadow-soft flex items-center justify-center shrink-0 hover:shadow-soft-lg hover:-translate-y-0.5 transition-all"
                 whileTap={{ scale: 0.88 }}
               >
                 <Bell size={18} strokeWidth={1.75} className="text-slate-600" />
@@ -550,7 +543,7 @@ export default function HomePage() {
               {/* Avatar */}
               <motion.button
                 onClick={() => nav('/profile')}
-                className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-black shadow-md hover:shadow-lg transition-shadow"
+                className="hidden md:flex w-11 h-11 md:w-[52px] md:h-[52px] rounded-full items-center justify-center shrink-0 text-white text-sm font-black shadow-glow-blue border border-white/20 hover:scale-105 transition-transform"
                 style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)' }}
                 whileTap={{ scale: 0.88 }}
               >
@@ -561,13 +554,12 @@ export default function HomePage() {
         </header>
 
         {/* ─── Mobile Search bar ───────────────────────────────────────────── */}
-        <div className="md:hidden bg-white px-4 pt-2 pb-4" style={{ borderBottom: '1px solid #f1f5f9' }}>
+        <div className="md:hidden bg-white/80 backdrop-blur-md px-4 pt-3 pb-5 border-b border-slate-900/5">
           <motion.button
             onClick={() => nav('/services')}
-            className="w-full flex items-center gap-3 rounded-[1rem] px-4 h-12 text-left"
-            style={{ background: '#f8fafc', border: '2px solid #e2e8f0' }}
-            whileHover={{ borderColor: '#6366f1', background: '#fafbff' }}
-            whileTap={{ scale: 0.99 }}
+            className="w-full flex items-center gap-3 rounded-[20px] px-4 h-14 text-left bg-slate-50 border border-slate-200/80 shadow-inner"
+            whileHover={{ borderColor: 'rgba(99,102,241,0.4)', backgroundColor: '#fff' }}
+            whileTap={{ scale: 0.98 }}
           >
             <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
             <span className="text-[14px] sm:text-[15px] font-medium text-slate-400 flex-1 leading-none pt-[2px] truncate">Search for a service…</span>
@@ -581,16 +573,16 @@ export default function HomePage() {
         </div>
 
         {/* ─── Hero section ─────────────────────────────────────────── */}
-        <div className="max-w-[1600px] w-full mx-auto px-4 pt-5 pb-5">
-          <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-2 md:pt-5 pb-5">
+          <div className="mb-4 md:mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div>
               <motion.h1
-                className="text-[26px] font-black text-slate-900 leading-[1.2] mb-2"
+                className="text-[32px] md:text-[40px] font-black text-slate-900 text-editorial mb-1.5 md:mb-2"
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
               >
-                Trusted assistance,<br />at your doorstep
+                Trusted assistance,<br />at your doorstep.
               </motion.h1>
-              <motion.p className="text-sm text-slate-500 font-medium"
+              <motion.p className="text-sm md:text-base text-slate-500 font-semibold tracking-wide"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
                 Phones · Laptops · Cars · Elders · Pets · Events
               </motion.p>
@@ -611,7 +603,7 @@ export default function HomePage() {
 
         {/* ─── Quick Rebook ─────────────────────────────────────────── */}
         {quickRebooks.length > 0 && (
-          <div className="max-w-5xl mx-auto px-5 mt-6">
+          <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-6">
             <div className="flex items-center gap-2 mb-3">
               <Repeat2 size={15} className="text-indigo-500" />
               <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Book Again</span>
@@ -634,29 +626,29 @@ export default function HomePage() {
         )}
 
         {/* ─── Premium Dashboard Widgets (Gamification & Quick Actions) ─── */}
-        <div className="max-w-5xl mx-auto px-5 mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Gamification Card (Left on Desktop, Top on Mobile) */}
           {gam ? (
-            <motion.div className="rounded-[2rem] bg-white border border-slate-100 p-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group"
-              whileHover={{ y: -4 }} transition={{ duration: 0.3 }}>
+            <motion.div className="bento-item p-8 flex flex-col justify-between group"
+              whileHover={{ y: -4, boxShadow: '0 20px 40px -8px rgba(15,23,42,0.15)' }} transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}>
               {/* Background accent */}
-              <div className={`absolute -right-12 -top-12 w-40 h-40 rounded-full bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} opacity-10 filter blur-3xl group-hover:opacity-20 transition-opacity`} />
+              <div className={`absolute -right-12 -top-12 w-48 h-48 rounded-full bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} opacity-20 filter blur-3xl group-hover:opacity-30 transition-opacity duration-500`} />
               
               <div className="flex justify-between items-start mb-8 relative z-10">
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1.5">Your Progress</p>
+                  <p className="text-[11px] font-black text-slate-500 text-editorial-wide mb-1.5">Your Progress</p>
                   <div className="flex items-center gap-2.5">
-                    <h3 className="text-2xl font-black text-slate-900">{gam.levelName}</h3>
+                    <h3 className="text-3xl font-black text-slate-900 text-editorial">{gam.levelName}</h3>
                     {gam.streak >= 2 && (
-                      <div className="flex items-center gap-1 bg-gradient-to-r from-orange-500 to-rose-500 px-2 py-1 rounded-lg text-white shadow-lg shadow-orange-500/20">
-                        <Flame size={12} className="fill-white" />
-                        <span className="text-[10px] font-black">{gam.streak} Day Streak</span>
+                      <div className="flex items-center gap-1 bg-gradient-to-r from-orange-500 to-rose-500 px-2.5 py-1.5 rounded-xl text-white shadow-lg shadow-orange-500/30 highlight-edge">
+                        <Flame size={14} className="fill-white" />
+                        <span className="text-[11px] font-black">{gam.streak} Day Streak</span>
                       </div>
                     )}
                   </div>
                 </div>
-                <div className={`w-14 h-14 rounded-[1.2rem] bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shadow-lg transform rotate-3 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500`}>
-                  <Trophy size={24} className="text-white drop-shadow-md" />
+                <div className={`w-16 h-16 rounded-[1.2rem] bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shadow-lg highlight-edge transform rotate-3 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500`}>
+                  <Trophy size={26} className="text-white drop-shadow-md" />
                 </div>
               </div>
               
@@ -673,7 +665,7 @@ export default function HomePage() {
               </div>
             </motion.div>
           ) : (
-            <div className="rounded-[2rem] bg-white border border-slate-100 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center items-center text-center">
+            <div className="rounded-[32px] bg-white border border-slate-900/5 p-8 shadow-soft flex flex-col justify-center items-center text-center">
               <Trophy size={32} className="text-slate-300 mb-3" />
               <p className="font-bold text-slate-900">Complete jobs to level up!</p>
               <p className="text-xs text-slate-500 mt-1">Earn XP and unlock exclusive rewards.</p>
@@ -682,33 +674,33 @@ export default function HomePage() {
 
           {/* Quick Cards Grid (Right on Desktop, Bottom on Mobile) */}
           <div className="grid grid-cols-2 gap-4">
-            <motion.button onClick={() => nav('/plans')} className="rounded-[2rem] p-5 flex flex-col justify-between text-left relative overflow-hidden group shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200/50"
-              whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-              <div className="w-12 h-12 rounded-[1.2rem] bg-amber-400 flex items-center justify-center shadow-lg shadow-amber-400/30 mb-4 group-hover:scale-110 transition-transform duration-300">
-                <Star size={20} className="text-white fill-white" />
+            <motion.button onClick={() => nav('/plans')} className="bento-item p-6 flex flex-col justify-between text-left group bg-gradient-to-br from-amber-50 to-amber-100/50"
+              whileHover={{ y: -4, scale: 1.02, boxShadow: '0 20px 40px -8px rgba(245,158,11,0.15)' }} whileTap={{ scale: 0.96 }} transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}>
+              <div className="w-14 h-14 rounded-[1.2rem] bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30 highlight-edge mb-4 group-hover:scale-110 transition-transform duration-500">
+                <Star size={24} className="text-white fill-white" />
               </div>
               <div>
-                <p className="text-lg sm:text-xl font-black text-amber-900 leading-tight">Zappy<br/>Premium</p>
-                <p className="text-[10px] sm:text-xs font-bold text-amber-700 mt-2 bg-amber-200/50 inline-block px-2 py-1 rounded-md">No surge fees</p>
+                <p className="text-xl sm:text-2xl font-black text-amber-900 text-editorial">Zappy<br/>Premium</p>
+                <p className="text-[11px] sm:text-xs font-black tracking-widest text-amber-700 mt-2 bg-amber-200/50 inline-block px-2.5 py-1 rounded-lg">NO SURGE FEES</p>
               </div>
             </motion.button>
 
-            <motion.button onClick={() => nav('/wallet')} className="rounded-[2rem] p-5 flex flex-col justify-between text-left relative overflow-hidden group shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/50"
-              whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-              <div className="w-12 h-12 rounded-[1.2rem] bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/30 mb-4 group-hover:scale-110 transition-transform duration-300">
-                <Wallet size={20} className="text-white" />
+            <motion.button onClick={() => nav('/wallet')} className="bento-item p-6 flex flex-col justify-between text-left group bg-gradient-to-br from-blue-50 to-indigo-100/50"
+              whileHover={{ y: -4, scale: 1.02, boxShadow: '0 20px 40px -8px rgba(59,130,246,0.15)' }} whileTap={{ scale: 0.96 }} transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}>
+              <div className="w-14 h-14 rounded-[1.2rem] bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 highlight-edge mb-4 group-hover:scale-110 transition-transform duration-500">
+                <Wallet size={24} className="text-white" />
               </div>
               <div>
-                <p className="text-lg sm:text-xl font-black text-blue-900 leading-tight">Zappy<br/>Wallet</p>
-                <p className="text-[10px] sm:text-xs font-bold text-blue-700 mt-2 bg-blue-200/50 inline-block px-2 py-1 rounded-md">Check balance</p>
+                <p className="text-xl sm:text-2xl font-black text-blue-900 text-editorial">Zappy<br/>Wallet</p>
+                <p className="text-[11px] sm:text-xs font-black tracking-widest text-blue-700 mt-2 bg-blue-200/50 inline-block px-2.5 py-1 rounded-lg">CHECK BALANCE</p>
               </div>
             </motion.button>
           </div>
         </div>
 
         {/* ─── Trust stats (Re-designed) ──────────────────────────── */}
-        <div className="max-w-5xl mx-auto px-5 mt-8 mb-6">
-          <div className="bg-slate-900 rounded-[2rem] py-6 px-4 sm:p-8 shadow-xl relative overflow-hidden">
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-10 mb-8">
+          <div className="bg-slate-900 rounded-[32px] py-8 px-6 sm:p-10 shadow-2xl relative overflow-hidden border border-slate-800">
             {/* Decorative orbs */}
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl" />
             <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-rose-500/20 rounded-full blur-3xl" />
@@ -729,20 +721,19 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="max-w-5xl mx-auto px-5">
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6">
 
           {/* ─── Offers ──────────────────────────────────────────────── */}
           <OffersSection />
 
           {/* Ad Banners */}
-          <div className="px-4"><AdBanner className="mt-4" /></div>
+          <AdBanner className="mt-4" />
 
           {/* ─── Electronics Rescue — Most Booked ────────────────────── */}
           <div className="mt-7">
-            <div className="px-4">
-              <SectionHeader title="Electronics Rescue" badge="Most Booked" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
-            </div>
-            <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-1">
+            <SectionHeader title="Electronics Rescue" badge="Most Booked" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
               {MOST_BOOKED.map((item, i) => (
                 <ServiceImageCard key={i} item={item} nav={nav} />
               ))}
@@ -752,70 +743,95 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ─── Phone Repair grid ────────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#eef2ff,#f5f3ff)', border: '1px solid rgba(99,102,241,0.12)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {PHONE_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
+          {/* ─── Phone Repair ────────────────────────────────────── */}
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {PHONE_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
             </div>
           </div>
 
           {/* ─── Laptop Services ──────────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-600 ring-slate-200" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)', border: '1px solid rgba(100,116,139,0.15)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {LAPTOP_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {LAPTOP_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
             </div>
           </div>
 
           {/* ─── Smart Devices ────────────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Smart Devices" badge="Install & Fix" badgeColor="bg-amber-50 text-amber-700 ring-amber-100" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.15)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {SMART_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Smart Devices" badge="Install & Fix" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {SMART_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
             </div>
           </div>
 
-          {/* ─── Vehicle Care — Image cards ───────────────────────────── */}
+          <PromoBannerVehicle />
+          <PromoBannerElectronics />
+
+          {/* ─── Vehicle Care ───────────────────────────── */}
           <div className="mt-7">
-            <div className="px-4">
-              <SectionHeader title="Vehicle Care" badge="On-Road Help" badgeColor="bg-cyan-50 text-cyan-700 ring-cyan-100" onSeeAll={() => nav('/services')} />
+            <div>
+              <SectionHeader title="Vehicle Care" badge="On-Road Help" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
             </div>
-            <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-1">
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
               {VEHICLE_HIGHLIGHTS.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
               <div className="shrink-0 w-12 flex items-center justify-center">
-                <motion.button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></motion.button>
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
               </div>
             </div>
           </div>
 
           {/* ─── Family & Elder Assist ────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Family Assist" badge="Trusted Help" badgeColor="bg-rose-50 text-rose-600 ring-rose-100" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fff1f2,#ffe4e6)', border: '1px solid rgba(244,63,94,0.12)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {FAMILY_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Family Assist" badge="Trusted Help" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {FAMILY_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
             </div>
           </div>
 
+          <PromoBannerFamily />
+          <PromoBannerEvents />
+
           {/* ─── Event Decorations ─────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Event Decorations" badge="🎉 Book a Theme" badgeColor="bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100" onSeeAll={() => nav('/events')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fdf4ff,#fae8ff)', border: '1px solid rgba(168,85,247,0.12)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {EVENT_TILES.map(svc => (
-                  <motion.div key={svc.key} variants={fadeInUp}>
-                    <CompactImageTile svc={svc} nav={() => nav(`/events/browse?category=${svc.category}`)} />
-                  </motion.div>
-                ))}
-              </motion.div>
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Event Decorations" badge="🎉 Book a Theme" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/events')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {EVENT_TILES.map((item, i) => (
+                <ServiceImageCard key={i} item={{...item, key: `../events/browse?category=${item.category}`}} nav={nav} />
+              ))}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/events')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
             </div>
           </div>
 
