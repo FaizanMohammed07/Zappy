@@ -429,7 +429,7 @@ export default function HomePage() {
         jsonLd={HOME_SCHEMA}
       />
       <IntroSplash />
-      <div className="min-h-screen bg-white bg-noise">
+      <div className="min-h-screen bg-white bg-noise overflow-x-hidden w-full">
 
         {/* ─── Premium Navbar ───────────────────────────────────────── */}
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-900/5">
