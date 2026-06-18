@@ -119,7 +119,8 @@ export default function ServicesPage() {
     setLoading(true);
     setLoadError(false);
     try {
-      const res = await fetch('/api/catalog/services');
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${baseUrl}/api/catalog/services`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setServices(data.services || []);

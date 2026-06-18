@@ -185,7 +185,8 @@ export default function WorkerDashboard() {
   const [avatarUrl, setAvatarUrl] = useState(null);
   useEffect(() => {
     if (!token || !meData?.worker?.profilePhotoKey) return;
-    fetch('/api/workers/me/avatar', { headers: { Authorization: `Bearer ${token}` } })
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    fetch(`${baseUrl}/api/workers/me/avatar`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.blob() : null)
       .then(blob => blob && setAvatarUrl(URL.createObjectURL(blob)))
       .catch(() => {});
@@ -392,7 +393,8 @@ export default function WorkerDashboard() {
           lastRestRef.current = now;
           const locBody = { lat: pos.lat, lng: pos.lng };
           if (me?.currentOrderId) locBody.orderId = me.currentOrderId;
-          fetch('/api/workers/location', {
+          const baseUrl = import.meta.env.VITE_API_URL || '';
+          fetch(`${baseUrl}/api/workers/location`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify(locBody),
