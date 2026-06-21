@@ -300,7 +300,7 @@ export default function DisputesPage() {
   return (
     <PageTransition>
       <div className="min-h-screen bg-[#F9FAFB] pb-40">
-        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="w-full max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
             <button onClick={() => nav('/profile')} className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
               <ChevronLeft size={16} className="text-white" />

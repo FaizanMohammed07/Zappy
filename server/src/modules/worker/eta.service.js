@@ -21,6 +21,7 @@
 
 const { redis } = require('../../config/redis');
 const logger = require('../../utils/logger');
+const gmaps  = require('../maps/google-maps.service');
 
 const PICKUP_KEY      = (orderId) => `order:pickup:${orderId}`;
 const ARRIVING_SOON_KEY = (orderId) => `order:arriving_soon_sent:${orderId}`;
@@ -74,8 +75,20 @@ async function computeAndBroadcast({ orderId, workerId, workerLat, workerLng, or
   let pickup;
   try { pickup = JSON.parse(raw); } catch { return; }
 
-  const distKm = haversineKm(workerLat, workerLng, pickup.lat, pickup.lng);
-  const etaMinutes = Math.max(1, Math.ceil(distKm / (URBAN_SPEED_KMH / 60)));
+  let distKm, etaMinutes;
+
+  // Use Google Distance Matrix for traffic-aware ETA; fall back to haversine.
+  try {
+    const matrix = await gmaps.getDistanceMatrix(workerLat, workerLng, pickup.lat, pickup.lng);
+    distKm     = matrix.distanceMeters / 1000;
+    etaMinutes = Math.max(1, Math.ceil(matrix.durationInTrafficSeconds / 60));
+    logger.debug({ orderId, distKm: distKm.toFixed(2), etaMinutes, source: 'google' }, '[ETA] Google Distance Matrix');
+  } catch {
+    distKm     = haversineKm(workerLat, workerLng, pickup.lat, pickup.lng);
+    etaMinutes = Math.max(1, Math.ceil(distKm / (URBAN_SPEED_KMH / 60)));
+    logger.debug({ orderId, distKm: distKm.toFixed(2), etaMinutes, source: 'haversine' }, '[ETA] Haversine fallback');
+  }
+
   const isArrivingSoon = distKm <= ARRIVING_SOON_THRESHOLD_KM;
 
   // Broadcast ETA to order room

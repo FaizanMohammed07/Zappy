@@ -259,7 +259,7 @@ export default function NotificationsPage() {
       <div className="min-h-screen" style={{ background: 'linear-gradient(180deg,#f0f4ff 0%,#f9fafb 120px)' }}>
 
         {/* Header */}
-        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid rgba(0,0,0,0.05)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-3">
             <motion.button
               onClick={() => nav(-1)}

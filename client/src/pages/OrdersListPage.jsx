@@ -87,7 +87,7 @@ export default function OrdersListPage() {
   return (
     <PageTransition>
       <div className="min-h-screen pb-40" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
-        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
             <h1 className="font-black text-white flex-1 flex items-center gap-2">
               <ClipboardList size={18} className="text-blue-400" />
