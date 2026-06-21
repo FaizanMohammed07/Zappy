@@ -6,6 +6,7 @@ import { selectAuth } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
 import { useFCM } from './hooks/useFCM.jsx';
 import { adminPath } from './config/admin';
+import { ZI_SLUG, ziPath } from './config/zi';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
 
@@ -30,6 +31,22 @@ const WorkerDashboard     = lazy(() => import('./pages/WorkerDashboard'));
 const WorkerJobPage       = lazy(() => import('./pages/WorkerJobPage'));
 const WorkerKycPage       = lazy(() => import('./pages/WorkerKycPage'));
 const AdminDashboard      = lazy(() => import('./pages/AdminDashboard'));
+
+// Zappy Intelligence Platform
+const ZIApp              = lazy(() => import('./pages/zi/ZIApp'));
+const ZILogin            = lazy(() => import('./pages/zi/ZILogin'));
+const ZICommandCenter    = lazy(() => import('./pages/zi/ZICommandCenter'));
+const ZIExpansion        = lazy(() => import('./pages/zi/ZIExpansion'));
+const ZIAIAssistant      = lazy(() => import('./pages/zi/ZIAIAssistant'));
+const ZIForecasting      = lazy(() => import('./pages/zi/ZIForecasting'));
+const ZIFraudCenter      = lazy(() => import('./pages/zi/ZIFraudCenter'));
+const ZIPricingEngine    = lazy(() => import('./pages/zi/ZIPricingEngine'));
+const ZIPartnerIntel     = lazy(() => import('./pages/zi/ZIPartnerIntel'));
+const ZIWorkerIntel      = lazy(() => import('./pages/zi/ZIWorkerIntel'));
+const ZIInvestorBoardroom = lazy(() => import('./pages/zi/ZIInvestorBoardroom'));
+const ZISimulator        = lazy(() => import('./pages/zi/ZISimulator'));
+const ZIHeatmaps         = lazy(() => import('./pages/zi/ZIHeatmaps'));
+const ZIAdsManager       = lazy(() => import('./pages/zi/ZIAdsManager'));
 const AdminLoginPage      = lazy(() => import('./pages/AdminLoginPage'));
 const PlansPage           = lazy(() => import('./pages/PlansPage'));
 const WalletPage          = lazy(() => import('./pages/WalletPage'));
@@ -159,6 +176,23 @@ export default function App() {
           path={adminPath('/dashboard')}
           element={<RequireAuth role="admin"><AdminDashboard /></RequireAuth>}
         />
+
+        {/* Zappy Intelligence Platform — secret slug, separate auth & layout */}
+        <Route path={ziPath('/login')} element={<ZILogin />} />
+        <Route path={`/${ZI_SLUG}`} element={<ZIApp />}>
+          <Route index element={<ZICommandCenter />} />
+          <Route path="expansion" element={<ZIExpansion />} />
+          <Route path="ai" element={<ZIAIAssistant />} />
+          <Route path="forecast" element={<ZIForecasting />} />
+          <Route path="fraud" element={<ZIFraudCenter />} />
+          <Route path="pricing" element={<ZIPricingEngine />} />
+          <Route path="partners" element={<ZIPartnerIntel />} />
+          <Route path="workers" element={<ZIWorkerIntel />} />
+          <Route path="investor" element={<ZIInvestorBoardroom />} />
+          <Route path="simulator" element={<ZISimulator />} />
+          <Route path="heatmaps" element={<ZIHeatmaps />} />
+          <Route path="ads" element={<ZIAdsManager />} />
+        </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

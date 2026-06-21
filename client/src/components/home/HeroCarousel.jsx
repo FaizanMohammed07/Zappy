@@ -56,6 +56,8 @@ export default function HeroCarousel() {
           src={SLIDES[current].image}
           alt={SLIDES[current].title}
           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+          fetchPriority={current === 0 ? 'high' : 'low'}
+          loading={current === 0 ? 'eager' : 'lazy'}
           initial={{ opacity: 0, scale: 1.05 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0 }}

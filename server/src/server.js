@@ -8,6 +8,7 @@ const { ensureAdminSeeded } = require("./modules/admin/admin.seed");
 const { seedPlans } = require("./modules/subscription/plan.seed");
 const { seedEventCategories } = require("./modules/events/event-category.seed");
 const EventBooking = require("./modules/events/event-booking.model");
+const { seedZIAdmin } = require("./modules/zi/zi-seed");
 
 /**
  * Startup reconciliation: reset workers who are marked unavailable but whose
@@ -106,6 +107,7 @@ async function start() {
   await ensureAdminSeeded();
   await seedPlans();
   await seedEventCategories();
+  await seedZIAdmin();
 
   const app = buildApp();
   const server = http.createServer(app);

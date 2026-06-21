@@ -8,9 +8,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:4000',
+      '/api': 'http://127.0.0.1:4000',
       '/socket.io': {
-        target: 'http://localhost:4000',
+        target: 'http://127.0.0.1:4000',
         ws: true,
         configure: (proxy) => {
           proxy.on('error', (err) => {
@@ -40,33 +40,28 @@ export default defineConfig({
 
     rollupOptions: {
       output: {
-        // ── Manual chunks — keep large third-party libs in their own files ──
-        // Browsers cache vendor chunks independently of app code.
-        // A code change no longer busts the cached mapbox or firebase chunk. (#70)
         manualChunks: {
-          // Map + location (largest single dep, ~330KB gzipped)
           'vendor-map':      ['mapbox-gl'],
-          // Firebase (push notifications + FCM, ~180KB gzipped)
           'vendor-firebase': ['firebase/app', 'firebase/messaging'],
-          // Animation engine
           'vendor-motion':   ['framer-motion'],
-          // React core — almost never changes
           'vendor-react':    ['react', 'react-dom', 'react-router-dom'],
-          // State management
           'vendor-redux':    ['@reduxjs/toolkit', 'react-redux'],
+          'vendor-ui':       ['lucide-react'],
         },
+        // Content-hash filenames for aggressive long-term caching
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
       },
     },
 
     // Enable CSS code splitting so route chunks only load their own styles. (#70)
     cssCodeSplit: true,
 
-    // Use esbuild minification (faster than terser, ships with Vite). (#70)
     minify: 'esbuild',
-
-    // Strip console.log in production — reduces bundle + removes debug noise. (#70)
     esbuildOptions: {
-      drop: ['console'],
+      drop: ['console', 'debugger'],
+      legalComments: 'none',
     },
   },
 });

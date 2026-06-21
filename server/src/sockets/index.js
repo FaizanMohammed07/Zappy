@@ -22,6 +22,7 @@ const etaService = require('../modules/worker/eta.service');
 const geoService = require('../modules/worker/geo.service');
 const Order = require('../modules/order/order.model');
 const logger = require('../utils/logger');
+const { initZICommandSocket } = require('../modules/zi/sockets/zi-command.socket');
 
 let io = null;
 
@@ -372,6 +373,9 @@ function initSockets(httpServer) {
       logger.warn({ err: err.message, channel }, 'Bad pub/sub message');
     }
   });
+
+  // ZI Command Center namespace
+  initZICommandSocket(io);
 
   logger.info('Socket.io initialized with Redis adapter');
   return io;

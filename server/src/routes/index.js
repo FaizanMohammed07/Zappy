@@ -1,4 +1,5 @@
 const seoRoutes = require('../modules/seo/seo.routes');
+const ziRoutes = require('../modules/zi/routes/zi.routes');
 const authRoutes = require('../modules/auth/auth.routes');
 const verticalConfigRoutes = require('../modules/service/vertical-config.routes');
 const userRoutes = require('../modules/user/user.routes');
@@ -82,6 +83,11 @@ function mountRoutes(app) {
   app.use('/api/events/partner', eventPartnerRoutes);  // MUST be before /api/events to avoid :id conflict
   app.use('/api/events', eventRoutes);
   app.use(`/api/${slug}/events`, eventAdminRoutes);
+
+  // Zappy Intelligence Platform (secret-slug protected, separate JWT auth)
+  const ziSlug = process.env.ZI_SLUG;
+  if (!ziSlug) throw new Error('ZI_SLUG env var is required');
+  app.use(`/api/zi/${ziSlug}`, ziRoutes);
 
   // Block anyone probing the old /api/admin path
   app.use('/api/admin', (req, res) => res.status(404).json({ error: 'Not found' }));
