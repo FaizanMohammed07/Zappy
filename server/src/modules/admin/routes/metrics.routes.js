@@ -8,5 +8,6 @@ const router = express.Router();
 router.get('/revenue', ctrl.getRevenue);
 router.get('/metrics', ctrl.getMetrics);
 router.get('/analytics', ctrl.getAnalytics);
+router.get('/otp-analytics', ctrl.getOtpAnalytics);
 
 module.exports = router;

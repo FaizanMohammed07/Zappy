@@ -150,6 +150,19 @@ function toView(doc) {
     tierMultiplierExpress:   doc.tierMultiplierExpress   ?? 1.4,
     tierExpressMaxSearchMs:  doc.tierExpressMaxSearchMs  ?? 60000,
     tierPriorityMaxSearchMs: doc.tierPriorityMaxSearchMs ?? 120000,
+    surgeTolerancePct:        doc.surgeTolerancePct        ?? 0.10,
+    // Auto-pricing
+    nightSurchargeEnabled:    doc.nightSurchargeEnabled    ?? false,
+    nightSurchargeMultiplier: doc.nightSurchargeMultiplier ?? 1.3,
+    nightStartHour:           doc.nightStartHour           ?? 22,
+    nightEndHour:             doc.nightEndHour             ?? 6,
+    rainSurchargeEnabled:     doc.rainSurchargeEnabled     ?? false,
+    rainSurchargeMultiplier:  doc.rainSurchargeMultiplier  ?? 1.2,
+    rainActiveUntil:          doc.rainActiveUntil          ?? null,
+    weekendSurchargeEnabled:    doc.weekendSurchargeEnabled    ?? false,
+    weekendSurchargeMultiplier: doc.weekendSurchargeMultiplier ?? 1.1,
+    peakHourSurchargeEnabled: doc.peakHourSurchargeEnabled ?? false,
+    peakHourRanges:           doc.peakHourRanges           ?? [],
   };
 }
 
@@ -278,26 +291,90 @@ function geoBucket(lat, lng) {
   return `${lat.toFixed(2)}:${lng.toFixed(2)}`;
 }
 
-async function computeSurge(lat, lng, cfg) {
-  if (!cfg.surgeEnabled) return 1.0;
-  const bucket = geoBucket(lat, lng);
-  const [demand, supply] = await Promise.all([
-    redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
-    redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0),
-  ]);
-
-  let surge;
-  if (supply === 0 && demand > 0) surge = 2.0;
-  else if (supply === 0) surge = 1.0;
-  else {
-    const ratio = demand / supply;
-    if (ratio < 1) surge = 1.0;
-    else if (ratio < 2) surge = 1.2;
-    else if (ratio < 3) surge = 1.5;
-    else if (ratio < 5) surge = 1.8;
-    else surge = 2.5;
+async function computeSurgeBreakdown(lat, lng, cfg) {
+  const anyAutoPricingOn = cfg.nightSurchargeEnabled || cfg.rainSurchargeEnabled ||
+                           cfg.weekendSurchargeEnabled || cfg.peakHourSurchargeEnabled;
+  if (!cfg.surgeEnabled && !anyAutoPricingOn) {
+    return { multiplier: 1.0, factors: [], demand: 0, supply: 0 };
   }
-  return Math.min(surge, cfg.surgeMaxCap);
+
+  let demand = 0, supply = 0;
+  let surge = 1.0;
+
+  // Demand/supply ratio — only when global surge toggle is on
+  if (cfg.surgeEnabled) {
+    const bucket = geoBucket(lat, lng);
+    [demand, supply] = await Promise.all([
+      redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
+      redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0),
+    ]);
+
+    if (supply > 0) {
+      const ratio = demand / supply;
+      if (ratio < 1) surge = 1.0;
+      else if (ratio < 2) surge = 1.2;
+      else if (ratio < 3) surge = 1.5;
+      else if (ratio < 5) surge = 1.8;
+      else surge = 2.5;
+    }
+    // supply === 0 → surge stays 1.0 (no workers = not a surge situation)
+  }
+
+  const factors = [];
+  // IST = UTC + 5h30m
+  const nowMs  = Date.now();
+  const istMs  = nowMs + 330 * 60000;
+  const istDate = new Date(istMs);
+  const istHour = istDate.getUTCHours();
+  const istDow  = istDate.getUTCDay(); // 0=Sun, 6=Sat
+
+  if (cfg.nightSurchargeEnabled) {
+    const start = cfg.nightStartHour ?? 22;
+    const end   = cfg.nightEndHour   ?? 6;
+    const m     = cfg.nightSurchargeMultiplier ?? 1.3;
+    const isNight = start > end
+      ? istHour >= start || istHour < end  // crosses midnight e.g. 22–6
+      : istHour >= start && istHour < end;
+    if (isNight && m > 1) {
+      surge *= m;
+      factors.push({ type: 'night', multiplier: m, label: 'Night Surcharge' });
+    }
+  }
+
+  if (cfg.rainSurchargeEnabled && cfg.rainActiveUntil) {
+    const m = cfg.rainSurchargeMultiplier ?? 1.2;
+    if (new Date(cfg.rainActiveUntil) > new Date(nowMs) && m > 1) {
+      surge *= m;
+      factors.push({ type: 'rain', multiplier: m, label: 'Rain Surcharge' });
+    }
+  }
+
+  if (cfg.weekendSurchargeEnabled) {
+    const m = cfg.weekendSurchargeMultiplier ?? 1.1;
+    if ((istDow === 0 || istDow === 6) && m > 1) {
+      surge *= m;
+      factors.push({ type: 'weekend', multiplier: m, label: 'Weekend Surcharge' });
+    }
+  }
+
+  if (cfg.peakHourSurchargeEnabled && Array.isArray(cfg.peakHourRanges)) {
+    for (const range of cfg.peakHourRanges) {
+      const { startHour, endHour, multiplier: m, label } = range;
+      if (istHour >= startHour && istHour < endHour && m > 1) {
+        surge *= m;
+        factors.push({ type: 'peak', multiplier: m, label: label || 'Peak Hour Surcharge' });
+        break;
+      }
+    }
+  }
+
+  const raw = Math.min(surge, cfg.surgeMaxCap ?? 2.5);
+  return { multiplier: Math.round(raw * 100) / 100, factors, demand, supply };
+}
+
+async function computeSurge(lat, lng, cfg) {
+  const { multiplier } = await computeSurgeBreakdown(lat, lng, cfg);
+  return multiplier;
 }
 
 async function recordDemand(lat, lng, service) {
@@ -754,10 +831,18 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
     };
   }
 
-  // ── Admin floor + ceiling from catalog ──────────────────────────────────
-  // Floor: quote never below priceRangeMinPaise (set by admin).
-  // Ceiling: quote never above priceRangeMaxPaise (protects retention). (#82)
-  // Both are admin-controlled via the Services pricing page.
+  // ── Catalog floor/ceiling + global surge — order: FLOOR → SURGE → CEILING ──
+  // Applying surge AFTER the floor means ₹150 floor × 1.3× night = ₹195,
+  // not ₹50 base × 1.3 = ₹65 → floored back to ₹150 (surge invisible).
+  // Generic path already has surgeMultiplier set so _pendingSurge is 1.0 (no-op).
+  let _pendingSurge = 1.0;
+  if (result.surgeMultiplier == null) {
+    try {
+      const surgeCfg = await getActiveConfig();
+      _pendingSurge = await computeSurge(origin.lat, origin.lng, surgeCfg);
+    } catch (_) { /* non-fatal */ }
+  }
+
   try {
     const ServiceCatalog = require('../service/service-catalog.model');
     const catalogEntry = await ServiceCatalog.findOne(
@@ -766,17 +851,26 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
     ).lean();
 
     if (catalogEntry) {
-      const currentPaise = result.paise?.total ?? result.total * 100;
-
-      // Floor
-      if (catalogEntry.priceRangeMinPaise && currentPaise < catalogEntry.priceRangeMinPaise) {
-        if (result.paise) result.paise.total = catalogEntry.priceRangeMinPaise;
-        result.total = paiseToRupees(catalogEntry.priceRangeMinPaise);
+      // Step 1 — Floor on raw pre-surge price
+      if (catalogEntry.priceRangeMinPaise) {
+        const rawPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        if (rawPaise < catalogEntry.priceRangeMinPaise) {
+          if (result.paise) result.paise.total = catalogEntry.priceRangeMinPaise;
+          result.total = paiseToRupees(catalogEntry.priceRangeMinPaise);
+        }
       }
 
-      // Ceiling (#82): cap at max to prevent sticker shock that kills conversions.
-      // Only apply when max is set and is meaningfully above the floor.
-      const finalPaise = result.paise?.total ?? result.total * 100;
+      // Step 2 — Surge on the floored price (no-op for generic path which already has surgeMultiplier)
+      if (_pendingSurge > 1.0) {
+        const flooredPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        const surgedPaise  = Math.round(flooredPaise * _pendingSurge);
+        if (result.paise) result.paise.total = surgedPaise;
+        result.total = paiseToRupees(surgedPaise);
+        result.surgeMultiplier = _pendingSurge;
+      }
+
+      // Step 3 — Ceiling (hard cap even after surge)
+      const finalPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
       if (
         catalogEntry.priceRangeMaxPaise &&
         catalogEntry.priceRangeMaxPaise > (catalogEntry.priceRangeMinPaise || 0) &&
@@ -784,7 +878,16 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
       ) {
         if (result.paise) result.paise.total = catalogEntry.priceRangeMaxPaise;
         result.total = paiseToRupees(catalogEntry.priceRangeMaxPaise);
-        result.ceilingApplied = true; // flag so admin analytics can detect this
+        result.ceilingApplied = true;
+      }
+    } else {
+      // No catalog entry — apply surge directly to raw price
+      if (_pendingSurge > 1.0) {
+        const rawPaise    = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        const surgedPaise = Math.round(rawPaise * _pendingSurge);
+        if (result.paise) result.paise.total = surgedPaise;
+        result.total = paiseToRupees(surgedPaise);
+        result.surgeMultiplier = _pendingSurge;
       }
     }
   } catch (_) { /* non-fatal — pricing still works if catalog lookup fails */ }
@@ -888,6 +991,7 @@ module.exports = {
   quote, // alias
   calculateEarnings,
   computeSurge,
+  computeSurgeBreakdown,
   recordDemand,
   recordSupply,
   getActiveConfig,

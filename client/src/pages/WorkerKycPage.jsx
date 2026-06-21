@@ -23,7 +23,9 @@ function useMyDoc(docType, token, enabled) {
     if (!enabled || !token) return;
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/kyc/stream/${docType}`, { headers: { Authorization: `Bearer ${token}` } })
+    // Must use absolute URL — on Vercel+EC2 split, relative /api hits Vercel (404).
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    fetch(`${apiBase}/api/kyc/stream/${docType}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.blob() : null)
       .then(blob => {
         if (cancelled || !blob) return;
@@ -134,6 +136,21 @@ export default function WorkerKycPage() {
     } catch (err) { toast.error(err.data?.error || 'Failed'); }
   }
 
+  /* ── Shared S3 PUT helper ──────────────────────────────────────────────── */
+  async function uploadToS3(signed, body, contentType) {
+    let putRes;
+    try {
+      putRes = await fetch(signed.uploadUrl, {
+        method: 'PUT',
+        body,
+        headers: { 'Content-Type': contentType },
+      });
+    } catch {
+      throw new Error('Upload failed. Please check your internet connection and try again.');
+    }
+    if (!putRes.ok) throw new Error('Upload failed. Please try again or use a smaller file.');
+  }
+
   /* ── File upload (Aadhaar / License) ──────────────────────────────────── */
   async function handleUpload(docKey, file) {
     if (!file) return;
@@ -141,15 +158,11 @@ export default function WorkerKycPage() {
     try {
       setUploading(docKey);
       const { data: signed } = await presign({ folder: 'kyc', contentType: file.type || 'image/jpeg' });
-      const putRes = await fetch(signed.uploadUrl, {
-        method: 'PUT', body: file,
-        headers: { 'Content-Type': file.type || 'image/jpeg' },
-      });
-      if (!putRes.ok) throw new Error('Upload failed');
+      await uploadToS3(signed, file, file.type || 'image/jpeg');
       setUrls((prev) => ({ ...prev, [docKey]: signed.key }));
       toast.success('Document uploaded');
     } catch (err) {
-      toast.error(err.message || 'Upload failed');
+      toast.error('Document upload failed. Please try again.');
     } finally {
       setUploading(null);
     }
@@ -161,16 +174,12 @@ export default function WorkerKycPage() {
     try {
       setUploading('selfieUrl');
       const { data: signed } = await presign({ folder: 'kyc', contentType: 'image/jpeg' });
-      const putRes = await fetch(signed.uploadUrl, {
-        method: 'PUT', body: blob,
-        headers: { 'Content-Type': 'image/jpeg' },
-      });
-      if (!putRes.ok) throw new Error('Selfie upload failed');
+      await uploadToS3(signed, blob, 'image/jpeg');
       setUrls((prev) => ({ ...prev, selfieUrl: signed.key }));
       setSelfieMetadata(metadata);
       toast.success('Selfie captured ✓');
     } catch (err) {
-      toast.error(err.message || 'Selfie upload failed');
+      toast.error('Selfie upload failed. Please try again.');
     } finally {
       setUploading(null);
     }

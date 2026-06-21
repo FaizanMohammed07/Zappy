@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, ShoppingBag, Users, Briefcase, Tag,
@@ -182,7 +182,8 @@ function NavItem({ item, isActive, onClick }) {
 
 /* ─── Main ─────────────────────────────────────────────────────────────── */
 export default function AdminDashboard() {
-  const [active,      setActive]      = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const active = searchParams.get('tab') || 'overview';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dispatch  = useDispatch();
   const navigate  = useNavigate();
@@ -192,9 +193,9 @@ export default function AdminDashboard() {
   const activeLabel = ALL_NAV.find(n => n.id === active)?.label || 'Dashboard';
 
   const handleNav = useCallback((id) => {
-    setActive(id);
+    setSearchParams({ tab: id }, { replace: true });
     setSidebarOpen(false);
-  }, []);
+  }, [setSearchParams]);
 
   async function doLogout() {
     try { await callLogout().unwrap(); } catch {}

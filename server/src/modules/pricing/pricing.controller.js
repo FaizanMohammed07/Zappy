@@ -29,7 +29,7 @@ async function getSurgeInfo(req, res, next) {
     }
 
     const cfg = await pricingService.getActiveConfig();
-    const surge = await pricingService.computeSurge(lat, lng, cfg);
+    const { multiplier: surge, factors: surgeFactors } = await pricingService.computeSurgeBreakdown(lat, lng, cfg);
 
     /* Raw demand/supply from same bucket used by computeSurge */
     const bucket = `${Math.round(lat * 50) / 50}:${Math.round(lng * 50) / 50}`;
@@ -71,6 +71,7 @@ async function getSurgeInfo(req, res, next) {
     res.json({
       surge,
       surgeEnabled: cfg.surgeEnabled,
+      surgeFactors,
       demand: demandRaw,
       supply: supplyRaw,
       ratio: supplyRaw > 0 ? Math.round((demandRaw / supplyRaw) * 10) / 10 : null,

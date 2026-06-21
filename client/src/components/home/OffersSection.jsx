@@ -37,7 +37,7 @@ export default function OffersSection() {
   const nav = useNavigate();
 
   return (
-    <div className="mt-8 mb-4 max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8">
+    <div className="mt-8 mb-4 w-full">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-[17px] md:text-xl lg:text-2xl font-black text-slate-900">Special Offers</h3>
         <button 
@@ -48,13 +48,14 @@ export default function OffersSection() {
         </button>
       </div>
       
-      <div className="flex gap-4 md:gap-6 overflow-x-auto no-scrollbar pb-6 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-6 -mx-4 md:-mx-6 snap-x snap-mandatory">
+        <div className="shrink-0 w-1 md:w-2" />
         {OFFERS.map((offer) => (
           <motion.div
             key={offer.id}
-            className="shrink-0 w-[260px] md:w-[320px] lg:w-[400px] rounded-2xl p-5 md:p-6 lg:p-8 relative overflow-hidden text-white shadow-lg md:shadow-xl"
+            className="shrink-0 w-[260px] md:w-[320px] lg:w-[400px] rounded-[32px] p-5 md:p-6 lg:p-8 relative overflow-hidden text-white shadow-[0_12px_32px_-4px_rgba(15,23,42,0.15)]"
             style={{ background: offer.bg }}
-            whileHover={{ y: -4 }}
+            whileHover={{ y: -4, boxShadow: '0 20px 40px -8px rgba(15,23,42,0.2)' }}
             whileTap={{ scale: 0.96 }}
           >
             {/* Background Decorations */}

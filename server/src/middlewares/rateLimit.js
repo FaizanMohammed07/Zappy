@@ -38,6 +38,11 @@ const globalLimiter   = makeLimiter({ windowMs: 15_000,     max: 200, prefix: 'g
 // ── Auth: 20 req / min — OTP dev testing fires frequently ───────────────────
 const authLimiter     = makeLimiter({ windowMs: 60_000,     max: 20,  prefix: 'auth'   });
 
+// ── OTP per-phone: 5 send requests per hour (enforced in service layer via Redis INCR)
+// This IP-level limiter is an extra defence layer — prevents a single IP from
+// cycling through many phone numbers. 20 phones/hr per IP is reasonable.
+const otpPhoneLimiter = makeLimiter({ windowMs: 3_600_000,  max: 20,  prefix: 'otpip'  });
+
 // ── Admin auth: 3 attempts per 15 min per IP (#79) ──────────────────────────
 // Much stricter than the general authLimiter. Brute-forcing admin credentials
 // must be economically infeasible — each wrong password costs 5 min of lockout.
@@ -73,7 +78,7 @@ const nearbyLimiter   = makeLimiter({ windowMs: 60_000,     max: 20,  prefix: 'n
 const disputeLimiter  = makeLimiter({ windowMs: 3_600_000,  max: 5,   prefix: 'dispute'});
 
 module.exports = {
-  globalLimiter, authLimiter, adminAuthLimiter, orderLimiter, workerOnlineLimiter,
+  globalLimiter, authLimiter, adminAuthLimiter, otpPhoneLimiter, orderLimiter, workerOnlineLimiter,
   cancelLimiter, topupLimiter, ratingLimiter,
   quoteLimiter, nearbyLimiter, disputeLimiter,
 };

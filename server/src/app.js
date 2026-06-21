@@ -24,6 +24,9 @@ function buildApp() {
   // Each directive is the minimum required for the app to function.
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    // Allow popups (Google OAuth) to communicate back to the opener.
+    // Default 'same-origin' blocks window.opener inside the Firebase auth popup.
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     contentSecurityPolicy: {
       directives: {
         defaultSrc:     ["'self'"],

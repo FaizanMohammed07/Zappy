@@ -254,7 +254,7 @@ function initSockets(httpServer) {
   // Dispatch worker publishes events; we relay them to the right rooms.
   const subscriber = subClient.duplicate();
 
-  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', 'surge:alert', 'order:boost', 'worker:kyc_rejected', (err) => {
+  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', 'surge:alert', 'order:boost', 'worker:kyc_rejected', 'worker:job_pulled', (err) => {
     if (err) logger.error({ err }, 'Pub/sub subscribe failed');
   });
   // Notifications are per-recipient — `notification:<kind>:<id>`. Use pattern sub.
@@ -325,6 +325,12 @@ function initSockets(httpServer) {
           status: data.status,
           reason: data.reason,
         });
+        return;
+      }
+
+      if (channel === 'worker:job_pulled') {
+        // { workerId, orderId } — stale-order watchdog pulled the job from this worker
+        io.to(`worker:${data.workerId}`).emit('job.pulled', { orderId: data.orderId });
         return;
       }
 
