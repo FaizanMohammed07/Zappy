@@ -100,12 +100,23 @@ const SERVICE_ICONS = {
 const CATEGORIES = [
   { key: 'all',          label: 'All',           Icon: Sparkles    },
   { key: 'mobile',       label: 'Phone',         Icon: Smartphone  },
-  { key: 'other',        label: 'Smart Devices', Icon: Tv          },
+  { key: 'smart_device', label: 'Smart Devices', Icon: Tv          },
   { key: 'vehicle',      label: 'Vehicle',       Icon: Car         },
   { key: 'helper',       label: 'Family',        Icon: Heart       },
-  { key: 'other2',       label: 'Events',        Icon: Star        },
-  { key: 'other3',       label: 'Pets',          Icon: Dog         },
+  { key: 'event',        label: 'Events',        Icon: Star        },
+  { key: 'pet',          label: 'Pets',          Icon: Dog         },
 ];
+
+// Smart Devices, Events, and Pets all share category='other' in the DB schema.
+// Use code-prefix matching to distinguish them on the frontend.
+const CATEGORY_MATCHERS = {
+  mobile:       (s) => s.category === 'mobile',
+  vehicle:      (s) => s.category === 'vehicle',
+  helper:       (s) => s.category === 'helper',
+  smart_device: (s) => s.category === 'other' && !s.code?.startsWith('event_') && !s.code?.startsWith('pet_'),
+  event:        (s) => s.code?.startsWith('event_'),
+  pet:          (s) => s.code?.startsWith('pet_'),
+};
 
 export default function ServicesPage() {
   const nav = useNavigate();
@@ -137,7 +148,10 @@ export default function ServicesPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return services.filter((s) => {
-      if (category !== 'all' && s.category !== category) return false;
+      if (category !== 'all') {
+        const matcher = CATEGORY_MATCHERS[category];
+        if (matcher ? !matcher(s) : s.category !== category) return false;
+      }
       if (q && !s.name.toLowerCase().includes(q) && !(s.description || '').toLowerCase().includes(q)) return false;
       return true;
     });
@@ -148,7 +162,7 @@ export default function ServicesPage() {
       <div className="min-h-screen bg-[#F8FAFC] pb-40 font-sans selection:bg-indigo-500/30">
         
         {/* Immersive Header */}
-        <header className="sticky top-0 z-30 pt-4 pb-2 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50">
+        <header className="sticky top-0 z-30 pb-2 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
           <div className="page-container">
             {/* Top Bar */}
             <div className="flex items-center justify-between mb-6">

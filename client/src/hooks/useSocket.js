@@ -106,7 +106,7 @@ export function useOrderSocket(orderId, callbacks = {}) {
     };
 
     const onCancelled = () => {
-      toast('Order cancelled', { icon: null });
+      toast('Order cancelled', { id: 'order-cancel', icon: '❌' });
       dispatch(clearActiveOrder());
     };
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,7 +14,9 @@ import {
 } from '../../services/api';
 import { saveGeoLocation, loadGeoLocation } from '../../utils/geoCache';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { useGoogleMaps, GOOGLE_MAPS_KEY } from '../../services/maps';
 import { SERVICE_WORKER_EMOJI, SERVICE_COLORS } from '../../constants/services';
+import { setLocation as setReduxLocation, selectLocation, selectHasLocation } from '../../store/locationSlice';
 
 const TOKEN    = import.meta.env.VITE_MAPBOX_TOKEN;
 const SHEET_H  = 140;
@@ -37,12 +40,12 @@ function ensureLocPickStyles() {
       100% { transform:scale(2.6); opacity:0;   }
     }
     @keyframes zlp-loc-ring-a {
-      0%   { transform:scale(1);   opacity:.5; }
-      100% { transform:scale(2.8); opacity:0;  }
+      0%   { transform:scale(1) translateX(-50%); opacity:.55; }
+      100% { transform:scale(2.8) translateX(-17%); opacity:0;  }
     }
     @keyframes zlp-loc-ring-b {
-      0%   { transform:scale(1);   opacity:.3; }
-      100% { transform:scale(3.8); opacity:0;  }
+      0%   { transform:scale(1) translateX(-50%); opacity:.3; }
+      100% { transform:scale(3.5) translateX(-14%); opacity:0;  }
     }
     @keyframes zlp-loc-glow {
       0%,100% { box-shadow:0 0 0 3px rgba(37,99,235,.25); }
@@ -51,6 +54,17 @@ function ensureLocPickStyles() {
     @keyframes zlp-gps-ring {
       0%   { transform:scale(1);   opacity:.6; }
       100% { transform:scale(3.5); opacity:0;  }
+    }
+    @keyframes zlp-pin-drop {
+      0%   { transform:translateY(-22px) scale(0.85); opacity:0;  }
+      55%  { transform:translateY(4px)  scale(1.06); opacity:1;  }
+      75%  { transform:translateY(-6px) scale(0.97); opacity:1;  }
+      90%  { transform:translateY(2px)  scale(1.02); opacity:1;  }
+      100% { transform:translateY(0)   scale(1);    opacity:1;  }
+    }
+    @keyframes zlp-pin-pulse {
+      0%,100% { filter:drop-shadow(0 6px 14px rgba(79,70,229,.65)) drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+      50%      { filter:drop-shadow(0 6px 22px rgba(79,70,229,.95)) drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
     }
     @keyframes zlp-wheel-spin {
       from { transform:rotate(0deg); }
@@ -239,24 +253,36 @@ function makeWorkerDot(emoji = '👷', accentColor = '#22c55e', serviceSlug = ''
 function makeUserLocationEl() {
   ensureLocPickStyles();
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:relative;width:20px;height:20px';
+  wrap.style.cssText = 'position:relative;width:22px;height:22px;';
   wrap.innerHTML = `
+    <!-- Outer pulse ring A -->
     <div style="
-      width:20px;height:20px;border-radius:50%;
-      background:#2563EB;border:3px solid white;
-      box-shadow:0 2px 10px rgba(37,99,235,.6);
-      position:relative;z-index:3;
-      animation:zlp-loc-glow 2.5s ease-in-out infinite;
+      position:absolute;inset:-10px;border-radius:50%;
+      background:rgba(37,99,235,0.18);
+      animation:zlp-loc-ring-a 2s ease-out infinite;
+      z-index:0;
     "></div>
+    <!-- Outer pulse ring B (delayed) -->
     <div style="
-      position:absolute;inset:-7px;border-radius:50%;
-      background:rgba(37,99,235,.22);z-index:2;
-      animation:zlp-loc-ring-a 2.2s ease-out infinite;
+      position:absolute;inset:-10px;border-radius:50%;
+      background:rgba(37,99,235,0.1);
+      animation:zlp-loc-ring-b 2s ease-out infinite 0.65s;
+      z-index:0;
     "></div>
+    <!-- White border ring -->
     <div style="
-      position:absolute;inset:-11px;border-radius:50%;
-      background:rgba(37,99,235,.1);z-index:1;
-      animation:zlp-loc-ring-b 2.2s ease-out infinite .6s;
+      position:absolute;inset:0;border-radius:50%;
+      background:#ffffff;
+      box-shadow:0 2px 8px rgba(0,0,0,0.35);
+      z-index:1;
+    "></div>
+    <!-- Blue filled dot -->
+    <div style="
+      position:absolute;inset:3px;border-radius:50%;
+      background:#2563EB;
+      box-shadow:0 0 0 1px rgba(37,99,235,0.3);
+      z-index:2;
+      animation:zlp-loc-glow 2.8s ease-in-out infinite;
     "></div>`;
   return wrap;
 }
@@ -265,6 +291,10 @@ function ensureWorkerDotStyles() { ensureLocPickStyles(); }
 
 export default function LocationPicker({ onConfirm, serviceLabel, service }) {
   const { getCurrent } = useGeolocation();
+  const { isLoaded: gmapsLoaded } = useGoogleMaps();
+  const dispatch    = useDispatch();
+  const reduxLoc    = useSelector(selectLocation);
+  const hasReduxLoc = useSelector(selectHasLocation);
 
   const [view,        setView]        = useState('quick');
   const [address,      setAddress]      = useState('');
@@ -275,7 +305,12 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
   const [geoState,    setGeoState]    = useState('idle');
   const [geoError,    setGeoError]    = useState(null);
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
-  const [detectedLoc, setDetectedLoc] = useState(() => loadGeoLocation());
+  const [detectedLoc, setDetectedLoc] = useState(() => {
+    // Prefer in-memory Redux location (survives route changes, no 30-min TTL).
+    // Fall back to localStorage cache (survives page refresh for 30 min).
+    if (reduxLoc.lat !== null) return { lat: reduxLoc.lat, lng: reduxLoc.lng, accuracy: reduxLoc.accuracy };
+    return loadGeoLocation();
+  });
   const [searchQ,     setSearchQ]     = useState('');
   const [results,     setResults]     = useState([]);
   const [searching,   setSearching]   = useState(false);
@@ -295,17 +330,33 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
   const savedAddresses  = addrData?.addresses      || [];
   const recentLocations = addrData?.recentLocations || [];
 
-  // On mount: acquire GPS using multi-sample accuracy improvement.
-  // The hook collects up to 4 readings over 8 seconds and returns the most
-  // accurate one, dramatically reducing the ~500-1500m WiFi-triangulation error
-  // that makes the same physical location appear 1-2km apart across browsers.
+  // On mount: resolve location using a 3-tier priority chain — no redundant GPS calls.
+  // Tier 1: Redux store (in-memory, survives route navigation — fastest, zero latency).
+  // Tier 2: localStorage cache via geoCache (survives page refresh, 30-min TTL).
+  // Tier 3: Live GPS multi-sample (8-second window, fires only when no fresh location exists).
   useEffect(() => {
+    if (hasReduxLoc) {
+      // Already have location from this session — reuse immediately.
+      setGeoState('done');
+      return;
+    }
+    const cached = loadGeoLocation();
+    if (cached) {
+      setDetectedLoc(cached);
+      setGpsAccuracy(cached.accuracy);
+      setGeoState('done');
+      // Hydrate Redux so subsequent navigations skip even the localStorage read.
+      dispatch(setReduxLocation({ lat: cached.lat, lng: cached.lng, accuracy: cached.accuracy }));
+      return;
+    }
+    // No location available — fire GPS detection (once per session).
     setGeoState('loading');
     getCurrent()
       .then((loc) => {
         setDetectedLoc(loc);
         setGpsAccuracy(loc.accuracy);
         setGeoState('done');
+        dispatch(setReduxLocation({ lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy }));
       })
       .catch(() => {
         setGeoState(detectedLoc ? 'done' : 'error');
@@ -316,20 +367,52 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
   useEffect(() => {
     if (!searchQ.trim() || searchQ.length < 3) { setResults([]); return; }
     const t = setTimeout(async () => {
-      if (!TOKEN) return;
       setSearching(true);
       try {
-        const r = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQ)}.json` +
-          `?access_token=${TOKEN}&country=IN&language=en&limit=6&types=address,place,neighborhood,locality`,
-        );
-        const d = await r.json();
-        setResults(d.features || []);
+        // ── Google Places Autocomplete (primary) ─────────────────────────────
+        if (gmapsLoaded && window.google?.maps?.places) {
+          const svc = new window.google.maps.places.AutocompleteService();
+          const bias = coords
+            ? new window.google.maps.Circle({ center: { lat: coords.lat, lng: coords.lng }, radius: 50000 })
+            : (detectedLoc
+              ? new window.google.maps.Circle({ center: { lat: detectedLoc.lat, lng: detectedLoc.lng }, radius: 50000 })
+              : null);
+
+          svc.getPlacePredictions(
+            { input: searchQ, componentRestrictions: { country: 'in' }, locationBias: bias },
+            (predictions, status) => {
+              if (status === 'OK' && predictions?.length) {
+                setResults(predictions.map((p) => ({
+                  id          : p.place_id,
+                  _isGoogle   : true,
+                  _placeId    : p.place_id,
+                  text        : p.structured_formatting?.main_text || p.description,
+                  place_name  : p.description,
+                  secondaryText: p.structured_formatting?.secondary_text || '',
+                })));
+              } else {
+                setResults([]);
+              }
+              setSearching(false);
+            },
+          );
+          return; // autocomplete callback handles setSearching(false)
+        }
+
+        // ── Mapbox Geocoding (fallback) ───────────────────────────────────────
+        if (TOKEN) {
+          const r = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQ)}.json` +
+            `?access_token=${TOKEN}&country=IN&language=en&limit=6&types=address,place,neighborhood,locality`,
+          );
+          const d = await r.json();
+          setResults(d.features || []);
+        }
       } catch { setResults([]); }
       setSearching(false);
     }, 350);
     return () => clearTimeout(t);
-  }, [searchQ]);
+  }, [searchQ, gmapsLoaded, coords, detectedLoc]);
 
   useEffect(() => {
     if (view !== 'map') return;
@@ -347,7 +430,7 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
 
       const initCenter = stateRef.current.pendingCenter
         ?? (detectedLoc ? [detectedLoc.lng, detectedLoc.lat] : [77.5946, 12.9716]);
-      const initZoom = (stateRef.current.pendingCenter || detectedLoc) ? 15 : 11;
+      const initZoom = (stateRef.current.pendingCenter || detectedLoc) ? 17 : 12;
 
       const map = new mapboxgl.Map({
         container,
@@ -386,7 +469,7 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
         tryPaint('landuse', 'fill-color', '#14532d');
         tryPaint('landuse', 'fill-opacity', 0.6);
         if (stateRef.current.pendingCenter) {
-          map.flyTo({ center: stateRef.current.pendingCenter, zoom: 16, duration: 900 });
+          map.flyTo({ center: stateRef.current.pendingCenter, zoom: 17, duration: 900 });
           stateRef.current.pendingCenter = null;
         }
         const loc = detectedLoc;
@@ -532,10 +615,46 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
     onConfirm({ address: sa.address, lat, lng });
   }
 
-  function selectSearchResult(f) {
-    const [lng, lat] = f.center;
-    saveRecent({ address: f.place_name, lat, lng }).catch(() => {});
-    onConfirm({ address: f.place_name, lat, lng });
+  async function selectSearchResult(f) {
+    if (f._isGoogle && f._placeId) {
+      // Resolve Google Place ID → coordinates via geocoding REST API
+      try {
+        const r = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json` +
+          `?place_id=${encodeURIComponent(f._placeId)}&key=${GOOGLE_MAPS_KEY}&language=en`,
+        );
+        const d = await r.json();
+        const loc = d.results?.[0]?.geometry?.location;
+        if (loc) {
+          const { lat, lng } = loc;
+          saveRecent({ address: f.place_name, lat, lng }).catch(() => {});
+          onConfirm({ address: f.place_name, lat, lng });
+          return;
+        }
+      } catch { /* fall through to address-based geocode */ }
+
+      // Fallback: geocode by description string
+      try {
+        const r = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json` +
+          `?address=${encodeURIComponent(f.place_name)}&key=${GOOGLE_MAPS_KEY}&region=in&language=en`,
+        );
+        const d = await r.json();
+        const loc = d.results?.[0]?.geometry?.location;
+        if (loc) {
+          saveRecent({ address: f.place_name, lat: loc.lat, lng: loc.lng }).catch(() => {});
+          onConfirm({ address: f.place_name, lat: loc.lat, lng: loc.lng });
+          return;
+        }
+      } catch { /* ignored */ }
+    }
+
+    // Mapbox feature — has f.center = [lng, lat]
+    if (f.center) {
+      const [lng, lat] = f.center;
+      saveRecent({ address: f.place_name, lat, lng }).catch(() => {});
+      onConfirm({ address: f.place_name, lat, lng });
+    }
   }
 
   /* ════════════════════════════════════════════════════════════════
@@ -889,7 +1008,7 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
         )}
       </AnimatePresence>
 
-      {/* ── Premium Center Pin ─────────────────────────────────────── */}
+      {/* ── Uber-style Center Pin ──────────────────────────────────── */}
       <div
         className="absolute z-10 pointer-events-none flex flex-col items-center"
         style={{
@@ -898,60 +1017,68 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
           transform: 'translateX(-50%) translateY(-100%)',
         }}
       >
-        {/* Pulse ring — vivid orange glow when stationary */}
-        {!isDragging && coords && (
-          <>
-            <motion.div
-              className="absolute rounded-full"
-              style={{ width: 60, height: 60, top: -12, left: '50%', marginLeft: -30, background: 'rgba(249,115,22,0.25)', zIndex: 0 }}
-              animate={{ scale: [1, 1.8], opacity: [0.7, 0] }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
-            />
-            <motion.div
-              className="absolute rounded-full"
-              style={{ width: 60, height: 60, top: -12, left: '50%', marginLeft: -30, background: 'rgba(249,115,22,0.12)', zIndex: 0 }}
-              animate={{ scale: [1, 2.4], opacity: [0.5, 0] }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.4 }}
-            />
-          </>
-        )}
-
-        {/* Pin body — vibrant orange, highly visible on dark map */}
+        {/* Circle head */}
         <motion.div
-          animate={{ y: isDragging ? -18 : 0, scale: isDragging ? 1.15 : 1 }}
-          transition={{ type: 'spring', stiffness: 480, damping: 26 }}
-          style={{ position: 'relative', zIndex: 1 }}
+          animate={{ y: isDragging ? -16 : 0, scale: isDragging ? 1.08 : 1 }}
+          transition={{ type: 'spring', stiffness: 520, damping: 30 }}
+          style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          <svg width="44" height="56" viewBox="0 0 44 56" fill="none">
-            <defs>
-              <filter id="ps" x="-50%" y="-20%" width="200%" height="180%">
-                <feDropShadow dx="0" dy={isDragging ? 10 : 5} stdDeviation={isDragging ? 8 : 4}
-                  floodColor="#c2410c" floodOpacity={isDragging ? 0.7 : 0.45} />
-              </filter>
-              <linearGradient id="pg" x1="0" y1="0" x2="0.7" y2="1">
-                <stop offset="0%" stopColor="#fb923c" />
-                <stop offset="100%" stopColor="#ea580c" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M22 0C9.85 0 0 9.85 0 22C0 38.5 22 56 22 56C22 56 44 38.5 44 22C44 9.85 34.15 0 22 0Z"
-              fill="url(#pg)" filter="url(#ps)"
-            />
-            {/* White ring */}
-            <circle cx="22" cy="22" r="11" fill="white" />
-            {/* Inner dot */}
-            <circle cx="22" cy="22" r="5.5" fill="#ea580c" />
-            {/* Gloss highlight */}
-            <ellipse cx="17.5" cy="16.5" rx="5" ry="3" fill="white" opacity="0.45" transform="rotate(-20 17.5 16.5)" />
-          </svg>
+          {/* Outer white circle */}
+          <div style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: '#ffffff',
+            boxShadow: isDragging
+              ? '0 10px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.35)'
+              : '0 4px 16px rgba(0,0,0,0.45), 0 1px 4px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            transition: 'box-shadow 0.2s ease',
+          }}>
+            {/* Zappy Z */}
+            <span style={{
+              fontFamily: "'Inter','Helvetica Neue',Arial,sans-serif",
+              fontWeight: 900,
+              fontSize: 17,
+              lineHeight: 1,
+              color: '#1a1a2e',
+              letterSpacing: '-0.04em',
+              userSelect: 'none',
+            }}>Z</span>
+          </div>
         </motion.div>
 
-        {/* Shadow beneath pin */}
+        {/* Stem — thin line below the circle */}
         <motion.div
-          animate={{ scaleX: isDragging ? 0.45 : 1, opacity: isDragging ? 0.3 : 0.22 }}
-          transition={{ type: 'spring', stiffness: 480, damping: 26 }}
-          className="rounded-full"
-          style={{ width: 20, height: 6, marginTop: -4, background: 'rgba(234,88,12,0.8)', filter: 'blur(4px)' }}
+          animate={{ scaleY: isDragging ? 1.35 : 1, opacity: isDragging ? 0.6 : 1 }}
+          transition={{ type: 'spring', stiffness: 520, damping: 30 }}
+          style={{
+            width: 2.5,
+            height: 18,
+            borderRadius: 2,
+            background: '#ffffff',
+            marginTop: 0,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+            transformOrigin: 'top',
+            zIndex: 2,
+          }}
+        />
+
+        {/* Ground shadow — shrinks when lifted */}
+        <motion.div
+          animate={{ scaleX: isDragging ? 0.35 : 1, opacity: isDragging ? 0.2 : 0.45 }}
+          transition={{ type: 'spring', stiffness: 520, damping: 30 }}
+          style={{
+            width: 14,
+            height: 5,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.6)',
+            filter: 'blur(3px)',
+            marginTop: 1,
+          }}
         />
       </div>
 

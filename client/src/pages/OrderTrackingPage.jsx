@@ -232,11 +232,12 @@ export default function OrderTrackingPage() {
       setCancelReason('');
       if (result.feeRupees > 0) {
         toast(`Order cancelled — ₹${result.feeRupees} cancellation fee charged`, {
+          id: 'order-cancel',
           icon: '💳',
           duration: 5000,
         });
       } else {
-        toast.success('Order cancelled — no charge');
+        toast.success('Order cancelled — no charge', { id: 'order-cancel' });
       }
       refetch();
     } catch (err) {
@@ -321,7 +322,7 @@ export default function OrderTrackingPage() {
       </AnimatePresence>
 
       {/* Premium header */}
-      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
           <motion.button onClick={() => nav('/')} className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0" whileTap={{ scale: 0.92 }}>
             <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />

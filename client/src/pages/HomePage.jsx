@@ -432,7 +432,7 @@ export default function HomePage() {
       <div className="min-h-screen bg-white bg-noise overflow-x-hidden w-full">
 
         {/* ─── Premium Navbar ───────────────────────────────────────── */}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-900/5">
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-900/5" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           {/* Top accent gradient line */}
           <div className="h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
 
