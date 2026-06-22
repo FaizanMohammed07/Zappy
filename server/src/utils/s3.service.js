@@ -9,6 +9,13 @@ const s3 = new S3Client({
     accessKeyId: config.aws.accessKeyId,
     secretAccessKey: config.aws.secretAccessKey,
   },
+  // AWS SDK v3 (>= 3.729) embeds a CRC32 checksum into presigned PUT URLs by
+  // default. That breaks direct browser uploads — the browser must then send an
+  // x-amz-checksum-crc32 header matching a checksum computed at sign time, which
+  // it can't. Reverting to WHEN_REQUIRED keeps presigned PUTs simple (just
+  // Content-Type), so the client can upload with no extra headers.
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 /**
