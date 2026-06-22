@@ -38,9 +38,20 @@ function initSockets(httpServer) {
     }
   });
 
+  // Allow both apex and www (and any custom CLIENT_URL) — must match the
+  // Express CORS allow-list in app.js, otherwise socket.io rejects whichever
+  // host the user actually loaded (www vs non-www mismatch).
+  const SOCKET_ORIGINS = [
+    'https://www.zappyone.com',
+    'https://zappyone.com',
+  ];
+  if (process.env.CLIENT_URL && !SOCKET_ORIGINS.includes(process.env.CLIENT_URL)) {
+    SOCKET_ORIGINS.push(process.env.CLIENT_URL);
+  }
+
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? false : '*'),
+      origin: process.env.NODE_ENV === 'production' ? SOCKET_ORIGINS : '*',
       methods: ['GET', 'POST'],
       credentials: true,
     },
