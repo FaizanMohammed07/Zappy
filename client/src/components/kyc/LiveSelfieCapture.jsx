@@ -28,18 +28,26 @@ export default function LiveSelfieCapture({ onCapture, onCancel }) {
   const [errorMsg, setErrorMsg]   = useState('');
   const [geoStatus, setGeoStatus] = useState('fetching'); // fetching | ok | denied
 
-  // Fetch geo in background as soon as component mounts
-  useEffect(() => {
+  // Fetch geo — location is MANDATORY for onboarding, so allow retry.
+  const fetchGeo = useCallback(() => {
     if (!navigator.geolocation) { setGeoStatus('denied'); return; }
+    setGeoStatus('fetching');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        geoRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        geoRef.current = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        };
         setGeoStatus('ok');
       },
       () => setGeoStatus('denied'),
-      { timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, []);
+
+  // Fetch geo in background as soon as component mounts
+  useEffect(() => { fetchGeo(); }, [fetchGeo]);
 
   // Start camera
   const startCamera = useCallback(async () => {
@@ -131,11 +139,17 @@ export default function LiveSelfieCapture({ onCapture, onCancel }) {
   }
 
   function accept() {
+    // Location is mandatory — guard against accepting without a fix.
+    if (geoStatus !== 'ok' || geoRef.current?.lat == null) {
+      fetchGeo();
+      return;
+    }
     const metadata = {
       capturedAt:     new Date().toISOString(),
       captureMethod:  'live_camera',
-      lat:            geoRef.current?.lat ?? null,
-      lng:            geoRef.current?.lng ?? null,
+      lat:            geoRef.current.lat,
+      lng:            geoRef.current.lng,
+      accuracy:       geoRef.current.accuracy ?? null,
       geoStatus,
       userAgent:      navigator.userAgent.slice(0, 200),
     };
@@ -163,12 +177,21 @@ export default function LiveSelfieCapture({ onCapture, onCancel }) {
         {/* body */}
         <div className="p-5 space-y-4">
 
-          {/* geo status chip */}
-          <div className="flex items-center gap-1.5">
-            <MapPin size={11} className={geoStatus === 'ok' ? 'text-green-500' : geoStatus === 'fetching' ? 'text-amber-400' : 'text-red-400'} />
-            <span className="text-[11px] font-semibold text-slate-400">
-              {geoStatus === 'ok' ? 'Location captured' : geoStatus === 'fetching' ? 'Fetching location…' : 'Location unavailable'}
-            </span>
+          {/* geo status chip — location is mandatory */}
+          <div className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 ${
+            geoStatus === 'ok' ? 'bg-green-50' : geoStatus === 'fetching' ? 'bg-amber-50' : 'bg-red-50'
+          }`}>
+            <div className="flex items-center gap-1.5">
+              <MapPin size={12} className={geoStatus === 'ok' ? 'text-green-600' : geoStatus === 'fetching' ? 'text-amber-500' : 'text-red-500'} />
+              <span className={`text-[11px] font-bold ${geoStatus === 'ok' ? 'text-green-700' : geoStatus === 'fetching' ? 'text-amber-700' : 'text-red-600'}`}>
+                {geoStatus === 'ok' ? 'Location captured ✓' : geoStatus === 'fetching' ? 'Fetching location…' : 'Location required — enable GPS'}
+              </span>
+            </div>
+            {geoStatus === 'denied' && (
+              <button onClick={fetchGeo} className="text-[11px] font-bold text-red-600 underline shrink-0">
+                Retry
+              </button>
+            )}
           </div>
 
           {/* camera / preview area */}
@@ -288,14 +311,28 @@ export default function LiveSelfieCapture({ onCapture, onCancel }) {
             )}
 
             {step === 'preview' && (
-              <div className="flex gap-2">
-                <button onClick={retake} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm py-3 rounded-2xl transition">
-                  <RefreshCw size={14} /> Retake
-                </button>
-                <button onClick={accept} className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold text-sm py-3 rounded-2xl transition">
-                  <CheckCircle2 size={14} /> Use Photo
-                </button>
-              </div>
+              <>
+                {geoStatus !== 'ok' && (
+                  <div className="flex items-center gap-1.5 bg-red-50 rounded-xl px-3 py-2 mb-2">
+                    <AlertTriangle size={12} className="text-red-500 shrink-0" />
+                    <span className="text-[11px] font-semibold text-red-600">
+                      {geoStatus === 'fetching' ? 'Getting your location… please wait' : 'Location is required to submit. Enable GPS and tap Retry above.'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={retake} className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm py-3 rounded-2xl transition">
+                    <RefreshCw size={14} /> Retake
+                  </button>
+                  <button
+                    onClick={accept}
+                    disabled={geoStatus !== 'ok'}
+                    className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm py-3 rounded-2xl transition"
+                  >
+                    <CheckCircle2 size={14} /> Use Photo
+                  </button>
+                </div>
+              </>
             )}
 
             {step === 'error' && (

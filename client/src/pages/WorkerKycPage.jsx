@@ -191,6 +191,11 @@ export default function WorkerKycPage() {
       toast.error('Aadhaar, driving license, and live selfie are all required');
       return;
     }
+    // Location is mandatory — the live selfie must carry GPS coordinates.
+    if (typeof selfieMetadata?.lat !== 'number' || typeof selfieMetadata?.lng !== 'number') {
+      toast.error('Location is required. Please enable GPS and recapture your live selfie.');
+      return;
+    }
     try {
       await submitKyc({ ...urls, selfieMetadata }).unwrap();
       toast.success('Documents submitted for review');

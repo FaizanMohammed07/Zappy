@@ -49,6 +49,16 @@ async function submitKyc(req, res, next) {
       }
     }
 
+    // Location is MANDATORY — anti-fraud + dispatch zoning. Reject submissions
+    // whose live selfie has no GPS fix (denied/spoofed/unavailable).
+    const meta = req.body.selfieMetadata;
+    if (!meta || typeof meta.lat !== 'number' || typeof meta.lng !== 'number') {
+      return res.status(400).json({
+        error: 'Location is required. Please enable GPS/location and recapture your live selfie.',
+        code: 'KYC_LOCATION_REQUIRED',
+      });
+    }
+
     const now = new Date();
     const rejectionCount = w.kyc?.rejectionCount || 0;
 
