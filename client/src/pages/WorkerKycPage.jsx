@@ -124,6 +124,10 @@ export default function WorkerKycPage() {
   const status          = data?.kyc?.status || 'not_submitted';
   const rejectionReason = data?.kyc?.rejectionReason;
   const changeRequest   = data?.kyc?.changeRequest;
+  const clarification   = data?.kyc?.clarification;
+  // Admin asked for a fix ("upload a clear selfie") — re-open the upload form
+  // even though the submission is still technically pending_review.
+  const needsClarification = status === 'pending_review' && clarification?.active;
 
   async function handleRequestChange() {
     if (changeMsg.trim().length < 10) { toast.error('Please describe why you need to change documents (min 10 chars)'); return; }
@@ -214,7 +218,7 @@ export default function WorkerKycPage() {
     );
   }
 
-  if (status === 'pending_review') {
+  if (status === 'pending_review' && !needsClarification) {
     return (
       <div className="min-h-screen bg-[#F9FAFB]">
         <header className="page-header"><div className="page-header-inner">
@@ -331,6 +335,20 @@ export default function WorkerKycPage() {
         </header>
 
         <div className="max-w-lg mx-auto px-4 pt-4 space-y-3">
+
+          {/* Admin clarification — action needed, re-upload requested */}
+          {needsClarification && (
+            <div className="card bg-amber-50 ring-1 ring-amber-200">
+              <div className="flex items-start gap-3">
+                <MessageSquare size={16} strokeWidth={2} className="text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Action needed from admin</p>
+                  <p className="text-sm text-amber-700 mt-1 leading-relaxed">{clarification.message}</p>
+                  <p className="text-xs text-amber-500 mt-1.5">Please fix the above and re-upload your documents below.</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Rejection notice */}
           {status === 'rejected' && rejectionReason && (

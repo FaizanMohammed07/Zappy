@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { selectAuth } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
 import { useFCM } from './hooks/useFCM.jsx';
+import useTelemetry from './hooks/useTelemetry';
 import { adminPath } from './config/admin';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
@@ -76,6 +77,7 @@ function PageLoader() {
 export default function App() {
   useDisconnectOnLogout();
   useFCM();
+  useTelemetry();
   const { accessToken: token, role } = useSelector(selectAuth);
   const location = useLocation();
 

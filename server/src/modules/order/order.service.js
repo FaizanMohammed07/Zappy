@@ -202,8 +202,10 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     pricing = emergencyService.applyEmergencySurcharge(pricing);
   }
 
-  // Record demand for surge calculation.
-  await pricingService.recordDemand(origin.lat, origin.lng);
+  // Record demand for surge calculation + durable heatmap/intelligence analytics.
+  // Pass `service` so DemandEvent.service is populated (was previously null,
+  // breaking by-service demand/trending analytics).
+  await pricingService.recordDemand(origin.lat, origin.lng, service);
 
   // Apply promo code discount
   let appliedPromo = null;

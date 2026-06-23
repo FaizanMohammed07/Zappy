@@ -24,6 +24,7 @@ import {
 } from '../services/api';
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp } from '../lib/animations';
+import { trackSearch } from '../hooks/useTelemetry';
 import toast from 'react-hot-toast';
 import SEO, { SERVICE_META as SEO_SERVICE_META, buildServiceJsonLd, BASE_URL } from '../components/SEO';
 
@@ -404,6 +405,10 @@ export default function BookingPage() {
     setLocation(loc);
     setPricingMode('now');
     setStage('details');
+    // Demand intelligence: user expressed intent for `service` at this location.
+    // Also stash coords so the visitor session inherits city/district/state.
+    try { localStorage.setItem('zappy:lastCoords', JSON.stringify({ lat: loc.lat, lng: loc.lng })); } catch { /* ignore */ }
+    trackSearch({ category: service, lat: loc.lat, lng: loc.lng, result: 'served', userType: 'user' });
     fetchQuote({
       service, pickupLat: loc.lat, pickupLng: loc.lng,
       ...(deviceBrand && { deviceBrand }),
@@ -518,6 +523,8 @@ export default function BookingPage() {
     } catch (err) {
       setPricingMode('now');
       if (err.data?.code === 'NO_WORKERS_IN_AREA') {
+        // Unmet demand: capture the "No Service Available" signal for expansion analytics.
+        trackSearch({ category: service, lat: location?.lat, lng: location?.lng, result: 'no_service', userType: 'user' });
         setNoWorkersModal(true);
         return;
       }

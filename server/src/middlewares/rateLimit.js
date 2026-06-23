@@ -77,8 +77,13 @@ const nearbyLimiter   = makeLimiter({ windowMs: 60_000,     max: 20,  prefix: 'n
 // ── Dispute opening: 5 per hour (unchanged) ─────────────────────────────────
 const disputeLimiter  = makeLimiter({ windowMs: 3_600_000,  max: 5,   prefix: 'dispute'});
 
+// ── Telemetry ingest: 120 / min per IP ──────────────────────────────────────
+// Public, unauth analytics beacon (pageview/heartbeat/search). A real browser
+// fires a handful per minute; 120 absorbs SPA route bursts while blocking floods.
+const telemetryLimiter = makeLimiter({ windowMs: 60_000,    max: 120, prefix: 'tlm'    });
+
 module.exports = {
   globalLimiter, authLimiter, adminAuthLimiter, otpPhoneLimiter, orderLimiter, workerOnlineLimiter,
   cancelLimiter, topupLimiter, ratingLimiter,
-  quoteLimiter, nearbyLimiter, disputeLimiter,
+  quoteLimiter, nearbyLimiter, disputeLimiter, telemetryLimiter,
 };

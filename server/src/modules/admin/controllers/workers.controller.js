@@ -400,6 +400,23 @@ async function kycRequestClarification(req, res, next) {
     const worker = await Worker.findById(req.params.id).select('kyc name').lean();
     if (!worker) return res.status(404).json({ error: 'Worker not found' });
 
+    // Re-open re-upload for the worker. Status stays pending_review (so the
+    // submission stays in the admin queue), but the active clarification flag
+    // unlocks the upload form + lets submitKyc accept a fresh resubmission.
+    await Worker.updateOne(
+      { _id: req.params.id },
+      {
+        $set: {
+          'kyc.clarification': {
+            active:      true,
+            message:     req.body.message,
+            requestedAt: new Date(),
+            requestedBy: req.auth?.sub ?? null,
+          },
+        },
+      }
+    );
+
     const notifService = require('../../notification/notification.service');
     await notifService.notify({
       recipient: { kind: 'worker', id: req.params.id },

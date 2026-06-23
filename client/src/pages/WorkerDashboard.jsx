@@ -1669,13 +1669,24 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
   const svc     = SERVICE_ICON_MAP[offer.service] || { Icon: Wrench, bg: 'bg-slate-100', color: 'text-slate-600' };
   const SvcIcon = svc.Icon;
 
-  /* Static map centred on pickup — shown as map background */
+  /* Static map of the pickup — shown as map background.
+     The bottom card covers the lower ~60% of the popup, so a map centred on
+     the pickup would bury the pin behind the card. We push the map centre
+     SOUTH of the pickup so the actual location renders in the visible top
+     band (~26% from top), where we also draw a live pulsing marker on it. */
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   const [pickLng, pickLat] = offer.pickupCoords || [0, 0];
+  const MAP_ZOOM = 15;                 // closer = exact location
+  const PIN_TOP_FRAC = 0.26;           // where the pin should sit (from top)
+  const IMG_H = 500;                   // logical static-map height
+  // metres-per-pixel at this latitude/zoom, then south-shift so pin moves up
+  const mpp = (156543.03392 * Math.cos((pickLat * Math.PI) / 180)) / 2 ** MAP_ZOOM;
+  const shiftPx = (0.5 - PIN_TOP_FRAC) * IMG_H;        // logical px to move pin up
+  const centerLat = pickLat - (shiftPx * mpp) / 111320; // move centre south
   const mapUrl = mapboxToken && pickLng && pickLat
-    ? `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/` +
+    ? `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/` +
       `pin-l+1d4ed8(${pickLng},${pickLat})/` +
-      `${pickLng},${pickLat},14,0/800x500@2x` +
+      `${pickLng},${centerLat},${MAP_ZOOM},0/800x500@2x` +
       `?access_token=${mapboxToken}&attribution=false&logo=false`
     : null;
 
@@ -1699,7 +1710,22 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
           }}
         >
           {mapUrl ? (
-            <img src={mapUrl} alt="map" className="w-full h-full object-cover opacity-80" />
+            <>
+              <img src={mapUrl} alt="map" className="w-full h-full object-cover" />
+              {/* Live pulsing marker sitting exactly over the pickup pin */}
+              <div
+                className="absolute z-[1] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ left: '50%', top: '26%' }}
+              >
+                <motion.div
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                  style={{ width: 90, height: 90, background: 'radial-gradient(circle, rgba(29,78,216,0.35), transparent 70%)' }}
+                  animate={{ scale: [1, 2.2, 1], opacity: [0.6, 0, 0.6] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+                />
+                <span className="block w-3.5 h-3.5 rounded-full bg-blue-600 ring-[3px] ring-white shadow-lg" />
+              </div>
+            </>
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <motion.div
@@ -1717,8 +1743,8 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
               <MapPin size={36} strokeWidth={1.5} className={isExpress ? 'text-indigo-300 absolute' : isPriority ? 'text-amber-300 absolute' : 'text-indigo-400 absolute'} />
             </div>
           )}
-          {/* Dark overlay */}
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.5) 100%)' }} />
+          {/* Subtle vignette — keep the map (and pin) readable up top, darken toward the card */}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.12) 45%, rgba(0,0,0,0.45) 100%)' }} />
           {/* Countdown pill */}
           <motion.div
             className="absolute top-4 right-4 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl backdrop-blur-md"

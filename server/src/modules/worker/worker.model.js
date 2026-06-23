@@ -49,6 +49,15 @@ const workerSchema = new mongoose.Schema(
         denialReason: String,
       },
 
+      // Admin "Ask Worker" clarification — status stays pending_review but the
+      // worker is re-allowed to re-upload + resubmit while this is active.
+      clarification: {
+        active:      { type: Boolean, default: false },
+        message:     { type: String, maxlength: 500 },  // what admin asked to fix
+        requestedAt: Date,
+        requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+      },
+
       // Snapshot of last approved docs — used to revert if an update is rejected
       approvedSnapshot: {
         aadhaarUrl:    String,

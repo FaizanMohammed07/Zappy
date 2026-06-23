@@ -28,6 +28,7 @@ const { router: eventRoutes, adminRouter: eventAdminRoutes, partnerRouter: event
 const appealRoutes = require('../modules/worker/appeal.routes');
 const trainingRoutes = require('../modules/worker/training.routes');
 const mapsRoutes = require('../modules/maps/maps.routes');
+const telemetryRoutes = require('../modules/telemetry/telemetry.routes');
 
 function mountRoutes(app) {
   const slug = process.env.ADMIN_LOGIN_SLUG;
@@ -86,6 +87,9 @@ function mountRoutes(app) {
 
   // Google Maps proxy — keeps API key server-side, adds auth gate + caching
   app.use('/api/maps', mapsRoutes);
+
+  // Public analytics ingest (visitor/page/search telemetry) — unauth, rate-limited
+  app.use('/api/telemetry', telemetryRoutes);
 
   // Block anyone probing the old /api/admin path
   app.use('/api/admin', (req, res) => res.status(404).json({ error: 'Not found' }));
