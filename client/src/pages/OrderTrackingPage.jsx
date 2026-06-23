@@ -519,23 +519,53 @@ export default function OrderTrackingPage() {
           </motion.div>
         )}
 
-        {/* Live map */}
-        <motion.div variants={fadeInUp}>
-          <LiveTrackingMap
-            pickup={pickup}
-            workerLocation={
-              // When arrived and no socket location yet, pin the worker dot at the
-              // pickup coordinate so the map always shows "someone is here".
-              liveOrder.workerLocation ||
-              (status === 'arrived' && pickup ? pickup : null)
-            }
-            service={order.service}
-            status={status}
-            height="38vh"
-          />
-        </motion.div>
+        {/* Live map — only while the order is active. Once terminal
+            (cancelled / completed / failed) there is no worker to track. */}
+        {!terminal && (
+          <motion.div variants={fadeInUp}>
+            <LiveTrackingMap
+              pickup={pickup}
+              workerLocation={
+                // When arrived and no socket location yet, pin the worker dot at the
+                // pickup coordinate so the map always shows "someone is here".
+                liveOrder.workerLocation ||
+                (status === 'arrived' && pickup ? pickup : null)
+              }
+              service={order.service}
+              status={status}
+              height="38vh"
+            />
+          </motion.div>
+        )}
 
-        {/* Progress stepper */}
+        {/* Cancelled state — clear terminal card instead of a stale live map */}
+        {status === 'cancelled' && (
+          <motion.div
+            variants={fadeInUp}
+            className="rounded-[24px] bg-white border border-slate-900/5 p-6 text-center"
+            style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
+          >
+            <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={30} strokeWidth={2} className="text-red-500" />
+            </div>
+            <p className="font-black text-slate-900 text-lg">Order cancelled</p>
+            <p className="text-sm text-slate-500 mt-1.5 max-w-xs mx-auto">
+              This order was cancelled and is no longer being tracked.
+            </p>
+            {order.workerId && (
+              <p className="text-xs text-slate-400 mt-1">Your worker has been notified and released.</p>
+            )}
+            <button
+              onClick={() => nav(`/book/${order.service}`)}
+              className="mt-5 w-full py-3 bg-slate-900 text-white text-sm font-bold rounded-2xl hover:bg-slate-800 transition"
+            >
+              Book again
+            </button>
+          </motion.div>
+        )}
+
+        {/* Progress stepper — hidden for terminal cancelled/failed orders */}
+        {!['cancelled', 'failed'].includes(status) && (
         <motion.div
           className="rounded-[24px] bg-white/95 backdrop-blur-xl border border-slate-900/5 p-6"
           style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
@@ -581,6 +611,7 @@ export default function OrderTrackingPage() {
             })}
           </div>
         </motion.div>
+        )}
 
         {/* OTP card ─────────────────────────────────────────────────────────
             • assigned / on_the_way → hidden (show lock placeholder)

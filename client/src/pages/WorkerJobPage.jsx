@@ -661,6 +661,27 @@ export default function WorkerJobPage() {
     return () => socket.off('job.pulled', onJobPulled);
   }, [token, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ── Customer cancelled the order — leave the live job cleanly ── */
+  useEffect(() => {
+    if (!token || !id) return;
+    const socket = getSocket(token);
+    function onCancelled(payload) {
+      if (payload?.orderId && String(payload.orderId) !== String(id)) return;
+      toast.error('Order was cancelled by the customer.', { duration: 5000, id: 'job-terminal' });
+      setTimeout(() => nav('/worker'), 1500);
+    }
+    socket.on('order.cancelled', onCancelled);
+    return () => socket.off('order.cancelled', onCancelled);
+  }, [token, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Backup: page opened/refreshed when the order is already terminal-cancelled ── */
+  useEffect(() => {
+    if (status !== 'cancelled' && status !== 'failed') return;
+    toast.error(status === 'cancelled' ? 'This order was cancelled.' : 'This order is no longer active.', { duration: 5000, id: 'job-terminal' });
+    const t = setTimeout(() => nav('/worker'), 1500);
+    return () => clearTimeout(t);
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Safety fallback: if order is now assigned to a different worker, leave ── */
   useEffect(() => {
     if (!order || !profile?._id) return;
