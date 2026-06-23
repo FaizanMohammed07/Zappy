@@ -282,6 +282,7 @@ function Broadcast({ token }) {
   const [form, setForm] = useState({ recipientKind: 'user', type: 'promotional', title: '', body: '', deepLink: '', limit: 1000 });
   const [confirm, setConfirm] = useState(false);
   const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
   const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
   async function send() {
@@ -294,7 +295,7 @@ function Broadcast({ token }) {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(`Broadcast queued — ${data.recipientCount} recipients, ${data.tokenCount} tokens`);
+        setResult(data);
         setConfirm(false);
       } else {
         toast.error(data.error || 'Broadcast failed');
@@ -303,8 +304,70 @@ function Broadcast({ token }) {
     setSending(false);
   }
 
+  // ── Animated success state ──
+  if (result) {
+    return (
+      <Card className="p-8">
+        <div className="flex flex-col items-center text-center">
+          <motion.div
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+            className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-1 relative"
+          >
+            <motion.span
+              className="absolute inset-0 rounded-full bg-green-400/40"
+              initial={{ scale: 1, opacity: 0.6 }}
+              animate={{ scale: 1.8, opacity: 0 }}
+              transition={{ duration: 1.1, repeat: 2 }}
+            />
+            <CheckCircle size={40} strokeWidth={2.5} className="text-green-600" />
+          </motion.div>
+          <motion.h3 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+            className="text-lg font-black text-slate-900 mt-3">Broadcast sent 🎉</motion.h3>
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
+            className="text-xs text-slate-500 mt-1">"{form.title}" delivered to your {form.recipientKind}s</motion.p>
+
+          <div className="grid grid-cols-2 gap-3 w-full mt-6">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+              className="bg-slate-50 rounded-2xl p-4">
+              <p className="text-2xl font-black text-slate-900">{result.inAppDelivered ?? result.recipientCount ?? 0}</p>
+              <p className="text-[11px] font-bold text-slate-500 mt-0.5">Delivered in-app</p>
+              <p className="text-[9px] text-green-600 font-bold mt-1">✓ Guaranteed — can't be missed</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
+              className="bg-slate-50 rounded-2xl p-4">
+              <p className="text-2xl font-black text-slate-900">{result.pushTokenCount ?? 0}</p>
+              <p className="text-[11px] font-bold text-slate-500 mt-0.5">Push devices</p>
+              <p className="text-[9px] text-slate-400 font-bold mt-1">Bonus channel</p>
+            </motion.div>
+          </div>
+
+          <button onClick={() => { setResult(null); setForm((p) => ({ ...p, title: '', body: '' })); }}
+            className="mt-6 w-full py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition">
+            Send another
+          </button>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="p-5 space-y-4">
+    <Card className="p-5 space-y-4 relative overflow-hidden">
+      {/* Sending overlay — animated paper plane */}
+      {sending && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+          <motion.div
+            animate={{ x: [-8, 8, -8], y: [4, -4, 4] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+            className="w-14 h-14 rounded-2xl bg-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30">
+            <Send size={24} className="text-white" />
+          </motion.div>
+          <p className="text-sm font-bold text-slate-700">Broadcasting to your {form.recipientKind}s…</p>
+        </motion.div>
+      )}
+
       <div className="flex items-center gap-2">
         <Users size={15} strokeWidth={2} className="text-orange-600" />
         <p className="text-sm font-bold text-slate-700">Broadcast to All</p>

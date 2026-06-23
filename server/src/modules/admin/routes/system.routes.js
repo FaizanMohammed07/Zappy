@@ -159,28 +159,42 @@ router.post(
       const { recipientKind, type, title, body, deepLink, limit } = req.body;
 
       const Model = recipientKind === 'worker' ? WorkerModel : UserModel;
-      const recipients = await Model.find(
-        { deviceTokens: { $exists: true, $ne: [] } },
-        { _id: 1, deviceTokens: 1 },
-      ).limit(limit).lean();
 
-      const allTokens = recipients.flatMap((r) => r.deviceTokens || []);
-
-      if (allTokens.length === 0) {
-        return res.json({ ok: true, sent: 0, message: 'No device tokens found' });
+      // Reach EVERY recipient (not only those with a push token). In-app + socket
+      // is the guaranteed channel — push is a bonus layer on top. This is why a
+      // user who never granted push, or whose web-push token expired, still
+      // receives the announcement reliably.
+      const recipients = await Model.find({}, { _id: 1, deviceTokens: 1 }).limit(limit).lean();
+      if (recipients.length === 0) {
+        return res.json({ ok: true, recipientCount: 0, inAppDelivered: 0, pushTokenCount: 0, message: 'No recipients' });
       }
 
-      await notificationsQueue.add('push', {
-        title,
-        body:       body || '',
-        bulkTokens: allTokens,
-        // data is what FCM puts in the notification payload (deepLink, type, etc.)
-        data: { deepLink: deepLink || '/', type: type || 'promotional', sentByAdmin: String(req.auth.sub) },
-        sentByAdmin: String(req.auth.sub),
-      });
+      // 1) Persist in-app notifications + real-time socket fan-out for everyone.
+      const notificationService = require('../../notification/notification.service');
+      const recList = recipients.map((r) => ({ kind: recipientKind, id: r._id }));
+      const payload = { type: type || 'promotional', title, body: body || '', data: { deepLink: deepLink || '/', type: type || 'promotional' }, deepLink: deepLink || '/' };
+      let inAppDelivered = 0;
+      const CHUNK = 1000;
+      for (let i = 0; i < recList.length; i += CHUNK) {
+        try {
+          inAppDelivered += await notificationService.notifyMany(recList.slice(i, i + CHUNK), payload);
+        } catch (e) { /* keep going — partial in-app delivery is still delivery */ }
+      }
+
+      // 2) Best-effort FCM push to recipients that have device tokens (bonus channel).
+      const allTokens = recipients.flatMap((r) => r.deviceTokens || []);
+      if (allTokens.length > 0) {
+        await notificationsQueue.add('push', {
+          title,
+          body:       body || '',
+          bulkTokens: allTokens,
+          data: { deepLink: deepLink || '/', type: type || 'promotional', sentByAdmin: String(req.auth.sub) },
+          sentByAdmin: String(req.auth.sub),
+        });
+      }
 
       await auditService.fromRequest(req, 'admin.broadcast', { kind: 'system', id: null }, null, { recipientKind, type, title, recipients: recipients.length });
-      res.json({ ok: true, queued: true, recipientCount: recipients.length, tokenCount: allTokens.length });
+      res.json({ ok: true, queued: true, recipientCount: recipients.length, inAppDelivered, pushTokenCount: allTokens.length });
     } catch (err) { next(err); }
   },
 );
