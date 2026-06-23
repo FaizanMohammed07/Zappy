@@ -134,15 +134,29 @@ async function reverseGeocodeNominatim(lat, lng) {
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
+/**
+ * Remove any part of `secondary` that duplicates `primary`, so we never render
+ * "Belén District, Belén District". If nothing meaningful remains, drop it.
+ */
+function dedupe(result) {
+  if (!result?.secondary || !result.primary) return result;
+  const prim = result.primary.trim().toLowerCase();
+  const parts = result.secondary
+    .split(',')
+    .map((s) => s.trim())
+    .filter((p) => p && p.toLowerCase() !== prim);
+  return { ...result, secondary: parts.join(', ') || null };
+}
+
 export async function reverseGeocode(lat, lng) {
   const google = await reverseGeocodeGoogle(lat, lng);
-  if (google) return google;
+  if (google) return dedupe(google);
 
   const mapbox = await reverseGeocodeMapbox(lat, lng);
-  if (mapbox) return mapbox;
+  if (mapbox) return dedupe(mapbox);
 
   const nominatim = await reverseGeocodeNominatim(lat, lng);
-  if (nominatim) return nominatim;
+  if (nominatim) return dedupe(nominatim);
 
   return { primary: 'Location found', secondary: null };
 }
