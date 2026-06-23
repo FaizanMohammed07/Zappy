@@ -168,6 +168,14 @@ async function geocodeAddress(address) {
 async function getDistanceMatrix(oLat, oLng, dLat, dLng, mode = 'driving') {
   requireKey();
 
+  // Cache by coords rounded to 3dp (~110m) for ~30s. A worker moving toward a
+  // fixed pickup, and multiple co-located orders, reuse the same traffic read
+  // instead of paying for a Distance Matrix element on every tick.
+  const cacheKey =
+    `gmaps:dm:${mode}:${oLat.toFixed(3)},${oLng.toFixed(3)}:${dLat.toFixed(3)},${dLng.toFixed(3)}`;
+  const cached = await redis.get(cacheKey).catch(() => null);
+  if (cached) return JSON.parse(cached);
+
   const url =
     `${BASE}/distancematrix/json` +
     `?origins=${oLat},${oLng}` +
@@ -187,13 +195,15 @@ async function getDistanceMatrix(oLat, oLng, dLat, dLng, mode = 'driving') {
     throw new Error(`Distance Matrix element error: ${el?.status || 'NO_RESULTS'}`);
   }
 
-  return {
+  const result = {
     distanceMeters          : el.distance.value,
     durationSeconds         : el.duration.value,
     durationInTrafficSeconds: el.duration_in_traffic?.value ?? el.duration.value,
     distanceText            : el.distance.text,
     durationText            : el.duration_in_traffic?.text ?? el.duration.text,
   };
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 30).catch(() => {});
+  return result;
 }
 
 // ── Directions / Route ─────────────────────────────────────────────────────────

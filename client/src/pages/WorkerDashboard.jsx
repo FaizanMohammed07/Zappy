@@ -385,6 +385,7 @@ export default function WorkerDashboard() {
             orderId: me?.currentOrderId,
             hdg: pos.heading ?? null,
             spd: pos.speed ?? null,
+            acc: pos.accuracy ?? null,
           });
         }
 

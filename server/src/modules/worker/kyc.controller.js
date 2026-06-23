@@ -58,6 +58,19 @@ async function submitKyc(req, res, next) {
         code: 'KYC_LOCATION_REQUIRED',
       });
     }
+    // Reject mock-provider fixes and coordinates outside the service area
+    // (VPN / IP-geolocation place spoofed selfies in e.g. Peru / Costa Rica).
+    const { validateLocation } = require('../../utils/geo-validate');
+    const locCheck = validateLocation({ lat: meta.lat, lng: meta.lng, accuracy: meta.accuracy, mock: meta.mock, maxAccuracy: 500 });
+    if (!locCheck.ok) {
+      return res.status(422).json({
+        error: locCheck.reason === 'mock_location'
+          ? 'Mock/spoofed location detected. Disable fake-GPS apps and recapture your live selfie.'
+          : 'Your captured location is outside the service area. Turn off any VPN, enable precise GPS, and recapture.',
+        code: 'KYC_LOCATION_INVALID',
+        reason: locCheck.reason,
+      });
+    }
 
     const now = new Date();
     const rejectionCount = w.kyc?.rejectionCount || 0;
