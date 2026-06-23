@@ -17,6 +17,7 @@ import {
 import { useSelector } from 'react-redux';
 import { selectAuth } from '../modules/auth/authSlice';
 import { adminApiPath } from '../config/admin';
+import { API_BASE } from '../services/apiBase';
 import toast from 'react-hot-toast';
 
 /* ─── Image lightbox ────────────────────────────────────────────────────────── */
@@ -107,7 +108,7 @@ function useKycDoc(workerId, docType, token, enabled = true) {
     let cancelled = false;
     setLoading(true);
 
-    fetch(`/api${adminApiPath(`/workers/${workerId}/kyc/stream/${docType}`)}`, {
+    fetch(`${API_BASE}/api${adminApiPath(`/workers/${workerId}/kyc/stream/${docType}`)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {

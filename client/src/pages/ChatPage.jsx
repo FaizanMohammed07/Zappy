@@ -5,6 +5,7 @@ import { ArrowLeft, Phone, Send, CheckCheck } from 'lucide-react';
 import { selectAuth } from '../modules/auth/authSlice';
 import { useOrderSocket } from '../hooks/useSocket';
 import { useGetOrderQuery, useGetChatMessagesQuery, useSendChatMessageMutation } from '../services/api';
+import { API_BASE } from '../services/apiBase';
 import toast from 'react-hot-toast';
 
 const CANNED = [
@@ -80,7 +81,7 @@ export default function ChatPage() {
 
   async function startCall() {
     try {
-      const res = await fetch(`/api/orders/${orderId}/call`, {
+      const res = await fetch(`${API_BASE}/api/orders/${orderId}/call`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

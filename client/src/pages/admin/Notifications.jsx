@@ -7,6 +7,7 @@ import {
 import { SectionHeader, Card, PageLoader } from './_shared';
 import toast from 'react-hot-toast';
 import { adminApiPath } from '../../config/admin';
+import { API_BASE } from '../../services/apiBase';
 import { useSelector } from 'react-redux';
 import { selectAuth } from '../../modules/auth/authSlice';
 
@@ -35,7 +36,7 @@ function FcmHealth({ token }) {
   async function check() {
     setLoading(true);
     try {
-      const res = await fetch(`/api${adminApiPath('/notifications/health')}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE}/api${adminApiPath('/notifications/health')}`, { headers: { Authorization: `Bearer ${token}` } });
       setHealth(await res.json());
     } catch { setHealth({ ok: false, message: 'Network error' }); }
     setLoading(false);
@@ -92,7 +93,7 @@ function DeliveryStats({ token }) {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`/api${adminApiPath(`/notifications/stats?days=${days}`)}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE}/api${adminApiPath(`/notifications/stats?days=${days}`)}`, { headers: { Authorization: `Bearer ${token}` } });
       setStats(await res.json());
     } catch { toast.error('Failed to load stats'); }
     setLoading(false);
@@ -201,7 +202,7 @@ function ManualSend({ token }) {
     if (!form.title.trim()) { toast.error('Title required'); return; }
     setSending(true);
     try {
-      const res = await fetch(`/api${adminApiPath('/notifications/send')}`, {
+      const res = await fetch(`${API_BASE}/api${adminApiPath('/notifications/send')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form),
@@ -286,7 +287,7 @@ function Broadcast({ token }) {
   async function send() {
     setSending(true);
     try {
-      const res = await fetch(`/api${adminApiPath('/notifications/broadcast')}`, {
+      const res = await fetch(`${API_BASE}/api${adminApiPath('/notifications/broadcast')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form),

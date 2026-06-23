@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectAuth } from '../../modules/auth/authSlice';
+import { API_BASE } from '../../services/apiBase';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Star, Package, Calendar, Wallet, User, LogOut,
@@ -832,7 +833,7 @@ function KycDocThumb({ idx, token }) {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    fetch(`/api/events/partner/kyc/stream/${idx}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_BASE}/api/events/partner/kyc/stream/${idx}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
       .then(blob => {
         if (cancelled) return;
@@ -891,7 +892,7 @@ function KycDocUploadField({ field, currentKey, onUploaded, disabled, token }) {
   useEffect(() => {
     if (!currentKey || !token) return;
     let cancelled = false;
-    fetch(`/api/events/partner/kyc/stream/field/${field.key}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_BASE}/api/events/partner/kyc/stream/field/${field.key}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.blob() : null)
       .then(blob => { if (!cancelled && blob) setPreviewUrl(URL.createObjectURL(blob)); })
       .catch(() => {});

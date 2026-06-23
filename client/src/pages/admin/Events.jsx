@@ -4,6 +4,7 @@ import { Loader2, CheckCircle, XCircle, Star, Eye, EyeOff, Zap, Users, Package, 
 import { useAdminEventThemesQuery, useAdminUpdateThemeStatusMutation, useAdminEventBookingsQuery, useAdminEventPartnersQuery, useAdminEventAnalyticsQuery, useAdminEventConfigQuery, useAdminUpdateEventConfigMutation, useAdminEventCategoriesQuery, useAdminUpsertEventCategoryMutation, useAdminCreateEventPartnerMutation, useAdminGetEventPartnerQuery, useAdminApproveEventPartnerKycMutation, useAdminRejectEventPartnerKycMutation, useAdminBlockEventPartnerMutation, useAdminCancelEventBookingMutation } from '../../services/api';
 import { useSelector } from 'react-redux';
 import { selectAuth } from '../../modules/auth/authSlice';
+import { API_BASE } from '../../services/apiBase';
 import { adminApiPath } from '../../config/admin';
 import toast from 'react-hot-toast';
 
@@ -212,7 +213,7 @@ function usePartnerKycDoc(partnerId, idx, token, enabled = true) {
     if (!partnerId || idx == null || !token || !enabled) return;
     let cancelled = false;
     setLoading(true);
-    fetch(`/api${adminApiPath(`/events/partners/${partnerId}/kyc/stream/${idx}`)}`, {
+    fetch(`${API_BASE}/api${adminApiPath(`/events/partners/${partnerId}/kyc/stream/${idx}`)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
@@ -241,7 +242,7 @@ function AdminKycDocRow({ label, mandatory, s3Key, partnerId, docKey, token, onL
     if (!s3Key || !token) return;
     let cancelled = false;
     setLoading(true);
-    fetch(`/api${adminApiPath(`/events/partners/${partnerId}/kyc/field/${docKey}`)}`, {
+    fetch(`${API_BASE}/api${adminApiPath(`/events/partners/${partnerId}/kyc/field/${docKey}`)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })

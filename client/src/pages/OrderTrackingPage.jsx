@@ -9,6 +9,7 @@ import {
   Repeat2, CheckCircle2, UserCheck, HelpCircle, Share2, ShieldAlert, Copy,
 } from 'lucide-react';
 import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery, useGetPricingConfigQuery, useSendTipMutation } from '../services/api';
+import { API_BASE } from '../services/apiBase';
 import BoostOfferCard from '../components/tracking/BoostOfferCard';
 import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
 import { selectOrder, setActiveOrder, setWorkerLocation } from '../modules/order/orderSlice';
@@ -212,7 +213,7 @@ export default function OrderTrackingPage() {
 
   async function callWorker() {
     try {
-      const res = await fetch(`/api/orders/${id}/call`, {
+      const res = await fetch(`${API_BASE}/api/orders/${id}/call`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -246,7 +247,7 @@ export default function OrderTrackingPage() {
   function triggerSOS() {
     setShowSOSConfirm(false);
     // Call emergency — open dialer to 112 + notify server
-    fetch(`/api/orders/${id}/sos`, {
+    fetch(`${API_BASE}/api/orders/${id}/sos`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ lat: pickup?.lat, lng: pickup?.lng }),
@@ -744,7 +745,7 @@ export default function OrderTrackingPage() {
             <button
               onClick={async () => {
                 try {
-                  const res = await fetch(`/api/orders/${id}/invoice`, {
+                  const res = await fetch(`${API_BASE}/api/orders/${id}/invoice`, {
                     headers: { Authorization: `Bearer ${token}` },
                   });
                   if (!res.ok) throw new Error('Invoice not available');

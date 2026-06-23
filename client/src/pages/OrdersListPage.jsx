@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { ClipboardList, ChevronRight, Circle, ChevronLeft, FileDown, Star, Calendar, Loader2, Repeat2 } from 'lucide-react';
 import { useListOrdersQuery } from '../services/api';
+import { API_BASE } from '../services/apiBase';
 import { selectAuth } from '../modules/auth/authSlice';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
@@ -47,7 +48,7 @@ export default function OrdersListPage() {
     if (downloadingId) return;
     setDownloadingId(orderId);
     try {
-      const res = await fetch(`/api/orders/${orderId}/invoice`, {
+      const res = await fetch(`${API_BASE}/api/orders/${orderId}/invoice`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {

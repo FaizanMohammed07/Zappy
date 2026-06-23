@@ -31,6 +31,7 @@ import { useGeolocation } from '../hooks/useGeolocation';
 import { selectOrder } from '../modules/order/orderSlice';
 import { selectAuth } from '../modules/auth/authSlice';
 import { getSocket } from '../services/socket';
+import { API_BASE } from '../services/apiBase';
 import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
 import SOSButton from '../components/worker/SOSButton';
 import ServiceChecklistPanel from '../components/worker/ServiceChecklistPanel';
@@ -739,7 +740,7 @@ export default function WorkerJobPage() {
 
   async function callCustomer() {
     try {
-      const res = await fetch(`/api/orders/${id}/call`, {
+      const res = await fetch(`${API_BASE}/api/orders/${id}/call`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
