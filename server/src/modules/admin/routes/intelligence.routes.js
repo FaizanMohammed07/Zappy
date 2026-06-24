@@ -11,5 +11,7 @@ router.get('/intelligence/demand',       ctrl.demandIntel);
 router.get('/intelligence/unmet-demand', ctrl.unmetDemand);
 router.get('/intelligence/expansion',    ctrl.expansionEngine);
 router.get('/intelligence/ceo',          ctrl.ceoPulse);
+router.get('/intelligence/funnel',       ctrl.funnel);
+router.get('/intelligence/report',       ctrl.report);
 
 module.exports = router;

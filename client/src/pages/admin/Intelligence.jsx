@@ -4,10 +4,12 @@ import {
   Activity, Radio, Search, MapPinOff, Rocket, Crown, Globe, TrendingUp,
   BarChart2, Users, ShoppingBag, IndianRupee, Wifi, ChevronDown, RefreshCw,
   Monitor, Smartphone, ArrowUpRight, ArrowDownRight, Briefcase, Flame,
+  Filter, FileText, Download, Star,
 } from 'lucide-react';
 import {
   useAdminIntelLiveTrafficQuery, useAdminIntelVisitorLocationsQuery, useAdminIntelDemandQuery,
   useAdminIntelUnmetDemandQuery, useAdminIntelExpansionQuery, useAdminIntelCeoQuery,
+  useAdminIntelFunnelQuery, useAdminIntelReportQuery,
 } from '../../services/api';
 import { SectionHeader, Card, PageLoader, EmptyState, StatCard, BarChart, Th, Td } from './_shared';
 import BusinessIntelligence from './BusinessIntelligence';
@@ -436,6 +438,149 @@ function ExpansionEngine() {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
+ * CONVERSION FUNNEL
+ * ══════════════════════════════════════════════════════════════════════════ */
+function ConversionFunnel() {
+  const [days, setDays] = useState(30);
+  const { data, isLoading } = useAdminIntelFunnelQuery(days);
+  if (isLoading) return <PageLoader />;
+  const d = data || {};
+  const stages = d.stages || [];
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Conversion Funnel" subtitle="Visitor → search → booking → worker → completed. See exactly where you lose people.">
+        <DaysSelect value={days} onChange={setDays} />
+      </SectionHeader>
+
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <StatCard label="Overall Conversion" value={`${d.overallConvPct ?? 0}%`} Icon={TrendingUp} color="text-emerald-600" bg="bg-emerald-50" sub="visitor → completed" />
+        <StatCard label="Booking → Completed" value={`${d.bookingCompletionPct ?? 0}%`} Icon={ShoppingBag} color="text-blue-600" bg="bg-blue-50" />
+        <StatCard label="Biggest Drop-off" value={d.biggestDrop ? `${d.biggestDrop.dropPct}%` : '—'} Icon={Filter} color="text-red-600" bg="bg-red-50" sub={d.biggestDrop?.label} />
+      </div>
+
+      <Card className="p-5 space-y-3">
+        {stages.length === 0 ? (
+          <p className="text-xs text-slate-400">No funnel data yet — it builds as visitors browse, search and book.</p>
+        ) : stages.map((s, i) => (
+          <div key={s.key}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-semibold text-slate-700">{s.label}</span>
+              <span className="text-sm font-bold text-slate-900 tabular-nums">
+                {num(s.count)}
+                {i > 0 && <span className="text-[11px] font-medium text-slate-400 ml-2">{s.convFromPrev}% of prev</span>}
+              </span>
+            </div>
+            <div className="h-7 rounded-lg bg-slate-100 overflow-hidden">
+              <div className="h-full rounded-lg flex items-center px-2" style={{ width: `${Math.max(s.pctOfTop, 4)}%`, background: 'linear-gradient(90deg,#6366f1,#8b5cf6)' }}>
+                <span className="text-[10px] font-bold text-white">{s.pctOfTop}%</span>
+              </div>
+            </div>
+            {i > 0 && s.dropPct > 0 && (
+              <p className="text-[11px] text-red-500 mt-1 flex items-center gap-1">
+                <ArrowDownRight size={11} />{s.dropPct}% dropped off after {stages[i - 1].label}
+              </p>
+            )}
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * BUSINESS REPORT (+ CSV download)
+ * ══════════════════════════════════════════════════════════════════════════ */
+function downloadReportCsv(r) {
+  const rows = [
+    ['Zappy Business Report', r.windowLabel || ''],
+    ['Generated', new Date(r.generatedAt || Date.now()).toLocaleString('en-IN')],
+    [],
+    ['Metric', 'Value'],
+    ['Visitors', r.visitors], ['Bookings', r.bookings], ['Completed', r.completed],
+    ['Revenue (INR)', r.revenue], ['Revenue growth %', r.revenueGrowthPct], ['Completion rate %', r.completionRatePct],
+    [],
+    ['Top Categories', 'Orders'],
+    ...(r.topCategories || []).map((c) => [c.category, c.orders]),
+    [],
+    ['Top Cities', 'Orders', 'Revenue (INR)'],
+    ...(r.topCities || []).map((c) => [c.city, c.orders, c.revenue]),
+    [],
+    ['No-Service Areas', 'Requests'],
+    ...(r.noServiceAreas || []).map((a) => [`${a.city}${a.state ? ', ' + a.state : ''}`, a.requests]),
+    [],
+    ['Top Workers', 'Jobs', 'Earned (INR)', 'Rating'],
+    ...(r.topWorkers || []).map((w) => [w.name, w.jobs, w.earnedRupees, w.rating]),
+  ];
+  const csv = rows.map((row) => row.map((x) => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `zappy-report-${r.period || 'daily'}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ListCard({ title, Icon, rows, empty }) {
+  return (
+    <Card className="p-5">
+      <p className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><Icon size={15} className="text-indigo-500" />{title}</p>
+      {(!rows || rows.length === 0) ? <p className="text-xs text-slate-400">{empty}</p> : (
+        <div className="space-y-1.5">
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+              <span className="text-xs font-semibold text-slate-700 truncate">{r.left}</span>
+              <span className="text-xs font-bold text-slate-900 shrink-0 ml-2">{r.right}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function BusinessReport() {
+  const [period, setPeriod] = useState('daily');
+  const { data, isLoading } = useAdminIntelReportQuery(period);
+  if (isLoading) return <PageLoader />;
+  const d = data || {};
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Business Report" subtitle={`${d.windowLabel || ''} · auto-generated snapshot`}>
+        <div className="flex items-center gap-2">
+          <select value={period} onChange={(e) => setPeriod(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 outline-none">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
+          <button onClick={() => downloadReportCsv(d)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-700">
+            <Download size={12} /> CSV
+          </button>
+        </div>
+      </SectionHeader>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Visitors" value={num(d.visitors)} Icon={Wifi} color="text-emerald-600" bg="bg-emerald-50" />
+        <StatCard label="Bookings" value={num(d.bookings)} Icon={ShoppingBag} color="text-blue-600" bg="bg-blue-50" sub={`${d.completed ?? 0} completed`} />
+        <StatCard label="Revenue" value={inr(d.revenue)} Icon={IndianRupee} color="text-amber-600" bg="bg-amber-50" sub={<Delta pct={d.revenueGrowthPct ?? 0} />} />
+        <StatCard label="Completion" value={`${d.completionRatePct ?? 0}%`} Icon={TrendingUp} color="text-violet-600" bg="bg-violet-50" />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <ListCard title="Top Categories" Icon={Search} empty="No orders in window"
+          rows={(d.topCategories || []).map((c) => ({ left: (c.category || '').replace(/_/g, ' '), right: `${num(c.orders)} orders` }))} />
+        <ListCard title="Top Cities" Icon={Globe} empty="No located orders yet"
+          rows={(d.topCities || []).map((c) => ({ left: c.city, right: `${num(c.orders)} · ${inr(c.revenue)}` }))} />
+        <ListCard title="No-Service Areas" Icon={MapPinOff} empty="No unmet demand captured"
+          rows={(d.noServiceAreas || []).map((a) => ({ left: `${a.city}${a.state ? ', ' + a.state : ''}`, right: `${num(a.requests)} req` }))} />
+        <ListCard title="Top Workers" Icon={Star} empty="No completed jobs in window"
+          rows={(d.topWorkers || []).map((w) => ({ left: `${w.name} · ${w.jobs} jobs`, right: inr(w.earnedRupees) }))} />
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
  * HUB SHELL — title + dropdown
  * ══════════════════════════════════════════════════════════════════════════ */
 const VIEWS = [
@@ -444,6 +589,8 @@ const VIEWS = [
   { id: 'demand',    label: 'Demand Intel',       icon: Search,    Comp: DemandIntel },
   { id: 'unmet',     label: 'Unmet Demand',       icon: MapPinOff, Comp: UnmetDemand },
   { id: 'expansion', label: 'Expansion Engine',   icon: Rocket,    Comp: ExpansionEngine },
+  { id: 'funnel',    label: 'Conversion Funnel',  icon: Filter,    Comp: ConversionFunnel },
+  { id: 'report',    label: 'Business Report',    icon: FileText,  Comp: BusinessReport },
   { id: 'geo',       label: 'Geo / Heatmap',      icon: Globe,     Comp: Heatmap },
   { id: 'business',  label: 'Business Intel',     icon: TrendingUp, Comp: BusinessIntelligence },
   { id: 'analytics', label: 'Deep Analytics',     icon: BarChart2, Comp: Analytics },

@@ -444,4 +444,133 @@ async function ceoPulse(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { liveTraffic, visitorLocations, demandIntel, unmetDemand, expansionEngine, ceoPulse };
+/* ── Reverse-geocode top order buckets → city counts (shared by report) ────── */
+async function topCitiesFromOrders(since, limit = 5) {
+  const buckets = await Order.aggregate([
+    { $match: { createdAt: { $gte: since }, 'pickupLocation.coordinates.0': { $exists: true } } },
+    { $project: {
+      lat: { $round: [{ $arrayElemAt: ['$pickupLocation.coordinates', 1] }, 2] },
+      lng: { $round: [{ $arrayElemAt: ['$pickupLocation.coordinates', 0] }, 2] },
+      revenue: { $cond: [{ $eq: ['$status', 'completed'] }, '$pricing.total', 0] },
+    } },
+    { $group: { _id: { lat: '$lat', lng: '$lng' }, orders: { $sum: 1 }, revenue: { $sum: '$revenue' } } },
+    { $sort: { orders: -1 } }, { $limit: 12 },
+  ]);
+  const labelled = await Promise.all(buckets.map(async (b) => ({
+    city: await getZoneLabel(b._id.lat, b._id.lng), orders: b.orders, revenue: Math.round(b.revenue || 0),
+  })));
+  const map = {};
+  for (const r of labelled) {
+    if (!r.city) continue;
+    map[r.city] = map[r.city] || { city: r.city, orders: 0, revenue: 0 };
+    map[r.city].orders += r.orders; map[r.city].revenue += r.revenue;
+  }
+  return Object.values(map).sort((a, b) => b.orders - a.orders).slice(0, limit);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 6. CONVERSION FUNNEL  (visitor → search → booking → assigned → completed)
+ * ══════════════════════════════════════════════════════════════════════════ */
+async function funnel(req, res, next) {
+  try {
+    const days = Math.min(Number(req.query.days) || 30, 180);
+    const data = await cachedAnalytics(`intel:funnel:${days}`, 60, async () => {
+      const since = new Date(Date.now() - days * 86_400_000);
+      const ASSIGNED_PLUS = ['assigned', 'on_the_way', 'arrived', 'in_progress', 'completed'];
+
+      const [visitors, searchSessions, booked, assigned, completed] = await Promise.all([
+        VisitorSession.countDocuments({ firstSeen: { $gte: since } }),
+        SearchEvent.distinct('sessionId', { createdAt: { $gte: since }, sessionId: { $ne: null } }).then((a) => a.length),
+        Order.countDocuments({ createdAt: { $gte: since } }),
+        Order.countDocuments({ createdAt: { $gte: since }, $or: [{ workerId: { $ne: null } }, { status: { $in: ASSIGNED_PLUS } }] }),
+        Order.countDocuments({ createdAt: { $gte: since }, status: 'completed' }),
+      ]);
+
+      const raw = [
+        { key: 'visitors',  label: 'Visitors',        count: visitors },
+        { key: 'search',    label: 'Searched',        count: searchSessions },
+        { key: 'booked',    label: 'Booked',          count: booked },
+        { key: 'assigned',  label: 'Worker assigned', count: assigned },
+        { key: 'completed', label: 'Completed',       count: completed },
+      ];
+      const top = Math.max(1, raw[0].count);
+      const stages = raw.map((s, i) => {
+        const prev = i === 0 ? null : raw[i - 1].count;
+        return {
+          ...s,
+          pctOfTop: Math.round((s.count / top) * 100),
+          dropPct: prev == null ? 0 : (prev > 0 ? Math.round(((prev - s.count) / prev) * 100) : 0),
+          convFromPrev: prev == null ? 100 : (prev > 0 ? Math.round((s.count / prev) * 100) : 0),
+        };
+      });
+      return {
+        windowDays: days,
+        stages,
+        overallConvPct: visitors > 0 ? Math.round((completed / visitors) * 1000) / 10 : 0,
+        bookingCompletionPct: booked > 0 ? Math.round((completed / booked) * 100) : 0,
+        biggestDrop: stages.slice(1).reduce((m, s) => (s.dropPct > (m?.dropPct ?? -1) ? s : m), null),
+      };
+    });
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 10. DAILY / WEEKLY BUSINESS REPORT
+ * ══════════════════════════════════════════════════════════════════════════ */
+async function report(req, res, next) {
+  try {
+    const period = req.query.period === 'weekly' ? 'weekly' : 'daily';
+    const since = period === 'weekly' ? new Date(Date.now() - 7 * 86_400_000) : istDayStart();
+    const prevSince = period === 'weekly' ? new Date(Date.now() - 14 * 86_400_000) : new Date(istDayStart().getTime() - 86_400_000);
+    const prevTill = since;
+
+    const data = await cachedAnalytics(`intel:report:${period}`, 120, async () => {
+      const [visitors, bookings, completed, revAgg, prevRevAgg, topCats, unmetAreas, topWorkersRaw, topCities] = await Promise.all([
+        VisitorSession.countDocuments({ firstSeen: { $gte: since } }),
+        Order.countDocuments({ createdAt: { $gte: since } }),
+        Order.countDocuments({ createdAt: { $gte: since }, status: 'completed' }),
+        Order.aggregate([{ $match: { status: 'completed', completedAt: { $gte: since } } }, { $group: { _id: null, rev: { $sum: '$pricing.total' } } }]),
+        Order.aggregate([{ $match: { status: 'completed', completedAt: { $gte: prevSince, $lt: prevTill } } }, { $group: { _id: null, rev: { $sum: '$pricing.total' } } }]),
+        Order.aggregate([{ $match: { createdAt: { $gte: since } } }, { $group: { _id: '$service', orders: { $sum: 1 } } }, { $sort: { orders: -1 } }, { $limit: 8 }]),
+        SearchEvent.aggregate([
+          { $match: { result: 'no_service', createdAt: { $gte: since }, city: { $ne: null } } },
+          { $group: { _id: { city: '$city', state: '$state' }, requests: { $sum: 1 } } },
+          { $sort: { requests: -1 } }, { $limit: 8 },
+        ]),
+        Order.aggregate([
+          { $match: { status: 'completed', completedAt: { $gte: since }, workerId: { $ne: null } } },
+          { $group: { _id: '$workerId', jobs: { $sum: 1 }, earnedPaise: { $sum: { $ifNull: ['$earnings.workerPaise', 0] } } } },
+          { $sort: { jobs: -1 } }, { $limit: 5 },
+          { $lookup: { from: 'workers', localField: '_id', foreignField: '_id', as: 'w' } },
+          { $unwind: { path: '$w', preserveNullAndEmptyArrays: true } },
+          { $project: { name: '$w.name', phone: '$w.phone', rating: '$w.rating', jobs: 1, earnedRupees: { $round: [{ $divide: ['$earnedPaise', 100] }, 0] } } },
+        ]),
+        topCitiesFromOrders(since, 6),
+      ]);
+
+      const revenue = Math.round(revAgg[0]?.rev || 0);
+      const prevRevenue = Math.round(prevRevAgg[0]?.rev || 0);
+      const growthPct = prevRevenue === 0 ? (revenue > 0 ? 100 : 0) : Math.round(((revenue - prevRevenue) / prevRevenue) * 100);
+
+      return {
+        period,
+        generatedAt: new Date(),
+        windowLabel: period === 'weekly' ? 'Last 7 days' : 'Today',
+        visitors,
+        bookings,
+        completed,
+        revenue,
+        revenueGrowthPct: growthPct,
+        completionRatePct: bookings > 0 ? Math.round((completed / bookings) * 100) : 0,
+        topCategories: topCats.map((c) => ({ category: c._id, orders: c.orders })),
+        topCities,
+        noServiceAreas: unmetAreas.map((a) => ({ city: a._id.city, state: a._id.state, requests: a.requests })),
+        topWorkers: topWorkersRaw.map((w) => ({ name: w.name || 'Worker', phone: w.phone, rating: w.rating, jobs: w.jobs, earnedRupees: w.earnedRupees })),
+      };
+    });
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
+module.exports = { liveTraffic, visitorLocations, demandIntel, unmetDemand, expansionEngine, ceoPulse, funnel, report };

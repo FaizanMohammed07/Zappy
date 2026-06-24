@@ -507,6 +507,12 @@ export const api = createApi({
     adminIntelCeo: b.query({
       query: () => adminApiPath('/intelligence/ceo'),
     }),
+    adminIntelFunnel: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/funnel?days=${days}`),
+    }),
+    adminIntelReport: b.query({
+      query: (period = 'daily') => adminApiPath(`/intelligence/report?period=${period}`),
+    }),
     adminListUsers: b.query({
       query: ({ q, blocked, page = 1 } = {}) => ({ url: adminApiPath('/users'), params: { q, blocked, page } }),
       providesTags: ['AdminUsers'],
@@ -1537,6 +1543,8 @@ export const {
   useAdminIntelUnmetDemandQuery,
   useAdminIntelExpansionQuery,
   useAdminIntelCeoQuery,
+  useAdminIntelFunnelQuery,
+  useAdminIntelReportQuery,
   useAdminListUsersQuery,
   useAdminGetUserQuery,
   useAdminBlockUserMutation,
