@@ -308,23 +308,16 @@ async function getGeoReadiness(req, res, next) {
 
     const [totalWorkers, approvedWorkers, onlineWorkers, recentOrders] =
       await Promise.all([
-        // Total registered workers in radius
+        // Total registered workers in radius.
+        // NOTE: $near is illegal inside countDocuments (it runs as an aggregation,
+        // which forbids geo-sort operators). $geoWithin/$centerSphere counts within
+        // a radius without sorting — radians = km / earthRadiusKm(6378.1).
         Worker.countDocuments({
-          currentLocation: {
-            $near: {
-              $geometry: { type: 'Point', coordinates: [lng, lat] },
-              $maxDistance: radiusKm * 1000,
-            },
-          },
+          currentLocation: { $geoWithin: { $centerSphere: [[lng, lat], radiusKm / 6378.1] } },
         }),
         // KYC-approved workers
         Worker.countDocuments({
-          currentLocation: {
-            $near: {
-              $geometry: { type: 'Point', coordinates: [lng, lat] },
-              $maxDistance: radiusKm * 1000,
-            },
-          },
+          currentLocation: { $geoWithin: { $centerSphere: [[lng, lat], radiusKm / 6378.1] } },
           'kyc.status': 'approved',
           isBlocked: false,
         }),
@@ -352,12 +345,7 @@ async function getGeoReadiness(req, res, next) {
         })(),
         // Orders attempted in this area in the last 30 days
         Order.countDocuments({
-          pickupLocation: {
-            $near: {
-              $geometry: { type: 'Point', coordinates: [lng, lat] },
-              $maxDistance: radiusKm * 1000,
-            },
-          },
+          pickupLocation: { $geoWithin: { $centerSphere: [[lng, lat], radiusKm / 6378.1] } },
           createdAt: { $gte: new Date(Date.now() - 30 * 86_400_000) },
         }),
       ]);
@@ -365,12 +353,7 @@ async function getGeoReadiness(req, res, next) {
     // Skills coverage: which services have at least 1 approved worker?
     const workerSkills = await Worker.find(
       {
-        currentLocation: {
-          $near: {
-            $geometry: { type: 'Point', coordinates: [lng, lat] },
-            $maxDistance: radiusKm * 1000,
-          },
-        },
+        currentLocation: { $geoWithin: { $centerSphere: [[lng, lat], radiusKm / 6378.1] } },
         'kyc.status': 'approved',
         isBlocked: false,
       },

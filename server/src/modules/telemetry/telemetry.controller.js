@@ -6,6 +6,9 @@ const logger = require('../../utils/logger');
 const ONLINE_KEY = 'viz:online';          // ZSET member=sessionId score=lastSeenMs
 const ONLINE_WINDOW_MS = 60_000;          // "active right now" = seen in last 60s
 const SESSION_RE = /^[A-Za-z0-9_-]{8,64}$/;
+const OBJECTID_RE = /^[a-f\d]{24}$/i;
+// Only accept a real ObjectId — a bad string would throw a CastError and drop the whole write.
+const safeUserId = (id) => (typeof id === 'string' && OBJECTID_RE.test(id) ? id : null);
 
 function clientIp(req) {
   return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || null;
@@ -79,7 +82,7 @@ async function pageview(req, res) {
       currentPath: typeof path === 'string' ? path.slice(0, 200) : '/',
       pageEnteredAt: now,
       ...(userType && ['guest', 'user', 'worker', 'admin'].includes(userType) ? { userType } : {}),
-      ...(userId ? { userId } : {}),
+      ...(safeUserId(userId) ? { userId: safeUserId(userId) } : {}),
       ...(hasCoord ? { lat, lng } : {}),
     };
 
@@ -132,7 +135,7 @@ async function search(req, res) {
 
     await SearchEvent.create({
       sessionId: sessionId && SESSION_RE.test(sessionId) ? sessionId : null,
-      userId: userId || null,
+      userId: safeUserId(userId),
       userType: ['guest', 'user', 'worker', 'admin'].includes(userType) ? userType : 'guest',
       device: ua.device,
       category: category.slice(0, 80),

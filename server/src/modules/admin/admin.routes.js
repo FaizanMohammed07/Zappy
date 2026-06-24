@@ -16,6 +16,7 @@ router.use('/', require('./routes/geo.routes'));
 router.use('/', require('./routes/system.routes'));
 router.use('/', require('./routes/support.routes'));
 router.use('/', require('./routes/business.routes'));
+router.use('/', require('./routes/intelligence.routes'));
 router.use('/', require('./routes/audit.routes'));
 router.use('/', require('./routes/shield.routes'));
 router.use('/', require('../fraud/fraud.routes'));

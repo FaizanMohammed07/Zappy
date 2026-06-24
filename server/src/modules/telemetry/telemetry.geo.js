@@ -18,6 +18,7 @@ async function resolveGeo(lat, lng) {
   } catch (_) { /* ignore cache read errors */ }
 
   let out = {};
+  // 1) Google reverse geocode (full result set).
   try {
     if (config.googleMaps?.key) {
       const url = new URL(GEOCODE_URL);
@@ -26,21 +27,44 @@ async function resolveGeo(lat, lng) {
       const res = await fetch(url.toString());
       const data = await res.json();
       if (data.status === 'OK' && data.results?.length) {
-        const comps = data.results[0].address_components || [];
+        const comps = data.results.flatMap((r) => r.address_components || []);
         const pick = (type) => comps.find((c) => c.types.includes(type))?.long_name;
         out = {
           district: pick('administrative_area_level_3') || pick('administrative_area_level_2') || null,
-          city:     pick('locality') || pick('administrative_area_level_2') || null,
+          city:     pick('locality') || pick('administrative_area_level_3') || pick('administrative_area_level_2') || null,
           state:    pick('administrative_area_level_1') || null,
           country:  pick('country') || 'India',
         };
       }
     }
   } catch (err) {
-    logger.warn({ err: err.message }, 'telemetry resolveGeo failed');
+    logger.warn({ err: err.message }, 'telemetry resolveGeo google failed');
   }
 
-  try { await redis.setex(key, 60 * 60 * 48, JSON.stringify(out)); } catch (_) { /* ignore */ }
+  // 2) OpenStreetMap Nominatim fallback (free, no key) — so city/district grouping
+  //    works even when Google has no key / is restricted / returns ZERO_RESULTS.
+  if (!out.city && !out.district && !out.state) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=12`,
+        { headers: { 'User-Agent': 'ZappyAdmin/1.0', 'Accept-Language': 'en' } }
+      );
+      const data = await res.json();
+      const a = data?.address ?? {};
+      out = {
+        district: a.state_district || a.county || null,
+        city:     a.city || a.town || a.village || a.suburb || a.county || null,
+        state:    a.state || null,
+        country:  a.country || 'India',
+      };
+    } catch (err) {
+      logger.warn({ err: err.message }, 'telemetry resolveGeo OSM fallback failed');
+    }
+  }
+
+  // Cache real resolutions 48h; cache an empty result only 2h so it self-heals.
+  const ttl = (out.city || out.district || out.state) ? 60 * 60 * 48 : 60 * 60 * 2;
+  try { await redis.setex(key, ttl, JSON.stringify(out)); } catch (_) { /* ignore */ }
   return out;
 }
 

@@ -41,6 +41,7 @@ import LiveOps from './admin/LiveOps';
 import Services from './admin/Services';
 import Rewards from './admin/Rewards';
 import BusinessIntelligence from './admin/BusinessIntelligence';
+import Intelligence from './admin/Intelligence';
 import NotificationsAdmin from './admin/Notifications';
 import ShieldFund from './admin/ShieldFund';
 import Events from './admin/Events';
@@ -98,10 +99,8 @@ const NAV_GROUPS = [
   {
     label: 'Intelligence',
     items: [
-      { id: 'analytics',      label: 'Analytics',          icon: BarChart2 },
-      { id: 'business',       label: 'Business Intel',     icon: TrendingUp },
+      { id: 'intelligence',   label: 'Intelligence & Expansion', icon: Sparkles },
       { id: 'notifications',  label: 'Notifications',      icon: Bell },
-      { id: 'heatmap',        label: 'Geo Intelligence',   icon: Globe },
       { id: 'alerts',         label: 'Alerts',             icon: Bell },
       { id: 'audit',          label: 'Audit Logs',         icon: FileText },
     ],
@@ -132,7 +131,8 @@ const ALL_NAV = NAV_GROUPS.flatMap(g => g.items);
 const SECTION_MAP = {
   overview: Overview, orders: Orders, users: AdminUsers, workers: Workers,
   kyc: AdminKycReview, pricing: Pricing, services: Services, wallet: AdminWallet,
-  disputes: Disputes, payouts: Payouts, analytics: Analytics, business: BusinessIntelligence, notifications: NotificationsAdmin, heatmap: Heatmap,
+  disputes: Disputes, payouts: Payouts, intelligence: Intelligence,
+  analytics: Analytics, business: BusinessIntelligence, notifications: NotificationsAdmin, heatmap: Heatmap,
   incentives: Incentives, cancellation: Cancellation, ads: Ads, promos: Promos,
   rewards: Rewards, shield: ShieldFund,
   audit: Audit, plans: AdminPlans, liveops: LiveOps, alerts: Alerts,

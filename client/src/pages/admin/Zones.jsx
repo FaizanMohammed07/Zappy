@@ -486,6 +486,9 @@ export default function Zones() {
     }
 
     if (drawing) {
+      // Refresh tile layout in case the map column was resized while idle —
+      // otherwise the first draw can land on a mis-sized/blank canvas.
+      map.invalidateSize({ animate: false });
       map.getContainer().style.cursor = 'crosshair';
       map.on('click', onClick);
       mapRef.current._finishDraw = finishDrawCallback;
@@ -663,7 +666,8 @@ export default function Zones() {
             <div className="relative rounded-b-2xl overflow-hidden" style={{ height: '460px' }}>
               <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-              {/* Drawing mode banner */}
+              {/* Drawing mode banner — full-width wrapper keeps it inside the map
+                  and lets the content wrap instead of overflowing/clipping. */}
               <AnimatePresence>
                 {drawing && (
                   <motion.div
@@ -671,31 +675,37 @@ export default function Zones() {
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: -50, opacity: 0 }}
                     transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-                    className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600/95 backdrop-blur-sm text-white rounded-2xl shadow-xl px-5 py-3 flex items-center gap-3"
+                    className="absolute top-3 inset-x-3 z-[1000] flex justify-center pointer-events-none"
                   >
-                    <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                      <MousePointer size={14} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold leading-none">Draw Mode</p>
-                      <p className="text-[11px] text-blue-200 mt-0.5">
-                        {drawCount === 0 ? 'Click on the map to place points' : `${drawCount} point${drawCount > 1 ? 's' : ''} placed${drawCount >= 3 ? ' — ready to complete' : ' — need at least 3'}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 ml-2">
-                      <button
-                        onClick={completeDraw}
-                        disabled={drawCount < 3}
-                        className="flex items-center gap-1.5 bg-white text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl px-3 py-1.5 text-xs font-bold transition hover:bg-blue-50"
-                      >
-                        <Check size={12} /> Complete
-                      </button>
-                      <button
-                        onClick={cancelDraw}
-                        className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-xl px-3 py-1.5 text-xs font-bold transition"
-                      >
-                        <X size={12} /> Cancel
-                      </button>
+                    <div className="pointer-events-auto bg-blue-600/95 backdrop-blur-sm text-white rounded-2xl shadow-xl px-3.5 py-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 max-w-full">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                          <MousePointer size={14} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold leading-none">Draw Mode</p>
+                          <p className="text-[11px] text-blue-100 mt-0.5 whitespace-nowrap">
+                            {drawCount === 0
+                              ? 'Tap the map to add corner points'
+                              : `${drawCount} point${drawCount > 1 ? 's' : ''} · ${drawCount >= 3 ? 'ready to complete' : 'need 3+'}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={completeDraw}
+                          disabled={drawCount < 3}
+                          className="flex items-center gap-1.5 bg-white text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl px-3 py-1.5 text-xs font-bold transition hover:bg-blue-50"
+                        >
+                          <Check size={12} /> Complete
+                        </button>
+                        <button
+                          onClick={cancelDraw}
+                          className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-xl px-3 py-1.5 text-xs font-bold transition"
+                        >
+                          <X size={12} /> Cancel
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 )}

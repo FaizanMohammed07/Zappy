@@ -33,7 +33,16 @@ function buildApp() {
         scriptSrc:      ["'self'"],                  // no inline scripts, no eval
         styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
-        imgSrc:         ["'self'", 'data:', 'blob:', 'https://api.mapbox.com', 'https://*.amazonaws.com'],
+        imgSrc:         [
+          "'self'", 'data:', 'blob:',
+          'https://api.mapbox.com',
+          'https://*.amazonaws.com',
+          // Leaflet basemap tiles + marker assets (Zones/Geofences map)
+          'https://*.basemaps.cartocdn.com',
+          'https://server.arcgisonline.com',
+          'https://*.tile.openstreetmap.org',
+          'https://unpkg.com',
+        ],
         connectSrc:     [
           "'self'",
           'wss:',                            // WebSocket (Socket.io)

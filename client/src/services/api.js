@@ -487,6 +487,23 @@ export const api = createApi({
     adminQuoteAbandonment: b.query({
       query: (days = 7) => adminApiPath(`/business/quote-abandonment?days=${days}`),
     }),
+
+    // Intelligence & Expansion dashboard
+    adminIntelLiveTraffic: b.query({
+      query: () => adminApiPath('/intelligence/live-traffic'),
+    }),
+    adminIntelDemand: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/demand?days=${days}`),
+    }),
+    adminIntelUnmetDemand: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/unmet-demand?days=${days}`),
+    }),
+    adminIntelExpansion: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/expansion?days=${days}`),
+    }),
+    adminIntelCeo: b.query({
+      query: () => adminApiPath('/intelligence/ceo'),
+    }),
     adminListUsers: b.query({
       query: ({ q, blocked, page = 1 } = {}) => ({ url: adminApiPath('/users'), params: { q, blocked, page } }),
       providesTags: ['AdminUsers'],
@@ -1511,6 +1528,11 @@ export const {
   useAdminDeadCategoriesQuery,
   useAdminGeoReadinessQuery,
   useAdminQuoteAbandonmentQuery,
+  useAdminIntelLiveTrafficQuery,
+  useAdminIntelDemandQuery,
+  useAdminIntelUnmetDemandQuery,
+  useAdminIntelExpansionQuery,
+  useAdminIntelCeoQuery,
   useAdminListUsersQuery,
   useAdminGetUserQuery,
   useAdminBlockUserMutation,

@@ -43,16 +43,19 @@ function lastCoords() {
   return {};
 }
 
-/** Send a beacon to /api/telemetry/<endpoint>. Never throws. */
+/** Send a beacon to /api/telemetry/<endpoint>. Never throws.
+ *  IMPORTANT: uses text/plain — a CORS-simple request that needs NO preflight, so
+ *  navigator.sendBeacon works across the Vercel→EC2 origin split. An application/json
+ *  body would require a preflight that sendBeacon can't do, dropping every event. */
 export function sendBeacon(endpoint, body) {
   const url = `${API_BASE}/api/telemetry/${endpoint}`;
   try {
     const payload = JSON.stringify(body);
     if (navigator.sendBeacon) {
-      const ok = navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      const ok = navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain;charset=UTF-8' }));
       if (ok) return;
     }
-    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true })
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: payload, keepalive: true })
       .catch(() => {});
   } catch { /* analytics must never break the app */ }
 }

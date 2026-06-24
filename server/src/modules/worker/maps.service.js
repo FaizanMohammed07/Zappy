@@ -86,36 +86,63 @@ async function reverseGeocode(lat, lng) {
 }
 
 /**
- * Returns a short human-readable zone label e.g. "Kondapur, Hyderabad".
- * Prefers sublocality → locality → administrative_area_level_2.
- * Cached in Redis 48h per rounded coordinate (matches geo-analytics precision).
+ * Returns a short human-readable zone label e.g. "Kondapur, Hyderabad" or
+ * "Vikarabad, Telangana" — never raw coordinates unless every lookup fails.
+ *
+ * Strategy: Redis cache → Google reverse geocode (full result set, no over-
+ * restrictive result_type) → OpenStreetMap Nominatim fallback (free, no key).
+ * Real labels cached 48h; the coordinate fallback is cached only 2h so a
+ * transient geocoder hiccup self-heals on the next view.
  */
 async function getZoneLabel(lat, lng) {
   const key = `zone-label:${lat.toFixed(2)},${lng.toFixed(2)}`;
   const cached = await redis.get(key);
   if (cached) return cached;
+
+  // 1) Google — take the FULL result set and walk components from most to least
+  //    specific. The previous result_type=sublocality|locality filter returned
+  //    ZERO_RESULTS for semi-urban/rural points, forcing a coordinate fallback.
   try {
-    const url = new URL(GEOCODE_URL);
-    url.searchParams.set('latlng', `${lat},${lng}`);
-    url.searchParams.set('result_type', 'sublocality|locality');
-    url.searchParams.set('key', config.googleMaps.key);
-    const res  = await fetch(url.toString());
-    const data = await res.json();
-    if (data.status === 'OK' && data.results.length) {
-      const comps = data.results[0].address_components || [];
-      const pick  = (type) => comps.find((c) => c.types.includes(type))?.long_name;
-      const sub   = pick('sublocality_level_1') || pick('sublocality');
-      const city  = pick('locality') || pick('administrative_area_level_2');
-      const label = [sub, city].filter(Boolean).join(', ') || data.results[0].formatted_address?.split(',').slice(0, 2).join(',').trim();
-      if (label) {
-        await redis.setex(key, 60 * 60 * 48, label);
-        return label;
+    if (config.googleMaps?.key) {
+      const url = new URL(GEOCODE_URL);
+      url.searchParams.set('latlng', `${lat},${lng}`);
+      url.searchParams.set('key', config.googleMaps.key);
+      const res  = await fetch(url.toString());
+      const data = await res.json();
+      if (data.status === 'OK' && data.results?.length) {
+        // Merge components across results so a sparse first result still yields a name.
+        const comps = data.results.flatMap((r) => r.address_components || []);
+        const pick  = (type) => comps.find((c) => c.types.includes(type))?.long_name;
+        const local = pick('sublocality_level_1') || pick('sublocality') || pick('locality')
+                   || pick('administrative_area_level_3') || pick('administrative_area_level_2');
+        const region = pick('administrative_area_level_2') || pick('administrative_area_level_1');
+        const label = [local, local !== region ? region : null].filter(Boolean).join(', ')
+                   || data.results[0].formatted_address?.split(',').slice(0, 2).join(',').trim();
+        if (label) { await redis.setex(key, 60 * 60 * 48, label); return label; }
       }
     }
   } catch (err) {
-    logger.error({ err: err.message }, 'getZoneLabel failed');
+    logger.warn({ err: err.message }, 'getZoneLabel google failed — trying OSM');
   }
-  return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+
+  // 2) OpenStreetMap Nominatim — free reverse geocode, no API key required.
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=13`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'ZappyAdmin/1.0', 'Accept-Language': 'en' } });
+    const data = await res.json();
+    const a = data?.address ?? {};
+    const local  = a.suburb || a.neighbourhood || a.village || a.town || a.city || a.county;
+    const region = a.state_district || a.state;
+    const label  = [local, local !== region ? region : null].filter(Boolean).join(', ');
+    if (label) { await redis.setex(key, 60 * 60 * 48, label); return label; }
+  } catch (err) {
+    logger.warn({ err: err.message }, 'getZoneLabel OSM fallback failed');
+  }
+
+  // 3) Last resort — coordinates, cached briefly so it retries soon.
+  const fallback = `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+  await redis.setex(key, 60 * 60 * 2, fallback).catch(() => {});
+  return fallback;
 }
 
 module.exports = { getDistanceAndEta, reverseGeocode, getZoneLabel, haversineKm };
