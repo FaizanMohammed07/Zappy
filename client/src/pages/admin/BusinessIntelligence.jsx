@@ -378,8 +378,9 @@ function GeoReadinessTool() {
                 {resolved && resolved.label && (
                   <p className="text-[11px] font-bold text-slate-500 flex items-center gap-1 mb-0.5"><MapPin size={10} />{resolved.label}</p>
                 )}
-                <p className={`text-sm font-black ${data.isReady ? 'text-green-800' : 'text-red-800'}`}>
-                  {data.isReady ? '✅ Area Ready' : '❌ Not Ready for Launch'}
+                <p className={`text-sm font-black flex items-center gap-1.5 ${data.isReady ? 'text-green-800' : 'text-red-800'}`}>
+                  {data.isReady ? <CheckCircle size={15} /> : <XCircle size={15} />}
+                  {data.isReady ? 'Area Ready' : 'Not Ready for Launch'}
                 </p>
                 <p className="text-xs mt-0.5 text-slate-600">{data.recommendation}</p>
               </div>

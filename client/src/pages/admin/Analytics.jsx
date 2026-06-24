@@ -142,23 +142,23 @@ export default function Analytics() {
       )}
 
       {live && (
-        <Card className="px-5 py-3 flex flex-wrap gap-6 items-center bg-slate-900 border-slate-800">
-          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm px-5 py-3.5 flex flex-wrap items-center gap-x-8 gap-y-3">
+          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 pr-2 border-r border-slate-100">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />Live Now
           </span>
           {[
-            { label: 'Active',          value: live.active },
-            { label: 'Online Workers',  value: `${live.onlineWorkers}/${live.totalWorkers}` },
-            { label: 'Today Orders',    value: live.ordersToday },
-            { label: 'Done Today',      value: live.completedToday },
-            { label: 'Rev Today',       value: `₹${(live.revenueToday || 0).toLocaleString('en-IN')}` },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <p className="text-sm font-extrabold text-white tabular-nums">{value}</p>
-              <p className="text-[10px] text-slate-400 font-semibold">{label}</p>
+            { label: 'Active orders',   value: live.active,                                              color: 'text-blue-600' },
+            { label: 'Online workers',  value: `${live.onlineWorkers}/${live.totalWorkers}`,             color: 'text-emerald-600' },
+            { label: 'Orders today',    value: live.ordersToday,                                         color: 'text-orange-600' },
+            { label: 'Completed today', value: live.completedToday,                                      color: 'text-violet-600' },
+            { label: 'Revenue today',   value: `₹${(live.revenueToday || 0).toLocaleString('en-IN')}`,   color: 'text-amber-600' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="flex flex-col leading-tight">
+              <span className={`text-xl font-extrabold tabular-nums ${color}`}>{value}</span>
+              <span className="text-[11px] text-slate-500 font-medium">{label}</span>
             </div>
           ))}
-        </Card>
+        </div>
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">

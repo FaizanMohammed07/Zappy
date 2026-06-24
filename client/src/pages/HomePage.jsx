@@ -13,7 +13,7 @@ import {
   ShieldAlert, Cpu, MonitorSmartphone, Repeat2,
 } from 'lucide-react';
 import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
-import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery } from '../services/api';
+import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery, useListServicesQuery } from '../services/api';
 import { useGeolocation, loadGeoLocation } from '../hooks/useGeolocation';
 import { reverseGeocode } from '../utils/reverseGeocode';
 import { serviceLabel } from '../constants/services';
@@ -36,20 +36,20 @@ import SEO, { HOME_SCHEMA, BASE_URL } from '../components/SEO';
 
 /* ─── Most booked — Electronics Rescue ────────────────────────────────── */
 const MOST_BOOKED = [
-  { key: 'screen_replacement',  name: 'Screen Replacement', img: 'https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.88, price: 399, mrp: 499, instant: true },
-  { key: 'battery_replacement', name: 'Battery Replacement',img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.83, price: 299, mrp: null, instant: true },
-  { key: 'laptop_slow',         name: 'Laptop Speed Fix',   img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.79, price: 499, mrp: 599, instant: false },
-  { key: 'charging_issue',      name: 'Charging Port Fix',  img: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.76, price: 199, mrp: null, instant: true },
-  { key: 'data_recovery',       name: 'Data Recovery',      img: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.81, price: 799, mrp: 999, instant: false },
+  { key: 'screen_replacement',  name: 'Screen Replacement', img: 'https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'battery_replacement', name: 'Battery Replacement',img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'laptop_slow',         name: 'Laptop Speed Fix',   img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'charging_issue',      name: 'Charging Port Fix',  img: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'data_recovery',       name: 'Data Recovery',      img: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
 ];
 
 /* ─── Vehicle care highlights ──────────────────────────────────────────── */
 const VEHICLE_HIGHLIGHTS = [
-  { key: 'puncture',         name: 'Puncture Repair',  img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.82, price: 149, mrp: null, instant: true  },
-  { key: 'car_wash',         name: 'Car Wash',         img: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.75, price: 349, mrp: null, instant: true  },
-  { key: 'battery_jump_start',name: 'Jump Start',      img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.91, price: 299, mrp: null, instant: true  },
-  { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.77, price: 499, mrp: 599, instant: false },
-  { key: 'car_detailing',    name: 'Car Detailing',    img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.85, price: 1499, mrp: 1799, instant: false },
+  { key: 'puncture',         name: 'Puncture Repair',  img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_wash',         name: 'Car Wash',         img: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'battery_jump_start',name: 'Jump Start',      img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_detailing',    name: 'Car Detailing',    img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
 ];
 
 /* ─── Service tile data ────────────────────────────────────────────────── */
@@ -158,12 +158,13 @@ function LiveBadge() {
 
 /* ─── UC-style image service card ──────────────────────────────────────── */
 function ServiceImageCard({ item, nav }) {
-  // Generate a deterministic pseudo-random review count based on item name
-  const reviewCount = item.reviews || (() => {
-    const hash = (item.key || item.name || '').split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-    const num = ((hash % 85) + 15) / 10; // e.g. 1.5 to 9.9
-    return num.toFixed(1) + 'K';
-  })();
+  // Live price from the admin Service Catalog — single source of truth.
+  // Was previously hardcoded with a `₹{item.price || 199}` fallback (the "all ₹199" bug).
+  const { data: catalog } = useListServicesQuery();
+  const svc   = catalog?.byCode?.[item.key];
+  const price = svc?.priceRangeMinPaise != null ? Math.round(svc.priceRangeMinPaise / 100) : null;
+  const isServiceCode = /^[a-z][a-z0-9_]+$/.test(item.key || '');
+  const badge = item.badge || 'Popular';
 
   return (
     <div
@@ -178,15 +179,20 @@ function ServiceImageCard({ item, nav }) {
           loading="lazy"
           onError={e => { e.target.style.display = 'none'; }}
         />
+        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur-sm">
+          {badge}
+        </span>
       </div>
       <p className="text-[13px] md:text-[15px] font-bold text-[#0f172a] leading-snug mb-0.5 truncate">{item.name}</p>
-      <div className="flex items-center gap-1.5 mb-0.5 text-slate-500">
-        <Star size={12} className="fill-black text-black" />
-        <span className="text-[11px] md:text-[13px] font-medium text-slate-600">{(item.rating || 4.8).toFixed(2)} ({reviewCount})</span>
-      </div>
       <div className="flex items-center gap-1.5">
-        <span className="text-[13px] md:text-[15px] font-medium text-[#0f172a]">₹{item.price || 199}</span>
-        {(item.mrp || null) && <span className="text-[11px] md:text-[13px] text-slate-400 line-through">₹{item.mrp}</span>}
+        {price != null ? (
+          <>
+            <span className="text-[11px] md:text-[12px] text-slate-400 font-medium">From</span>
+            <span className="text-[13px] md:text-[15px] font-bold text-[#0f172a]">₹{price}</span>
+          </>
+        ) : isServiceCode ? (
+          <span className="text-[12px] md:text-[13px] font-semibold text-indigo-600">Get Quote</span>
+        ) : null}
       </div>
     </div>
   );

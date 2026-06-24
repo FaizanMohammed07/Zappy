@@ -17,10 +17,10 @@ export default function ServiceMatrix({ services = [] }) {
   const avgQuality = services.reduce((s, sv) => s + sv.completionRate, 0) / services.length;
 
   const categories = {
-    star:    { label: '⭐ Stars',        desc: 'High demand + high quality — protect & scale', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
-    problem: { label: '🔴 Problems',     desc: 'High demand + low quality — fix urgently',      bg: 'bg-red-50',     border: 'border-red-200',     dot: 'bg-red-500'     },
-    gem:     { label: '💎 Hidden Gems',  desc: 'Low demand + high quality — promote more',       bg: 'bg-blue-50',    border: 'border-blue-200',    dot: 'bg-blue-500'    },
-    review:  { label: '⚠️ Review',       desc: 'Low demand + low quality — improve or cut',      bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-500'   },
+    star:    { label: 'Stars',        desc: 'High demand + high quality — protect & scale', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+    problem: { label: 'Problems',     desc: 'High demand + low quality — fix urgently',      bg: 'bg-red-50',     border: 'border-red-200',     dot: 'bg-red-500'     },
+    gem:     { label: 'Hidden Gems',  desc: 'Low demand + high quality — promote more',       bg: 'bg-blue-50',    border: 'border-blue-200',    dot: 'bg-blue-500'    },
+    review:  { label: 'Review',       desc: 'Low demand + low quality — improve or cut',      bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-500'   },
   };
 
   const categorized = services.map(sv => ({
@@ -37,7 +37,9 @@ export default function ServiceMatrix({ services = [] }) {
     <div className="grid grid-cols-2 gap-3">
       {Object.entries(categories).map(([quad, cat]) => (
         <div key={quad} className={`p-3.5 rounded-xl border ${cat.bg} ${cat.border}`}>
-          <p className="text-sm font-bold text-slate-800">{cat.label}</p>
+          <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${cat.dot}`} />{cat.label}
+          </p>
           <p className="text-[10px] text-slate-500 mb-2.5">{cat.desc}</p>
           {grouped[quad].length === 0
             ? <p className="text-xs text-slate-400 italic">None</p>

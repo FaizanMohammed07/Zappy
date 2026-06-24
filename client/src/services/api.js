@@ -877,6 +877,15 @@ export const api = createApi({
       query: ({ orderId, reportType, preDamageDocs }) => ({ url: '/vertical-features/vehicles/health-report', method: 'POST', body: { orderId, reportType, preDamageDocs } }),
     }),
 
+    // --- Public Catalog — live service list + prices for home/services pages ---
+    listServices: b.query({
+      query: () => '/catalog/services',
+      transformResponse: (r) => {
+        const list = r?.services || [];
+        return { list, byCode: Object.fromEntries(list.map((s) => [s.code, s])) };
+      },
+    }),
+
     // --- Admin Catalog (correct server path: /catalog/admin/services) ---
     adminGetCatalogServices: b.query({ query: () => '/catalog/admin/services' }),
     adminUpdateCatalogService: b.mutation({
@@ -1704,6 +1713,7 @@ export const {
   useGetVehicleHealthReportQuery,
   useSubmitVehicleHealthReportMutation,
   // Admin catalog + verticals
+  useListServicesQuery,
   useAdminGetCatalogServicesQuery,
   useAdminUpdateCatalogServiceMutation,
   useAdminServiceActiveOrderCountQuery,
