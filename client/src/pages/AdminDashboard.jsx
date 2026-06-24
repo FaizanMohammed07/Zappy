@@ -8,7 +8,7 @@ import {
   FileText, LogOut, Menu, X, ChevronRight, FileCheck, Crown,
   Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
   HeadphonesIcon, Radio, Globe, Layers, Zap, Sparkles, TrendingUp,
-  Shield, PartyPopper, PawPrint, ShieldAlert, Map as MapIcon,
+  Shield, PartyPopper, ShieldAlert, Map as MapIcon,
   AlertCircle, GraduationCap,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
@@ -45,7 +45,6 @@ import Intelligence from './admin/Intelligence';
 import NotificationsAdmin from './admin/Notifications';
 import ShieldFund from './admin/ShieldFund';
 import Events from './admin/Events';
-import PetAssistance from './admin/PetAssistance';
 import Fraud from './admin/Fraud';
 import Zones from './admin/Zones';
 import Intervention from './admin/Intervention';
@@ -112,12 +111,6 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: 'Future Planning',
-    items: [
-      { id: 'pet-assistance', label: 'Pet Assistance', icon: PawPrint },
-    ],
-  },
-  {
     label: 'System',
     items: [
       { id: 'flags',        label: 'Feature Flags',    icon: ToggleRight },
@@ -138,7 +131,6 @@ const SECTION_MAP = {
   audit: Audit, plans: AdminPlans, liveops: LiveOps, alerts: Alerts,
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
   events: Events,
-  'pet-assistance': PetAssistance,
   fraud: Fraud, zones: Zones, intervention: Intervention, cities: Cities,
   appeals: Appeals, training: Training,
 };

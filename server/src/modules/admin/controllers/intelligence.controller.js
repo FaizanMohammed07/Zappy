@@ -1,5 +1,6 @@
 const Order = require('../../order/order.model');
 const Worker = require('../../worker/worker.model');
+const EventBooking = require('../../events/event-booking.model');
 const { VisitorSession, SearchEvent } = require('../../telemetry/telemetry.model');
 const { activeNowCount } = require('../../telemetry/telemetry.controller');
 const cachedAnalytics = require('../lib/cached-analytics');
@@ -573,4 +574,54 @@ async function report(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { liveTraffic, visitorLocations, demandIntel, unmetDemand, expansionEngine, ceoPulse, funnel, report };
+/* ════════════════════════════════════════════════════════════════════════════
+ * 8. PARTNER ANALYTICS  (event partners ranked by performance)
+ * ══════════════════════════════════════════════════════════════════════════ */
+async function partnerAnalytics(req, res, next) {
+  try {
+    const days = Math.min(Number(req.query.days) || 30, 180);
+    const data = await cachedAnalytics(`intel:partners:${days}`, 120, async () => {
+      const since = new Date(Date.now() - days * 86_400_000);
+      const rows = await EventBooking.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: {
+          _id: '$partnerId',
+          bookings:     { $sum: 1 },
+          completed:    { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          cancelled:    { $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] } },
+          revenuePaise: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, '$pricing.totalPaise', 0] } },
+        } },
+        { $sort: { revenuePaise: -1, bookings: -1 } },
+        { $limit: 50 },
+        { $lookup: { from: 'eventpartners', localField: '_id', foreignField: '_id', as: 'p' } },
+        { $unwind: { path: '$p', preserveNullAndEmptyArrays: true } },
+        { $project: {
+          name: '$p.businessName', rating: '$p.rating',
+          bookings: 1, completed: 1, cancelled: 1,
+          revenueRupees: { $round: [{ $divide: ['$revenuePaise', 100] }, 0] },
+        } },
+      ]);
+      const totals = rows.reduce((a, r) => ({
+        bookings: a.bookings + r.bookings, completed: a.completed + r.completed, revenue: a.revenue + r.revenueRupees,
+      }), { bookings: 0, completed: 0, revenue: 0 });
+      return {
+        windowDays: days,
+        totalPartners: rows.length,
+        totals,
+        partners: rows.map((r, i) => ({
+          rank: i + 1,
+          name: r.name || 'Partner',
+          rating: r.rating ?? 0,
+          bookings: r.bookings,
+          completed: r.completed,
+          cancelled: r.cancelled,
+          completionPct: r.bookings > 0 ? Math.round((r.completed / r.bookings) * 100) : 0,
+          revenueRupees: r.revenueRupees,
+        })),
+      };
+    });
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
+module.exports = { liveTraffic, visitorLocations, demandIntel, unmetDemand, expansionEngine, ceoPulse, funnel, report, partnerAnalytics };

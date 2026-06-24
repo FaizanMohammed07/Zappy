@@ -13,5 +13,6 @@ router.get('/intelligence/expansion',    ctrl.expansionEngine);
 router.get('/intelligence/ceo',          ctrl.ceoPulse);
 router.get('/intelligence/funnel',       ctrl.funnel);
 router.get('/intelligence/report',       ctrl.report);
+router.get('/intelligence/partners',     ctrl.partnerAnalytics);
 
 module.exports = router;

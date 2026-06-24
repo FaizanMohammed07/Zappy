@@ -9,7 +9,7 @@ import {
 import {
   useAdminIntelLiveTrafficQuery, useAdminIntelVisitorLocationsQuery, useAdminIntelDemandQuery,
   useAdminIntelUnmetDemandQuery, useAdminIntelExpansionQuery, useAdminIntelCeoQuery,
-  useAdminIntelFunnelQuery, useAdminIntelReportQuery,
+  useAdminIntelFunnelQuery, useAdminIntelReportQuery, useAdminIntelPartnersQuery,
 } from '../../services/api';
 import { SectionHeader, Card, PageLoader, EmptyState, StatCard, BarChart, Th, Td } from './_shared';
 import BusinessIntelligence from './BusinessIntelligence';
@@ -581,6 +581,58 @@ function BusinessReport() {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
+ * PARTNER ANALYTICS (event partners ranked)
+ * ══════════════════════════════════════════════════════════════════════════ */
+function PartnerPerformance() {
+  const [days, setDays] = useState(30);
+  const { data, isLoading } = useAdminIntelPartnersQuery(days);
+  if (isLoading) return <PageLoader />;
+  const d = data || {};
+  const partners = d.partners || [];
+  const t = d.totals || {};
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Partner Analytics" subtitle="Event partners ranked by revenue, bookings and completion rate.">
+        <DaysSelect value={days} onChange={setDays} />
+      </SectionHeader>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Active Partners" value={num(d.totalPartners)} Icon={Users} color="text-indigo-600" bg="bg-indigo-50" />
+        <StatCard label="Bookings" value={num(t.bookings)} Icon={ShoppingBag} color="text-blue-600" bg="bg-blue-50" sub={`${num(t.completed)} completed`} />
+        <StatCard label="Partner Revenue" value={inr(t.revenue)} Icon={IndianRupee} color="text-amber-600" bg="bg-amber-50" />
+        <StatCard label="Completion" value={`${t.bookings ? Math.round((t.completed / t.bookings) * 100) : 0}%`} Icon={TrendingUp} color="text-emerald-600" bg="bg-emerald-50" />
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100"><p className="text-sm font-bold text-slate-700">Partner Leaderboard</p></div>
+        {partners.length === 0 ? (
+          <EmptyState message="No event partner bookings in this window" icon={Users} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr><Th>#</Th><Th>Partner</Th><Th right>Rating</Th><Th right>Bookings</Th><Th right>Completed</Th><Th right>Completion</Th><Th right>Revenue</Th></tr></thead>
+              <tbody className="divide-y divide-slate-50">
+                {partners.map((p) => (
+                  <tr key={p.rank} className="hover:bg-slate-50">
+                    <Td muted>{p.rank}</Td>
+                    <Td><span className="font-semibold text-slate-800">{p.name}</span></Td>
+                    <Td right><span className="inline-flex items-center gap-1"><Star size={11} className="fill-amber-400 text-amber-400" />{(p.rating || 0).toFixed(1)}</span></Td>
+                    <Td right>{num(p.bookings)}</Td>
+                    <Td right muted>{num(p.completed)}{p.cancelled > 0 && <span className="text-red-400 ml-1">· {p.cancelled} cx</span>}</Td>
+                    <Td right><span className={`font-bold ${p.completionPct >= 80 ? 'text-emerald-600' : p.completionPct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{p.completionPct}%</span></Td>
+                    <Td right><span className="font-bold text-blue-600">{inr(p.revenueRupees)}</span></Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
  * HUB SHELL — title + dropdown
  * ══════════════════════════════════════════════════════════════════════════ */
 const VIEWS = [
@@ -590,6 +642,7 @@ const VIEWS = [
   { id: 'unmet',     label: 'Unmet Demand',       icon: MapPinOff, Comp: UnmetDemand },
   { id: 'expansion', label: 'Expansion Engine',   icon: Rocket,    Comp: ExpansionEngine },
   { id: 'funnel',    label: 'Conversion Funnel',  icon: Filter,    Comp: ConversionFunnel },
+  { id: 'partners',  label: 'Partner Analytics',  icon: Users,     Comp: PartnerPerformance },
   { id: 'report',    label: 'Business Report',    icon: FileText,  Comp: BusinessReport },
   { id: 'geo',       label: 'Geo / Heatmap',      icon: Globe,     Comp: Heatmap },
   { id: 'business',  label: 'Business Intel',     icon: TrendingUp, Comp: BusinessIntelligence },
