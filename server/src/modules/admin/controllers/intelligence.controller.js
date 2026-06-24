@@ -83,6 +83,46 @@ async function liveTraffic(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/* ── Visitor locations history — "where visitors come from" ───────────────── */
+async function visitorLocations(req, res, next) {
+  try {
+    const days = Math.min(Number(req.query.days) || 30, 180);
+    const data = await cachedAnalytics(`intel:visitor-locations:${days}`, 60, async () => {
+      const since = new Date(Date.now() - days * 86_400_000);
+      const rows = await VisitorSession.aggregate([
+        { $match: { firstSeen: { $gte: since } } },
+        { $group: {
+          _id: { city: '$city', state: '$state' },
+          visitors: { $sum: 1 },
+          mobile:   { $sum: { $cond: [{ $eq: ['$device', 'mobile'] }, 1, 0] } },
+          pages:    { $sum: '$pageCount' },
+          lastSeen: { $max: '$lastSeen' },
+        } },
+        { $sort: { visitors: -1 } },
+        { $limit: 100 },
+      ]);
+      const total = rows.reduce((s, r) => s + r.visitors, 0);
+      const located = rows.filter((r) => r._id.city || r._id.state).reduce((s, r) => s + r.visitors, 0);
+      return {
+        windowDays: days,
+        total,
+        located,
+        unknown: total - located,
+        locations: rows.map((r) => ({
+          city: r._id.city,
+          state: r._id.state,
+          visitors: r.visitors,
+          pages: r.pages,
+          mobilePct: r.visitors ? Math.round((r.mobile / r.visitors) * 100) : 0,
+          sharePct: total ? Math.round((r.visitors / total) * 100) : 0,
+          lastSeen: r.lastSeen,
+        })),
+      };
+    });
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
  * 2. DEMAND INTELLIGENCE
  * ══════════════════════════════════════════════════════════════════════════ */
@@ -404,4 +444,4 @@ async function ceoPulse(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { liveTraffic, demandIntel, unmetDemand, expansionEngine, ceoPulse };
+module.exports = { liveTraffic, visitorLocations, demandIntel, unmetDemand, expansionEngine, ceoPulse };

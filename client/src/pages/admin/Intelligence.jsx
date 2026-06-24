@@ -6,7 +6,7 @@ import {
   Monitor, Smartphone, ArrowUpRight, ArrowDownRight, Briefcase, Flame,
 } from 'lucide-react';
 import {
-  useAdminIntelLiveTrafficQuery, useAdminIntelDemandQuery,
+  useAdminIntelLiveTrafficQuery, useAdminIntelVisitorLocationsQuery, useAdminIntelDemandQuery,
   useAdminIntelUnmetDemandQuery, useAdminIntelExpansionQuery, useAdminIntelCeoQuery,
 } from '../../services/api';
 import { SectionHeader, Card, PageLoader, EmptyState, StatCard, BarChart, Th, Td } from './_shared';
@@ -119,6 +119,57 @@ function CeoPulse() {
   );
 }
 
+/* ── Visitor locations history — "where visitors come from" ───────────────── */
+function VisitorLocations() {
+  const [days, setDays] = useState(7);
+  const { data, isLoading } = useAdminIntelVisitorLocationsQuery(days);
+  const d = data || {};
+  const locs = d.locations || [];
+  return (
+    <Card className="overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Globe size={15} className="text-blue-500 shrink-0" />
+          <p className="text-sm font-bold text-slate-700">Where visitors come from</p>
+          {d.total > 0 && <span className="text-[11px] text-slate-400 truncate">· {num(d.located)}/{num(d.total)} located</span>}
+        </div>
+        <DaysSelect value={days} onChange={setDays} />
+      </div>
+      {isLoading ? <PageLoader /> : locs.length === 0 ? (
+        <EmptyState message="No visitor locations yet — they fill in as people browse" icon={Globe} />
+      ) : (
+        <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
+          <table className="w-full">
+            <thead className="sticky top-0 bg-white"><tr>
+              <Th>#</Th><Th>City</Th><Th>State</Th><Th right>Visitors</Th><Th right>Share</Th><Th right>Mobile</Th><Th>Last seen</Th>
+            </tr></thead>
+            <tbody className="divide-y divide-slate-50">
+              {locs.map((l, i) => (
+                <tr key={`${l.city}-${l.state}-${i}`} className="hover:bg-slate-50">
+                  <Td muted>{i + 1}</Td>
+                  <Td><span className="font-semibold text-slate-800">{l.city || 'Unknown'}</span></Td>
+                  <Td muted>{l.state || '—'}</Td>
+                  <Td right><span className="font-bold text-blue-600">{num(l.visitors)}</span></Td>
+                  <Td right>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="hidden sm:block w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <span className="block h-full bg-blue-500" style={{ width: `${l.sharePct}%` }} />
+                      </span>
+                      {l.sharePct}%
+                    </span>
+                  </Td>
+                  <Td right muted>{l.mobilePct}%</Td>
+                  <Td muted>{l.lastSeen ? new Date(l.lastSeen).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
  * LIVE TRAFFIC
  * ══════════════════════════════════════════════════════════════════════════ */
@@ -182,6 +233,9 @@ function LiveTraffic() {
           </div>
         )}
       </Card>
+
+      {/* Location history — which areas visitors come from most */}
+      <VisitorLocations />
     </div>
   );
 }

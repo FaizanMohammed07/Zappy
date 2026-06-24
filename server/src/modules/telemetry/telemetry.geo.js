@@ -68,6 +68,39 @@ async function resolveGeo(lat, lng) {
   return out;
 }
 
+// Private / loopback ranges — these never resolve to a public location
+// (e.g. localhost in dev), so we skip the lookup entirely.
+const PRIVATE_IP_RE = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|::ffff:127\.|fc|fd|fe80)/i;
+
+/**
+ * Resolve { city, state, country } from a visitor IP — how we locate web
+ * visitors who never share GPS. Uses the free ip-api.com (45 req/min, no key),
+ * cached 24h per IP in Redis. Returns {} for private/loopback IPs (dev).
+ */
+async function resolveGeoFromIp(ip) {
+  if (!ip || PRIVATE_IP_RE.test(ip)) return {};
+  const clean = ip.replace(/^::ffff:/, '');
+  const key = `geo-ip:${clean}`;
+  try {
+    const cached = await redis.get(key);
+    if (cached) return JSON.parse(cached);
+  } catch (_) { /* ignore */ }
+
+  let out = {};
+  try {
+    const res = await fetch(`http://ip-api.com/json/${clean}?fields=status,country,regionName,city`);
+    const d = await res.json();
+    if (d.status === 'success') {
+      out = { city: d.city || null, state: d.regionName || null, country: d.country || null };
+    }
+  } catch (err) {
+    logger.warn({ err: err.message }, 'telemetry resolveGeoFromIp failed');
+  }
+  const ttl = (out.city || out.state) ? 86400 : 3600; // re-try unresolved IPs sooner
+  try { await redis.setex(key, ttl, JSON.stringify(out)); } catch (_) { /* ignore */ }
+  return out;
+}
+
 /**
  * Minimal, dependency-free User-Agent parser — enough for analytics buckets.
  * Returns { device, browser, os }.
@@ -112,4 +145,4 @@ function normaliseReferrer(ref) {
   }
 }
 
-module.exports = { resolveGeo, parseUA, normaliseReferrer };
+module.exports = { resolveGeo, resolveGeoFromIp, parseUA, normaliseReferrer };

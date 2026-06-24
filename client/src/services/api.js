@@ -492,6 +492,9 @@ export const api = createApi({
     adminIntelLiveTraffic: b.query({
       query: () => adminApiPath('/intelligence/live-traffic'),
     }),
+    adminIntelVisitorLocations: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/visitor-locations?days=${days}`),
+    }),
     adminIntelDemand: b.query({
       query: (days = 30) => adminApiPath(`/intelligence/demand?days=${days}`),
     }),
@@ -1529,6 +1532,7 @@ export const {
   useAdminGeoReadinessQuery,
   useAdminQuoteAbandonmentQuery,
   useAdminIntelLiveTrafficQuery,
+  useAdminIntelVisitorLocationsQuery,
   useAdminIntelDemandQuery,
   useAdminIntelUnmetDemandQuery,
   useAdminIntelExpansionQuery,

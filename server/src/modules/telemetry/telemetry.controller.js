@@ -1,5 +1,5 @@
 const { VisitorSession, SearchEvent } = require('./telemetry.model');
-const { resolveGeo, parseUA, normaliseReferrer } = require('./telemetry.geo');
+const { resolveGeo, resolveGeoFromIp, parseUA, normaliseReferrer } = require('./telemetry.geo');
 const { redis } = require('../../config/redis');
 const logger = require('../../utils/logger');
 
@@ -59,6 +59,23 @@ function enrichGeoAsync(sessionId, lat, lng) {
     .catch((err) => logger.warn({ err: err.message, sessionId }, 'telemetry geo enrich failed'));
 }
 
+/**
+ * Locate a web visitor from their IP when no GPS coords are available — this is
+ * what fills the "where visitors come from" breakdown for ordinary browsing.
+ */
+function enrichGeoFromIpAsync(sessionId, ip) {
+  resolveGeoFromIp(ip)
+    .then((geo) => {
+      if (!geo || (!geo.city && !geo.state)) return;
+      return VisitorSession.updateOne({ sessionId }, { $set: {
+        city:    geo.city ?? null,
+        state:   geo.state ?? null,
+        country: geo.country ?? 'India',
+      } });
+    })
+    .catch((err) => logger.warn({ err: err.message, sessionId }, 'telemetry ip geo enrich failed'));
+}
+
 /* ─── POST /api/telemetry/pageview ────────────────────────────────────────── */
 async function pageview(req, res) {
   res.status(204).end(); // respond immediately — ingest is fire-and-forget
@@ -94,8 +111,12 @@ async function pageview(req, res) {
 
     await touchOnline(sessionId);
 
-    // Resolve geo once: on first sight, or when coords arrive and city still unknown.
-    if (hasCoord && (!existing || !existing.city)) enrichGeoAsync(sessionId, lat, lng);
+    // Resolve geo once the city is still unknown: prefer precise GPS coords,
+    // otherwise locate the visitor from their IP (ordinary web browsing).
+    if (!existing || !existing.city) {
+      if (hasCoord) enrichGeoAsync(sessionId, lat, lng);
+      else enrichGeoFromIpAsync(sessionId, clientIp(req));
+    }
   } catch (err) {
     logger.warn({ err: err.message }, 'telemetry pageview failed');
   }

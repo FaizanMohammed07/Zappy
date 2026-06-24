@@ -6,6 +6,7 @@ const ctrl = require('../controllers/intelligence.controller');
 const router = express.Router();
 
 router.get('/intelligence/live-traffic', ctrl.liveTraffic);
+router.get('/intelligence/visitor-locations', ctrl.visitorLocations);
 router.get('/intelligence/demand',       ctrl.demandIntel);
 router.get('/intelligence/unmet-demand', ctrl.unmetDemand);
 router.get('/intelligence/expansion',    ctrl.expansionEngine);
