@@ -288,7 +288,7 @@ const PAYMENT_OPTIONS = [
 
 const NUDGE_POOL = [
   { icon: TrendingUp, text: 'High demand right now — workers going fast', color: 'text-orange-600', bg: 'bg-orange-50', ring: 'ring-orange-100' },
-  { icon: Users,      text: 'Multiple users booking this service nearby',  color: 'text-blue-600',   bg: 'bg-blue-50',   ring: 'ring-blue-100'   },
+  { icon: Users,      text: 'Multiple users booking this service nearby',  color: 'text-blue-600',   bg: 'bg-blue-500/10',   ring: 'ring-blue-500/20'   },
   { icon: Star,       text: '95% of bookings matched within 60 seconds',   color: 'text-amber-600',  bg: 'bg-amber-50',  ring: 'ring-amber-100'  },
 ];
 
@@ -554,7 +554,7 @@ export default function BookingPage() {
             </div>
             {/* Step indicator */}
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-6 h-1.5 rounded-full bg-white" />
+              <div className="w-6 h-1.5 rounded-full bg-[var(--surface)]" />
               <div className="w-6 h-1.5 rounded-full bg-white/30" />
             </div>
           </div>
@@ -581,10 +581,10 @@ export default function BookingPage() {
   return (
     <>
     <PageTransition>
-    <div className="min-h-screen pb-32" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
+    <div className="min-h-screen pb-32" style={{ background: 'linear-gradient(180deg, var(--color-surface-base) 0%, var(--color-surface-base) 120px)' }}>
 
       {/* Premium header */}
-      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'var(--color-surface-glass)' }}>
         <div className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
           <motion.button
             onClick={() => { setStage('location'); setPricingMode('now'); }}
@@ -605,7 +605,7 @@ export default function BookingPage() {
           {/* Step dots */}
           <div className="flex items-center gap-1.5 shrink-0">
             <div className="w-6 h-1.5 rounded-full bg-white/40" />
-            <div className="w-6 h-1.5 rounded-full bg-white" />
+            <div className="w-6 h-1.5 rounded-full bg-[var(--surface)]" />
           </div>
           {hasSurge && (
             <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/30 px-2 py-0.5 rounded-full ml-1">
@@ -687,7 +687,7 @@ export default function BookingPage() {
 
         {/* Location card — with map preview */}
         <motion.div
-          className="rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100"
+          className="rounded-2xl overflow-hidden bg-[var(--surface)] ring-1 ring-white/5"
           style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
           variants={fadeInUp}
         >
@@ -699,16 +699,16 @@ export default function BookingPage() {
             />
           )}
           <div className="flex items-center gap-3 px-4 py-3.5">
-            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-sm`}>
+            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-md`}>
               <MapPin size={15} strokeWidth={2} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Service Location</p>
-              <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">{location?.address}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-low mb-0.5">Service Location</p>
+              <p className="text-sm font-semibold text-hi leading-relaxed">{location?.address}</p>
             </div>
             <motion.button
               onClick={() => { setStage('location'); setPricingMode('now'); }}
-              className="text-xs font-bold text-blue-600 flex items-center gap-0.5 shrink-0 bg-blue-50 px-2.5 py-1.5 rounded-lg ring-1 ring-blue-100"
+              className="text-xs font-bold text-blue-600 flex items-center gap-0.5 shrink-0 bg-blue-500/10 px-2.5 py-1.5 rounded-lg ring-1 ring-blue-500/20"
               whileTap={{ scale: 0.95 }}
             >
               Change <ChevronRight size={11} strokeWidth={2.5} />
@@ -718,20 +718,20 @@ export default function BookingPage() {
 
         {/* ── Mobile: Device Brand + Model + Service Mode ──────────── */}
         {isMobile && (
-          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4 space-y-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+          <motion.div className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4 space-y-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
             <div className="flex items-center gap-2.5 mb-1">
               <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
                 <Smartphone size={14} strokeWidth={2.5} className="text-white" />
               </div>
-              <p className="font-bold text-[#0F172A] text-sm">Phone Details</p>
+              <p className="font-bold text-hi text-sm">Phone Details</p>
             </div>
             {/* Brand picker */}
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Brand</p>
+              <p className="text-xs font-bold text-low uppercase tracking-wider mb-2">Brand</p>
               <div className="flex flex-wrap gap-2">
                 {DEVICE_BRANDS.map(brand => (
                   <motion.button key={brand} onClick={() => setDeviceBrand(b => b === brand ? '' : brand)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${deviceBrand === brand ? 'text-white border-transparent' : 'bg-slate-50 text-slate-600 border-slate-150'}`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${deviceBrand === brand ? 'text-white border-transparent' : 'bg-[var(--surface-2)] text-mid border-[var(--border)]'}`}
                     style={deviceBrand === brand ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
                     whileTap={{ scale: 0.95 }}>
                     {brand}
@@ -741,22 +741,22 @@ export default function BookingPage() {
             </div>
             {/* Model input */}
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Model (optional)</p>
+              <p className="text-xs font-bold text-low uppercase tracking-wider mb-2">Model (optional)</p>
               <input value={deviceModel} onChange={e => setDeviceModel(e.target.value)} placeholder="e.g. iPhone 14, Galaxy S23…"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-[#111827] placeholder:text-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+                className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-[#111827] placeholder:text-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
             </div>
             {/* Service Mode */}
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">How should we help?</p>
+              <p className="text-xs font-bold text-low uppercase tracking-wider mb-2">How should we help?</p>
               <div className="grid grid-cols-2 gap-2">
                 {[{ key: 'doorstep', label: 'Doorstep Repair', icon: '🏠', desc: 'Technician comes to you' }, { key: 'pickup', label: 'Pickup & Repair', icon: '📦', desc: 'We collect & return' }].map(m => (
                   <motion.button key={m.key} onClick={() => setServiceMode(m.key)}
-                    className={`p-3 rounded-xl border-2 text-left transition-all ${serviceMode === m.key ? 'text-white border-transparent' : 'bg-slate-50 border-slate-150'}`}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${serviceMode === m.key ? 'text-white border-transparent' : 'bg-[var(--surface-2)] border-[var(--border)]'}`}
                     style={serviceMode === m.key ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
                     whileTap={{ scale: 0.95 }}>
                     <div className="text-lg mb-1">{m.icon}</div>
-                    <div className={`text-xs font-bold ${serviceMode === m.key ? 'text-white' : 'text-slate-700'}`}>{m.label}</div>
-                    <div className={`text-[10px] mt-0.5 ${serviceMode === m.key ? 'text-white/70' : 'text-slate-400'}`}>{m.desc}</div>
+                    <div className={`text-xs font-bold ${serviceMode === m.key ? 'text-white' : 'text-mid'}`}>{m.label}</div>
+                    <div className={`text-[10px] mt-0.5 ${serviceMode === m.key ? 'text-white/70' : 'text-low'}`}>{m.desc}</div>
                   </motion.button>
                 ))}
               </div>
@@ -766,21 +766,21 @@ export default function BookingPage() {
 
         {/* ── Vehicle: Vehicle Type picker ──────────────────────────── */}
         {isVehicle && (
-          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+          <motion.div className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
             <div className="flex items-center gap-2.5 mb-3">
               <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
                 <Car size={14} strokeWidth={2.5} className="text-white" />
               </div>
-              <p className="font-bold text-[#0F172A] text-sm">Your Vehicle</p>
+              <p className="font-bold text-hi text-sm">Your Vehicle</p>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {VEHICLE_TYPES.map(v => (
                 <motion.button key={v.key} onClick={() => setVehicleType(t => t === v.key ? '' : v.key)}
-                  className={`p-3 rounded-xl border-2 text-center transition-all ${vehicleType === v.key ? 'text-white border-transparent' : 'bg-slate-50 border-slate-150'}`}
+                  className={`p-3 rounded-xl border-2 text-center transition-all ${vehicleType === v.key ? 'text-white border-transparent' : 'bg-[var(--surface-2)] border-[var(--border)]'}`}
                   style={vehicleType === v.key ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
                   whileTap={{ scale: 0.95 }}>
                   <div className="text-2xl mb-1">{v.icon}</div>
-                  <div className={`text-xs font-bold ${vehicleType === v.key ? 'text-white' : 'text-slate-700'}`}>{v.label}</div>
+                  <div className={`text-xs font-bold ${vehicleType === v.key ? 'text-white' : 'text-mid'}`}>{v.label}</div>
                 </motion.button>
               ))}
             </div>
@@ -789,31 +789,31 @@ export default function BookingPage() {
 
         {/* ── Construction: Pricing Model picker ────────────────────── */}
         {isConstruction && (
-          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4 space-y-3" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+          <motion.div className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4 space-y-3" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
             <div className="flex items-center gap-2.5 mb-1">
               <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
                 <FileText size={14} strokeWidth={2.5} className="text-white" />
               </div>
-              <p className="font-bold text-[#0F172A] text-sm">Pricing Model</p>
+              <p className="font-bold text-hi text-sm">Pricing Model</p>
             </div>
             <div className="grid grid-cols-3 gap-2">
               {CONSTRUCTION_PRICING_MODELS.map(m => (
                 <motion.button key={m.key} onClick={() => setPricingModel(m.key)}
-                  className={`p-3 rounded-xl border-2 text-center transition-all ${pricingModel === m.key ? 'text-white border-transparent' : 'bg-slate-50 border-slate-150'}`}
+                  className={`p-3 rounded-xl border-2 text-center transition-all ${pricingModel === m.key ? 'text-white border-transparent' : 'bg-[var(--surface-2)] border-[var(--border)]'}`}
                   style={pricingModel === m.key ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
                   whileTap={{ scale: 0.95 }}>
-                  <div className={`text-xs font-bold ${pricingModel === m.key ? 'text-white' : 'text-slate-700'}`}>{m.label}</div>
-                  <div className={`text-[10px] mt-0.5 ${pricingModel === m.key ? 'text-white/70' : 'text-slate-400'}`}>{m.desc}</div>
+                  <div className={`text-xs font-bold ${pricingModel === m.key ? 'text-white' : 'text-mid'}`}>{m.label}</div>
+                  <div className={`text-[10px] mt-0.5 ${pricingModel === m.key ? 'text-white/70' : 'text-low'}`}>{m.desc}</div>
                 </motion.button>
               ))}
             </div>
             {pricingModel === 'hourly' && (
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Estimated Hours</p>
+                <p className="text-xs font-bold text-low uppercase tracking-wider mb-2">Estimated Hours</p>
                 <div className="flex items-center gap-3">
-                  <motion.button onClick={() => setEstimatedHours(h => Math.max(1, h - 0.5))} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold" whileTap={{ scale: 0.9 }}>−</motion.button>
-                  <span className="text-lg font-bold text-[#0F172A] min-w-[3ch] text-center">{estimatedHours}h</span>
-                  <motion.button onClick={() => setEstimatedHours(h => Math.min(24, h + 0.5))} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold" whileTap={{ scale: 0.9 }}>+</motion.button>
+                  <motion.button onClick={() => setEstimatedHours(h => Math.max(1, h - 0.5))} className="w-8 h-8 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-mid font-bold" whileTap={{ scale: 0.9 }}>−</motion.button>
+                  <span className="text-lg font-bold text-hi min-w-[3ch] text-center">{estimatedHours}h</span>
+                  <motion.button onClick={() => setEstimatedHours(h => Math.min(24, h + 0.5))} className="w-8 h-8 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-mid font-bold" whileTap={{ scale: 0.9 }}>+</motion.button>
                 </div>
               </div>
             )}
@@ -823,7 +823,7 @@ export default function BookingPage() {
         {/* Sub-categories */}
         {subCategories.length > 0 && (
           <motion.div
-            className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+            className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4"
             style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
             variants={fadeInUp}
           >
@@ -831,7 +831,7 @@ export default function BookingPage() {
               <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
                 <ServiceIcon size={14} strokeWidth={2.5} className="text-white" />
               </div>
-              <p className="font-bold text-[#0F172A] text-sm">What's the issue?</p>
+              <p className="font-bold text-hi text-sm">What's the issue?</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {subCategories.map(({ key, label, icon }) => (
@@ -840,8 +840,8 @@ export default function BookingPage() {
                   onClick={() => setSubCategory(prev => prev === key ? '' : key)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
                     subCategory === key
-                      ? 'text-white border-transparent shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-150 hover:border-slate-300 bg-slate-50'
+                      ? 'text-white border-transparent shadow-md'
+                      : 'bg-[var(--surface)] text-mid border-[var(--border)] hover:border-slate-300 bg-[var(--surface-2)]'
                   }`}
                   style={subCategory === key ? {
                     background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})`,
@@ -855,9 +855,9 @@ export default function BookingPage() {
               ))}
             </div>
             {subCategory && (
-              <p className="text-xs text-slate-400 mt-2.5 flex items-center gap-1.5">
+              <p className="text-xs text-low mt-2.5 flex items-center gap-1.5">
                 <CheckCircle size={11} className="text-green-500" />
-                <span>Selected: <span className="font-bold text-slate-600">{subCategories.find(s => s.key === subCategory)?.label}</span></span>
+                <span>Selected: <span className="font-bold text-mid">{subCategories.find(s => s.key === subCategory)?.label}</span></span>
               </p>
             )}
           </motion.div>
@@ -866,13 +866,13 @@ export default function BookingPage() {
         {/* Smart pricing panel */}
         <motion.div variants={fadeInUp}>
           {quoting ? (
-            <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-5 flex items-center gap-3" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+            <div className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-5 flex items-center gap-3" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
                 <Loader2 size={18} className="animate-spin text-blue-600" />
               </div>
               <div>
-                <p className="text-sm font-bold text-[#0F172A]">Calculating fare…</p>
-                <p className="text-xs text-slate-400 mt-0.5">Checking demand, distance &amp; worker availability</p>
+                <p className="text-sm font-bold text-hi">Calculating fare…</p>
+                <p className="text-xs text-low mt-0.5">Checking demand, distance &amp; worker availability</p>
               </div>
             </div>
           ) : q ? (
@@ -890,8 +890,8 @@ export default function BookingPage() {
               pricingConfig={pricingConfig}
             />
           ) : (
-            <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-              <p className="text-sm text-slate-400 font-medium text-center py-2">
+            <div className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+              <p className="text-sm text-low font-medium text-center py-2">
                 Could not load fare estimate
               </p>
             </div>
@@ -921,7 +921,7 @@ export default function BookingPage() {
           </motion.div>
         )}
         {diagnosisAnswers && Object.keys(diagnosisAnswers).length > 0 && (
-          <motion.div variants={fadeInUp} className="card bg-blue-50 ring-1 ring-blue-100 flex items-center gap-2">
+          <motion.div variants={fadeInUp} className="card bg-blue-500/10 ring-1 ring-blue-500/20 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
             <p className="text-xs font-semibold text-blue-700 flex-1">
               Diagnosis saved — worker will arrive prepared
@@ -932,17 +932,17 @@ export default function BookingPage() {
 
         {/* Description + images */}
         <motion.div
-          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+          className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4"
           style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
           variants={fadeInUp}
         >
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
-              <FileText size={15} strokeWidth={2} className="text-slate-600" />
+            <div className="w-8 h-8 rounded-xl bg-[var(--surface-2)] flex items-center justify-center">
+              <FileText size={15} strokeWidth={2} className="text-mid" />
             </div>
             <div>
-              <p className="font-bold text-[#0F172A] text-sm">Describe the Issue</p>
-              <p className="text-[10px] text-slate-400">Optional but helps the worker prepare</p>
+              <p className="font-bold text-hi text-sm">Describe the Issue</p>
+              <p className="text-[10px] text-low">Optional but helps the worker prepare</p>
             </div>
           </div>
           <textarea
@@ -956,8 +956,8 @@ export default function BookingPage() {
           {/* Image upload */}
           <div className="mt-3.5">
             <div className="flex items-center gap-2 mb-2.5">
-              <ImageIcon size={13} strokeWidth={2} className="text-slate-400" />
-              <p className="text-xs font-bold text-slate-500">Add photos <span className="text-slate-300 font-normal">(optional · up to 5)</span></p>
+              <ImageIcon size={13} strokeWidth={2} className="text-low" />
+              <p className="text-xs font-bold text-mid">Add photos <span className="text-low font-normal">(optional · up to 5)</span></p>
             </div>
             <div className="flex flex-wrap gap-2">
               {images.map((img) => (
@@ -965,10 +965,10 @@ export default function BookingPage() {
                   key={img.id}
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-100 ring-2 ring-slate-200"
+                  className="relative w-16 h-16 rounded-xl overflow-hidden bg-[var(--surface-2)] ring-2 ring-white/5"
                 >
                   {img.uploading ? (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                    <div className="w-full h-full flex items-center justify-center bg-[var(--surface-2)]">
                       <Loader2 size={16} className="animate-spin text-blue-400" />
                     </div>
                   ) : (
@@ -987,11 +987,11 @@ export default function BookingPage() {
               {images.filter(i => !i.uploading).length < 5 && (
                 <motion.button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center hover:border-blue-300 hover:bg-blue-50/50 transition-all gap-0.5"
+                  className="w-16 h-16 rounded-xl border-2 border-dashed border-[var(--border)] flex flex-col items-center justify-center hover:border-blue-300 hover:bg-blue-50/50 transition-all gap-0.5"
                   whileTap={{ scale: 0.95 }}
                 >
-                  <Plus size={16} strokeWidth={2.5} className="text-slate-400" />
-                  <span className="text-[9px] text-slate-400 font-medium">Add</span>
+                  <Plus size={16} strokeWidth={2.5} className="text-low" />
+                  <span className="text-[9px] text-low font-medium">Add</span>
                 </motion.button>
               )}
             </div>
@@ -1008,15 +1008,15 @@ export default function BookingPage() {
 
         {/* Schedule booking */}
         <motion.div
-          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+          className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4"
           style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
           variants={fadeInUp}
         >
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
-              <Calendar size={15} strokeWidth={2} className="text-slate-600" />
+            <div className="w-8 h-8 rounded-xl bg-[var(--surface-2)] flex items-center justify-center">
+              <Calendar size={15} strokeWidth={2} className="text-mid" />
             </div>
-            <p className="font-bold text-[#0F172A] text-sm">When do you need it?</p>
+            <p className="font-bold text-hi text-sm">When do you need it?</p>
           </div>
           {/* Book Now / Schedule Later toggle pills */}
           <div className="grid grid-cols-2 gap-2 mb-3">
@@ -1030,14 +1030,14 @@ export default function BookingPage() {
                 className={`flex flex-col items-start p-3.5 rounded-xl border-2 transition-all text-left ${
                   bookMode === key
                     ? 'border-transparent text-white'
-                    : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'
+                    : 'border-[var(--border)] bg-[var(--surface-2)] text-mid hover:border-slate-200'
                 }`}
                 style={bookMode === key ? { background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)', borderColor: 'transparent' } : {}}
                 whileTap={{ scale: 0.97 }}
               >
-                <Icon size={16} strokeWidth={2.5} className={bookMode === key ? 'text-white mb-2' : 'text-slate-500 mb-2'} />
-                <p className={`text-xs font-bold ${bookMode === key ? 'text-white' : 'text-[#0F172A]'}`}>{label}</p>
-                <p className={`text-[10px] mt-0.5 ${bookMode === key ? 'text-white/60' : 'text-slate-400'}`}>{sub}</p>
+                <Icon size={16} strokeWidth={2.5} className={bookMode === key ? 'text-white mb-2' : 'text-mid mb-2'} />
+                <p className={`text-xs font-bold ${bookMode === key ? 'text-white' : 'text-hi'}`}>{label}</p>
+                <p className={`text-[10px] mt-0.5 ${bookMode === key ? 'text-white/60' : 'text-low'}`}>{sub}</p>
               </motion.button>
             ))}
           </div>
@@ -1055,8 +1055,8 @@ export default function BookingPage() {
                 <div className="pt-2 space-y-3">
                   {/* Date picker */}
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                      <Calendar size={11} className="text-slate-400" />
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-mid uppercase tracking-wide mb-1.5">
+                      <Calendar size={11} className="text-low" />
                       Date
                     </label>
                     <input
@@ -1079,8 +1079,8 @@ export default function BookingPage() {
 
                   {/* Time picker — 30-min slots 7:00 AM to 9:00 PM */}
                   <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                      <Clock size={11} className="text-slate-400" />
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-mid uppercase tracking-wide mb-1.5">
+                      <Clock size={11} className="text-low" />
                       Time
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -1106,7 +1106,7 @@ export default function BookingPage() {
                           className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
                             schedTime === val
                               ? 'text-white border-transparent'
-                              : 'bg-slate-50 text-slate-600 border-slate-150 hover:border-slate-300'
+                              : 'bg-[var(--surface-2)] text-mid border-[var(--border)] hover:border-slate-300'
                           }`}
                           style={schedTime === val ? { background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)' } : {}}
                           whileTap={{ scale: 0.93 }}
@@ -1122,7 +1122,7 @@ export default function BookingPage() {
                     <motion.div
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center gap-2 bg-slate-900 text-white rounded-xl px-3.5 py-2.5"
+                      className="flex items-center gap-2 bg-[var(--color-ink-900)] text-white rounded-xl px-3.5 py-2.5"
                     >
                       <CheckCircle size={13} className="text-green-400 shrink-0" />
                       <p className="text-xs font-bold">
@@ -1138,7 +1138,7 @@ export default function BookingPage() {
                     </motion.div>
                   )}
 
-                  <p className="text-xs text-slate-400">Dispatch starts 5 min before scheduled time</p>
+                  <p className="text-xs text-low">Dispatch starts 5 min before scheduled time</p>
                 </div>
               </motion.div>
             )}
@@ -1147,15 +1147,15 @@ export default function BookingPage() {
 
         {/* Payment method */}
         <motion.div
-          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+          className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4"
           style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
           variants={fadeInUp}
         >
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
-              <CreditCard size={15} strokeWidth={2} className="text-slate-600" />
+            <div className="w-8 h-8 rounded-xl bg-[var(--surface-2)] flex items-center justify-center">
+              <CreditCard size={15} strokeWidth={2} className="text-mid" />
             </div>
-            <p className="font-bold text-[#0F172A] text-sm">Payment Method</p>
+            <p className="font-bold text-hi text-sm">Payment Method</p>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {PAYMENT_OPTIONS.map(({ key, label, icon, desc }) => (
@@ -1165,14 +1165,14 @@ export default function BookingPage() {
                 className={`flex flex-col items-center py-3 px-2 rounded-xl border-2 transition-all ${
                   paymentMethod === key
                     ? 'border-transparent text-white'
-                    : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                    : 'border-[var(--border)] bg-[var(--surface-2)] hover:border-slate-200'
                 }`}
                 style={paymentMethod === key ? { background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)' } : {}}
                 whileTap={{ scale: 0.95 }}
               >
                 <span className="text-xl mb-1">{icon}</span>
-                <span className={`text-xs font-bold ${paymentMethod === key ? 'text-white' : 'text-[#0F172A]'}`}>{label}</span>
-                <span className={`text-[9px] mt-0.5 text-center ${paymentMethod === key ? 'text-white/50' : 'text-slate-400'}`}>{desc}</span>
+                <span className={`text-xs font-bold ${paymentMethod === key ? 'text-white' : 'text-hi'}`}>{label}</span>
+                <span className={`text-[9px] mt-0.5 text-center ${paymentMethod === key ? 'text-white/50' : 'text-low'}`}>{desc}</span>
               </motion.button>
             ))}
           </div>
@@ -1180,7 +1180,7 @@ export default function BookingPage() {
 
         {/* Promo code */}
         <motion.div
-          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+          className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4"
           style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
           variants={fadeInUp}
         >
@@ -1188,7 +1188,7 @@ export default function BookingPage() {
             <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center">
               <Ticket size={15} strokeWidth={2} className="text-green-600" />
             </div>
-            <p className="font-bold text-[#0F172A] text-sm">Promo Code</p>
+            <p className="font-bold text-hi text-sm">Promo Code</p>
             {promoResult && (
               <span className="ml-auto text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                 {promoResult.discountDisplay} off
@@ -1215,7 +1215,7 @@ export default function BookingPage() {
                 onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
                 onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
                 placeholder="Enter promo code"
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono font-semibold text-slate-800 uppercase tracking-widest outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent transition placeholder:font-normal placeholder:tracking-normal placeholder:uppercase-none"
+                className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm font-mono font-semibold text-hi uppercase tracking-widest outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent transition placeholder:font-normal placeholder:tracking-normal placeholder:uppercase-none"
               />
               <motion.button
                 onClick={applyPromo}
@@ -1243,7 +1243,7 @@ export default function BookingPage() {
           ].map(({ label, emoji }) => (
             <div key={label} className="flex flex-col items-center gap-1">
               <span className="text-xl">{emoji}</span>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
+              <p className="text-[9px] font-bold text-low uppercase tracking-wide">{label}</p>
             </div>
           ))}
         </motion.div>
@@ -1254,15 +1254,15 @@ export default function BookingPage() {
       <div className="fixed bottom-0 inset-x-0 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.97)', boxShadow: '0 -8px 32px rgba(0,0,0,0.08)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
         <div className="w-full max-w-2xl lg:max-w-4xl mx-auto px-4 sm:px-6 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {hasUploadingImages && (
-            <p className="text-xs text-slate-400 text-center mb-2 flex items-center justify-center gap-1.5">
+            <p className="text-xs text-low text-center mb-2 flex items-center justify-center gap-1.5">
               <Loader2 size={11} className="animate-spin" />
               Uploading photos…
             </p>
           )}
           {pricingMode === 'wait' ? (
             <div className="text-center py-2">
-              <p className="text-sm font-semibold text-slate-500">Waiting for a better price…</p>
-              <p className="text-xs text-slate-400 mt-0.5">You can still book now at ₹{finalDisplayPrice || q?.total}</p>
+              <p className="text-sm font-semibold text-mid">Waiting for a better price…</p>
+              <p className="text-xs text-low mt-0.5">You can still book now at ₹{finalDisplayPrice || q?.total}</p>
               <button
                 onClick={() => setPricingMode('now')}
                 className="mt-2 text-xs font-bold text-blue-600 underline"
@@ -1344,7 +1344,7 @@ export default function BookingPage() {
             {STARS.map(s => (
               <motion.div
                 key={s.id}
-                className="absolute rounded-full bg-white"
+                className="absolute rounded-full bg-[var(--surface)]"
                 style={{ left: `${s.left}%`, top: `${s.top}%`, width: s.size, height: s.size }}
                 animate={{ opacity: [0.15, 0.9, 0.15] }}
                 transition={{ duration: s.dur, repeat: Infinity, delay: s.delay }}
@@ -1522,7 +1522,7 @@ export default function BookingPage() {
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 60, opacity: 0, scale: 0.95 }}
             transition={{ type: 'spring', damping: 22, stiffness: 260 }}
-            className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl"
+            className="w-full max-w-sm bg-[var(--surface)] rounded-3xl overflow-hidden shadow-2xl"
           >
             {/* Gradient header */}
             <div className="relative px-6 pt-10 pb-8 text-center"
@@ -1554,10 +1554,10 @@ export default function BookingPage() {
 
             {/* Body */}
             <div className="px-6 py-6 text-center space-y-4">
-              <p className="text-slate-700 text-sm leading-relaxed">
+              <p className="text-mid text-sm leading-relaxed">
                 Zappy is growing city by city across India — and your area is next on our radar. 🌏
                 <br /><br />
-                <span className="font-semibold text-slate-900">
+                <span className="font-semibold text-hi">
                   We&apos;re onboarding verified professionals near you right now.
                 </span>{' '}
                 Very soon you&apos;ll get the fastest, most reliable service at your doorstep.
@@ -1586,7 +1586,7 @@ export default function BookingPage() {
                 </motion.button>
                 <button
                   onClick={() => setNoWorkersModal(false)}
-                  className="w-full py-3 rounded-2xl text-sm font-medium text-slate-500 hover:text-slate-700"
+                  className="w-full py-3 rounded-2xl text-sm font-medium text-mid hover:text-slate-700"
                 >
                   Go back
                 </button>

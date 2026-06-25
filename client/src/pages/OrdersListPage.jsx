@@ -86,8 +86,8 @@ export default function OrdersListPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen pb-40" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
-        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+      <div className="min-h-screen pb-40" style={{ background: 'linear-gradient(180deg, var(--color-surface-base) 0%, var(--color-surface-base) 120px)' }}>
+        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'var(--color-surface-glass)' }}>
           <div className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
             <h1 className="font-black text-white flex-1 flex items-center gap-2">
               <ClipboardList size={18} className="text-blue-400" />
@@ -106,7 +106,7 @@ export default function OrdersListPage() {
                 onClick={() => { setFilter(tab.id); setPage(1); }}
                 className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold transition-all ${
                   filter === tab.id
-                    ? 'bg-white text-[#0F172A]'
+                    ? 'bg-[var(--surface)] text-hi'
                     : 'bg-white/10 text-white/60 hover:bg-white/20'
                 }`}
               >
@@ -128,20 +128,20 @@ export default function OrdersListPage() {
         ) : orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[60vh] gap-4 px-8 text-center">
             <motion.div
-              className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center"
+              className="w-16 h-16 rounded-2xl bg-[var(--surface-2)] flex items-center justify-center"
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
-              <ClipboardList size={28} strokeWidth={1.5} className="text-slate-400" />
+              <ClipboardList size={28} strokeWidth={1.5} className="text-low" />
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, delay: 0.1 }}
             >
-              <p className="font-bold text-[#0F172A] text-lg">No bookings yet</p>
-              <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+              <p className="font-bold text-hi text-lg">No bookings yet</p>
+              <p className="text-sm text-low mt-1 leading-relaxed">
                 Your past and active bookings<br />will appear here
               </p>
             </motion.div>
@@ -173,7 +173,7 @@ export default function OrdersListPage() {
               return (
                 <motion.div
                   key={order._id}
-                  className="rounded-2xl bg-white ring-1 ring-slate-100 overflow-hidden"
+                  className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 overflow-hidden"
                   style={{ boxShadow: isActive ? '0 4px 20px rgba(37,99,235,0.1)' : '0 2px 8px rgba(0,0,0,0.04)' }}
                   variants={fadeInUp}
                   whileHover={{ y: -2, boxShadow: '0 8px 28px rgba(15,23,42,0.1)' }}
@@ -198,15 +198,15 @@ export default function OrdersListPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-[#0F172A] capitalize text-sm">
+                          <p className="font-bold text-hi capitalize text-sm">
                             {order.service.replace(/_/g, ' ')}
                             {order.subCategory && (
-                              <span className="ml-1.5 text-[10px] font-semibold text-slate-400 normal-case">
+                              <span className="ml-1.5 text-[10px] font-semibold text-low normal-case">
                                 · {order.subCategory.replace(/_/g, ' ')}
                               </span>
                             )}
                           </p>
-                          <p className="text-xs text-slate-400 mt-0.5 truncate">
+                          <p className="text-xs text-low mt-0.5 truncate">
                             {order.pickupLocation?.address}
                           </p>
                           {isScheduled && (
@@ -219,7 +219,7 @@ export default function OrdersListPage() {
                         <span className={`chip ${chip.cls} shrink-0 text-[10px] font-bold`}>{chip.label}</span>
                       </div>
                       <div className="mt-2.5 flex items-center justify-between">
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-low">
                           {new Date(order.createdAt).toLocaleDateString('en-IN', {
                             day: 'numeric', month: 'short', year: 'numeric',
                           })}
@@ -231,9 +231,9 @@ export default function OrdersListPage() {
                               {order.userRating}
                             </span>
                           )}
-                          <p className="font-black text-[#0F172A] text-sm">₹{order.pricing?.total ?? '—'}</p>
-                          <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
-                            <ChevronRight size={12} className="text-slate-400" />
+                          <p className="font-black text-hi text-sm">₹{order.pricing?.total ?? '—'}</p>
+                          <div className="w-6 h-6 rounded-full bg-[var(--surface-2)] flex items-center justify-center">
+                            <ChevronRight size={12} className="text-low" />
                           </div>
                         </div>
                       </div>
@@ -246,7 +246,7 @@ export default function OrdersListPage() {
                       <button
                         onClick={(e) => downloadInvoice(e, order._id)}
                         disabled={downloadingId === order._id}
-                        className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition disabled:opacity-60 mt-2"
+                        className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 bg-blue-500/10 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition disabled:opacity-60 mt-2"
                       >
                         {downloadingId === order._id
                           ? <Loader2 size={11} className="animate-spin" />
@@ -264,7 +264,7 @@ export default function OrdersListPage() {
                       )}
                       <button
                         onClick={(e) => { e.stopPropagation(); nav(`/book/${order.service}`); }}
-                        className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition mt-2 ml-auto"
+                        className="flex items-center gap-1 text-[11px] font-bold text-[var(--violet)] bg-brand-violet/10 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition mt-2 ml-auto"
                       >
                         <Repeat2 size={10} strokeWidth={2.5} />
                         Book Again
@@ -287,7 +287,7 @@ export default function OrdersListPage() {
                   <ChevronLeft size={13} strokeWidth={2.5} />
                   Previous
                 </motion.button>
-                <span className="text-xs font-semibold text-slate-400">
+                <span className="text-xs font-semibold text-low">
                   Page {page} of {totalPages}
                 </span>
                 <motion.button

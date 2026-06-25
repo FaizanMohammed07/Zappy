@@ -3,7 +3,7 @@ import { Home, ClipboardList, MapPin, Wallet, User } from 'lucide-react';
 import { useListNotificationsQuery } from '../../services/api';
 import { useSelector } from 'react-redux';
 import { selectIsAuthed } from '../../modules/auth/authSlice';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const TABS = [
   { key: 'home',     label: 'Home',     path: '/',          Icon: Home },
@@ -26,9 +26,9 @@ export default function BottomNav({ active }) {
   const unreadCount = notifData?.notifications?.length || 0;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[100] pb-6 px-4 pointer-events-none">
+    <div className="fixed bottom-0 left-0 right-0 z-[100] pb-6 px-4 pointer-events-none flex justify-center">
       <motion.nav 
-        className="mx-auto max-w-[400px] bg-[#0b0f19]/90 backdrop-blur-xl border border-white/10 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.8)] rounded-3xl h-16 flex items-center justify-between px-2 pointer-events-auto relative"
+        className="w-full max-w-[420px] bg-white/80 backdrop-blur-xl border border-black/5 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.1)] rounded-[24px] h-[68px] flex items-center justify-between px-2 pointer-events-auto relative"
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
@@ -39,47 +39,39 @@ export default function BottomNav({ active }) {
             <button
               key={key}
               onClick={() => nav(path)}
-              className="relative w-full h-full flex flex-col items-center justify-center outline-none tap-highlight-transparent"
+              className="relative flex-1 h-full flex flex-col items-center justify-center gap-1 outline-none tap-highlight-transparent group"
               aria-label={label}
             >
               <div className="relative z-20 flex items-center justify-center">
                 <motion.div
-                  animate={{ y: isActive ? -28 : 0 }}
-                  transition={{ type: "spring", bounce: 0.5, duration: 0.6 }}
-                  className={`relative flex items-center justify-center w-12 h-12 rounded-full transition-colors duration-300 ${isActive ? 'bg-[#0b0f19] border border-slate-700/60 shadow-[0_10px_20px_rgba(0,0,0,0.5),inset_0_1px_2px_rgba(255,255,255,0.1)]' : 'bg-transparent'}`}
+                  whileTap={{ scale: 0.85 }}
+                  className="relative flex flex-col items-center justify-center"
                 >
                   <Icon
-                    size={22}
+                    size={24}
                     strokeWidth={isActive ? 2.5 : 2}
-                    className={`transition-colors duration-300 ${isActive ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`transition-colors duration-300 ${isActive ? 'text-[var(--violet)] drop-shadow-sm' : 'text-mid group-hover:text-hi'}`}
+                    fill={isActive ? 'currentColor' : 'none'}
                   />
                   {key === 'profile' && unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 leading-none shadow-md ring-2 ring-[#0b0f19]">
+                    <span className="absolute -top-1 -right-2 min-w-[16px] h-[16px] bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 leading-none shadow-md ring-2 ring-white">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
                 </motion.div>
               </div>
               
-              <AnimatePresence>
-                {isActive && (
-                  <motion.span
-                    initial={{ opacity: 0, y: 15, scale: 0.5 }}
-                    animate={{ opacity: 1, y: -2, scale: 1 }}
-                    exit={{ opacity: 0, y: 15, scale: 0.5 }}
-                    transition={{ type: "spring", bounce: 0.4, duration: 0.5 }}
-                    className="absolute bottom-2.5 text-[10px] font-bold text-cyan-400 tracking-wider uppercase drop-shadow-md"
-                  >
-                    {label}
-                  </motion.span>
-                )}
-              </AnimatePresence>
+              <span
+                className={`text-[10px] font-bold tracking-wide transition-colors duration-300 ${isActive ? 'text-[var(--violet)]' : 'text-mid'}`}
+              >
+                {label}
+              </span>
               
               {isActive && (
                 <motion.div
-                  layoutId="indicator"
-                  className="absolute bottom-0 w-8 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent rounded-t-full shadow-[0_-4px_12px_rgba(34,211,238,0.6)]"
-                  transition={{ type: "spring", bounce: 0.4, duration: 0.6 }}
+                  layoutId="bottomNavIndicator"
+                  className="absolute -bottom-[2px] w-12 h-[3px] bg-[var(--violet)] rounded-t-full shadow-[0_-4px_12px_rgba(109,77,246,0.4)]"
+                  transition={{ type: "spring", bounce: 0.3, duration: 0.5 }}
                 />
               )}
             </button>

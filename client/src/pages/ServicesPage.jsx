@@ -144,42 +144,42 @@ export default function ServicesPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-[#F8FAFC] pb-40 font-sans selection:bg-indigo-500/30">
+      <div className="min-h-screen bg-[var(--bg)] pb-40 font-sans selection:bg-brand-violet/30">
         
         {/* Immersive Header */}
-        <header className="sticky top-0 z-30 pt-4 pb-2 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50">
+        <header className="sticky top-0 z-30 pt-4 pb-2 bg-white/80 backdrop-blur-xl border-b border-black/5">
           <div className="page-container">
             {/* Top Bar */}
             <div className="flex items-center justify-between mb-6">
               <motion.button
                 onClick={() => nav(-1)}
-                className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200/60 hover:bg-slate-200 transition-colors"
+                className="w-10 h-10 rounded-full bg-[var(--surface-2)] flex items-center justify-center shrink-0 border border-black/5 hover:bg-black/20 transition-colors"
                 whileTap={{ scale: 0.9 }}
               >
-                <ArrowLeft size={18} className="text-slate-700" />
+                <ArrowLeft size={18} className="text-hi" />
               </motion.button>
               <div className="flex flex-col items-center">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">Zappy Catalog</span>
-                <h1 className="text-xl font-black text-slate-900 tracking-tight">All Services</h1>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--violet)]">Zappy Catalog</span>
+                <h1 className="text-h2 font-black text-hi tracking-tight">All Services</h1>
               </div>
               <div className="w-10 h-10" /> {/* Balancer */}
             </div>
 
             {/* Premium Search */}
             <div className="relative group mb-5">
-              <div className="absolute inset-0 bg-indigo-500/5 rounded-2xl blur-xl group-focus-within:bg-indigo-500/10 transition-colors pointer-events-none" />
-              <div className="relative flex items-center gap-3 bg-white border border-slate-200/80 rounded-2xl px-4 py-3.5 shadow-sm focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10 transition-all">
-                <Search size={18} className="text-slate-400 shrink-0" />
+              <div className="absolute inset-0 bg-brand-violet/5 rounded-[22px] blur-xl group-focus-within:bg-brand-violet/10 transition-colors pointer-events-none" />
+              <div className="relative flex items-center gap-3 bg-[var(--surface)] border border-black/5 rounded-[22px] px-4 py-3.5 shadow-md focus-within:border-brand-violet focus-within:ring-4 focus-within:ring-brand-violet/10 transition-all">
+                <Search size={18} className="text-mid shrink-0" />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="What do you need help with?"
-                  className="flex-1 bg-transparent outline-none text-sm sm:text-base font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-medium"
+                  className="flex-1 bg-transparent outline-none text-body font-bold text-hi placeholder:text-content-muted placeholder:font-medium"
                 />
                 <AnimatePresence>
                   {query && (
-                    <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} onClick={() => setQuery('')} className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors">
-                      <X size={12} className="text-slate-500" />
+                    <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} onClick={() => setQuery('')} className="w-6 h-6 rounded-full bg-[var(--surface-2)] flex items-center justify-center hover:bg-black/20 transition-colors">
+                      <X size={12} className="text-mid" />
                     </motion.button>
                   )}
                 </AnimatePresence>
@@ -194,15 +194,15 @@ export default function ServicesPage() {
                   <motion.button
                     key={c.key}
                     onClick={() => setCategory(c.key)}
-                    className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-[1rem] text-sm font-bold transition-all border ${
+                    className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-[16px] text-caption font-bold transition-all border ${
                       isActive
-                        ? 'bg-slate-900 text-white border-slate-900 shadow-md'
-                        : 'bg-white text-slate-600 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
+                        ? 'bg-[var(--accent)] text-[var(--accent-ink)] border-brand-lime shadow-md'
+                        : 'bg-[var(--surface)] text-mid border-black/5 hover:border-white/10 hover:bg-[var(--color-surface-raised)]'
                     }`}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.96 }}
                   >
-                    <c.Icon size={16} className={isActive ? 'text-white' : 'text-slate-400'} />
+                    <c.Icon size={16} className={isActive ? 'text-[var(--accent-ink)]' : 'text-mid'} />
                     {c.label}
                   </motion.button>
                 );
@@ -216,15 +216,15 @@ export default function ServicesPage() {
           {!loading && loadError && (
             <motion.div className="flex flex-col items-center justify-center h-[40vh] gap-4 text-center"
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-              <div className="w-20 h-20 rounded-[2rem] bg-red-50 flex items-center justify-center shadow-inner">
+              <div className="w-20 h-20 rounded-[32px] bg-red-500/10 flex items-center justify-center border border-red-500/20">
                 <AlertTriangle size={32} className="text-red-400" />
               </div>
               <div>
-                <p className="font-bold text-slate-800 text-lg">Couldn't load services</p>
-                <p className="text-slate-500 text-sm mt-1">Check your connection and try again.</p>
+                <p className="font-bold text-hi text-h3">Couldn't load services</p>
+                <p className="text-mid text-caption mt-1">Check your connection and try again.</p>
               </div>
               <button onClick={fetchServices}
-                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm hover:bg-indigo-700 active:scale-95 transition-all shadow-sm">
+                className="px-5 py-2.5 bg-[var(--surface)] text-hi border border-[var(--border-strong)] rounded-full font-bold text-sm hover:bg-[var(--color-surface-raised)] active:scale-95 transition-all">
                 Retry
               </button>
             </motion.div>
@@ -234,13 +234,13 @@ export default function ServicesPage() {
           {loading && (
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-[24px] p-5 border border-slate-200/60 shadow-sm animate-pulse">
-                  <div className="w-14 h-14 bg-slate-100 rounded-2xl mb-4" />
-                  <div className="h-5 bg-slate-100 rounded mb-2 w-3/4" />
-                  <div className="h-4 bg-slate-100 rounded mb-6 w-full" />
-                  <div className="flex justify-between mt-4 pt-4 border-t border-slate-100">
-                    <div className="w-16 h-4 bg-slate-100 rounded" />
-                    <div className="w-12 h-6 bg-slate-100 rounded-full" />
+                <div key={i} className="bg-[var(--surface)] rounded-[24px] p-5 border border-black/5 shadow-md animate-pulse">
+                  <div className="w-14 h-14 bg-[var(--surface-2)] rounded-2xl mb-4" />
+                  <div className="h-5 bg-[var(--surface-2)] rounded mb-2 w-3/4" />
+                  <div className="h-4 bg-[var(--surface-2)] rounded mb-6 w-full" />
+                  <div className="flex justify-between mt-4 pt-4 border-t border-[var(--border)]">
+                    <div className="w-16 h-4 bg-[var(--surface-2)] rounded" />
+                    <div className="w-12 h-6 bg-[var(--surface-2)] rounded-full" />
                   </div>
                 </div>
               ))}
@@ -254,17 +254,17 @@ export default function ServicesPage() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="w-20 h-20 rounded-[2rem] bg-slate-100 flex items-center justify-center shadow-inner">
-                <Wrench size={32} className="text-slate-400" />
+              <div className="w-20 h-20 rounded-[32px] bg-[var(--surface)] flex items-center justify-center shadow-md border border-black/5">
+                <Wrench size={32} className="text-low" />
               </div>
               <div>
-                <p className="font-black text-slate-900 text-xl">No services found</p>
-                <p className="text-sm text-slate-500 mt-2">Try a different search or category.</p>
+                <p className="font-black text-hi text-h2">No services found</p>
+                <p className="text-caption text-mid mt-2">Try a different search or category.</p>
               </div>
               {(query || category !== 'all') && (
                 <motion.button
                   onClick={() => { setQuery(''); setCategory('all'); }}
-                  className="mt-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 px-6 py-3 rounded-xl transition-colors shadow-lg shadow-slate-900/20"
+                  className="mt-2 text-sm font-bold text-[var(--accent-ink)] bg-[var(--accent)] px-6 py-3 rounded-full transition-colors shadow-glow-amber"
                   whileTap={{ scale: 0.95 }}
                 >
                   Clear all filters
@@ -276,7 +276,7 @@ export default function ServicesPage() {
           {/* Results Header */}
           {!loading && filtered.length > 0 && (
             <div className="flex items-center justify-between mb-5">
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+              <p className="text-micro font-black text-low uppercase tracking-widest">
                 {filtered.length} Services Available
               </p>
             </div>
@@ -298,46 +298,46 @@ export default function ServicesPage() {
                       key={s.code}
                       layout
                       onClick={() => nav(`/book/${s.code}`)}
-                      className="group relative bg-white rounded-[24px] text-left border border-slate-200/60 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] hover:-translate-y-1 hover:border-slate-300/80 overflow-hidden flex flex-col h-full"
+                      className="group relative bg-[var(--surface)] rounded-[24px] text-left border border-black/5 shadow-md transition-all hover:shadow-soft-lg hover:-translate-y-1 overflow-hidden flex flex-col h-full"
                       variants={fadeInUp}
                       whileTap={{ scale: 0.98 }}
                     >
                       {/* Image Thumbnail */}
-                      <div className="relative w-full h-36 bg-slate-100 overflow-hidden shrink-0">
+                      <div className="relative w-full h-36 bg-[var(--bg)] overflow-hidden shrink-0">
                         {svc.img ? (
                           <img src={svc.img} alt={s.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         ) : (
                           <div className={`w-full h-full bg-gradient-to-br ${svc.gradient} opacity-20`} />
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-surface-card)] via-transparent to-transparent opacity-90" />
                         
                         {/* Glassmorphic Icon layered over image */}
-                        <div className="absolute bottom-3 left-4 w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-lg">
+                        <div className="absolute bottom-3 left-4 w-11 h-11 rounded-[16px] bg-white/10 backdrop-blur-md flex items-center justify-center border border-[var(--border-strong)] shadow-md">
                           <Icon size={22} strokeWidth={2.5} className="text-white" />
                         </div>
 
                         {/* Arrow indicator top right */}
-                        <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all group-hover:bg-white/20">
+                        <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
                           <ArrowUpRight size={16} className="text-white" />
                         </div>
                       </div>
 
                       <div className="p-5 flex flex-col flex-1">
-                        <h3 className="font-black text-slate-900 text-[17px] leading-tight mb-2 line-clamp-1 group-hover:text-indigo-600 transition-colors">{s.name}</h3>
-                        <p className="text-[13px] text-slate-500 font-medium line-clamp-2 leading-relaxed mb-4 min-h-[40px] flex-1">
+                        <h3 className="font-black text-hi text-body leading-tight mb-2 line-clamp-1 group-hover:text-brand-lime transition-colors">{s.name}</h3>
+                        <p className="text-caption text-mid font-medium line-clamp-2 leading-relaxed mb-4 min-h-[40px] flex-1">
                           {s.description || 'Professional service at your doorstep'}
                         </p>
 
-                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
+                        <div className="flex items-center justify-between pt-4 border-t border-[var(--border)] mt-auto">
                           <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Starting at</span>
-                            <span className="text-base font-black text-slate-900">
+                            <span className="text-micro font-bold text-low uppercase tracking-wider">Starting at</span>
+                            <span className="text-body tabular-nums font-black text-hi">
                               {price > 0 ? `₹${price}` : 'Get Quote'}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100 text-slate-500">
-                            <Clock size={12} className="text-slate-400" />
-                            <span className="text-[11px] font-bold">~{s.estimatedDurationMinutes}m</span>
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--surface-2)] border border-black/5 text-mid">
+                            <Clock size={12} className="text-mid" />
+                            <span className="text-[11px] tabular-nums font-bold">~{s.estimatedDurationMinutes}m</span>
                           </div>
                         </div>
                       </div>

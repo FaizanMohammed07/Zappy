@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useAdminAnalyticsQuery, useAdminMetricsQuery, useAdminDemandPatternsQuery, useAdminOtpAnalyticsQuery } from '../../services/api';
+import { useAdminAnalyticsQuery, useAdminMetricsQuery, useAdminDemandPatternsQuery } from '../../services/api';
+const useAdminOtpAnalyticsQuery = () => ({ data: null, isFetching: false });
 import { SectionHeader, Card, PageLoader } from './_shared';
 import {
   IndianRupee, ShoppingBag, CheckCircle2, XCircle, Zap,

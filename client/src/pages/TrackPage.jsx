@@ -49,8 +49,8 @@ export default function TrackPage() {
           <MapPin size={36} strokeWidth={1.5} className="text-zappy-600" />
         </div>
         <div>
-          <h2 className="font-bold text-xl text-[#0F172A]">No active order</h2>
-          <p className="text-sm text-slate-400 mt-2 leading-relaxed max-w-xs">
+          <h2 className="font-bold text-xl text-hi">No active order</h2>
+          <p className="text-sm text-low mt-2 leading-relaxed max-w-xs">
             Live tracking appears here while a booking is in progress. Book a service to get started.
           </p>
         </div>

@@ -295,7 +295,7 @@ export default function OrderTrackingPage() {
         onClose={() => setCashbackPop(null)}
       />
     )}
-    <div className="min-h-screen pb-[280px]" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
+    <div className="min-h-screen pb-[280px]" style={{ background: 'linear-gradient(180deg, var(--color-surface-base) 0%, var(--color-surface-base) 120px)' }}>
 
       {/* Socket degraded banner — shown when live updates are interrupted */}
       <AnimatePresence>
@@ -320,7 +320,7 @@ export default function OrderTrackingPage() {
       </AnimatePresence>
 
       {/* Premium header */}
-      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'var(--color-surface-glass)' }}>
         <div className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
           <motion.button onClick={() => nav('/')} className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0" whileTap={{ scale: 0.92 }}>
             <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
@@ -493,7 +493,7 @@ export default function OrderTrackingPage() {
               <div className="flex gap-2">
                 <motion.button
                   onClick={callWorker}
-                  className="w-10 h-10 rounded-xl bg-green-500 flex items-center justify-center shadow-sm"
+                  className="w-10 h-10 rounded-xl bg-green-500 flex items-center justify-center shadow-md"
                   whileTap={{ scale: 0.92 }}
                   aria-label="Call worker"
                 >
@@ -539,7 +539,7 @@ export default function OrderTrackingPage() {
           style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
           variants={fadeInUp}
         >
-          <p className="font-black tracking-tight text-[#0F172A] text-base mb-5">Order Progress</p>
+          <p className="font-black tracking-tight text-hi text-base mb-5">Order Progress</p>
           <div className="space-y-3">
             {STEPS.map((s, i) => {
               const done    = activeStepIdx > i;
@@ -549,29 +549,29 @@ export default function OrderTrackingPage() {
                 <div key={s.key} className="flex items-start gap-3">
                   <div className="flex flex-col items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                      done ? 'bg-gradient-to-br from-green-400 to-green-600' : current ? 'bg-gradient-to-br from-blue-500 to-blue-700' : 'bg-slate-100'
+                      done ? 'bg-gradient-to-br from-green-400 to-green-600' : current ? 'bg-gradient-to-br from-blue-500 to-blue-700' : 'bg-[var(--surface-2)]'
                     }`}
                     style={current ? { boxShadow: '0 4px 12px rgba(37,99,235,0.35)' } : {}}>
                       {done ? (
                         <CheckCircle size={15} strokeWidth={2.5} className="text-white" />
                       ) : current ? (
-                        <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse" />
+                        <div className="w-2.5 h-2.5 bg-[var(--surface)] rounded-full animate-pulse" />
                       ) : (
                         <div className="w-2 h-2 bg-slate-300 rounded-full" />
                       )}
                     </div>
                     {i < STEPS.length - 1 && (
-                      <div className={`w-0.5 h-6 mt-1.5 rounded-full ${done ? 'bg-gradient-to-b from-green-400 to-green-500' : 'bg-slate-100'}`} />
+                      <div className={`w-0.5 h-6 mt-1.5 rounded-full ${done ? 'bg-gradient-to-b from-green-400 to-green-500' : 'bg-[var(--surface-2)]'}`} />
                     )}
                 </div>
                 <div className={`pb-2 pt-1.5 ${future ? 'opacity-35' : ''}`}>
                   <p className={`text-[15px] font-black leading-tight tracking-wide ${
-                    current ? 'text-blue-700' : done ? 'text-[#0F172A]' : 'text-slate-400'
+                    current ? 'text-blue-700' : done ? 'text-hi' : 'text-low'
                   }`}>
                     {s.label}
                   </p>
                   {current && (
-                    <p className="text-[13px] font-medium text-slate-500 mt-1 leading-snug">{s.desc}</p>
+                    <p className="text-[13px] font-medium text-mid mt-1 leading-snug">{s.desc}</p>
                   )}
                 </div>
               </div>
@@ -594,22 +594,22 @@ export default function OrderTrackingPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="rounded-2xl overflow-hidden ring-1 ring-slate-100"
+                className="rounded-2xl overflow-hidden ring-1 ring-white/5"
                 style={{ background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)' }}
               >
                 <div className="px-4 py-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0">
-                    <ShieldCheck size={18} strokeWidth={2} className="text-slate-400" />
+                  <div className="w-10 h-10 rounded-2xl bg-[var(--surface-2)] flex items-center justify-center shrink-0">
+                    <ShieldCheck size={18} strokeWidth={2} className="text-low" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-extrabold text-slate-700">Service OTP — locked</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Revealed when your worker marks arrival</p>
+                    <p className="text-sm font-extrabold text-mid">Service OTP — locked</p>
+                    <p className="text-xs text-low mt-0.5">Revealed when your worker marks arrival</p>
                   </div>
                   {/* Blurred digit placeholders */}
                   <div className="flex gap-1.5 shrink-0">
                     {[...Array(6)].map((_, i) => (
-                      <div key={i} className="w-7 h-8 rounded-lg bg-slate-200 flex items-center justify-center">
-                        <span className="text-sm font-black text-slate-300 blur-[3px]">•</span>
+                      <div key={i} className="w-7 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                        <span className="text-sm font-black text-low blur-[3px]">•</span>
                       </div>
                     ))}
                   </div>
@@ -648,7 +648,7 @@ export default function OrderTrackingPage() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: 'spring', damping: 20, stiffness: 260 }}
-                className="rounded-[24px] overflow-hidden border border-white/10"
+                className="rounded-[24px] overflow-hidden border border-[var(--border-strong)]"
                 style={{
                   background: status === 'arrived'
                     ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)'
@@ -689,12 +689,12 @@ export default function OrderTrackingPage() {
           style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
           variants={fadeInUp}
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-md">
             <MapPin size={15} strokeWidth={2} className="text-white" />
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Service Location</p>
-            <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-low mb-1">Service Location</p>
+            <p className="text-sm font-semibold text-hi leading-relaxed">
               {order.pickupLocation?.address}
             </p>
           </div>
@@ -717,7 +717,7 @@ export default function OrderTrackingPage() {
         {/* Completion proof photos — shown to customer after job done */}
         {status === 'completed' && order.completionPhotos?.length > 0 && (
           <motion.div
-            className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
+            className="rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 p-4"
             style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
             variants={fadeInUp}
           >
@@ -726,8 +726,8 @@ export default function OrderTrackingPage() {
                 <CheckCircle size={15} strokeWidth={2} className="text-green-600" />
               </div>
               <div>
-                <p className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Work Completed</p>
-                <p className="text-sm font-bold text-[#0F172A]">Proof of work photos</p>
+                <p className="text-xs font-extrabold uppercase tracking-widest text-low">Work Completed</p>
+                <p className="text-sm font-bold text-hi">Proof of work photos</p>
               </div>
             </div>
             <div className={`grid gap-2 ${order.completionPhotos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
@@ -757,14 +757,14 @@ export default function OrderTrackingPage() {
                   toast.error(err.message || 'Could not load invoice');
                 }
               }}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white ring-1 ring-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 text-sm font-bold text-mid hover:bg-slate-50 transition"
             >
               <FileText size={15} strokeWidth={2} className="text-blue-600" />
               Invoice
             </button>
             <button
               onClick={() => nav('/support')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white ring-1 ring-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[var(--surface)] ring-1 ring-white/5 text-sm font-bold text-mid hover:bg-slate-50 transition"
             >
               <HeadphonesIcon size={15} strokeWidth={2} className="text-violet-600" />
               Get Help
@@ -898,31 +898,31 @@ export default function OrderTrackingPage() {
             />
 
             <motion.div
-              className="relative bg-white rounded-t-[28px] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+              className="relative bg-[var(--surface)] rounded-t-[28px] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 320 }}
             >
               {/* drag pill */}
-              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-4" />
+              <div className="w-10 h-1 bg-white/5 rounded-full mx-auto mt-3 mb-4" />
 
               {/* header */}
               <div className="flex items-center justify-between px-5 mb-4">
-                <p className="font-extrabold text-[#0F172A] text-lg">Cancel order?</p>
+                <p className="font-extrabold text-hi text-lg">Cancel order?</p>
                 <button
                   onClick={() => setShowCancel(false)}
-                  className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"
+                  className="w-9 h-9 rounded-full bg-[var(--surface-2)] flex items-center justify-center"
                 >
-                  <X size={16} strokeWidth={2.5} className="text-slate-500" />
+                  <X size={16} strokeWidth={2.5} className="text-mid" />
                 </button>
               </div>
 
               {/* Fee preview card */}
               <div className="mx-5 mb-4">
                 {previewLoading ? (
-                  <div className="h-16 rounded-2xl bg-slate-50 flex items-center justify-center">
-                    <Loader2 size={18} className="animate-spin text-slate-400" />
+                  <div className="h-16 rounded-2xl bg-[var(--surface-2)] flex items-center justify-center">
+                    <Loader2 size={18} className="animate-spin text-low" />
                   </div>
                 ) : cancelPreview ? (
                   <div className={`rounded-2xl p-4 flex items-center gap-3 ${
@@ -956,7 +956,7 @@ export default function OrderTrackingPage() {
               </div>
 
               {/* Cancel reason list */}
-              <p className="px-5 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              <p className="px-5 text-xs font-bold text-low uppercase tracking-wider mb-2">
                 Why are you cancelling?
               </p>
               <div className="px-5 space-y-1 mb-5 max-h-48 overflow-y-auto">
@@ -966,8 +966,8 @@ export default function OrderTrackingPage() {
                     onClick={() => setCancelReason(r.id)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition ${
                       cancelReason === r.id
-                        ? 'bg-[#0F172A] text-white'
-                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                        ? 'bg-[var(--surface)] text-white'
+                        : 'bg-[var(--surface-2)] text-mid hover:bg-slate-100'
                     }`}
                   >
                     <span className="text-sm font-semibold">{r.label}</span>
@@ -980,7 +980,7 @@ export default function OrderTrackingPage() {
               <div className="px-5 flex gap-3">
                 <button
                   onClick={() => setShowCancel(false)}
-                  className="flex-1 h-12 rounded-2xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition"
+                  className="flex-1 h-12 rounded-2xl border border-[var(--border)] font-bold text-mid hover:bg-slate-50 transition"
                 >
                   Keep Order
                 </button>
@@ -1018,18 +1018,18 @@ export default function OrderTrackingPage() {
             <motion.div className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setShowSOSConfirm(false)} />
             <motion.div
-              className="relative bg-white rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))]"
+              className="relative bg-[var(--surface)] rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))]"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 320 }}
             >
-              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-5" />
+              <div className="w-10 h-1 bg-white/5 rounded-full mx-auto mt-3 mb-5" />
               <div className="flex flex-col items-center px-6 gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center"
                   style={{ boxShadow: '0 8px 24px rgba(239,68,68,0.3)' }}>
                   <ShieldAlert size={28} strokeWidth={2} className="text-red-600" />
                 </div>
-                <p className="text-xl font-black text-[#0F172A] text-center">Emergency SOS?</p>
-                <p className="text-sm text-slate-500 text-center leading-relaxed">
+                <p className="text-xl font-black text-hi text-center">Emergency SOS?</p>
+                <p className="text-sm text-mid text-center leading-relaxed">
                   This will call <strong>112 (Emergency Services)</strong> and notify Zappy support about your location.
                   Only use in a genuine emergency.
                 </p>
@@ -1045,7 +1045,7 @@ export default function OrderTrackingPage() {
                   </motion.button>
                   <button
                     onClick={() => setShowSOSConfirm(false)}
-                    className="w-full h-12 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                    className="w-full h-12 rounded-2xl border border-[var(--border)] text-mid font-semibold text-sm hover:bg-slate-50 transition"
                   >
                     Cancel — I'm safe
                   </button>
@@ -1066,22 +1066,22 @@ export default function OrderTrackingPage() {
             <motion.div className="absolute inset-0 bg-black/50"
               onClick={() => setShowShareTrip(false)} />
             <motion.div
-              className="relative bg-white rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))]"
+              className="relative bg-[var(--surface)] rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))]"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 320 }}
             >
-              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-5" />
+              <div className="w-10 h-1 bg-white/5 rounded-full mx-auto mt-3 mb-5" />
               <div className="flex flex-col items-center px-6 gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center">
                   <Share2 size={24} strokeWidth={2} className="text-blue-600" />
                 </div>
-                <p className="text-lg font-black text-[#0F172A] text-center">Share Trip</p>
-                <p className="text-sm text-slate-500 text-center leading-relaxed">
+                <p className="text-lg font-black text-hi text-center">Share Trip</p>
+                <p className="text-sm text-mid text-center leading-relaxed">
                   Share your live tracking link with a trusted contact so they can follow your service in real time.
                 </p>
                 {/* Track link preview */}
-                <div className="w-full flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2.5">
-                  <p className="text-xs font-mono text-slate-600 flex-1 truncate">
+                <div className="w-full flex items-center gap-2 bg-[var(--surface-2)] rounded-xl px-3 py-2.5">
+                  <p className="text-xs font-mono text-mid flex-1 truncate">
                     {window.location.origin}/track?order={id.slice(-8)}…
                   </p>
                   <button
@@ -1090,9 +1090,9 @@ export default function OrderTrackingPage() {
                         .then(() => toast.success('Link copied!'))
                         .catch(() => {});
                     }}
-                    className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition"
+                    className="w-8 h-8 rounded-lg bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center hover:bg-slate-50 transition"
                   >
-                    <Copy size={13} className="text-slate-500" />
+                    <Copy size={13} className="text-mid" />
                   </button>
                 </div>
                 <div className="w-full space-y-2.5">
@@ -1107,7 +1107,7 @@ export default function OrderTrackingPage() {
                   </motion.button>
                   <button
                     onClick={() => setShowShareTrip(false)}
-                    className="w-full h-12 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                    className="w-full h-12 rounded-2xl border border-[var(--border)] text-mid font-semibold text-sm hover:bg-slate-50 transition"
                   >
                     Close
                   </button>
@@ -1137,14 +1137,14 @@ export default function OrderTrackingPage() {
             />
 
             <motion.div
-              className="relative bg-white rounded-t-[32px] pb-[max(1.75rem,env(safe-area-inset-bottom))]"
+              className="relative bg-[var(--surface)] rounded-t-[32px] pb-[max(1.75rem,env(safe-area-inset-bottom))]"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
             >
               {/* Drag pill */}
-              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-5" />
+              <div className="w-10 h-1 bg-white/5 rounded-full mx-auto mt-3 mb-5" />
 
               {/* Worker avatar + headline */}
               <div className="flex flex-col items-center px-6 pb-2">
@@ -1152,10 +1152,10 @@ export default function OrderTrackingPage() {
                      style={{ boxShadow: '0 8px 24px rgba(124,58,237,0.4)' }}>
                   {(order.workerName || 'W').slice(0, 2).toUpperCase()}
                 </div>
-                <p className="text-xl font-black text-[#0F172A] text-center leading-tight">
+                <p className="text-xl font-black text-hi text-center leading-tight">
                   Is {order.workerName ? order.workerName.split(' ')[0] : 'your worker'} at your door?
                 </p>
-                <p className="text-sm text-slate-400 mt-1.5 text-center">
+                <p className="text-sm text-low mt-1.5 text-center">
                   They've marked themselves as arrived. Confirm so your OTP unlocks.
                 </p>
               </div>
@@ -1179,7 +1179,7 @@ export default function OrderTrackingPage() {
                     {confirmCountdown}s
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 mt-2 font-medium">
+                <p className="text-xs text-low mt-2 font-medium">
                   OTP auto-reveals in {confirmCountdown} s
                 </p>
               </div>
@@ -1208,7 +1208,7 @@ export default function OrderTrackingPage() {
                         clearInterval(countdownRef.current);
                         setWorkerNotHereMode(true);
                       }}
-                      className="w-full h-12 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                      className="w-full h-12 rounded-2xl border border-[var(--border)] text-mid font-semibold text-sm hover:bg-slate-50 transition"
                     >
                       No, they haven't arrived yet
                     </button>
@@ -1239,7 +1239,7 @@ export default function OrderTrackingPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setWorkerNotHereMode(false)}
-                        className="flex-1 h-10 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold"
+                        className="flex-1 h-10 rounded-xl bg-[var(--surface-2)] text-mid text-sm font-semibold"
                       >
                         Back
                       </button>
@@ -1250,7 +1250,7 @@ export default function OrderTrackingPage() {
                           setWorkerNotHereMode(false);
                           toast('Sheet closed — tap "Confirm" when ready', { icon: '⏳' });
                         }}
-                        className="flex-1 h-10 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold"
+                        className="flex-1 h-10 rounded-xl bg-[var(--surface-2)] text-mid text-sm font-semibold"
                       >
                         Wait & check later
                       </button>
@@ -1278,20 +1278,20 @@ function ProofPhoto({ url, index }) {
       href={state === 'loaded' ? url : undefined}
       target="_blank"
       rel="noopener noreferrer"
-      className="block rounded-xl overflow-hidden ring-1 ring-slate-100 hover:ring-green-300 transition bg-slate-50"
+      className="block rounded-xl overflow-hidden ring-1 ring-white/5 hover:ring-green-300 transition bg-[var(--surface-2)]"
       onClick={state !== 'loaded' ? (e) => e.preventDefault() : undefined}
     >
       {/* Fixed-height container prevents the "blank white box" on error/loading */}
       <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
         {state === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 size={18} className="animate-spin text-slate-300" />
+            <Loader2 size={18} className="animate-spin text-low" />
           </div>
         )}
         {state === 'error' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-slate-50">
-            <AlertCircle size={20} className="text-slate-300" />
-            <p className="text-[10px] text-slate-400 font-medium">Photo unavailable</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-[var(--surface-2)]">
+            <AlertCircle size={20} className="text-low" />
+            <p className="text-[10px] text-low font-medium">Photo unavailable</p>
           </div>
         )}
         <img

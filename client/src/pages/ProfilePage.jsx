@@ -20,9 +20,9 @@ import { staggerContainer, fadeInUp } from '../lib/animations';
 import toast from 'react-hot-toast';
 
 const TAG_META = {
-  home:  { icon: Home,      bg: 'bg-blue-50',   text: 'text-blue-600',   label: 'Home' },
+  home:  { icon: Home,      bg: 'bg-blue-500/10',   text: 'text-blue-600',   label: 'Home' },
   work:  { icon: Briefcase, bg: 'bg-purple-50',  text: 'text-purple-600', label: 'Work' },
-  other: { icon: MapPin,    bg: 'bg-slate-50',   text: 'text-slate-500',  label: 'Other' },
+  other: { icon: MapPin,    bg: 'bg-[var(--surface-2)]',   text: 'text-mid',  label: 'Other' },
 };
 
 const EMPTY_ADDR = { label: '', address: '', lat: '', lng: '', tag: 'other' };
@@ -142,7 +142,7 @@ export default function ProfilePage() {
       <div className="min-h-screen bg-[#F9FAFB] pb-40">
         <header className="page-header !bg-transparent border-none">
           <div className="page-header-inner justify-center pt-4">
-            <h1 className="text-xl font-black tracking-tight text-[#0F172A]">Profile</h1>
+            <h1 className="text-xl font-black tracking-tight text-hi">Profile</h1>
             <span className="absolute right-4 chip-neutral bg-white/60 backdrop-blur-md capitalize font-bold">{role}</span>
           </div>
         </header>
@@ -171,17 +171,17 @@ export default function ProfilePage() {
               
               <div className="flex flex-col items-center text-center gap-3 relative z-10">
                 <motion.div
-                  className="w-24 h-24 rounded-[32px] bg-zappy-gradient flex items-center justify-center text-white text-3xl font-black shrink-0 shadow-glow-blue border-2 border-white/20"
+                  className="w-24 h-24 rounded-[32px] bg-zappy-gradient flex items-center justify-center text-white text-3xl font-black shrink-0 shadow-glow-blue border-2 border-[var(--border-strong)]"
                   whileHover={{ scale: 1.05, rotate: -2 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                   {initials}
                 </motion.div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="font-black text-2xl tracking-tight text-[#0F172A]">{user?.name || 'User'}</h2>
-                  <p className="text-sm font-semibold text-slate-500 mt-1">{user?.phone || user?.email || '—'}</p>
+                  <h2 className="font-black text-2xl tracking-tight text-hi">{user?.name || 'User'}</h2>
+                  <p className="text-sm font-semibold text-mid mt-1">{user?.phone || user?.email || '—'}</p>
                 </div>
-                <div className="flex items-center gap-1.5 bg-success-50/80 backdrop-blur-md px-3 py-1.5 rounded-full mt-2 shadow-sm border border-success-100">
+                <div className="flex items-center gap-1.5 bg-success-50/80 backdrop-blur-md px-3 py-1.5 rounded-full mt-2 shadow-md border border-success-100">
                   <ShieldCheck size={14} strokeWidth={3} className="text-success-600" />
                   <span className="text-xs font-black tracking-wide text-success-700">VERIFIED</span>
                 </div>
@@ -228,9 +228,9 @@ export default function ProfilePage() {
                     >
                       <div className="card space-y-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm font-bold text-[#0F172A]">New Address</p>
+                          <p className="text-sm font-bold text-hi">New Address</p>
                           <button type="button" onClick={() => setShowAddrForm(false)}>
-                            <X size={15} className="text-slate-400" />
+                            <X size={15} className="text-low" />
                           </button>
                         </div>
                         <div className="flex gap-2">
@@ -240,7 +240,7 @@ export default function ProfilePage() {
                               type="button"
                               onClick={() => setNewAddr(p => ({ ...p, tag }))}
                               className={`flex-1 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
-                                newAddr.tag === tag ? 'bg-[#0F172A] text-white' : 'bg-slate-100 text-slate-600'
+                                newAddr.tag === tag ? 'bg-[var(--surface)] text-white' : 'bg-[var(--surface-2)] text-mid'
                               }`}
                             >
                               {tag}
@@ -308,12 +308,12 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{a.label}</p>
+                                <p className="text-xs font-bold text-mid uppercase tracking-wide">{a.label}</p>
                                 {a.isDefault && (
-                                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">DEFAULT</span>
+                                  <span className="text-[9px] font-black text-blue-600 bg-blue-500/10 px-1.5 py-0.5 rounded-full">DEFAULT</span>
                                 )}
                               </div>
-                              <p className="text-sm font-medium text-[#0F172A] truncate">{a.address}</p>
+                              <p className="text-sm font-medium text-hi truncate">{a.address}</p>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               {!a.isDefault && (
@@ -327,7 +327,7 @@ export default function ProfilePage() {
                               )}
                               <button
                                 onClick={() => isEditing ? setEditingAddrId(null) : startEditAddr(a)}
-                                className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center hover:bg-blue-100 transition"
+                                className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center hover:bg-blue-100 transition"
                               >
                                 <Pencil size={11} strokeWidth={2} className="text-blue-600" />
                               </button>
@@ -348,13 +348,13 @@ export default function ProfilePage() {
                                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
                                 className="overflow-hidden"
                               >
-                                <div className="px-4 pb-3 pt-1 bg-slate-50 space-y-2 border-t border-slate-100">
+                                <div className="px-4 pb-3 pt-1 bg-[var(--surface-2)] space-y-2 border-t border-[var(--border)]">
                                   <div className="flex gap-2">
                                     {['home', 'work', 'other'].map(tag => (
                                       <button key={tag} type="button"
                                         onClick={() => setEditAddr(p => ({ ...p, tag }))}
                                         className={`flex-1 py-1 rounded-lg text-xs font-bold capitalize transition ${
-                                          editAddr.tag === tag ? 'bg-[#0F172A] text-white' : 'bg-white text-slate-600 border border-slate-200'
+                                          editAddr.tag === tag ? 'bg-[var(--surface)] text-white' : 'bg-[var(--surface)] text-mid border border-[var(--border)]'
                                         }`}
                                       >
                                         {tag}
@@ -367,9 +367,9 @@ export default function ProfilePage() {
                                     value={editAddr.address} onChange={e => setEditAddr(p => ({ ...p, address: e.target.value }))} />
                                   <div className="flex gap-2 pt-1">
                                     <button type="button" onClick={() => setEditingAddrId(null)}
-                                      className="flex-1 h-9 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600">Cancel</button>
+                                      className="flex-1 h-9 rounded-lg border border-[var(--border)] text-xs font-semibold text-mid">Cancel</button>
                                     <button type="submit" disabled={editingAddr}
-                                      className="flex-1 h-9 rounded-lg bg-[#0F172A] text-white text-xs font-bold flex items-center justify-center gap-1.5">
+                                      className="flex-1 h-9 rounded-lg bg-[var(--surface)] text-white text-xs font-bold flex items-center justify-center gap-1.5">
                                       {editingAddr ? <Loader2 size={12} className="animate-spin" /> : null}
                                       Save
                                     </button>
@@ -384,8 +384,8 @@ export default function ProfilePage() {
                   </div>
                 ) : !showAddrForm && (
                   <div className="card text-center py-4">
-                    <MapPin size={18} strokeWidth={1.5} className="text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-400">No saved addresses yet</p>
+                    <MapPin size={18} strokeWidth={1.5} className="text-low mx-auto mb-2" />
+                    <p className="text-sm text-low">No saved addresses yet</p>
                     <button onClick={() => setShowAddrForm(true)} className="text-xs font-bold text-blue-600 mt-1">
                       Add Home or Work
                     </button>
@@ -415,7 +415,7 @@ export default function ProfilePage() {
                     <motion.button
                       key="logout-btn"
                       onClick={() => setShowLogout(true)}
-                      className="w-full flex items-center gap-3 px-4 py-4 rounded-[24px] bg-red-50 ring-1 ring-red-100/50 text-red-500 hover:bg-red-100 transition shadow-sm border border-red-100"
+                      className="w-full flex items-center gap-3 px-4 py-4 rounded-[24px] bg-red-50 ring-1 ring-red-100/50 text-red-500 hover:bg-red-100 transition shadow-md border border-red-100"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -446,7 +446,7 @@ export default function ProfilePage() {
                 </AnimatePresence>
               </motion.div>
 
-              <p className="text-center text-xs text-slate-300 pb-4">Zappy Platform · v1.0</p>
+              <p className="text-center text-xs text-low pb-4">Zappy Platform · v1.0</p>
             </div>
           </motion.div>
         )}
@@ -460,7 +460,7 @@ export default function ProfilePage() {
 function MenuSection({ title, children }) {
   return (
     <div className="mb-6">
-      <p className="px-4 mb-2 text-[11px] font-black uppercase tracking-widest text-slate-400">{title}</p>
+      <p className="px-4 mb-2 text-[11px] font-black uppercase tracking-widest text-low">{title}</p>
       <div className="card !p-1 overflow-hidden space-y-0.5">
         {children}
       </div>
@@ -476,14 +476,14 @@ function MenuItem({ Icon, label, sublabel, onClick }) {
       whileHover={{ scale: 0.99, backgroundColor: 'rgba(248,250,252,0.8)' }}
       whileTap={{ scale: 0.97 }}
     >
-      <div className="w-10 h-10 rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 flex items-center justify-center shrink-0">
+      <div className="w-10 h-10 rounded-2xl bg-[var(--surface)] shadow-md ring-1 ring-slate-900/5 flex items-center justify-center shrink-0">
         <Icon size={18} strokeWidth={2} className="text-zappy-600" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[15px] font-bold text-[#0F172A]">{label}</p>
-        {sublabel && <p className="text-xs font-medium text-slate-400 mt-0.5 truncate">{sublabel}</p>}
+        <p className="text-[15px] font-bold text-hi">{label}</p>
+        {sublabel && <p className="text-xs font-medium text-low mt-0.5 truncate">{sublabel}</p>}
       </div>
-      <ChevronRight size={16} strokeWidth={2.5} className="text-slate-300 shrink-0" />
+      <ChevronRight size={16} strokeWidth={2.5} className="text-low shrink-0" />
     </motion.button>
   );
 }

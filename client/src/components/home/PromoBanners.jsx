@@ -40,7 +40,7 @@ export function PromoBannerVehicle() {
   return (
     <div className="mt-8 mb-4">
       <div 
-        className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-soft-lg cursor-pointer group"
+        className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-lg cursor-pointer group"
         onClick={() => nav('/services')}
       >
         <AnimatePresence mode="wait">
@@ -87,7 +87,7 @@ export function PromoBannerVehicle() {
             </motion.p>
           </AnimatePresence>
           <div className="flex items-center justify-between">
-            <button className="bg-white text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg">
+            <button className="bg-[var(--accent)] text-[var(--accent-ink)] px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg">
               Explore
             </button>
             <AnimatePresence mode="wait">
@@ -120,7 +120,7 @@ export function PromoBannerElectronics() {
   return (
     <div className="mt-6 mb-8">
       <div 
-        className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-soft-lg cursor-pointer group"
+        className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-lg cursor-pointer group"
         onClick={() => nav('/services')}
       >
         <img
@@ -144,7 +144,7 @@ export function PromoBannerElectronics() {
             Certified parts, 6 months warranty.
           </p>
           <div className="flex items-center justify-between">
-            <button className="bg-white text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg">
+            <button className="bg-[var(--accent)] text-[var(--accent-ink)] px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg">
               Explore
             </button>
             <span className="text-white font-black text-lg">
@@ -195,7 +195,7 @@ export function PromoBannerFamily() {
   return (
     <div className="mt-8 mb-4">
       <div 
-        className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-soft-lg cursor-pointer group"
+        className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-lg cursor-pointer group"
         onClick={() => nav('/services')}
       >
         <AnimatePresence mode="wait">
@@ -242,7 +242,7 @@ export function PromoBannerFamily() {
             </motion.p>
           </AnimatePresence>
           <div className="flex items-center justify-between">
-            <button className="bg-white text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg">
+            <button className="bg-[var(--accent)] text-[var(--accent-ink)] px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg">
               Explore
             </button>
             <AnimatePresence mode="wait">
@@ -275,7 +275,7 @@ export function PromoBannerEvents() {
   return (
     <div className="mt-6 mb-8">
       <div 
-        className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-soft-lg cursor-pointer group"
+        className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-lg cursor-pointer group"
         onClick={() => nav('/events')}
       >
         <img
@@ -299,7 +299,7 @@ export function PromoBannerEvents() {
             Birthdays & Anniversaries
           </p>
           <div className="flex items-center justify-between">
-            <button className="bg-white text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg">
+            <button className="bg-[var(--accent)] text-[var(--accent-ink)] px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg">
               Explore
             </button>
             <span className="text-white font-black text-lg">

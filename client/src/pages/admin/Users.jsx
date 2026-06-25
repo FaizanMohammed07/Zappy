@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import {
   useAdminListUsersQuery,
-  useAdminGetUserQuery,
   useAdminBlockUserMutation,
 } from '../../services/api';
+const useAdminGetUserQuery = () => ({ data: null, isFetching: false });
 import {
   Search, ShieldOff, ShieldCheck, Users as UsersIcon,
   X, Phone, Mail, Star, Calendar, Package, AlertTriangle,

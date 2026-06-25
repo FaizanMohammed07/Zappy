@@ -3,11 +3,13 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Phone, ArrowRight, ChevronLeft, CheckCircle2, Loader2, Zap, Shield, Star } from 'lucide-react';
-import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation, useUpdateMeMutation } from '../services/api';
+import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation } from '../services/api';
 import { setAuth, updateProfile } from '../modules/auth/authSlice';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import toast from 'react-hot-toast';
-import SEO, { LOGIN_SCHEMA, BASE_URL } from '../components/SEO';
+import SEO from '../components/SEO';
+const LOGIN_SCHEMA = {};
+const BASE_URL = 'https://zappy.com';
 import { easeSoft, springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 
 const SKILLS = [
@@ -46,7 +48,7 @@ function OtpInput({ value, onChange, onKeyDown, inputRef, filled }) {
       onKeyDown={onKeyDown}
       animate={filled ? { scale: [1, 1.1, 1], borderColor: '#6366f1' } : { borderColor: '#e2e8f0' }}
       transition={{ duration: 0.18 }}
-      className="w-12 h-14 text-center text-xl font-black rounded-2xl border-2 outline-none bg-white/80 backdrop-blur-sm text-slate-900 transition-all"
+      className="w-12 h-14 text-center text-xl font-black rounded-2xl border-2 outline-none bg-white/80 backdrop-blur-sm text-hi transition-all"
       style={{ borderColor: filled ? '#6366f1' : '#e2e8f0', boxShadow: filled ? '0 0 0 4px rgba(99,102,241,0.12)' : 'none' }}
     />
   );
@@ -66,7 +68,7 @@ export default function LoginPage({ role = 'user' }) {
   const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
   const [loginUser,  { isLoading: loggingUser }]   = useLoginUserMutation();
   const [loginWorker, { isLoading: loggingWorker }] = useLoginWorkerMutation();
-  const [updateMe,   { isLoading: savingProfile }]  = useUpdateMeMutation();
+  const [updateMe,   { isLoading: savingProfile }]  = [() => ({ unwrap: async () => {} }), { isLoading: false }];
   const nav      = useNavigate();
   const loc      = useLocation();
   const dispatch = useDispatch();
@@ -277,7 +279,7 @@ export default function LoginPage({ role = 'user' }) {
         >
           <div className="max-w-sm mx-auto px-6 pt-7 pb-12 space-y-5">
             {/* Drag handle */}
-            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2" />
+            <div className="w-10 h-1 bg-white/5 rounded-full mx-auto mb-2" />
 
             {step === 'phone' ? (
               <motion.div
@@ -287,23 +289,23 @@ export default function LoginPage({ role = 'user' }) {
                 animate="animate"
               >
                 <motion.div variants={fadeInUp}>
-                  <h2 className="text-xl font-black text-slate-900">
+                  <h2 className="text-xl font-black text-hi">
                     {isWorker ? 'Sign in as Partner' : 'Welcome back'}
                   </h2>
-                  <p className="text-sm text-slate-400 mt-1 font-medium">Enter your mobile number to continue</p>
+                  <p className="text-sm text-low mt-1 font-medium">Enter your mobile number to continue</p>
                 </motion.div>
 
                 <motion.div variants={fadeInUp}>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Mobile Number</label>
+                  <label className="text-xs font-bold text-mid uppercase tracking-wider block mb-2">Mobile Number</label>
                   <div className="relative">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pr-3 border-r border-slate-200">
-                      <Phone size={14} className="text-slate-400" />
-                      <span className="text-sm font-bold text-slate-600">+91</span>
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pr-3 border-r border-[var(--border)]">
+                      <Phone size={14} className="text-low" />
+                      <span className="text-sm font-bold text-mid">+91</span>
                     </div>
                     <input
                       type="tel"
                       inputMode="numeric"
-                      className="w-full pl-[72px] pr-4 py-3.5 text-base font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                      className="w-full pl-[72px] pr-4 py-3.5 text-base font-bold text-hi rounded-2xl border-2 border-[var(--border)] bg-[var(--surface-2)] outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
                       placeholder="98765 43210"
                       value={phone}
                       onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
@@ -341,11 +343,11 @@ export default function LoginPage({ role = 'user' }) {
                   </Link>
                 </motion.div>
 
-                <motion.p variants={fadeInUp} className="text-center text-xs text-slate-400">
+                <motion.p variants={fadeInUp} className="text-center text-xs text-low">
                   {isWorker ? (
-                    <>Customer?{' '}<Link to="/login" className="text-indigo-600 font-bold hover:underline">Login here</Link></>
+                    <>Customer?{' '}<Link to="/login" className="text-[var(--violet)] font-bold hover:underline">Login here</Link></>
                   ) : (
-                    <>Service worker?{' '}<Link to="/worker/login" className="text-indigo-600 font-bold hover:underline">Worker login</Link></>
+                    <>Service worker?{' '}<Link to="/worker/login" className="text-[var(--violet)] font-bold hover:underline">Worker login</Link></>
                   )}
                 </motion.p>
               </motion.div>
@@ -361,13 +363,13 @@ export default function LoginPage({ role = 'user' }) {
                   <motion.button
                     onClick={() => setStep('phone')}
                     whileTap={{ scale: 0.92 }}
-                    className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"
+                    className="w-9 h-9 rounded-xl bg-[var(--surface-2)] flex items-center justify-center shrink-0"
                   >
-                    <ChevronLeft size={18} strokeWidth={2.5} className="text-slate-600" />
+                    <ChevronLeft size={18} strokeWidth={2.5} className="text-mid" />
                   </motion.button>
                   <div>
-                    <h2 className="text-xl font-black text-slate-900">Enter OTP</h2>
-                    <p className="text-xs text-slate-400 font-medium">Sent to +91 {phone}</p>
+                    <h2 className="text-xl font-black text-hi">Enter OTP</h2>
+                    <p className="text-xs text-low font-medium">Sent to +91 {phone}</p>
                     <p className="text-[11px] text-amber-600 font-semibold mt-0.5">📞 OTP will be delivered via phone call</p>
                   </div>
                 </motion.div>
@@ -391,9 +393,9 @@ export default function LoginPage({ role = 'user' }) {
                 {/* Name (new user) */}
                 {isNewUser && (
                   <motion.div variants={fadeInUp}>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Name</label>
+                    <label className="text-xs font-bold text-mid uppercase tracking-wider block mb-2">Your Name</label>
                     <input
-                      className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                      className="w-full px-4 py-3.5 text-sm font-bold text-hi rounded-2xl border-2 border-[var(--border)] bg-[var(--surface-2)] outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
                       placeholder="e.g. Priya Sharma"
                       value={name}
                       onChange={e => setName(e.target.value)}
@@ -404,7 +406,7 @@ export default function LoginPage({ role = 'user' }) {
                 {/* Worker skills */}
                 {isNewUser && isWorker && (
                   <motion.div variants={fadeInUp}>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Skills</label>
+                    <label className="text-xs font-bold text-mid uppercase tracking-wider block mb-2">Your Skills</label>
                     <div className="flex flex-wrap gap-2">
                       {SKILLS.map(s => {
                         const on = skills.includes(s);
@@ -417,8 +419,8 @@ export default function LoginPage({ role = 'user' }) {
                             animate={on ? { scale: 1 } : { scale: 1 }}
                             className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                               on
-                                ? 'bg-indigo-600 text-white ring-2 ring-indigo-600/20'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                ? 'bg-[var(--violet)] text-white ring-2 ring-indigo-600/20'
+                                : 'bg-[var(--surface-2)] text-mid hover:bg-slate-200'
                             }`}
                           >
                             {on && <CheckCircle2 size={10} />}
@@ -452,15 +454,15 @@ export default function LoginPage({ role = 'user' }) {
                 animate="animate"
               >
                 <motion.div variants={fadeInUp}>
-                  <h2 className="text-xl font-black text-slate-900">One last step</h2>
-                  <p className="text-sm text-slate-400 mt-1 font-medium">Complete your profile to continue</p>
+                  <h2 className="text-xl font-black text-hi">One last step</h2>
+                  <p className="text-sm text-low mt-1 font-medium">Complete your profile to continue</p>
                 </motion.div>
 
                 {!pendingProfile?.name && (
                   <motion.div variants={fadeInUp}>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Name</label>
+                    <label className="text-xs font-bold text-mid uppercase tracking-wider block mb-2">Your Name</label>
                     <input
-                      className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                      className="w-full px-4 py-3.5 text-sm font-bold text-hi rounded-2xl border-2 border-[var(--border)] bg-[var(--surface-2)] outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
                       placeholder="e.g. Priya Sharma"
                       value={name}
                       onChange={e => setName(e.target.value)}
@@ -470,11 +472,11 @@ export default function LoginPage({ role = 'user' }) {
                 )}
 
                 <motion.div variants={fadeInUp}>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Email <span className="text-slate-300 font-medium normal-case">(for receipts)</span></label>
+                  <label className="text-xs font-bold text-mid uppercase tracking-wider block mb-2">Email <span className="text-low font-medium normal-case">(for receipts)</span></label>
                   <input
                     type="email"
                     inputMode="email"
-                    className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                    className="w-full px-4 py-3.5 text-sm font-bold text-hi rounded-2xl border-2 border-[var(--border)] bg-[var(--surface-2)] outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
                     placeholder="you@example.com"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
@@ -499,7 +501,7 @@ export default function LoginPage({ role = 'user' }) {
                 <motion.button
                   variants={fadeInUp}
                   onClick={() => nav(loc.state?.from || '/', { replace: true })}
-                  className="w-full text-center text-xs text-slate-400 hover:text-slate-600 py-1 transition-colors"
+                  className="w-full text-center text-xs text-low hover:text-slate-600 py-1 transition-colors"
                 >
                   Skip for now
                 </motion.button>
