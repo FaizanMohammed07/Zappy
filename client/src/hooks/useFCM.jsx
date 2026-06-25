@@ -161,9 +161,12 @@ export function useFCM() {
 
       // 6. Foreground message handler — show toast when app is open
       onMessage(messaging, (payload) => {
-        const { title, body } = payload.notification || {};
+        // Data-only messages carry title/body in `data` (see notifications.worker.js)
+        const d = payload.data || {};
+        const title = d.title || payload.notification?.title;
+        const body  = d.body  || payload.notification?.body || '';
         if (!title) return;
-        const deepLink = payload.data?.deepLink;
+        const deepLink = d.deepLink;
         import('react-hot-toast').then(({ default: toast }) => {
           toast(
             (t) => (

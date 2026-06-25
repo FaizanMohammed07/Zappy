@@ -74,9 +74,13 @@ async function sendFcm({ tokens, title, body, data = {}, imageUrl } = {}) {
   const admin = require('firebase-admin');
   const messaging = admin.messaging(app);
 
-  // Stringify all data values — FCM requires string values
+  // Stringify all data values — FCM requires string values.
+  // Title/body/image travel INSIDE data (data-only message) so the web service
+  // worker renders exactly ONE notification. A top-level `notification` block
+  // would make Chrome auto-display it AND fire onBackgroundMessage → duplicate.
   const stringData = Object.fromEntries(
-    Object.entries(data).map(([k, v]) => [k, String(v)])
+    Object.entries({ ...data, title, body: body || '', ...(imageUrl ? { image: imageUrl } : {}) })
+      .map(([k, v]) => [k, String(v)])
   );
 
   const uniqueTokens = [...new Set(tokens)].filter(Boolean);
@@ -88,24 +92,22 @@ async function sendFcm({ tokens, title, body, data = {}, imageUrl } = {}) {
   for (let i = 0; i < uniqueTokens.length; i += BATCH_SIZE) {
     const batch = uniqueTokens.slice(i, i + BATCH_SIZE);
     try {
+      // DATA-ONLY message — no top-level/webpush `notification` block, so the
+      // service worker is the single source that renders the notification (no dupes).
+      // Native apps (if any) read the same fields from `data`.
       const message = {
         tokens: batch,
-        notification: { title, body: body || '' },
         data: stringData,
-        android: {
-          priority: 'high',
-          notification: { sound: 'default', channelId: 'zappy_alerts' },
-        },
+        android: { priority: 'high' },
         apns: {
-          headers: { 'apns-priority': '10' },
-          payload: { aps: { sound: 'default', badge: 1 } },
+          headers: { 'apns-priority': '10', 'apns-push-type': 'background' },
+          payload: { aps: { 'content-available': 1, sound: 'default' } },
         },
         webpush: {
-          notification: { icon: '/icons/icon-192.png', badge: '/icons/badge-72.png' },
+          headers: { Urgency: 'high', TTL: '86400' },
           fcmOptions: { link: data.deepLink || '/' },
         },
       };
-      if (imageUrl) message.notification.imageUrl = imageUrl;
 
       const result = await messaging.sendEachForMulticast(message);
       successCount += result.successCount;

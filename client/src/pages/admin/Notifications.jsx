@@ -4,12 +4,14 @@ import {
   Bell, Send, CheckCircle, XCircle, Loader2, RefreshCw,
   BarChart2, MessageSquare, Users, Smartphone, AlertTriangle,
 } from 'lucide-react';
-import { SectionHeader, Card, PageLoader } from './_shared';
+import { SectionHeader, Card } from './_shared';
 import toast from 'react-hot-toast';
-import { adminApiPath } from '../../config/admin';
-import { API_BASE } from '../../services/apiBase';
-import { useSelector } from 'react-redux';
-import { selectAuth } from '../../modules/auth/authSlice';
+import {
+  useLazyAdminNotificationHealthQuery,
+  useLazyAdminNotificationStatsQuery,
+  useAdminSendNotificationMutation,
+  useAdminBroadcastNotificationMutation,
+} from '../../services/api';
 
 const NOTIFICATION_TYPES = [
   'order_placed', 'worker_assigned', 'worker_on_the_way', 'worker_arriving_soon',
@@ -29,18 +31,11 @@ function StatCard({ label, value, sub, color = 'text-slate-800' }) {
 }
 
 /* ── FCM Health Check ─────────────────────────────────────────────────── */
-function FcmHealth({ token }) {
-  const [health, setHealth] = useState(null);
-  const [loading, setLoading] = useState(false);
+function FcmHealth() {
+  const [checkHealth, { data, isFetching: loading, error }] = useLazyAdminNotificationHealthQuery();
+  const health = data ?? (error ? { ok: false, message: 'Failed to check — try again' } : null);
 
-  async function check() {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api${adminApiPath('/notifications/health')}`, { headers: { Authorization: `Bearer ${token}` } });
-      setHealth(await res.json());
-    } catch { setHealth({ ok: false, message: 'Network error' }); }
-    setLoading(false);
-  }
+  function check() { checkHealth(); }
 
   return (
     <Card className="p-5 space-y-3">
@@ -85,18 +80,12 @@ function FcmHealth({ token }) {
 }
 
 /* ── Delivery Stats ──────────────────────────────────────────────────── */
-function DeliveryStats({ token }) {
+function DeliveryStats() {
   const [days, setDays] = useState(7);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadStats, { data: stats, isFetching: loading }] = useLazyAdminNotificationStatsQuery();
 
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api${adminApiPath(`/notifications/stats?days=${days}`)}`, { headers: { Authorization: `Bearer ${token}` } });
-      setStats(await res.json());
-    } catch { toast.error('Failed to load stats'); }
-    setLoading(false);
+  function load() {
+    loadStats(days).unwrap().catch(() => toast.error('Failed to load stats'));
   }
 
   return (
@@ -181,7 +170,7 @@ function DeliveryStats({ token }) {
 }
 
 /* ── Manual Send ─────────────────────────────────────────────────────── */
-function ManualSend({ token }) {
+function ManualSend() {
   const [form, setForm] = useState({
     recipientKind: 'user',
     recipientId: '',
@@ -190,7 +179,7 @@ function ManualSend({ token }) {
     body: '',
     deepLink: '',
   });
-  const [sending, setSending] = useState(false);
+  const [sendNotification, { isLoading: sending }] = useAdminSendNotificationMutation();
 
   const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -200,22 +189,13 @@ function ManualSend({ token }) {
       return;
     }
     if (!form.title.trim()) { toast.error('Title required'); return; }
-    setSending(true);
     try {
-      const res = await fetch(`${API_BASE}/api${adminApiPath('/notifications/send')}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success('Notification sent');
-        setForm((p) => ({ ...p, recipientId: '', title: '', body: '', deepLink: '' }));
-      } else {
-        toast.error(data.error || 'Send failed');
-      }
-    } catch { toast.error('Network error'); }
-    setSending(false);
+      await sendNotification(form).unwrap();
+      toast.success('Notification sent');
+      setForm((p) => ({ ...p, recipientId: '', title: '', body: '', deepLink: '' }));
+    } catch (e) {
+      toast.error(e.data?.error || 'Send failed');
+    }
   }
 
   return (
@@ -278,30 +258,21 @@ function ManualSend({ token }) {
 }
 
 /* ── Broadcast ────────────────────────────────────────────────────────── */
-function Broadcast({ token }) {
+function Broadcast() {
   const [form, setForm] = useState({ recipientKind: 'user', type: 'promotional', title: '', body: '', deepLink: '', limit: 1000 });
   const [confirm, setConfirm] = useState(false);
-  const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
+  const [broadcast, { isLoading: sending }] = useAdminBroadcastNotificationMutation();
   const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
   async function send() {
-    setSending(true);
     try {
-      const res = await fetch(`${API_BASE}/api${adminApiPath('/notifications/broadcast')}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setResult(data);
-        setConfirm(false);
-      } else {
-        toast.error(data.error || 'Broadcast failed');
-      }
-    } catch { toast.error('Network error'); }
-    setSending(false);
+      const data = await broadcast(form).unwrap();
+      setResult(data);
+      setConfirm(false);
+    } catch (e) {
+      toast.error(e.data?.error || 'Broadcast failed');
+    }
   }
 
   // ── Animated success state ──
@@ -432,7 +403,6 @@ function Broadcast({ token }) {
 
 /* ── Main Page ────────────────────────────────────────────────────────── */
 export default function NotificationsAdmin() {
-  const { accessToken: token } = useSelector(selectAuth);
   const [tab, setTab] = useState('stats');
 
   const tabs = [
@@ -465,12 +435,12 @@ export default function NotificationsAdmin() {
 
       {tab === 'stats' && (
         <div className="space-y-4">
-          <FcmHealth token={token} />
-          <DeliveryStats token={token} />
+          <FcmHealth />
+          <DeliveryStats />
         </div>
       )}
-      {tab === 'send' && <ManualSend token={token} />}
-      {tab === 'broadcast' && <Broadcast token={token} />}
+      {tab === 'send' && <ManualSend />}
+      {tab === 'broadcast' && <Broadcast />}
     </div>
   );
 }

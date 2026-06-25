@@ -34,32 +34,38 @@ if (cfg.apiKey && cfg.projectId && cfg.messagingSenderId) {
 
   const messaging = firebase.messaging();
 
-  // Background message handler — fires when app tab is not focused
+  // Background message handler — fires when app tab is not focused.
+  // We send DATA-ONLY messages, so title/body live in payload.data and this
+  // handler is the ONLY thing that renders a notification (no duplicates).
   messaging.onBackgroundMessage((payload) => {
-    const { title, body } = payload.notification || {};
-    const data = payload.data || {};
-
+    const data  = payload.data || {};
+    const title = data.title || payload.notification?.title;
+    const body  = data.body  || payload.notification?.body || '';
     if (!title) return;
 
-    // Pick icon based on notification type
-    const iconMap = {
-      new_job_request:  '/icons/job-icon.png',
-      worker_assigned:  '/icons/worker-icon.png',
-      order_completed:  '/icons/success-icon.png',
-      sos:              '/icons/sos-icon.png',
-    };
-    const icon = iconMap[data.type] || '/icons/icon-192.png';
+    // Branded Zappy icon (the only icon asset that exists — see public/icons/).
+    const icon = '/icons/zappy-icon.svg';
+    const urgent = data.type === 'new_job_request' || data.type === 'sos';
+
+    // Promotional pushes get a "Book Now" CTA; everything else "Open".
+    const ctaLabel = data.type === 'promotional' ? 'Book Now' : 'Open';
 
     self.registration.showNotification(title, {
-      body:     body || '',
+      body,
       icon,
-      badge:    '/icons/badge-72.png',
+      badge:    '/icons/zappy-icon.svg',
+      image:    data.image || data.imageUrl || undefined, // big hero image when provided
       data:     { url: data.deepLink || '/', ...data },
-      actions:  [{ action: 'open', title: 'Open' }],
-      vibrate:  [200, 100, 200],
-      tag:      data.orderId || data.type || 'zappy',
+      actions:  [
+        { action: 'open',    title: ctaLabel },
+        { action: 'dismiss', title: 'Dismiss' },
+      ],
+      vibrate:  urgent ? [300, 120, 300, 120, 300] : [200, 100, 200],
+      tag:      data.orderId || data.type || `zappy-${Date.now()}`,
       renotify: true,
-      requireInteraction: data.type === 'new_job_request', // job offers stay until dismissed
+      silent:   false,          // play the system notification sound
+      requireInteraction: urgent, // job offers / SOS stay until acted on
+      timestamp: Date.now(),
     });
   });
 }
@@ -77,6 +83,7 @@ self.addEventListener('message', (event) => {
 // Tap on background notification — navigate to deepLink
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  if (event.action === 'dismiss') return; // user tapped Dismiss — just close
   const url = event.notification.data?.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

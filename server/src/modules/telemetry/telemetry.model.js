@@ -42,7 +42,9 @@ const visitorSessionSchema = new mongoose.Schema(
     pageCount:     { type: Number, default: 1 },
 
     firstSeen: { type: Date, default: Date.now, index: true },
-    lastSeen:  { type: Date, default: Date.now, index: true },
+    // No field-level index here — the TTL index below (lastSeen + expireAfterSeconds)
+    // already covers it; declaring both triggers a duplicate-index warning.
+    lastSeen:  { type: Date, default: Date.now },
   },
   { timestamps: false }
 );

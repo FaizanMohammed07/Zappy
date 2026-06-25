@@ -516,6 +516,21 @@ export const api = createApi({
     adminIntelPartners: b.query({
       query: (days = 30) => adminApiPath(`/intelligence/partners?days=${days}`),
     }),
+
+    // Admin push notifications — via RTK so they ride the silent token-refresh
+    // (previously raw fetch() → 401 'Invalid or expired token' on AT expiry).
+    adminNotificationHealth: b.query({
+      query: () => adminApiPath('/notifications/health'),
+    }),
+    adminNotificationStats: b.query({
+      query: (days = 7) => adminApiPath(`/notifications/stats?days=${days}`),
+    }),
+    adminSendNotification: b.mutation({
+      query: (body) => ({ url: adminApiPath('/notifications/send'), method: 'POST', body }),
+    }),
+    adminBroadcastNotification: b.mutation({
+      query: (body) => ({ url: adminApiPath('/notifications/broadcast'), method: 'POST', body }),
+    }),
     adminListUsers: b.query({
       query: ({ q, blocked, page = 1 } = {}) => ({ url: adminApiPath('/users'), params: { q, blocked, page } }),
       providesTags: ['AdminUsers'],
@@ -1558,6 +1573,10 @@ export const {
   useAdminIntelFunnelQuery,
   useAdminIntelReportQuery,
   useAdminIntelPartnersQuery,
+  useLazyAdminNotificationHealthQuery,
+  useLazyAdminNotificationStatsQuery,
+  useAdminSendNotificationMutation,
+  useAdminBroadcastNotificationMutation,
   useAdminListUsersQuery,
   useAdminGetUserQuery,
   useAdminBlockUserMutation,
