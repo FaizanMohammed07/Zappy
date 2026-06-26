@@ -6,13 +6,18 @@ export const ordersApi = apiSlice.injectEndpoints({
       query: () => ({
         url: '/orders',
       }),
+      transformResponse: (r: any) => r?.orders ?? r ?? [],
       providesTags: ['Order'],
     }),
     getOrderById: builder.query<any, string>({
       query: (id) => ({
         url: `/orders/${id}`,
       }),
+      transformResponse: (r: any) => r?.order ?? r,
       providesTags: (_result, _error, id) => [{ type: 'Order', id }],
+    }),
+    getQuote: builder.query<any, { service: string; pickupLat: number; pickupLng: number }>({
+      query: (params) => ({ url: '/orders/quote', params }),
     }),
     createOrder: builder.mutation<any, any>({
       query: (data) => ({
@@ -72,6 +77,7 @@ export const ordersApi = apiSlice.injectEndpoints({
 export const {
   useGetOrdersQuery,
   useGetOrderByIdQuery,
+  useLazyGetQuoteQuery,
   useCreateOrderMutation,
   useCancelOrderMutation,
   useAcceptOfferMutation,
