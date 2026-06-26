@@ -33,7 +33,7 @@ export default function LoginScreen() {
           autoCapitalize="none"
         />
 
-        {error && <Text className="text-red-500 mb-4">Error sending OTP. Try again.</Text>}
+        {error ? <Text className="text-red-500 mb-4">Error sending OTP. Try again.</Text> : null}
 
         <TouchableOpacity 
           className="bg-primary rounded-xl p-4 items-center justify-center flex-row"
