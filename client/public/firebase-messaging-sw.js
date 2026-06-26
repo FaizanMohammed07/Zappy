@@ -32,43 +32,18 @@ const cfg = getConfig();
 if (cfg.apiKey && cfg.projectId && cfg.messagingSenderId) {
   firebase.initializeApp(cfg);
 
-  const messaging = firebase.messaging();
-
-  // Background message handler — fires when app tab is not focused.
-  // We send DATA-ONLY messages, so title/body live in payload.data and this
-  // handler is the ONLY thing that renders a notification (no duplicates).
-  messaging.onBackgroundMessage((payload) => {
-    const data  = payload.data || {};
-    const title = data.title || payload.notification?.title;
-    const body  = data.body  || payload.notification?.body || '';
-    if (!title) return;
-
-    // Branded Zappy icon (the only icon asset that exists — see public/icons/).
-    const icon = '/icons/zappy-icon.svg';
-    const urgent = data.type === 'new_job_request' || data.type === 'sos';
-
-    // Promotional pushes get a "Book Now" CTA; everything else "Open".
-    const ctaLabel = data.type === 'promotional' ? 'Book Now' : 'Open';
-
-    self.registration.showNotification(title, {
-      body,
-      icon,
-      badge:    '/icons/zappy-icon.svg',
-      image:    data.image || data.imageUrl || undefined, // big hero image when provided
-      data:     { url: data.deepLink || '/', ...data },
-      actions:  [
-        { action: 'open',    title: ctaLabel },
-        { action: 'dismiss', title: 'Dismiss' },
-      ],
-      vibrate:  urgent ? [300, 120, 300, 120, 300] : [200, 100, 200],
-      tag:      data.orderId || data.type || `zappy-${Date.now()}`,
-      renotify: true,
-      silent:   false,          // play the system notification sound
-      requireInteraction: urgent, // job offers / SOS stay until acted on
-      timestamp: Date.now(),
-    });
-  });
+  // IMPORTANT: we do NOT register onBackgroundMessage here.
+  // The server sends a `notification` payload, which the Firebase SDK renders
+  // automatically (using webpush.notification: icon, badge, actions, image…).
+  // If we ALSO called showNotification() here, every push would appear TWICE.
+  // Display styling is therefore controlled server-side in webpush.notification.
+  firebase.messaging();
 }
+
+// Activate the updated service worker immediately, replacing the old cached one
+// (otherwise notification changes don't take effect until all tabs are closed).
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
 // Handle messages from the main thread (e.g. skipWaiting from build tooling).
 // Returning true from a message handler tells Chrome to expect a sendResponse

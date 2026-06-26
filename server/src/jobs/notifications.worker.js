@@ -74,13 +74,10 @@ async function sendFcm({ tokens, title, body, data = {}, imageUrl } = {}) {
   const admin = require('firebase-admin');
   const messaging = admin.messaging(app);
 
-  // Stringify all data values — FCM requires string values.
-  // Title/body/image travel INSIDE data (data-only message) so the web service
-  // worker renders exactly ONE notification. A top-level `notification` block
-  // would make Chrome auto-display it AND fire onBackgroundMessage → duplicate.
+  // Stringify all data values — FCM requires string values. `data` carries
+  // routing info (type, deepLink, orderId) for the notification click handler.
   const stringData = Object.fromEntries(
-    Object.entries({ ...data, title, body: body || '', ...(imageUrl ? { image: imageUrl } : {}) })
-      .map(([k, v]) => [k, String(v)])
+    Object.entries(data).map(([k, v]) => [k, String(v)])
   );
 
   const uniqueTokens = [...new Set(tokens)].filter(Boolean);
@@ -92,22 +89,36 @@ async function sendFcm({ tokens, title, body, data = {}, imageUrl } = {}) {
   for (let i = 0; i < uniqueTokens.length; i += BATCH_SIZE) {
     const batch = uniqueTokens.slice(i, i + BATCH_SIZE);
     try {
-      // DATA-ONLY message — no top-level/webpush `notification` block, so the
-      // service worker is the single source that renders the notification (no dupes).
-      // Native apps (if any) read the same fields from `data`.
+      // A `notification` payload makes FCM render the notification itself (reliable,
+      // even if the SW is asleep). All web styling lives in webpush.notification.
+      // The service worker must NOT also call showNotification() or you get a
+      // duplicate — that's why onBackgroundMessage was removed from the SW.
       const message = {
         tokens: batch,
+        notification: { title, body: body || '' },
         data: stringData,
-        android: { priority: 'high' },
+        android: {
+          priority: 'high',
+          notification: { sound: 'default', channelId: 'zappy_alerts' },
+        },
         apns: {
-          headers: { 'apns-priority': '10', 'apns-push-type': 'background' },
-          payload: { aps: { 'content-available': 1, sound: 'default' } },
+          headers: { 'apns-priority': '10' },
+          payload: { aps: { sound: 'default', badge: 1 } },
         },
         webpush: {
           headers: { Urgency: 'high', TTL: '86400' },
+          notification: {
+            icon:  '/icons/zappy-icon.svg',
+            badge: '/icons/zappy-icon.svg',
+            vibrate: [200, 100, 200],
+            requireInteraction: data.type === 'new_job_request' || data.type === 'sos',
+            ...(imageUrl ? { image: imageUrl } : {}),
+            actions: [{ action: 'open', title: data.type === 'promotional' ? 'Book Now' : 'Open' }],
+          },
           fcmOptions: { link: data.deepLink || '/' },
         },
       };
+      if (imageUrl) message.notification.imageUrl = imageUrl;
 
       const result = await messaging.sendEachForMulticast(message);
       successCount += result.successCount;

@@ -11,6 +11,7 @@ import {
   useLazyAdminNotificationStatsQuery,
   useAdminSendNotificationMutation,
   useAdminBroadcastNotificationMutation,
+  useAdminMetricsQuery,
 } from '../../services/api';
 
 const NOTIFICATION_TYPES = [
@@ -263,7 +264,12 @@ function Broadcast() {
   const [confirm, setConfirm] = useState(false);
   const [result, setResult] = useState(null);
   const [broadcast, { isLoading: sending }] = useAdminBroadcastNotificationMutation();
+  const { data: metrics } = useAdminMetricsQuery();
   const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const isWorkers = form.recipientKind === 'worker';
+  const audienceTotal = isWorkers ? metrics?.totalWorkers : metrics?.totalUsers;
+  const audienceLabel = isWorkers ? 'workers' : 'users';
 
   async function send() {
     try {
@@ -350,8 +356,8 @@ function Broadcast() {
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Audience</label>
           <select value={form.recipientKind} onChange={f('recipientKind')}
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none">
-            <option value="user">All Users</option>
-            <option value="worker">All Workers</option>
+            <option value="user">All Users{metrics?.totalUsers != null ? ` (${metrics.totalUsers.toLocaleString('en-IN')})` : ''}</option>
+            <option value="worker">All Workers{metrics?.totalWorkers != null ? ` (${metrics.totalWorkers.toLocaleString('en-IN')})` : ''}</option>
           </select>
         </div>
         <div>
@@ -364,8 +370,18 @@ function Broadcast() {
         </div>
         <div>
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Max recipients</label>
-          <input type="number" value={form.limit} onChange={f('limit')} min="1" max="10000"
+          <input type="number" value={form.limit} onChange={f('limit')} min="1" max="100000"
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none" />
+          <p className="text-[10px] text-slate-400 mt-1">
+            {audienceTotal != null ? `${audienceTotal.toLocaleString('en-IN')} total ${audienceLabel}` : 'loading…'}
+            {audienceTotal != null && (
+              <button type="button"
+                onClick={() => setForm((p) => ({ ...p, limit: audienceTotal }))}
+                className="ml-1.5 font-semibold text-orange-600 hover:underline">
+                send to all
+              </button>
+            )}
+          </p>
         </div>
       </div>
 
