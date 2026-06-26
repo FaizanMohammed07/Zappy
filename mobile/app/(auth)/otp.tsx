@@ -25,7 +25,7 @@ export default function OtpScreen() {
       
       // Securely store tokens
       await SecureStore.setItemAsync('accessToken', data.accessToken);
-      await SecureStore.setItemAsync('refreshToken', data.refreshToken);
+      if (data.refreshToken) await SecureStore.setItemAsync('refreshToken', data.refreshToken);
       await SecureStore.setItemAsync('role', role);
 
       // Dispatch to Redux
@@ -67,9 +67,9 @@ export default function OtpScreen() {
 
         <TextInput
           className="border border-gray-300 rounded-xl p-4 text-lg mb-4 text-center tracking-[10px]"
-          placeholder="0000"
+          placeholder="000000"
           keyboardType="number-pad"
-          maxLength={4}
+          maxLength={6}
           value={otp}
           onChangeText={setOtp}
         />

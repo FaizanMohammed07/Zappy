@@ -10,6 +10,9 @@ export const axiosClient = axios.create({
   baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    // Tells the backend to return the refresh token in the JSON body
+    // (mobile can't use the httpOnly refresh cookie the web relies on).
+    'X-Client-Type': 'mobile',
   },
 });
 
@@ -70,7 +73,11 @@ axiosClient.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(
+          `${BASE_URL}/auth/refresh`,
+          { refreshToken },
+          { headers: { 'X-Client-Type': 'mobile' } },
+        );
         
         await SecureStore.setItemAsync('accessToken', data.accessToken);
         await SecureStore.setItemAsync('refreshToken', data.refreshToken);

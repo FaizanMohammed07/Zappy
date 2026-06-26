@@ -24,6 +24,16 @@ function clearRtCookie(res) {
   res.clearCookie(RT_COOKIE_NAME, { ...RT_COOKIE_OPTS, maxAge: 0 });
 }
 
+// Native apps can't use httpOnly cookies, so mobile clients send
+// `X-Client-Type: mobile` and we ALSO return the refresh token in the JSON body
+// for them. Web clients never get the RT in the body (XSS-safe — cookie only).
+function isMobile(req) {
+  return req.headers['x-client-type'] === 'mobile';
+}
+function withMobileRt(req, body, refreshToken) {
+  return isMobile(req) ? { ...body, refreshToken } : body;
+}
+
 async function requestOtp(req, res, next) {
   try {
     const { phone, role } = req.body;
@@ -44,8 +54,8 @@ async function loginUser(req, res, next) {
   try {
     const result = await authService.loginUserWithOtp(req.body);
     setRtCookie(res, result.refreshToken);
-    // Return accessToken in body; refreshToken via httpOnly cookie only.
-    res.json({ accessToken: result.accessToken, user: result.user });
+    // Web: refreshToken via httpOnly cookie only. Mobile: also in body.
+    res.json(withMobileRt(req, { accessToken: result.accessToken, user: result.user }, result.refreshToken));
   } catch (err) { next(err); }
 }
 
@@ -53,7 +63,7 @@ async function loginWorker(req, res, next) {
   try {
     const result = await authService.loginWorkerWithOtp(req.body);
     setRtCookie(res, result.refreshToken);
-    res.json({ accessToken: result.accessToken, worker: result.worker });
+    res.json(withMobileRt(req, { accessToken: result.accessToken, worker: result.worker }, result.refreshToken));
   } catch (err) { next(err); }
 }
 
@@ -111,7 +121,8 @@ async function refresh(req, res, next) {
     const tokens = await authService.refresh(rt);
     setRtCookie(res, tokens.refreshToken);
     // Include role so clients can fully restore session without sessionStorage.
-    res.json({ accessToken: tokens.accessToken, role: tokens.role });
+    // Mobile also needs the rotated refreshToken in the body to persist it.
+    res.json(withMobileRt(req, { accessToken: tokens.accessToken, role: tokens.role }, tokens.refreshToken));
   } catch (err) { next(err); }
 }
 
