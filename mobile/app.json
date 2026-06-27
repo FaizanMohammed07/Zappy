@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "Zappy",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,15 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.mobile"
+      "bundleIdentifier": "com.anonymous.mobile",
+      "config": {
+        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_IOS_KEY"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Zappy uses your location to find nearby professionals and track your booking in real time.",
+        "NSCameraUsageDescription": "Zappy needs the camera for KYC verification and service photos.",
+        "NSPhotoLibraryUsageDescription": "Zappy needs photo access to upload service images."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +27,18 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.mobile"
+      "package": "com.anonymous.mobile",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_ANDROID_KEY"
+        }
+      }
     },
     "web": {
       "bundler": "metro",
@@ -28,6 +47,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {
@@ -36,7 +56,26 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Zappy uses your location to find nearby professionals and track your booking in real time."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Zappy needs the camera for KYC verification and service photos."
+        }
+      ],
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Zappy needs photo access to upload service images."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
