@@ -21,6 +21,7 @@ import { ZappyLogo } from '../components/common/ZappyLogo';
 import BottomNav from '../components/layout/BottomNav';
 import Footer from '../components/layout/Footer';
 import PageTransition from '../components/common/PageTransition';
+import VoiceSearchButton from '../components/common/VoiceSearchButton';
 import AdBanner from '../components/common/AdBanner';
 import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 import IntroSplash from '../components/common/IntroSplash';
@@ -33,6 +34,72 @@ import {
   PromoBannerEvents
 } from '../components/home/PromoBanners';
 import SEO, { HOME_SCHEMA, BASE_URL } from '../components/SEO';
+
+const SEARCH_PLACEHOLDERS = [
+  "Search 'Puncture Repair'...",
+  "Search 'Laptop Service'...",
+  "Search 'Electrician'...",
+  "Search 'Car Wash'...",
+  "Search 'Plumber'..."
+];
+
+function AnimatedSearchPlaceholder() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setIndex(i => (i + 1) % SEARCH_PLACEHOLDERS.length), 2500);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="flex-1 h-full relative overflow-hidden flex items-center">
+      <AnimatePresence>
+        <motion.span
+          key={index}
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -20, opacity: 0 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="absolute left-0 right-0 truncate text-slate-400 font-medium text-[14px] sm:text-[15px]"
+        >
+          {SEARCH_PLACEHOLDERS[index]}
+        </motion.span>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─── Book Again helpers ───────────────────────────────────────────────── */
+// Emoji for the rebook card's icon tile, chosen from the service code keyword.
+function serviceEmoji(code = '') {
+  const c = code.toLowerCase();
+  if (c.includes('puncture') || c.includes('tyre')) return '🛞';
+  if (c.includes('bike')) return '🏍️';
+  if (c.includes('car') || c.includes('fuel') || c.includes('breakdown') || c.includes('jump')) return '🚗';
+  if (c.includes('laptop')) return '💻';
+  if (c.includes('screen') || c.includes('battery') || c.includes('charging') || c.includes('phone') || c.includes('camera') || c.includes('software') || c.includes('water') || c.includes('data')) return '📱';
+  if (c.includes('tv')) return '📺';
+  if (c.includes('cctv')) return '📷';
+  if (c.includes('router') || c.includes('wifi')) return '📶';
+  if (c.includes('lock') || c.includes('automation')) return '🔐';
+  if (c.includes('electric') || c.includes('fan') || c.includes('light') || c.includes('switch')) return '💡';
+  if (c.includes('plumb') || c.includes('pipe') || c.includes('tap')) return '🚿';
+  if (c.includes('pet') || c.includes('dog') || c.includes('groom')) return '🐾';
+  if (c.includes('event') || c.includes('birthday') || c.includes('decor')) return '🎉';
+  if (c.includes('elder') || c.includes('medicine') || c.includes('hospital') || c.includes('grocery')) return '🧓';
+  return '🔧';
+}
+
+// Short "time ago" label for the rebook card.
+function timeAgo(date) {
+  if (!date) return 'Booked before';
+  const days = Math.floor((Date.now() - new Date(date).getTime()) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (days < 14) return '1 week ago';
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+  if (days < 60) return '1 month ago';
+  return `${Math.floor(days / 30)} months ago`;
+}
 
 /* ─── Most booked — Electronics Rescue ────────────────────────────────── */
 const MOST_BOOKED = [
@@ -312,14 +379,14 @@ export default function HomePage() {
   const gam            = gamData?.gamification;
   const recommendations = recData?.recommendations || [];
 
-  // Quick rebook: last 3 distinct services from completed orders
+  // Quick rebook: last 3 distinct services from completed orders (with the date)
   const quickRebooks = (() => {
     const seen = new Set();
     const result = [];
     for (const o of (data?.orders ?? [])) {
       if (o.status === 'completed' && !seen.has(o.service)) {
         seen.add(o.service);
-        result.push(o.service);
+        result.push({ service: o.service, date: o.completedAt || o.createdAt });
         if (result.length === 3) break;
       }
     }
@@ -439,8 +506,7 @@ export default function HomePage() {
 
         {/* ─── Premium Navbar ───────────────────────────────────────── */}
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-900/5" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          {/* Top accent gradient line */}
-          <div className="h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
+
 
           <div className="max-w-7xl w-full mx-auto px-4 md:px-6 h-[60px] md:h-[84px] flex items-center gap-3 md:gap-8">
             {/* Logo */}
@@ -514,21 +580,19 @@ export default function HomePage() {
 
             {/* ─── Desktop Search bar ───────────────────────────────────────────── */}
             <div className="hidden md:block flex-1 max-w-2xl mx-auto">
-              <motion.button
-                onClick={() => nav('/services')}
-                className="w-full flex items-center gap-3 rounded-[24px] px-6 h-14 text-left bg-slate-50 border border-slate-200/80 shadow-inner"
-                whileHover={{ borderColor: 'rgba(99,102,241,0.4)', backgroundColor: '#fff', boxShadow: '0 4px 20px -2px rgba(15,23,42,0.05)' }}
-                whileTap={{ scale: 0.99 }}
-              >
-                <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
-                <span className="text-[15px] font-medium text-slate-400 flex-1">Search for a service…</span>
+              <div className="w-full flex items-center gap-3 rounded-[24px] pl-6 pr-3 h-14 bg-slate-50 border border-slate-200/80 shadow-inner hover:bg-white hover:border-indigo-300/60 transition-colors">
+                <button onClick={() => nav('/services')} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
+                  <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
+                  <AnimatedSearchPlaceholder />
+                </button>
                 <motion.span
                   className="text-xs font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0"
                   animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
                 >
                   50+ services
                 </motion.span>
-              </motion.button>
+                <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
+              </div>
             </div>
 
             {/* Action Icons */}
@@ -561,21 +625,19 @@ export default function HomePage() {
 
         {/* ─── Mobile Search bar ───────────────────────────────────────────── */}
         <div className="md:hidden bg-white/80 backdrop-blur-md px-4 pt-3 pb-5 border-b border-slate-900/5">
-          <motion.button
-            onClick={() => nav('/services')}
-            className="w-full flex items-center gap-3 rounded-[20px] px-4 h-14 text-left bg-slate-50 border border-slate-200/80 shadow-inner"
-            whileHover={{ borderColor: 'rgba(99,102,241,0.4)', backgroundColor: '#fff' }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
-            <span className="text-[14px] sm:text-[15px] font-medium text-slate-400 flex-1 leading-none pt-[2px] truncate">Search for a service…</span>
+          <div className="w-full flex items-center gap-2 rounded-[20px] pl-4 pr-2 h-14 bg-slate-50 border border-slate-200/80 shadow-inner">
+            <button onClick={() => nav('/services')} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
+              <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
+              <AnimatedSearchPlaceholder />
+            </button>
             <motion.span
-              className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0 leading-none"
+              className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full shrink-0 leading-none"
               animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
             >
-              50+ services
+              50+
             </motion.span>
-          </motion.button>
+            <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
+          </div>
         </div>
 
         {/* ─── Hero section ─────────────────────────────────────────── */}
@@ -607,120 +669,54 @@ export default function HomePage() {
           </motion.div>
         </div>
 
-        {/* ─── Quick Rebook ─────────────────────────────────────────── */}
+        {/* ─── Book Again (card style) ──────────────────────────────── */}
         {quickRebooks.length > 0 && (
           <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Repeat2 size={15} className="text-indigo-500" />
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Book Again</span>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <Repeat2 size={16} className="text-indigo-500" />
+              <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Book Again</span>
             </div>
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-              {quickRebooks.map(service => (
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {quickRebooks.map(({ service, date }) => (
                 <motion.button
                   key={service}
                   onClick={() => nav(`/book/${service}`)}
-                  className="flex-shrink-0 flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm"
-                  whileHover={{ y: -2, boxShadow: '0 8px 20px rgba(99,102,241,0.12)' }}
-                  whileTap={{ scale: 0.95 }}
+                  className="shrink-0 w-44 md:w-56 p-3 rounded-[22px] bg-white border border-slate-200 shadow-sm flex items-center justify-between group"
+                  whileTap={{ scale: 0.96 }}
+                  whileHover={{ y: -2, boxShadow: '0 12px 24px -8px rgba(99,102,241,0.25)' }}
                 >
-                  <span className="text-sm font-semibold text-slate-700">{serviceLabel(service)}</span>
-                  <ChevronRight size={14} className="text-indigo-400" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-lg shadow-inner shrink-0">
+                      {serviceEmoji(service)}
+                    </div>
+                    <div className="text-left min-w-0">
+                      <span className="block text-sm font-bold text-slate-900 leading-tight mb-0.5 truncate">{serviceLabel(service)}</span>
+                      <span className="block text-[10px] font-medium text-slate-400">{timeAgo(date)}</span>
+                    </div>
+                  </div>
+                  <ChevronRight size={14} className="text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" />
                 </motion.button>
               ))}
             </div>
           </div>
         )}
 
-        {/* ─── Premium Dashboard Widgets (Gamification & Quick Actions) ─── */}
-        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Gamification Card (Left on Desktop, Top on Mobile) */}
-          {gam ? (
-            <motion.div className="bento-item p-8 flex flex-col justify-between group"
-              whileHover={{ y: -4, boxShadow: '0 20px 40px -8px rgba(15,23,42,0.15)' }} transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}>
-              {/* Background accent */}
-              <div className={`absolute -right-12 -top-12 w-48 h-48 rounded-full bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} opacity-20 filter blur-3xl group-hover:opacity-30 transition-opacity duration-500`} />
-              
-              <div className="flex justify-between items-start mb-8 relative z-10">
-                <div>
-                  <p className="text-[11px] font-black text-slate-500 text-editorial-wide mb-1.5">Your Progress</p>
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="text-3xl font-black text-slate-900 text-editorial">{gam.levelName}</h3>
-                    {gam.streak >= 2 && (
-                      <div className="flex items-center gap-1 bg-gradient-to-r from-orange-500 to-rose-500 px-2.5 py-1.5 rounded-xl text-white shadow-lg shadow-orange-500/30 highlight-edge">
-                        <Flame size={14} className="fill-white" />
-                        <span className="text-[11px] font-black">{gam.streak} Day Streak</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className={`w-16 h-16 rounded-[1.2rem] bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shadow-lg highlight-edge transform rotate-3 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500`}>
-                  <Trophy size={26} className="text-white drop-shadow-md" />
-                </div>
-              </div>
-              
-              <div className="relative z-10">
-                <div className="flex justify-between text-xs font-bold mb-2">
-                  <span className="text-slate-700">{gam.xp} XP Earned</span>
-                  {gam.nextLevelName && <span className="text-slate-400">{gam.xpToNext} XP to {gam.nextLevelName}</span>}
-                </div>
-                <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                  <motion.div className={`h-full rounded-full bg-gradient-to-r ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'}`}
-                    initial={{ width: '0%' }} animate={{ width: `${Math.min(100, gam.progressPercent || 0)}%` }}
-                    transition={{ duration: 1.5, delay: 0.2, ease: "easeOut" }} />
-                </div>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="rounded-[32px] bg-white border border-slate-900/5 p-8 shadow-soft flex flex-col justify-center items-center text-center">
-              <Trophy size={32} className="text-slate-300 mb-3" />
-              <p className="font-bold text-slate-900">Complete jobs to level up!</p>
-              <p className="text-xs text-slate-500 mt-1">Earn XP and unlock exclusive rewards.</p>
-            </div>
-          )}
-
-          {/* Quick Cards Grid (Right on Desktop, Bottom on Mobile) */}
-          <div className="grid grid-cols-2 gap-4">
-            <motion.button onClick={() => nav('/plans')} className="bento-item p-6 flex flex-col justify-between text-left group bg-gradient-to-br from-amber-50 to-amber-100/50"
-              whileHover={{ y: -4, scale: 1.02, boxShadow: '0 20px 40px -8px rgba(245,158,11,0.15)' }} whileTap={{ scale: 0.96 }} transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}>
-              <div className="w-14 h-14 rounded-[1.2rem] bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30 highlight-edge mb-4 group-hover:scale-110 transition-transform duration-500">
-                <Star size={24} className="text-white fill-white" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-black text-amber-900 text-editorial">Zappy<br/>Premium</p>
-                <p className="text-[11px] sm:text-xs font-black tracking-widest text-amber-700 mt-2 bg-amber-200/50 inline-block px-2.5 py-1 rounded-lg">NO SURGE FEES</p>
-              </div>
-            </motion.button>
-
-            <motion.button onClick={() => nav('/wallet')} className="bento-item p-6 flex flex-col justify-between text-left group bg-gradient-to-br from-blue-50 to-indigo-100/50"
-              whileHover={{ y: -4, scale: 1.02, boxShadow: '0 20px 40px -8px rgba(59,130,246,0.15)' }} whileTap={{ scale: 0.96 }} transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}>
-              <div className="w-14 h-14 rounded-[1.2rem] bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 highlight-edge mb-4 group-hover:scale-110 transition-transform duration-500">
-                <Wallet size={24} className="text-white" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-black text-blue-900 text-editorial">Zappy<br/>Wallet</p>
-                <p className="text-[11px] sm:text-xs font-black tracking-widest text-blue-700 mt-2 bg-blue-200/50 inline-block px-2.5 py-1 rounded-lg">CHECK BALANCE</p>
-              </div>
-            </motion.button>
-          </div>
-        </div>
+        {/* ─── Premium Dashboard Widgets Removed ─── */}
 
         {/* ─── Trust stats (Re-designed) ──────────────────────────── */}
-        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-10 mb-8">
-          <div className="bg-slate-900 rounded-[32px] py-8 px-6 sm:p-10 shadow-2xl relative overflow-hidden border border-slate-800">
-            {/* Decorative orbs */}
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-rose-500/20 rounded-full blur-3xl" />
-            
-            <div className="relative z-10 flex flex-wrap items-center justify-around md:justify-between gap-y-8 gap-x-2">
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-8 mb-8">
+          <div className="bg-slate-50 rounded-[32px] py-10 px-6 sm:p-12 border border-slate-200/80 shadow-sm relative overflow-hidden">
+            <div className="absolute inset-0 bg-noise opacity-30 mix-blend-overlay pointer-events-none" />
+            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-y-10 gap-x-4">
               {[
-                { val: '50K+', label: 'Happy Bookings', color: 'text-indigo-400' },
-                { val: '4.8/5',  label: 'Average Rating', color: 'text-amber-400'  },
-                { val: '500+', label: 'Verified Pros', color: 'text-emerald-400' },
-                { val: '< 1m', label: 'Match Time',     color: 'text-fuchsia-400' },
+                { val: '50K+', label: 'Happy Bookings', color: 'text-indigo-600' },
+                { val: '4.8',  label: 'Average Rating', color: 'text-amber-500'  },
+                { val: '500+', label: 'Verified Pros', color: 'text-emerald-500' },
+                { val: '< 1m', label: 'Match Time',     color: 'text-pink-500' },
               ].map(({ val, label, color }) => (
-                <div key={label} className="text-center w-[45%] md:w-auto">
-                  <p className={`text-3xl sm:text-4xl font-black ${color} drop-shadow-md`}>{val}</p>
-                  <p className="text-[10px] sm:text-xs text-slate-400 font-bold mt-1.5 uppercase tracking-widest">{label}</p>
+                <div key={label} className="text-center group">
+                  <p className={`text-4xl sm:text-5xl font-black ${color} tracking-tighter leading-none mb-2.5 group-hover:scale-105 transition-transform duration-300`}>{val}</p>
+                  <p className="text-[11px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest">{label}</p>
                 </div>
               ))}
             </div>
@@ -748,6 +744,8 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          <PromoBannerElectronics />
 
           {/* ─── Phone Repair ────────────────────────────────────── */}
           <div className="mt-7">
@@ -792,7 +790,6 @@ export default function HomePage() {
           </div>
 
           <PromoBannerVehicle />
-          <PromoBannerElectronics />
 
           {/* ─── Vehicle Care ───────────────────────────── */}
           <div className="mt-7">
@@ -808,6 +805,8 @@ export default function HomePage() {
             </div>
           </div>
 
+          <PromoBannerFamily />
+
           {/* ─── Family & Elder Assist ────────────────────────────────── */}
           <div className="mt-7">
             <div>
@@ -822,7 +821,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          <PromoBannerFamily />
           <PromoBannerEvents />
 
           {/* ─── Event Decorations ─────────────────────────────────── */}

@@ -6,9 +6,11 @@ import { selectAuth } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
 import { useFCM } from './hooks/useFCM.jsx';
 import useTelemetry from './hooks/useTelemetry';
+import { prefetchMainTabs, onIdle } from './lib/routePrefetch';
 import { adminPath } from './config/admin';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
+import RouteProgress from './components/common/RouteProgress';
 
 // ── Route-level code splitting ─────────────────────────────────────────────
 // Each page is a separate chunk. Browsers only download the chunk for the
@@ -85,8 +87,19 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
+  // Warm the main tab chunks once the browser is idle after first paint, so
+  // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).
+  useEffect(() => {
+    if (!token) return;
+    onIdle(prefetchMainTabs);
+  }, [token]);
+
   return (
-    <Suspense fallback={<PageLoader />}>
+    <>
+      {/* Top progress bar fires on every route change — "arriving fast" cue.
+          Outside Suspense so it stays visible even while a chunk downloads. */}
+      <RouteProgress />
+      <Suspense fallback={<PageLoader />}>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
       <AnimatePresence mode="wait" initial={false}>
@@ -166,6 +179,7 @@ export default function App() {
       </Routes>
       </AnimatePresence>
     </Suspense>
+    </>
   );
 }
 

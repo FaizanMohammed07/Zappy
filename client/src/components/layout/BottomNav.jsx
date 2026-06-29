@@ -1,23 +1,50 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, ClipboardList, MapPin, Wallet, User } from 'lucide-react';
-import { useListNotificationsQuery } from '../../services/api';
+import { Home, ClipboardList, Zap, MapPin, User } from 'lucide-react';
+import { api, useListNotificationsQuery } from '../../services/api';
 import { useSelector } from 'react-redux';
 import { selectIsAuthed } from '../../modules/auth/authSlice';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { prefetchRoute } from '../../lib/routePrefetch';
 
-const TABS = [
-  { key: 'home',     label: 'Home',     path: '/',          Icon: Home },
-  { key: 'bookings', label: 'Bookings', path: '/orders',     Icon: ClipboardList },
-  { key: 'track',    label: 'Track',    path: '/track',      Icon: MapPin },
-  { key: 'wallet',   label: 'Wallet',   path: '/wallet',     Icon: Wallet },
-  { key: 'profile',  label: 'Profile',  path: '/profile',    Icon: User },
+// 2 tabs each side + a big raised "Book Now" button in the middle.
+// Wallet lives under Profile/Account.
+const SIDE_TABS = [
+  { key: 'home',     label: 'Home',     path: '/',        Icon: Home,          side: 'left'  },
+  { key: 'bookings', label: 'Bookings', path: '/orders',  Icon: ClipboardList, side: 'left'  },
+  { key: 'track',    label: 'Track',    path: '/track',   Icon: MapPin,        side: 'right' },
+  { key: 'profile',  label: 'Profile',  path: '/profile', Icon: User,          side: 'right' },
 ];
+
+function Tab({ t, isActive, onPress, onWarm, badge = 0 }) {
+  const { label, Icon } = t;
+  return (
+    <button
+      onClick={onPress}
+      onPointerDown={onWarm}
+      onMouseEnter={onWarm}
+      className="flex-1 flex flex-col items-center justify-center gap-0.5 outline-none active:opacity-70"
+      aria-label={label}
+    >
+      <div className="relative">
+        <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-blue-600' : 'text-slate-400'} />
+        {badge > 0 && (
+          <span className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none ring-2 ring-white">
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
+      </div>
+      <span className={`text-[10px] font-semibold ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>{label}</span>
+    </button>
+  );
+}
 
 export default function BottomNav({ active }) {
   const nav        = useNavigate();
   const loc        = useLocation();
   const isAuthed   = useSelector(selectIsAuthed);
-  const currentKey = active || TABS.find((t) => t.path === loc.pathname)?.key || 'home';
+  const path       = loc.pathname;
+  const isBook     = path.startsWith('/book') || path.startsWith('/services');
+  const currentKey = active || SIDE_TABS.find((t) => t.path === path)?.key || (isBook ? 'book' : 'home');
 
   const { data: notifData } = useListNotificationsQuery(
     { page: 1, unreadOnly: true },
@@ -25,66 +52,69 @@ export default function BottomNav({ active }) {
   );
   const unreadCount = notifData?.notifications?.length || 0;
 
+  // Prefetch a tab's data into the RTK cache so the page shows real content,
+  // not a skeleton, by the time the navigation completes.
+  const prefetchOrders = api.usePrefetch('listOrders');
+  const prefetchMe     = api.usePrefetch('getMe');
+
+  // On touch/hover of a tab: warm its JS chunk + its first data query.
+  const warm = (path) => () => {
+    prefetchRoute(path);
+    if (!isAuthed) return;
+    if (path === '/orders') prefetchOrders(1);
+    else if (path === '/profile') prefetchMe();
+  };
+
+  const left  = SIDE_TABS.filter((t) => t.side === 'left');
+  const right = SIDE_TABS.filter((t) => t.side === 'right');
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[100] pb-6 px-4 pointer-events-none">
-      <motion.nav 
-        className="mx-auto max-w-[400px] bg-[#0b0f19]/90 backdrop-blur-xl border border-white/10 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.8)] rounded-3xl h-16 flex items-center justify-between px-2 pointer-events-auto relative"
+      <motion.nav
+        className="mx-auto max-w-[420px] bg-white/95 backdrop-blur-xl border border-slate-200 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.25)] rounded-3xl h-16 flex items-center pointer-events-auto relative"
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
       >
-        {TABS.map(({ key, label, path, Icon }) => {
-          const isActive = key === currentKey;
-          return (
-            <button
-              key={key}
-              onClick={() => nav(path)}
-              className="relative w-full h-full flex flex-col items-center justify-center outline-none tap-highlight-transparent"
-              aria-label={label}
-            >
-              <div className="relative z-20 flex items-center justify-center">
-                <motion.div
-                  animate={{ y: isActive ? -28 : 0 }}
-                  transition={{ type: "spring", bounce: 0.5, duration: 0.6 }}
-                  className={`relative flex items-center justify-center w-12 h-12 rounded-full transition-colors duration-300 ${isActive ? 'bg-[#0b0f19] border border-slate-700/60 shadow-[0_10px_20px_rgba(0,0,0,0.5),inset_0_1px_2px_rgba(255,255,255,0.1)]' : 'bg-transparent'}`}
-                >
-                  <Icon
-                    size={22}
-                    strokeWidth={isActive ? 2.5 : 2}
-                    className={`transition-colors duration-300 ${isActive ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]' : 'text-slate-400 hover:text-slate-200'}`}
-                  />
-                  {key === 'profile' && unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 leading-none shadow-md ring-2 ring-[#0b0f19]">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </motion.div>
-              </div>
-              
-              <AnimatePresence>
-                {isActive && (
-                  <motion.span
-                    initial={{ opacity: 0, y: 15, scale: 0.5 }}
-                    animate={{ opacity: 1, y: -2, scale: 1 }}
-                    exit={{ opacity: 0, y: 15, scale: 0.5 }}
-                    transition={{ type: "spring", bounce: 0.4, duration: 0.5 }}
-                    className="absolute bottom-2.5 text-[10px] font-bold text-cyan-400 tracking-wider uppercase drop-shadow-md"
-                  >
-                    {label}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-              
-              {isActive && (
-                <motion.div
-                  layoutId="indicator"
-                  className="absolute bottom-0 w-8 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent rounded-t-full shadow-[0_-4px_12px_rgba(34,211,238,0.6)]"
-                  transition={{ type: "spring", bounce: 0.4, duration: 0.6 }}
-                />
-              )}
-            </button>
-          );
-        })}
+        <div className="flex flex-1">
+          {left.map((t) => (
+            <Tab key={t.key} t={t} isActive={currentKey === t.key} onPress={() => nav(t.path)} onWarm={warm(t.path)} />
+          ))}
+        </div>
+
+        {/* reserve space for the raised center button */}
+        <div className="w-20 shrink-0" />
+
+        <div className="flex flex-1">
+          {right.map((t) => (
+            <Tab
+              key={t.key}
+              t={t}
+              isActive={currentKey === t.key}
+              onPress={() => nav(t.path)}
+              onWarm={warm(t.path)}
+              badge={t.key === 'profile' ? unreadCount : 0}
+            />
+          ))}
+        </div>
+
+        {/* Big raised center "Book Now" button */}
+        <button
+          onClick={() => nav('/services')}
+          onPointerDown={warm('/services')}
+          onMouseEnter={warm('/services')}
+          aria-label="Book a service"
+          className="absolute left-1/2 -translate-x-1/2 -top-6 flex flex-col items-center pointer-events-auto outline-none"
+        >
+          <motion.div
+            whileTap={{ scale: 0.92 }}
+            className="w-16 h-16 rounded-full flex items-center justify-center border-4 border-white shadow-[0_12px_28px_-6px_rgba(37,99,235,0.6)]"
+            style={{ background: 'linear-gradient(135deg, #3B82F6, #2563EB)' }}
+          >
+            <Zap size={30} color="#fff" strokeWidth={2.75} fill="#fff" />
+          </motion.div>
+          <span className={`text-[10px] font-bold mt-1 ${isBook ? 'text-blue-700' : 'text-blue-600'}`}>Book Now</span>
+        </button>
       </motion.nav>
     </div>
   );

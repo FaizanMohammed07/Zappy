@@ -47,10 +47,16 @@ export const springBouncy = { type: 'spring', stiffness: 600, damping: 22, mass:
 // ─── Page transitions ─────────────────────────────────────────────────────
 export const pageVariants = reducedMotion
   ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
-  : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -8 } };
+  : {
+      // Premium "reveal": the new page rises + scales in quickly; the old page
+      // drops away near-instantly so AnimatePresence's wait barely delays it.
+      initial: { opacity: 0, y: 12, scale: 0.985 },
+      animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.26, ease: easeSoft } },
+      exit:    { opacity: 0, y: -6, scale: 0.992, transition: { duration: 0.12, ease: 'easeIn' } },
+    };
 export const pageTransition = reducedMotion
   ? { duration: 0.15, ease: 'linear' }
-  : { duration: 0.3, ease: easeSoft };
+  : { duration: 0.26, ease: easeSoft };
 
 // ─── Stagger containers ───────────────────────────────────────────────────
 export const staggerContainer = {
