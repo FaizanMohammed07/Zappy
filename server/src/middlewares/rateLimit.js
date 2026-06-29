@@ -82,8 +82,12 @@ const disputeLimiter  = makeLimiter({ windowMs: 3_600_000,  max: 5,   prefix: 'd
 // fires a handful per minute; 120 absorbs SPA route bursts while blocking floods.
 const telemetryLimiter = makeLimiter({ windowMs: 60_000,    max: 120, prefix: 'tlm'    });
 
+// ── ZappyLens: AI vision scans are expensive (model + S3) — cap hard ────────
+// 15/min absorbs a quick re-scan or two; blocks anyone hammering the model.
+const lensLimiter      = makeLimiter({ windowMs: 60_000,    max: 15,  prefix: 'lens'   });
+
 module.exports = {
   globalLimiter, authLimiter, adminAuthLimiter, otpPhoneLimiter, orderLimiter, workerOnlineLimiter,
   cancelLimiter, topupLimiter, ratingLimiter,
-  quoteLimiter, nearbyLimiter, disputeLimiter, telemetryLimiter,
+  quoteLimiter, nearbyLimiter, disputeLimiter, telemetryLimiter, lensLimiter,
 };

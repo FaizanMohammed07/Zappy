@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, MapPin, FileText, CreditCard, ChevronRight,
@@ -20,7 +20,7 @@ import {
   useLazyGetQuoteQuery, useCreateOrderMutation,
   usePresignUploadMutation, useLazyGetNearbyWorkersQuery,
   useValidatePromoMutation, useLazyGetSurgeInfoQuery,
-  useGetPricingConfigQuery,
+  useGetPricingConfigQuery, useLazyGetLensScanQuery,
 } from '../services/api';
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp } from '../lib/animations';
@@ -329,6 +329,35 @@ export default function BookingPage() {
   const [subCategory,   setSubCategory]   = useState('');
   const [description,   setDescription]   = useState('');
   const [images,        setImages]        = useState([]);
+
+  // ── ZappyLens hydration ──────────────────────────────────────────────
+  // Arrived from a Lens scan (/book/:service?lens=<scanId>) → prefill the
+  // description with the AI diagnosis and attach the scanned photo so the
+  // worker sees exactly what was scanned.
+  const [searchParams]   = useSearchParams();
+  const lensScanId       = searchParams.get('lens');
+  const [fetchLensScan]  = useLazyGetLensScanQuery();
+  const lensHydrated     = useRef(false);
+  useEffect(() => {
+    if (!lensScanId || lensHydrated.current) return;
+    lensHydrated.current = true;
+    (async () => {
+      try {
+        const { scan } = await fetchLensScan(lensScanId).unwrap();
+        if (!scan) return;
+        const match = (scan.matches || []).find((m) => m.serviceCode === service) || scan.matches?.[0];
+        const parts = [];
+        if (match?.issueSummary)   parts.push(match.issueSummary);
+        if (match?.notesForWorker) parts.push(`For the pro: ${match.notesForWorker}`);
+        if (parts.length) setDescription((d) => d || parts.join('\n'));
+        if (scan.imageKeys?.length) {
+          setImages((imgs) => imgs.length ? imgs : scan.imageKeys.map((k, i) => ({
+            s3Key: k, url: scan.imageUrls?.[i] || null, uploading: false, fromLens: true,
+          })));
+        }
+      } catch { /* lens hydration is best-effort */ }
+    })();
+  }, [lensScanId, service, fetchLensScan]);
   const [schedMode,     setSchedMode]     = useState('now');
   const [scheduledAt,   setScheduledAt]   = useState('');
   // Scheduled booking — separate date + time state

@@ -22,6 +22,17 @@ import BottomNav from '../components/layout/BottomNav';
 import Footer from '../components/layout/Footer';
 import PageTransition from '../components/common/PageTransition';
 import VoiceSearchButton from '../components/common/VoiceSearchButton';
+import LensModal from '../components/lens/LensModal';
+import { ScanLine } from 'lucide-react';
+
+function LensButton({ onClick }) {
+  return (
+    <button type="button" onClick={onClick} aria-label="ZappyLens — scan to find a service"
+      className="relative shrink-0 w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition">
+      <ScanLine size={18} />
+    </button>
+  );
+}
 import AdBanner from '../components/common/AdBanner';
 import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 import IntroSplash from '../components/common/IntroSplash';
@@ -369,6 +380,7 @@ export default function HomePage() {
   const nav = useNavigate();
   const { profile } = useSelector(selectAuth);
   const isAuthed     = useSelector(selectIsAuthed);
+  const [lensOpen, setLensOpen] = useState(false);
 
   const { data }          = useListOrdersQuery(1, { skip: !isAuthed });
   const { data: gamData } = useGetGamificationQuery(undefined, { skip: !isAuthed });
@@ -592,6 +604,7 @@ export default function HomePage() {
                   50+ services
                 </motion.span>
                 <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
+                <LensButton onClick={() => setLensOpen(true)} />
               </div>
             </div>
 
@@ -637,6 +650,7 @@ export default function HomePage() {
               50+
             </motion.span>
             <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
+            <LensButton onClick={() => setLensOpen(true)} />
           </div>
         </div>
 
@@ -703,25 +717,7 @@ export default function HomePage() {
 
         {/* ─── Premium Dashboard Widgets Removed ─── */}
 
-        {/* ─── Trust stats (Re-designed) ──────────────────────────── */}
-        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-8 mb-8">
-          <div className="bg-slate-50 rounded-[32px] py-10 px-6 sm:p-12 border border-slate-200/80 shadow-sm relative overflow-hidden">
-            <div className="absolute inset-0 bg-noise opacity-30 mix-blend-overlay pointer-events-none" />
-            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-y-10 gap-x-4">
-              {[
-                { val: '50K+', label: 'Happy Bookings', color: 'text-indigo-600' },
-                { val: '4.8',  label: 'Average Rating', color: 'text-amber-500'  },
-                { val: '500+', label: 'Verified Pros', color: 'text-emerald-500' },
-                { val: '< 1m', label: 'Match Time',     color: 'text-pink-500' },
-              ].map(({ val, label, color }) => (
-                <div key={label} className="text-center group">
-                  <p className={`text-4xl sm:text-5xl font-black ${color} tracking-tighter leading-none mb-2.5 group-hover:scale-105 transition-transform duration-300`}>{val}</p>
-                  <p className="text-[11px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest">{label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+
 
         <div className="max-w-7xl w-full mx-auto px-4 md:px-6">
 
@@ -865,6 +861,7 @@ export default function HomePage() {
         </div>
         <Footer />
         <BottomNav active="home" />
+        <LensModal open={lensOpen} onClose={() => setLensOpen(false)} />
       </div>
 
       {/* ── Location Search Sheet ── */}

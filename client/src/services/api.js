@@ -338,6 +338,17 @@ export const api = createApi({
       query: (body) => ({ url: '/uploads/presign', method: 'POST', body }),
     }),
 
+    // --- ZappyLens (visual service search) ---
+    lensUploadUrl: b.mutation({
+      query: (body) => ({ url: '/lens/upload-url', method: 'POST', body }), // { contentType } → { uploadUrl, key }
+    }),
+    analyzeLens: b.mutation({
+      query: (body) => ({ url: '/lens/analyze', method: 'POST', body }),    // { imageKeys, lat?, lng? }
+    }),
+    getLensScan: b.query({
+      query: (id) => `/lens/scan/${id}`,
+    }),
+
     // --- Admin ---
     adminMetrics: b.query({ query: () => adminApiPath('/metrics'), providesTags: ['AdminMetrics'] }),
     adminOrders: b.query({
@@ -1536,6 +1547,10 @@ export const {
   useGetKycStatusQuery,
   useSubmitKycMutation,
   usePresignUploadMutation,
+  useLensUploadUrlMutation,
+  useAnalyzeLensMutation,
+  useLazyGetLensScanQuery,
+  useGetLensScanQuery,
   useAdminMetricsQuery,
   useAdminOrdersQuery,
   useAdminWorkersQuery,
