@@ -83,10 +83,6 @@ export default function App() {
   const { accessToken: token, role } = useSelector(selectAuth);
   const location = useLocation();
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [location.pathname]);
-
   // Warm the main tab chunks once the browser is idle after first paint, so
   // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).
   useEffect(() => {

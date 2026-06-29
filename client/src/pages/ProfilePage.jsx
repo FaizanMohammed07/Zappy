@@ -163,7 +163,7 @@ export default function ProfilePage() {
           >
             {/* Avatar section */}
             <motion.div
-              className="px-4 py-8 relative"
+              className="py-8 relative"
               variants={fadeInUp}
             >
               {/* Decorative glow behind avatar */}
@@ -189,7 +189,7 @@ export default function ProfilePage() {
             </motion.div>
 
             {/* Menu */}
-            <div className="px-4 lg:px-0 pt-5 lg:pt-0 space-y-4">
+            <div className="pt-5 lg:pt-0 space-y-4">
               <motion.div variants={fadeInUp}>
                 <MenuSection title="Activity">
                   <MenuItem Icon={ClipboardList} label="My Bookings" sublabel="View order history" onClick={() => nav('/orders')} />
