@@ -86,8 +86,12 @@ const telemetryLimiter = makeLimiter({ windowMs: 60_000,    max: 120, prefix: 't
 // 15/min absorbs a quick re-scan or two; blocks anyone hammering the model.
 const lensLimiter      = makeLimiter({ windowMs: 60_000,    max: 15,  prefix: 'lens'   });
 
+// ── Zappy Voice: each turn may run several AI tool rounds — cap conversational pace ──
+// 20/min comfortably covers a natural back-and-forth while blocking abuse of the model.
+const voiceLimiter     = makeLimiter({ windowMs: 60_000,    max: 20,  prefix: 'voice'  });
+
 module.exports = {
   globalLimiter, authLimiter, adminAuthLimiter, otpPhoneLimiter, orderLimiter, workerOnlineLimiter,
   cancelLimiter, topupLimiter, ratingLimiter,
-  quoteLimiter, nearbyLimiter, disputeLimiter, telemetryLimiter, lensLimiter,
+  quoteLimiter, nearbyLimiter, disputeLimiter, telemetryLimiter, lensLimiter, voiceLimiter,
 };

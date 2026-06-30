@@ -349,6 +349,15 @@ export const api = createApi({
       query: (id) => `/lens/scan/${id}`,
     }),
 
+    // --- Zappy Voice (AI voice booking assistant) ---
+    // body: { messages:[{role,content}], lat?, lng?, address?, lensScanId? }
+    // → { reply, cards, actions, model }. Invalidates Order/Wallet because a turn
+    // may have placed/cancelled a booking or moved wallet balance via tools.
+    voiceChat: b.mutation({
+      query: (body) => ({ url: '/voice/chat', method: 'POST', body }),
+      invalidatesTags: ['Order', 'Wallet'],
+    }),
+
     // --- Admin ---
     adminMetrics: b.query({ query: () => adminApiPath('/metrics'), providesTags: ['AdminMetrics'] }),
     adminOrders: b.query({
@@ -1551,6 +1560,7 @@ export const {
   useAnalyzeLensMutation,
   useLazyGetLensScanQuery,
   useGetLensScanQuery,
+  useVoiceChatMutation,
   useAdminMetricsQuery,
   useAdminOrdersQuery,
   useAdminWorkersQuery,

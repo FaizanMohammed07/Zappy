@@ -11,6 +11,7 @@ import { adminPath } from './config/admin';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
 import RouteProgress from './components/common/RouteProgress';
+import VoiceLauncher from './components/voice/VoiceLauncher';
 
 // ── Route-level code splitting ─────────────────────────────────────────────
 // Each page is a separate chunk. Browsers only download the chunk for the
@@ -98,6 +99,8 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
+      {/* Zappy Voice — global floating AI booking assistant for customers */}
+      {token && role === 'user' && <VoiceLauncher />}
       <AnimatePresence mode="wait" initial={false}>
       <Routes location={location} key={location.pathname}>
         {/* Public */}

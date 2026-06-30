@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zappy — The Network Effect</title>
+<style>
+  :root{
+    --ink:#e8ecf5; --muted:#8b93a7; --faint:#3a4156;
+    --indigo:#6366f1; --violet:#a78bfa; --cyan:#22d3ee;
+    --emerald:#34d399; --amber:#f59e0b; --rose:#fb7185;
+    --bg0:#05060c; --bg1:#0a0e1c;
+    --card:#0c1122cc; --stroke:#1b2236;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Roboto Mono",Menlo,monospace;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:var(--sans);color:var(--ink)}
+  /* Slide stage — fixed 16:9, scaled to fit any screen so it always looks like a deck slide */
+  #viewport{position:fixed;inset:0;display:grid;place-items:center;background:
+     radial-gradient(1200px 700px at 50% 18%, #131a30 0%, var(--bg1) 42%, var(--bg0) 100%);}
+  #stage{position:absolute;top:50%;left:50%;width:1920px;height:1080px;transform-origin:center;
+     transform:translate(-50%,-50%) scale(1);}
+  .layer{position:absolute;inset:0}
+  svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+
+  /* ── Header ─────────────────────────────────────────────── */
+  .head{position:absolute;top:54px;left:72px;right:72px;display:flex;justify-content:space-between;align-items:flex-start}
+  .kicker{font:700 14px/1 var(--mono);letter-spacing:.42em;color:var(--violet);text-transform:uppercase;margin-bottom:14px}
+  h1{margin:0;font-size:50px;line-height:1.02;font-weight:800;letter-spacing:-.02em}
+  h1 .grad{background:linear-gradient(92deg,var(--indigo),var(--violet) 55%,var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin-top:12px;font-size:19px;color:var(--muted);max-width:760px;font-weight:450}
+  .hud{text-align:right;font-family:var(--mono)}
+  .hud .row{display:flex;gap:10px;align-items:baseline;justify-content:flex-end}
+  .hud .lab{font-size:12px;letter-spacing:.26em;color:var(--muted);text-transform:uppercase}
+  .hud .big{font-size:40px;font-weight:700;letter-spacing:-.01em;color:#fff;font-variant-numeric:tabular-nums}
+  .hud .big.val{color:var(--emerald)}
+  .hud .delta{font-size:14px;color:var(--emerald)}
+  .hud .gap{height:14px}
+
+  /* ── Network nodes ──────────────────────────────────────── */
+  .node{position:absolute;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;
+     display:grid;place-items:center;text-align:center;cursor:default;
+     background:radial-gradient(120px 120px at 50% 35%, #141a2e, #0a0e1c 70%);
+     border:1.5px solid var(--stroke);transition:transform .35s cubic-bezier(.2,.7,.3,1);}
+  .node .ring{position:absolute;inset:-2px;border-radius:50%;border:1.5px solid var(--ac);opacity:.5}
+  .node .ico{color:var(--ac);filter:drop-shadow(0 0 6px var(--ac))}
+  .node .nm{position:absolute;top:calc(100% + 12px);left:50%;transform:translateX(-50%);white-space:nowrap;
+     font-size:16px;font-weight:700;letter-spacing:.01em}
+  .node .st{position:absolute;top:calc(100% + 35px);left:50%;transform:translateX(-50%);white-space:nowrap;
+     font:600 12px/1 var(--mono);letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+  .node .ico svg{display:block}
+
+  /* central hub */
+  #hub{position:absolute;width:230px;height:230px;margin:-115px 0 0 -115px;border-radius:50%;
+     display:grid;place-items:center;
+     background:radial-gradient(circle at 50% 38%, #b9b1ff 0%, #6f5cf6 30%, #4a37d6 62%, #2a1f8f 100%);
+     box-shadow:0 0 0 1px #7c6cf6aa, 0 0 70px 8px #5b46f066, inset 0 0 50px #2a1f8f99;}
+  #hub .halo{position:absolute;inset:-26px;border-radius:50%;border:1px solid #8c7bff66}
+  #hub .wordmark{font-size:46px;font-weight:900;letter-spacing:-.03em;color:#fff;text-shadow:0 2px 18px #1d1466}
+  #hub .tag{position:absolute;bottom:38px;font:700 11px/1 var(--mono);letter-spacing:.34em;color:#dfd9ff;opacity:.9}
+
+  /* ── Bottom cards ───────────────────────────────────────── */
+  .card{position:absolute;bottom:54px;height:300px;border-radius:22px;background:var(--card);
+     border:1px solid var(--stroke);backdrop-filter:blur(8px);padding:26px 30px;
+     box-shadow:0 24px 60px -30px #000, inset 0 1px 0 #ffffff0d;}
+  .card .ctitle{display:flex;align-items:center;gap:10px;font:700 13px/1 var(--mono);letter-spacing:.24em;
+     text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .card .ctitle .dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 10px var(--emerald)}
+  #graphCard{left:72px;width:760px}
+  #cmpCard{right:72px;width:760px}
+  .csub{font-size:15px;color:var(--muted);margin:2px 0 14px}
+
+  .gwrap{position:relative;height:196px;margin-top:4px}
+  .axis{font:600 11px/1 var(--mono);fill:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .metcalfe{position:absolute;right:8px;top:6px;font:700 13px var(--mono);color:var(--emerald);
+     background:#0c1f1a;border:1px solid #1f4a3c;padding:6px 10px;border-radius:8px;letter-spacing:.04em}
+
+  /* comparison */
+  .cmp{display:grid;grid-template-columns:148px 1fr;row-gap:20px;column-gap:18px;align-items:center;margin-top:8px}
+  .cmp .mlab{font-size:15px;font-weight:600;color:#c7cdde}
+  .bars{display:flex;flex-direction:column;gap:9px}
+  .bar{position:relative;height:18px;border-radius:6px;background:#121931;overflow:hidden}
+  .bar > i{position:absolute;left:0;top:0;height:100%;width:0;border-radius:6px;transition:width 1.2s cubic-bezier(.2,.7,.3,1)}
+  .bar.with > i{background:linear-gradient(90deg,#4f46e5,#34d399)}
+  .bar.without > i{background:linear-gradient(90deg,#7f1d2e,#fb7185)}
+  .bar .bl{position:absolute;right:9px;top:50%;transform:translateY(-50%);font:700 11px var(--mono);color:#dfe5f3;letter-spacing:.04em}
+  .legend{position:absolute;top:26px;right:30px;display:flex;gap:16px;font:600 12px/1 var(--mono);color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .swWith{background:linear-gradient(90deg,#4f46e5,#34d399)}
+  .swWithout{background:linear-gradient(90deg,#7f1d2e,#fb7185)}
+
+  .footnote{position:absolute;bottom:20px;left:72px;font:600 12px/1 var(--mono);letter-spacing:.18em;color:var(--faint);text-transform:uppercase}
+  .footnote b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+
+    <!-- mesh + connection lines + travelling demand pulses -->
+    <svg class="layer" id="net" viewBox="0 0 1920 1080" preserveAspectRatio="none"></svg>
+
+    <!-- header -->
+    <div class="head">
+      <div>
+        <div class="kicker">Flywheel · Compounding Value</div>
+        <h1>The Zappy <span class="grad">Network Effect</span></h1>
+        <div class="sub">One hub, six demand networks, a shared supply of pros. Every new customer makes the next one
+          <b style="color:#c7cdde">cheaper to serve</b> and the whole network <b style="color:#c7cdde">worth more</b>.</div>
+      </div>
+      <div class="hud">
+        <div class="row"><span class="lab">Customers</span></div>
+        <div class="row"><span id="cust" class="big">0</span><span class="delta" id="custD">▲ live</span></div>
+        <div class="gap"></div>
+        <div class="row"><span class="lab">Network value</span></div>
+        <div class="row"><span id="val" class="big val">×1</span></div>
+      </div>
+    </div>
+
+    <!-- node + hub layer -->
+    <div class="layer" id="nodes"></div>
+
+    <!-- bottom-left: exponential graph -->
+    <div class="card" id="graphCard">
+      <div class="ctitle"><span class="dot"></span> Network value vs. scale</div>
+      <div class="csub">Value rises faster than customer count — supply, trust and cross-network reuse compound.</div>
+      <div class="gwrap">
+        <div class="metcalfe">Value ∝ Customers²</div>
+        <svg viewBox="0 0 700 196" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#34d399" stop-opacity=".34"/>
+              <stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="curveStroke" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#34d399"/>
+            </linearGradient>
+          </defs>
+          <!-- gridlines -->
+          <g stroke="#1b2236" stroke-width="1">
+            <line x1="46" y1="12" x2="46" y2="170"/><line x1="46" y1="170" x2="690" y2="170"/>
+            <line x1="46" y1="125" x2="690" y2="125"/><line x1="46" y1="80" x2="690" y2="80"/><line x1="46" y1="38" x2="690" y2="38"/>
+          </g>
+          <path id="curveArea" fill="url(#curveFill)" d=""/>
+          <path id="curveFull" fill="none" stroke="#243049" stroke-width="3" d=""/>
+          <path id="curveLive" fill="none" stroke="url(#curveStroke)" stroke-width="4" stroke-linecap="round" d=""/>
+          <circle id="curveDot" r="6.5" fill="#eafff7" stroke="#34d399" stroke-width="3"/>
+          <text class="axis" x="46" y="190">Customers →</text>
+          <text class="axis" x="2" y="22" >Value ↑</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- bottom-right: Without vs With -->
+    <div class="card" id="cmpCard">
+      <div class="ctitle"><span class="dot" style="background:var(--rose);box-shadow:0 0 10px var(--rose)"></span> Without Zappy &nbsp;vs&nbsp; With Zappy</div>
+      <div class="legend">
+        <span><i class="swWithout"></i>Without</span><span><i class="swWith"></i>With Zappy</span>
+      </div>
+      <div class="csub">Six siloed apps fight for the same workers. One network shares them.</div>
+      <div class="cmp" id="cmp"></div>
+    </div>
+
+    <div class="footnote">ZAPPY · HYPERLOCAL SERVICES NETWORK &nbsp;—&nbsp; <b>EACH NEW CUSTOMER LIGHTS UP MORE OF THE GRAPH</b></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ── geometry ──────────────────────────────────────────────
+  const HUBX = 960, HUBY = 452, RAD = 290;     // hub centre + node orbit radius
+  const NETWORKS = [
+    { key:'electronics', name:'Electronics Rescue', stat:'27 services', ac:'#6366f1',
+      ico:'<rect x="10" y="3" width="12" height="26" rx="3"/><line x1="13" y1="25" x2="19" y2="25"/>' },
+    { key:'vehicle', name:'Vehicle Care', stat:'19 services', ac:'#22d3ee',
+      ico:'<path d="M5 19l3-8h16l3 8v4h-3a2 2 0 0 1-4 0H12a2 2 0 0 1-4 0H5z"/><circle cx="11" cy="23" r="2"/><circle cx="21" cy="23" r="2"/>' },
+    { key:'family', name:'Family Assist', stat:'06 services', ac:'#34d399',
+      ico:'<path d="M9 11h14l-1.6 17H10.6z"/><path d="M12 11a4 4 0 0 1 8 0"/>' },
+    { key:'elder', name:'Elder Assist', stat:'04 services', ac:'#f59e0b',
+      ico:'<circle cx="16" cy="9" r="4"/><path d="M10 29v-7a6 6 0 0 1 12 0v7"/>' },
+    { key:'event', name:'Event Crew', stat:'11 services', ac:'#a78bfa',
+      ico:'<path d="M16 3l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/>' },
+    { key:'pet', name:'Pet Care', stat:'06 services', ac:'#fb7185',
+      ico:'<circle cx="11" cy="12" r="2.4"/><circle cx="16" cy="9" r="2.4"/><circle cx="21" cy="12" r="2.4"/><path d="M16 16c-4 0-7 3-7 6 0 3 14 3 14 0 0-3-3-6-7-6z"/>' },
+  ];
+  // hexagon: start at top, go clockwise
+  const nodes = NETWORKS.map((n,i) => {
+    const a = (-90 + i*60) * Math.PI/180;
+    return { ...n, x: HUBX + RAD*Math.cos(a), y: HUBY + RAD*Math.sin(a), energy: .25 };
+  });
+
+  const NET = document.getElementById('net');
+  const NODES = document.getElementById('nodes');
+  const SVGNS = 'http://www.w3.org/2000/svg';
+
+  // ── faint digital mesh ────────────────────────────────────
+  const meshPts = [];
+  for (let gx=60; gx<=1860; gx+=86)
+    for (let gy=120; gy<=1010; gy+=86){
+      if (gy>740 && (gx<860 || gx>1060)) continue;          // keep mesh out of the cards a bit
+      meshPts.push({ x: gx + (Math.random()*30-15), y: gy + (Math.random()*30-15) });
+    }
+  let meshSvg = '';
+  for (let i=0;i<meshPts.length;i++){
+    const p = meshPts[i];
+    for (let j=i+1;j<meshPts.length;j++){
+      const q = meshPts[j]; const d = Math.hypot(p.x-q.x,p.y-q.y);
+      if (d < 104) meshSvg += `<line x1="${p.x.toFixed(0)}" y1="${p.y.toFixed(0)}" x2="${q.x.toFixed(0)}" y2="${q.y.toFixed(0)}" stroke="#141b30" stroke-width="1"/>`;
+    }
+  }
+  for (const p of meshPts) meshSvg += `<circle cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="1.4" fill="#222c45"/>`;
+
+  // ── hub↔node connection lines (animated dashed flow) ──────
+  let lineSvg = '';
+  nodes.forEach((n,i) => {
+    lineSvg += `<line class="conn" id="conn${i}" x1="${HUBX}" y1="${HUBY}" x2="${n.x.toFixed(1)}" y2="${n.y.toFixed(1)}"
+      stroke="#3344aa" stroke-width="2" stroke-opacity=".55" stroke-dasharray="2 9" stroke-linecap="round"/>`;
+  });
+  // ring between adjacent nodes — shows the supply pool shared across networks
+  let ringSvg = '<polygon points="' + nodes.map(n=>`${n.x.toFixed(1)},${n.y.toFixed(1)}`).join(' ') +
+                '" fill="none" stroke="#202a46" stroke-width="1.5" stroke-dasharray="3 8"/>';
+  NET.innerHTML = `<g opacity=".9">${meshSvg}</g>${ringSvg}${lineSvg}<g id="pulses"></g>`;
+  const pulses = document.getElementById('pulses');
+
+  // ── render nodes + hub ────────────────────────────────────
+  nodes.forEach((n,i) => {
+    const el = document.createElement('div');
+    el.className = 'node'; el.id = 'node'+i;
+    el.style.left = n.x+'px'; el.style.top = n.y+'px'; el.style.setProperty('--ac', n.ac);
+    el.innerHTML =
+      `<div class="ring"></div>
+       <div class="ico"><svg width="38" height="38" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">${n.ico}</svg></div>
+       <div class="nm">${n.name}</div><div class="st">${n.stat}</div>`;
+    NODES.appendChild(el); n.el = el;
+  });
+  const hub = document.createElement('div');
+  hub.id = 'hub'; hub.style.left = HUBX+'px'; hub.style.top = HUBY+'px';
+  hub.innerHTML = `<div class="halo"></div><div class="wordmark">zappy</div><div class="tag">ONE NETWORK</div>`;
+  NODES.appendChild(hub);
+
+  // ── exponential growth curve (value ∝ n^1.85) ─────────────
+  const GX0=46, GX1=690, GY0=170, GYTOP=14, STEPS=120;
+  const curve = i => {                                  // i:0..STEPS → svg point
+    const t = i/STEPS;
+    const x = GX0 + t*(GX1-GX0);
+    const y = GY0 - Math.pow(t,1.85)*(GY0-GYTOP);
+    return [x,y];
+  };
+  let dFull='', dArea=`M ${GX0} ${GY0} `;
+  for(let i=0;i<=STEPS;i++){const[x,y]=curve(i);dFull+=(i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1)+' ';dArea+='L '+x.toFixed(1)+' '+y.toFixed(1)+' ';}
+  dArea+=`L ${GX1} ${GY0} Z`;
+  document.getElementById('curveFull').setAttribute('d', dFull);
+  const livePath = document.getElementById('curveLive');
+  const areaPath = document.getElementById('curveArea');
+  const dot = document.getElementById('curveDot');
+
+  // ── comparison rows ───────────────────────────────────────
+  const CMP = [
+    { lab:'Customer LTV',        without:26,  with:100, wl:'₹', tl:'1.0×', tr:'3.8×' },
+    { lab:'Cost to acquire',     without:100, with:34,  tl:'high', tr:'−66%', invert:true },
+    { lab:'Worker utilisation',  without:38,  with:92,  tl:'38%',  tr:'92%' },
+    { lab:'Cross-network reuse', without:6,   with:88,  tl:'~0',   tr:'6 nets' },
+  ];
+  const cmpEl = document.getElementById('cmp');
+  CMP.forEach((r,i) => {
+    cmpEl.insertAdjacentHTML('beforeend',
+      `<div class="mlab">${r.lab}</div>
+       <div class="bars">
+         <div class="bar without"><i id="bw${i}"></i><span class="bl">${r.tl}</span></div>
+         <div class="bar with"><i id="bg${i}"></i><span class="bl">${r.tr}</span></div>
+       </div>`);
+  });
+  // fill bars shortly after load (animated)
+  setTimeout(() => CMP.forEach((r,i) => {
+    document.getElementById('bw'+i).style.width = r.without+'%';
+    document.getElementById('bg'+i).style.width = r.with+'%';
+  }), 500);
+
+  // ── demand pulses: customer → hub → cross-network glow ────
+  function travel(from, to, color, dur, onArrive){
+    const c = document.createElementNS(SVGNS,'circle');
+    c.setAttribute('r','5'); c.setAttribute('fill', color);
+    c.setAttribute('filter','drop-shadow(0 0 7px '+color+')');
+    pulses.appendChild(c);
+    const anim = c.animate(
+      [{transform:`translate(${from.x}px,${from.y}px)`, opacity:.2},
+       {transform:`translate(${(from.x+to.x)/2}px,${(from.y+to.y)/2}px)`, opacity:1, offset:.6},
+       {transform:`translate(${to.x}px,${to.y}px)`, opacity:.9}],
+      {duration:dur, easing:'cubic-bezier(.4,0,.2,1)'});
+    anim.onfinish = () => { c.remove(); onArrive&&onArrive(); };
+  }
+  function hubFlare(){
+    hub.animate([{boxShadow:'0 0 0 1px #7c6cf6aa,0 0 70px 8px #5b46f066,inset 0 0 50px #2a1f8f99'},
+                 {boxShadow:'0 0 0 2px #b9b1ffcc,0 0 120px 26px #6f5cf6aa,inset 0 0 60px #2a1f8f99'},
+                 {boxShadow:'0 0 0 1px #7c6cf6aa,0 0 70px 8px #5b46f066,inset 0 0 50px #2a1f8f99'}],
+                {duration:700,easing:'ease-out'});
+  }
+  function spawnDemand(){
+    const src = nodes[Math.floor(Math.random()*nodes.length)];
+    // 1) demand flows in from a customer at a node → hub
+    travel(src, {x:HUBX,y:HUBY}, src.ac, 720, () => {
+      hubFlare(); src.energy = Math.min(1, src.energy+.5);
+      // 2) hub redistributes to 2 OTHER networks → cross-network compounding
+      const others = nodes.filter(n=>n!==src).sort(()=>Math.random()-.5).slice(0, 2);
+      others.forEach((o,k) => setTimeout(() => {
+        travel({x:HUBX,y:HUBY}, o, '#cdb6ff', 620, () => { o.energy = Math.min(1, o.energy+.42); });
+      }, 60+k*90));
+      // compounding: baseline glow of the whole network creeps up over time
+      nodes.forEach(n => n.base = Math.min(.62, (n.base||.22) + .006));
+    });
+  }
+
+  // ── counters + main render loop ───────────────────────────
+  let customers = 9120, valueMult = 1, progress = 0;     // progress drives the graph marker 0..1
+  const custEl = document.getElementById('cust'), valEl = document.getElementById('val');
+  const fmt = n => n.toLocaleString('en-IN');
+  let last = performance.now();
+
+  function frame(now){
+    const dt = Math.min(50, now-last); last = now;
+
+    // node glow from energy (+ rising baseline)
+    nodes.forEach((n,i) => {
+      n.energy = Math.max(n.base||.22, n.energy - dt*0.0011);
+      const e = n.energy;
+      n.el.style.boxShadow = `0 0 ${(10+e*46).toFixed(0)}px ${(e*10).toFixed(0)}px ${n.ac}${Math.round(40+e*120).toString(16).padStart(2,'0')}`;
+      n.el.style.borderColor = e>.5 ? n.ac : '#1b2236';
+      n.el.querySelector('.ring').style.opacity = (.25+e*.7).toFixed(2);
+      document.getElementById('conn'+i).style.strokeOpacity = (.35+e*.55).toFixed(2);
+      document.getElementById('conn'+i).setAttribute('stroke', e>.55? n.ac : '#3344aa');
+    });
+
+    // graph marker climbs with the network; loops gently
+    progress = Math.min(1, progress + dt*0.000085);
+    const idx = progress*STEPS;
+    let dLive='';
+    for(let i=0;i<=idx;i++){const[x,y]=curve(i);dLive+=(i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1)+' ';}
+    livePath.setAttribute('d', dLive);
+    const [dx,dy]=curve(idx); dot.setAttribute('cx',dx); dot.setAttribute('cy',dy);
+    let dA=`M ${GX0} ${GY0} `; for(let i=0;i<=idx;i++){const[x,y]=curve(i);dA+='L '+x.toFixed(1)+' '+y.toFixed(1)+' ';}
+    dA+=`L ${curve(idx)[0].toFixed(1)} ${GY0} Z`; areaPath.setAttribute('d', dA);
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // counter ticks — customers grow, value grows ~quadratically (Metcalfe)
+  setInterval(() => {
+    customers += Math.floor(8 + Math.random()*46);
+    valueMult = +(Math.pow(customers/9120, 1.85)).toFixed(1);
+    custEl.textContent = fmt(customers);
+    valEl.textContent = '×' + valueMult.toFixed(1);
+  }, 220);
+
+  // each "new customer" lights up more of the network
+  spawnDemand();
+  setInterval(spawnDemand, 1150);
+
+  // ── fit slide to any viewport ─────────────────────────────
+  const stage = document.getElementById('stage');
+  const fit = () => { const s = Math.min(innerWidth/1920, innerHeight/1080);
+    stage.style.transform = `translate(-50%,-50%) scale(${s})`; };
+  addEventListener('resize', fit); fit();
+})();
+</script>
+</body>
+</html>

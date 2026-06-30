@@ -10,7 +10,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
  *     onResult: (text) => setQuery(text),
  *   });
  */
-export default function useSpeechRecognition({ lang = 'en-IN', onResult, onError } = {}) {
+export default function useSpeechRecognition({ lang = 'en-IN', interim = false, onResult, onInterim, onError } = {}) {
   const SR = typeof window !== 'undefined'
     ? (window.SpeechRecognition || window.webkitSpeechRecognition)
     : null;
@@ -19,8 +19,10 @@ export default function useSpeechRecognition({ lang = 'en-IN', onResult, onError
   const [listening, setListening] = useState(false);
   const recRef = useRef(null);
   const onResultRef = useRef(onResult);
+  const onInterimRef = useRef(onInterim);
   const onErrorRef = useRef(onError);
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
+  useEffect(() => { onInterimRef.current = onInterim; }, [onInterim]);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   const stop = useCallback(() => {
@@ -33,13 +35,22 @@ export default function useSpeechRecognition({ lang = 'en-IN', onResult, onError
     try {
       const rec = new SR();
       rec.lang = lang;
-      rec.interimResults = false;
+      rec.interimResults = interim;
       rec.maxAlternatives = 1;
       rec.continuous = false;
 
       rec.onresult = (e) => {
-        const text = e.results?.[0]?.[0]?.transcript?.trim();
-        if (text) onResultRef.current?.(text);
+        // With interim results on, emit the live (non-final) transcript as it
+        // builds, and only fire onResult once a result is marked final.
+        let interimText = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          const text = r?.[0]?.transcript?.trim();
+          if (!text) continue;
+          if (r.isFinal) { onResultRef.current?.(text); }
+          else { interimText += text + ' '; }
+        }
+        if (interimText) onInterimRef.current?.(interimText.trim());
       };
       rec.onend = () => setListening(false);
       rec.onerror = (e) => {

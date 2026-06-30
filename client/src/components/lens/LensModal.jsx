@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Camera, ImageIcon, ScanLine, Loader2, ChevronRight, Sparkles,
-  Smartphone, Laptop, Car, Bike, Wrench, Tv, Heart, PartyPopper, Search,
+  Smartphone, Laptop, Car, Bike, Wrench, Tv, Heart, PartyPopper, Search, Mic,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useLensUploadUrlMutation, useAnalyzeLensMutation } from '../../services/api';
@@ -207,6 +207,17 @@ export default function LensModal({ open, onClose }) {
                       </button>
                     );
                   })}
+
+                  {/* Hand off to Zappy Voice — keep the camera context, finish hands-free */}
+                  <button
+                    onClick={() => {
+                      onClose?.();
+                      window.dispatchEvent(new CustomEvent('zappy-voice:open', { detail: { lensScanId: result.scanId } }));
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-2 text-sm font-bold text-white py-2.5 rounded-xl active:scale-[0.98] transition-transform"
+                    style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)' }}>
+                    <Mic size={15} /> Talk it through with Zappy Voice
+                  </button>
 
                   <div className="flex items-center gap-2 pt-1">
                     <button onClick={() => { setStage('capture'); setPreview(null); setResult(null); }}

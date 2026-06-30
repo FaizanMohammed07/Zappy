@@ -51,6 +51,11 @@ const schema = Joi.object({
   LENS_CONFIDENCE_THRESHOLD: Joi.number().min(0).max(1).default(0.7),               // below → escalate to smart model
   LENS_TIMEOUT_MS:           Joi.number().default(20000),
   LENS_PUBLIC_URL:           Joi.string().default('https://www.zappyone.com'),       // sent as OpenRouter HTTP-Referer
+  // Zappy Voice — AI voice booking assistant (tool-calling over OpenRouter)
+  VOICE_OPENROUTER_API_KEY:  Joi.string().default(''),                               // dedicated key; empty → falls back to OPENROUTER_API_KEY
+  VOICE_MODEL:               Joi.string().default('google/gemini-2.5-flash'),        // FAST tool-calling model for low-latency voice (override in .env for a smarter one)
+  VOICE_TIMEOUT_MS:          Joi.number().default(30000),
+  VOICE_MAX_TOOL_ROUNDS:     Joi.number().default(6),                                // max tool-call iterations per turn
 }).unknown();
 
 const { value: env, error } = schema.validate(process.env, { abortEarly: false });
@@ -118,5 +123,13 @@ module.exports = {
     confidenceThreshold: env.LENS_CONFIDENCE_THRESHOLD,
     timeoutMs:           env.LENS_TIMEOUT_MS,
     publicUrl:           env.LENS_PUBLIC_URL,
+  },
+  voice: {
+    // Dedicated key for Zappy Voice; falls back to the shared Lens/OpenRouter key.
+    apiKey:        env.VOICE_OPENROUTER_API_KEY || env.OPENROUTER_API_KEY,
+    model:         env.VOICE_MODEL,
+    timeoutMs:     env.VOICE_TIMEOUT_MS,
+    maxToolRounds: env.VOICE_MAX_TOOL_ROUNDS,
+    publicUrl:     env.LENS_PUBLIC_URL,
   },
 };
