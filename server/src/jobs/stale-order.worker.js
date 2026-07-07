@@ -246,11 +246,16 @@ async function redispatchFromAssigned(order) {
 }
 
 /* ── Helpers: how long has this order been actively searching? ── */
-// Measured from the last time it ENTERED 'searching' (or createdAt) so a scheduled
-// order created days ago isn't wrongly counted as searching for days.
+// Measured from the last time it ENTERED 'searching' (or createdAt), but never
+// before its scheduled time — so a scheduled order that sits in 'created' for
+// days until dispatch fires is NOT counted as "searching for days".
 function searchingMinutes(order, now) {
   const hist = (order.statusHistory || []).filter((h) => h.status === 'searching');
-  const start = hist.length ? new Date(hist[hist.length - 1].at) : new Date(order.createdAt);
+  let start = hist.length ? new Date(hist[hist.length - 1].at) : new Date(order.createdAt);
+  if (order.scheduledAt) {
+    const sched = new Date(order.scheduledAt);
+    if (sched > start) start = sched; // clock starts no earlier than the scheduled time
+  }
   return (now - start) / 60000;
 }
 
@@ -361,6 +366,10 @@ async function handleStaleSearching(now, stale) {
 
   for (const order of stale) {
     const orderId = String(order._id);
+
+    // Scheduled booking whose time hasn't arrived yet — it's waiting on purpose,
+    // not stuck. Don't re-queue or cancel it; its delayed dispatch job will fire.
+    if (order.scheduledAt && new Date(order.scheduledAt) > now) continue;
 
     // Give up: no worker found within the window → auto-cancel (no fee, refund if prepaid).
     if (searchingMinutes(order, now) >= SEARCHING_CANCEL_MIN) {
