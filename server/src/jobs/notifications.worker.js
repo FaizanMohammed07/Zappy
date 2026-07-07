@@ -108,8 +108,8 @@ async function sendFcm({ tokens, title, body, data = {}, imageUrl } = {}) {
         webpush: {
           headers: { Urgency: 'high', TTL: '86400' },
           notification: {
-            icon:  '/icons/zappy-icon.svg',
-            badge: '/icons/zappy-icon.svg',
+            icon:  '/branding/zappylogo.png',
+            badge: '/branding/zappylogo.png',
             vibrate: [200, 100, 200],
             requireInteraction: data.type === 'new_job_request' || data.type === 'sos',
             ...(imageUrl ? { image: imageUrl } : {}),

@@ -22,7 +22,7 @@ export default function CharacterServiceGrid() {
   const nav = useNavigate();
 
   return (
-    <div className="grid grid-cols-4 gap-3 w-full">
+    <div className="grid grid-cols-4 md:grid-cols-8 gap-3 md:gap-4 w-full">
       {SERVICES.map((svc, i) => (
         <motion.button
           key={svc.id}

@@ -170,6 +170,61 @@ function DeliveryStats() {
   );
 }
 
+/* ── Live Preview Component ──────────────────────────────────────────── */
+function NotificationPreview({ title, body, type }) {
+  return (
+    <div className="sticky top-6">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">Live Preview</p>
+      <div className="relative rounded-[2rem] p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-2xl overflow-hidden ring-1 ring-white/10">
+        {/* Glossy lighting */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/10 pointer-events-none" />
+        <div className="absolute top-0 right-0 -mr-12 -mt-12 w-32 h-32 bg-blue-500/30 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -ml-12 -mb-12 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl pointer-events-none" />
+        
+        {/* Mock Screen Context */}
+        <div className="h-6 flex justify-between items-center px-2 mb-2 text-white/50 text-[10px] font-medium">
+          <span>9:41</span>
+          <div className="flex gap-1.5">
+            <span className="w-3 h-2 rounded-[2px] border border-white/50 relative after:content-[''] after:absolute after:right-[-2px] after:top-[2px] after:h-1 after:w-0.5 after:bg-white/50"></span>
+          </div>
+        </div>
+
+        {/* The Notification Bubble */}
+        <motion.div 
+          key={`${title}-${body}`} // Remount on change for a subtle jump effect
+          initial={{ y: 5, opacity: 0.8, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          className="bg-white/95 backdrop-blur-xl rounded-[1.2rem] p-3.5 shadow-[0_8px_30px_rgb(0,0,0,0.15)] flex gap-3 relative border border-white/50 overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-white/60 to-transparent pointer-events-none" />
+          
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 shadow-inner relative z-10 border border-slate-200/50 p-1">
+             <img src="/branding/zappylogo.png" className="w-full h-full object-contain drop-shadow-sm" alt="Zappy" />
+          </div>
+          <div className="flex-1 min-w-0 relative z-10">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-bold text-slate-800 tracking-wide">ZAPPY</span>
+              <span className="text-[10px] font-medium text-slate-400">now</span>
+            </div>
+            <h4 className="text-[13px] font-bold text-slate-900 truncate leading-tight">
+              {title || 'Notification title'}
+            </h4>
+            <p className="text-[12px] text-slate-600 line-clamp-2 mt-0.5 leading-snug">
+              {body || 'Your notification body text goes here. Make it catchy!'}
+            </p>
+          </div>
+        </motion.div>
+        
+        {/* Screen Bottom Bar */}
+        <div className="mt-16 flex justify-center pb-1">
+           <div className="w-1/3 h-1 bg-white/20 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Manual Send ─────────────────────────────────────────────────────── */
 function ManualSend() {
   const [form, setForm] = useState({
@@ -200,7 +255,8 @@ function ManualSend() {
   }
 
   return (
-    <Card className="p-5 space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6 items-start">
+      <Card className="p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Send size={15} strokeWidth={2} className="text-blue-600" />
         <p className="text-sm font-bold text-slate-700">Send to Specific User / Worker</p>
@@ -254,7 +310,9 @@ function ManualSend() {
         {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
         {sending ? 'Sending…' : 'Send Notification'}
       </motion.button>
-    </Card>
+      </Card>
+      <NotificationPreview title={form.title} body={form.body} type={form.type} />
+    </div>
   );
 }
 
@@ -330,7 +388,8 @@ function Broadcast() {
   }
 
   return (
-    <Card className="p-5 space-y-4 relative overflow-hidden">
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6 items-start">
+      <Card className="p-5 space-y-4 relative overflow-hidden">
       {/* Sending overlay — animated paper plane */}
       {sending && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -413,7 +472,9 @@ function Broadcast() {
           </div>
         </div>
       )}
-    </Card>
+      </Card>
+      <NotificationPreview title={form.title} body={form.body} type={form.type} />
+    </div>
   );
 }
 
@@ -428,7 +489,7 @@ export default function NotificationsAdmin() {
   ];
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
+    <div className="p-6 space-y-6 max-w-5xl">
       <SectionHeader
         title="Push Notifications"
         subtitle="Monitor delivery, send manual pushes, broadcast platform-wide announcements, and verify Firebase config."
