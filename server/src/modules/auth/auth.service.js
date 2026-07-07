@@ -127,7 +127,14 @@ async function sendFallbackOtp(phone, otp) {
     }
   }
 
-  logger.warn({ phone: mobile, otp }, '[DEV] OTP (no SMS provider configured)');
+  // Only ever print the OTP in non-production. In production this path means SMS
+  // delivery is misconfigured — log the failure WITHOUT leaking the code, so a log
+  // reader can never see a live OTP and take over an account.
+  if (process.env.NODE_ENV === 'production') {
+    logger.error({ phone: mobile }, '[OTP] No SMS provider configured — OTP NOT delivered (code withheld from logs)');
+  } else {
+    logger.warn({ phone: mobile, otp }, '[DEV] OTP (no SMS provider configured)');
+  }
 }
 
 // ---- OTP analytics (lightweight Redis counters, 90-day retention) ----

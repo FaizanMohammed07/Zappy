@@ -115,6 +115,13 @@ async function createRefund({ orderId, amountPaise, refundId, note = 'Admin refu
  */
 function verifyWebhookSignature(rawBody, timestamp, signature) {
   if (!signature || !timestamp) return false;
+  // Fail CLOSED when no secret is configured. Otherwise the HMAC below is
+  // computed with an empty key, which an attacker can reproduce — letting them
+  // forge PAYMENT_SUCCESS webhooks and mint free wallet balance / subscriptions.
+  if (!config.cashfree.secretKey) {
+    logger.error('Cashfree webhook rejected: CASHFREE_SECRET_KEY is not configured');
+    return false;
+  }
   const message  = timestamp + rawBody.toString('utf8');
   const expected = crypto
     .createHmac('sha256', config.cashfree.secretKey)

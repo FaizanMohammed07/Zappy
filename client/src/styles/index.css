@@ -128,9 +128,9 @@
   }
 
   .btn-primary {
-    @apply btn bg-zappy-600 text-white shadow-glow-blue
+    @apply btn bg-zappy-600 text-white shadow-[0_8px_24px_-4px_rgba(37,99,235,0.35)]
            hover:bg-zappy-500 hover:shadow-lg hover:-translate-y-0.5
-           active:bg-zappy-700 active:translate-y-0 active:shadow-glow-blue;
+           active:bg-zappy-700 active:translate-y-0 active:shadow-[0_8px_24px_-4px_rgba(37,99,235,0.35)];
   }
 
   .btn-success {

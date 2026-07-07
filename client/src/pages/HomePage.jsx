@@ -37,6 +37,8 @@ import AdBanner from '../components/common/AdBanner';
 import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 import IntroSplash from '../components/common/IntroSplash';
 import HeroCarousel from '../components/home/HeroCarousel';
+import CharacterServiceGrid from '../components/home/CharacterServiceGrid';
+import { SERVICE_PRICE_FALLBACK } from '../constants/servicePriceFallback';
 import OffersSection from '../components/home/OffersSection';
 import { 
   PromoBannerVehicle, 
@@ -236,11 +238,13 @@ function LiveBadge() {
 
 /* ─── UC-style image service card ──────────────────────────────────────── */
 function ServiceImageCard({ item, nav }) {
-  // Live price from the admin Service Catalog — single source of truth.
-  // Was previously hardcoded with a `₹{item.price || 199}` fallback (the "all ₹199" bug).
+  // Live price from the admin Service Catalog — single source of truth. When the
+  // catalog hasn't loaded yet (or a request failed), fall back to a snapshot of
+  // catalog minimums so the card shows a real "From ₹X" instead of "Get Quote".
   const { data: catalog } = useListServicesQuery();
   const svc   = catalog?.byCode?.[item.key];
-  const price = svc?.priceRangeMinPaise != null ? Math.round(svc.priceRangeMinPaise / 100) : null;
+  const livePrice = svc?.priceRangeMinPaise != null ? Math.round(svc.priceRangeMinPaise / 100) : null;
+  const price = livePrice ?? SERVICE_PRICE_FALLBACK[item.key] ?? null;
   const isServiceCode = /^[a-z][a-z0-9_]+$/.test(item.key || '');
   const badge = item.badge || 'Popular';
 
@@ -656,25 +660,31 @@ export default function HomePage() {
 
         {/* ─── Hero section ─────────────────────────────────────────── */}
         <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-2 md:pt-5 pb-5">
-          <div className="mb-4 md:mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div>
-              <motion.h1
-                className="text-[32px] md:text-[40px] font-black text-slate-900 text-editorial mb-1.5 md:mb-2"
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-              >
-                Trusted assistance,<br />at your doorstep.
-              </motion.h1>
-              <motion.p className="text-sm md:text-base text-slate-500 font-semibold tracking-wide"
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
-                Phones · Laptops · Cars · Elders · Pets · Events
-              </motion.p>
-            </div>
-            <div className="mt-0 sm:mt-2 self-start">
+          <div className="mb-4 md:mb-5 flex items-end justify-between gap-3">
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+              <h1 className="text-[26px] md:text-[34px] font-extrabold text-slate-900 leading-[1.08] tracking-[-0.025em]">
+                What can we fix{firstName !== 'there' ? <>, <span className="text-indigo-600">{firstName}</span></> : ''}?
+              </h1>
+              <p className="mt-1 text-[14px] md:text-[15px] text-slate-500 font-medium">
+                Trusted pros, at your door in minutes.
+              </p>
+            </motion.div>
+            <div className="shrink-0 pb-1">
               <LiveBadge />
             </div>
           </div>
-          
-          <motion.div 
+
+          {/* Character service grid — illustrated category tiles */}
+          <motion.div
+            className="mb-6"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+          >
+            <CharacterServiceGrid />
+          </motion.div>
+
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}

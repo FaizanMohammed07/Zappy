@@ -26,14 +26,14 @@ function Tab({ t, isActive, onPress, onWarm, badge = 0 }) {
       aria-label={label}
     >
       <div className="relative">
-        <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-blue-600' : 'text-slate-400'} />
+        <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-zappy-600' : 'text-slate-400'} />
         {badge > 0 && (
           <span className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none ring-2 ring-white">
             {badge > 9 ? '9+' : badge}
           </span>
         )}
       </div>
-      <span className={`text-[10px] font-semibold ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>{label}</span>
+      <span className={`text-[10px] font-semibold ${isActive ? 'text-zappy-600' : 'text-slate-400'}`}>{label}</span>
     </button>
   );
 }
@@ -108,12 +108,11 @@ export default function BottomNav({ active }) {
         >
           <motion.div
             whileTap={{ scale: 0.92 }}
-            className="w-16 h-16 rounded-full flex items-center justify-center border-4 border-white shadow-[0_12px_28px_-6px_rgba(37,99,235,0.6)]"
-            style={{ background: 'linear-gradient(135deg, #3B82F6, #2563EB)' }}
+            className="w-16 h-16 rounded-full flex items-center justify-center border-4 border-white shadow-[0_8px_24px_-4px_rgba(37,99,235,0.35)] bg-zappy-gradient"
           >
             <Zap size={30} color="#fff" strokeWidth={2.75} fill="#fff" />
           </motion.div>
-          <span className={`text-[10px] font-bold mt-1 ${isBook ? 'text-blue-700' : 'text-blue-600'}`}>Book Now</span>
+          <span className={`text-[10px] font-bold mt-1 ${isBook ? 'text-zappy-700' : 'text-zappy-600'}`}>Book Now</span>
         </button>
       </motion.nav>
     </div>
