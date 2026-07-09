@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { store } from './store';
 import { setAuth } from './modules/auth/authSlice';
 import App from './App';
+import { I18nProvider } from './i18n/I18nProvider';
 import './styles/index.css';
 
 /**
@@ -78,8 +79,10 @@ function Root() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <App />
-      <Toaster position="top-center" toastOptions={{ duration: 3500 }} />
+      <I18nProvider>
+        <App />
+        <Toaster position="top-center" toastOptions={{ duration: 3500 }} />
+      </I18nProvider>
     </BrowserRouter>
   );
 }

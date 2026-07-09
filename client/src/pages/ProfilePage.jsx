@@ -8,6 +8,7 @@ import {
   Trash2, X, Loader2, Scale, HeadphonesIcon, CreditCard,
   Pencil, Check, TrendingUp, Tag, Calendar, Shield, Gift,
 } from 'lucide-react';
+import LanguageSwitcher from '../i18n/LanguageSwitcher';
 import { selectAuth, logout } from '../modules/auth/authSlice';
 import {
   useGetMeQuery, useGetAddressesQuery, useAddAddressMutation,
@@ -201,6 +202,14 @@ export default function ProfilePage() {
                   <MenuItem Icon={Tag} label="Promo Codes" sublabel="Browse all active offers" onClick={() => nav('/promos')} />
                   <MenuItem Icon={Calendar} label="Scheduled Bookings" sublabel="View & reschedule" onClick={() => nav('/scheduled')} />
                 </MenuSection>
+              </motion.div>
+
+              {/* ── Language ── */}
+              <motion.div variants={fadeInUp}>
+                <p className="section-title px-1 mb-2">Language</p>
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3">
+                  <LanguageSwitcher variant="menu" />
+                </div>
               </motion.div>
 
               {/* ── Saved Addresses ── */}

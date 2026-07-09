@@ -5,14 +5,15 @@ import { useSelector } from 'react-redux';
 import { selectIsAuthed } from '../../modules/auth/authSlice';
 import { motion } from 'framer-motion';
 import { prefetchRoute } from '../../lib/routePrefetch';
+import { useT } from '../../i18n/I18nProvider';
 
 // 2 tabs each side + a big raised "Book Now" button in the middle.
 // Wallet lives under Profile/Account.
 const SIDE_TABS = [
-  { key: 'home',     label: 'Home',     path: '/',        Icon: Home,          side: 'left'  },
-  { key: 'bookings', label: 'Bookings', path: '/orders',  Icon: ClipboardList, side: 'left'  },
-  { key: 'track',    label: 'Track',    path: '/track',   Icon: MapPin,        side: 'right' },
-  { key: 'profile',  label: 'Profile',  path: '/profile', Icon: User,          side: 'right' },
+  { key: 'home',     label: 'Home',     tKey: 'nav.home',     path: '/',        Icon: Home,          side: 'left'  },
+  { key: 'bookings', label: 'Bookings', tKey: 'nav.bookings', path: '/orders',  Icon: ClipboardList, side: 'left'  },
+  { key: 'track',    label: 'Track',    tKey: 'nav.track',    path: '/track',   Icon: MapPin,        side: 'right' },
+  { key: 'profile',  label: 'Profile',  tKey: 'nav.profile',  path: '/profile', Icon: User,          side: 'right' },
 ];
 
 function Tab({ t, isActive, onPress, onWarm, badge = 0 }) {
@@ -41,6 +42,7 @@ function Tab({ t, isActive, onPress, onWarm, badge = 0 }) {
 export default function BottomNav({ active }) {
   const nav        = useNavigate();
   const loc        = useLocation();
+  const tr         = useT();
   const isAuthed   = useSelector(selectIsAuthed);
   const path       = loc.pathname;
   const isBook     = path.startsWith('/book') || path.startsWith('/services');
@@ -78,7 +80,7 @@ export default function BottomNav({ active }) {
       >
         <div className="flex flex-1">
           {left.map((t) => (
-            <Tab key={t.key} t={t} isActive={currentKey === t.key} onPress={() => nav(t.path)} onWarm={warm(t.path)} />
+            <Tab key={t.key} t={{ ...t, label: tr(t.tKey, t.label) }} isActive={currentKey === t.key} onPress={() => nav(t.path)} onWarm={warm(t.path)} />
           ))}
         </div>
 
@@ -89,7 +91,7 @@ export default function BottomNav({ active }) {
           {right.map((t) => (
             <Tab
               key={t.key}
-              t={t}
+              t={{ ...t, label: tr(t.tKey, t.label) }}
               isActive={currentKey === t.key}
               onPress={() => nav(t.path)}
               onWarm={warm(t.path)}
@@ -112,7 +114,7 @@ export default function BottomNav({ active }) {
           >
             <Zap size={30} color="#fff" strokeWidth={2.75} fill="#fff" />
           </motion.div>
-          <span className={`text-[10px] font-bold mt-1 ${isBook ? 'text-zappy-700' : 'text-zappy-600'}`}>Book Now</span>
+          <span className={`text-[10px] font-bold mt-1 ${isBook ? 'text-zappy-700' : 'text-zappy-600'}`}>{tr('nav.book', 'Book Now')}</span>
         </button>
       </motion.nav>
     </div>

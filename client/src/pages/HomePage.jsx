@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
 import toast from 'react-hot-toast';
+import { useT } from '../i18n/I18nProvider';
 import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery, useListServicesQuery, useRebookOrderMutation } from '../services/api';
 import { useGeolocation, loadGeoLocation } from '../hooks/useGeolocation';
 import { reverseGeocode } from '../utils/reverseGeocode';
@@ -391,6 +392,7 @@ export default function HomePage() {
   const { data: gamData } = useGetGamificationQuery(undefined, { skip: !isAuthed });
   const { data: recData } = useGetRecommendationsQuery(undefined, { skip: !isAuthed });
 
+  const tHome = useT();
   const [rebook, { isLoading: rebooking }] = useRebookOrderMutation();
   // One-click rebook: re-place a past order with fresh pricing/dispatch, then jump
   // to tracking. Falls back to the normal booking flow on any issue.
@@ -680,10 +682,10 @@ export default function HomePage() {
           <div className="mb-4 md:mb-5 flex items-end justify-between gap-3">
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
               <h1 className="text-[26px] md:text-[34px] font-extrabold text-slate-900 leading-[1.08] tracking-[-0.025em]">
-                What can we fix{firstName !== 'there' ? <>, <span className="text-indigo-600">{firstName}</span></> : ''}?
+                {tHome('home.greeting', 'What can we fix')}{firstName !== 'there' ? <>, <span className="text-indigo-600">{firstName}</span></> : ''}?
               </h1>
               <p className="mt-1 text-[14px] md:text-[15px] text-slate-500 font-medium">
-                Trusted pros, at your door in minutes.
+                {tHome('home.tagline', 'Trusted pros, at your door in minutes.')}
               </p>
             </motion.div>
             <div className="shrink-0 pb-1">
