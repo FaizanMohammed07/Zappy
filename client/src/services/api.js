@@ -95,7 +95,7 @@ export const api = createApi({
   // Keep fetched data cached for 5 min after a component unmounts, so jumping
   // back to a tab shows data instantly (no skeleton) instead of refetching.
   keepUnusedDataFor: 300,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content', 'Rewards'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -385,6 +385,25 @@ export const api = createApi({
     adminDeleteContent: b.mutation({
       query: (id) => ({ url: adminApiPath(`/content/${id}`), method: 'DELETE' }),
       invalidatesTags: ['Content'],
+    }),
+
+    // --- Rewards (points + scratch cards) ---
+    getRewards: b.query({ query: () => '/rewards', providesTags: ['Rewards'] }),
+    redeemRewardPoints: b.mutation({
+      query: (points) => ({ url: '/rewards/redeem', method: 'POST', body: { points } }),
+      invalidatesTags: ['Rewards', 'Wallet'],
+    }),
+    scratchRewardCard: b.mutation({
+      query: (cardId) => ({ url: `/rewards/scratch/${cardId}`, method: 'POST' }),
+      invalidatesTags: ['Rewards', 'Wallet'],
+    }),
+    adminGetRewardsConfig: b.query({ query: () => adminApiPath('/rewards-config'), providesTags: ['Rewards'] }),
+    adminUpdateRewardsConfig: b.mutation({
+      query: (body) => ({ url: adminApiPath('/rewards-config'), method: 'PUT', body }),
+      invalidatesTags: ['Rewards'],
+    }),
+    adminGrantRewardPoints: b.mutation({
+      query: (body) => ({ url: adminApiPath('/rewards-config/grant'), method: 'POST', body }),
     }),
 
     // --- Admin ---
@@ -1598,6 +1617,12 @@ export const {
   useAdminUpdateContentMutation,
   useAdminToggleContentMutation,
   useAdminDeleteContentMutation,
+  useGetRewardsQuery,
+  useRedeemRewardPointsMutation,
+  useScratchRewardCardMutation,
+  useAdminGetRewardsConfigQuery,
+  useAdminUpdateRewardsConfigMutation,
+  useAdminGrantRewardPointsMutation,
   useAdminMetricsQuery,
   useAdminOrdersQuery,
   useAdminWorkersQuery,

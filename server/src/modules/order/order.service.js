@@ -812,6 +812,13 @@ async function workerComplete({ orderId, workerId, completionPhotos = [] }) {
     workerRatingGiven: order.workerRating || null,
   }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Gamification update failed'));
 
+  // Rewards — redeemable points + a scratch card for the completed order.
+  require('../rewards/rewards.service').onOrderCompleted({
+    userId: order.userId,
+    orderTotalPaise: order.pricing?.totalPaise ?? Math.round((order.pricing?.total || 0) * 100),
+    orderId: order._id,
+  }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Rewards update failed'));
+
   // Incentive milestone check — passes the order so the service can enforce
   // the quality gate (no milestone credit for unrated or 1-star completions).
   const incentiveService = require('../worker/incentive.service');

@@ -31,6 +31,7 @@ const mapsRoutes = require('../modules/maps/maps.routes');
 const telemetryRoutes = require('../modules/telemetry/telemetry.routes');
 const lensRoutes = require('../modules/lens/lens.routes');
 const contentRoutes = require('../modules/content/content.routes');
+const rewardsRoutes = require('../modules/rewards/rewards.routes');
 
 function mountRoutes(app) {
   const slug = process.env.ADMIN_LOGIN_SLUG;
@@ -98,6 +99,9 @@ function mountRoutes(app) {
 
   // Admin-managed content — public FAQs + policy pages (read-only)
   app.use('/api/content', contentRoutes);
+
+  // Rewards — points balance, redeem, scratch cards (auth)
+  app.use('/api/rewards', rewardsRoutes);
 
   // Block anyone probing the old /api/admin path
   app.use('/api/admin', (req, res) => res.status(404).json({ error: 'Not found' }));

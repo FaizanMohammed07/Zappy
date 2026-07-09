@@ -446,4 +446,4 @@ async function rescheduleOrder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getQuote, createOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };
+module.exports = { getQuote, createOrder, rebookOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };

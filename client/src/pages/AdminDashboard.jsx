@@ -48,6 +48,7 @@ import Events from './admin/Events';
 import Fraud from './admin/Fraud';
 import Zones from './admin/Zones';
 import Content from './admin/Content';
+import RewardsConfig from './admin/RewardsConfig';
 import Intervention from './admin/Intervention';
 import Cities from './admin/Cities';
 import Appeals from './admin/Appeals';
@@ -72,6 +73,7 @@ const NAV_GROUPS = [
       { id: 'services',  label: 'Service Catalog',     icon: Layers },
       { id: 'plans',     label: 'Plans',               icon: Crown },
       { id: 'rewards',   label: 'Rewards',             icon: Sparkles },
+      { id: 'rewardpoints', label: 'Points & Cards',  icon: Gift },
       { id: 'wallet',      label: 'Wallet',              icon: Wallet },
       { id: 'payouts',     label: 'Payouts',             icon: CreditCard },
       { id: 'shield',      label: 'Shield Fund',         icon: Shield },
@@ -134,7 +136,7 @@ const SECTION_MAP = {
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
   events: Events,
   fraud: Fraud, zones: Zones, intervention: Intervention, cities: Cities,
-  appeals: Appeals, training: Training, content: Content,
+  appeals: Appeals, training: Training, content: Content, rewardpoints: RewardsConfig,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */

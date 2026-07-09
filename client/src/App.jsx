@@ -67,6 +67,7 @@ const WorkerTrainingPage           = lazy(() => import('./pages/WorkerTrainingPa
 const WorkerGoalsPage              = lazy(() => import('./pages/WorkerGoalsPage'));
 const FaqPage                      = lazy(() => import('./pages/FaqPage'));
 const PolicyPage                   = lazy(() => import('./pages/PolicyPage'));
+const RewardsPage                  = lazy(() => import('./pages/RewardsPage'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -136,6 +137,7 @@ export default function App() {
         <Route path="/notification-prefs" element={<RequireAuth role="user"><NotificationPrefsPage /></RequireAuth>} />
         <Route path="/promos" element={<RequireAuth role="user"><PromosHubPage /></RequireAuth>} />
         <Route path="/scheduled" element={<RequireAuth role="user"><ScheduledBookingsPage /></RequireAuth>} />
+        <Route path="/rewards" element={<RequireAuth role="user"><RewardsPage /></RequireAuth>} />
         <Route path="/account-security" element={<RequireAuth role="user"><AccountSecurityPage /></RequireAuth>} />
         <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
 

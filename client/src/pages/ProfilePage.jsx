@@ -6,7 +6,7 @@ import {
   ClipboardList, Wallet, Bell, Star, MapPin, HelpCircle,
   LogOut, ChevronRight, ShieldCheck, Home, Briefcase, Plus,
   Trash2, X, Loader2, Scale, HeadphonesIcon, CreditCard,
-  Pencil, Check, TrendingUp, Tag, Calendar, Shield,
+  Pencil, Check, TrendingUp, Tag, Calendar, Shield, Gift,
 } from 'lucide-react';
 import { selectAuth, logout } from '../modules/auth/authSlice';
 import {
@@ -194,6 +194,7 @@ export default function ProfilePage() {
                 <MenuSection title="Activity">
                   <MenuItem Icon={ClipboardList} label="My Bookings" sublabel="View order history" onClick={() => nav('/orders')} />
                   <MenuItem Icon={Wallet} label="Wallet" sublabel="Balance & transactions" onClick={() => nav('/wallet')} />
+                  <MenuItem Icon={Gift} label="Rewards" sublabel="Points & scratch cards" onClick={() => nav('/rewards')} />
                   <MenuItem Icon={CreditCard} label="Payment Methods" sublabel="Cards, UPI & more" onClick={() => nav('/payments')} />
                   <MenuItem Icon={Bell} label="Notifications" onClick={() => nav('/notifications')} />
                   <MenuItem Icon={TrendingUp} label="Spending Analytics" sublabel="Monthly & service breakdown" onClick={() => nav('/spending')} />
