@@ -61,6 +61,12 @@ const VEHICLE_SERVICES = new Set([
 // (pickup → destination), which is longer and costlier than a service visit.
 const TOWING_SERVICES = new Set(['car_towing', 'bike_towing']);
 
+// Tank & water cleaning — flat per-service visit pricing (crew + equipment).
+const TANK_CLEANING_SERVICES = new Set([
+  'water_tank_cleaning', 'overhead_tank_cleaning', 'underground_sump_cleaning',
+  'sintex_tank_cleaning',
+]);
+
 const FAMILY_SERVICES = new Set([
   'medicine_pickup', 'hospital_companion', 'grocery_assistance',
   'bill_payment_assist', 'document_submission', 'home_visit_check',
@@ -622,6 +628,36 @@ async function calculateTowingPrice({ origin, dest, priority, vehicleType }) {
   };
 }
 
+/**
+ * Tank & water cleaning — flat per-service visit fee (crew + pump + disinfection).
+ * Priced by tank type; emergency/night surcharges apply. No distance component.
+ */
+async function calculateTankCleaningPrice({ service, priority }) {
+  const cfg = await verticalConfigService.getConfig('home').catch(() => ({}));
+  const BASE = {
+    water_tank_cleaning:      59900,  // ₹599
+    overhead_tank_cleaning:   69900,  // ₹699
+    underground_sump_cleaning:99900,  // ₹999
+    sintex_tank_cleaning:     49900,  // ₹499
+  };
+  const basePaise         = BASE[service] || 59900;
+  const urgentSurchargePct = priority === 'emergency' ? (cfg.urgentSurchargePct || 20) : 0;
+  const nightPaise        = verticalConfigService.isNightTime(cfg) ? (cfg.nightSurchargePaise || 8000) : 0;
+  const urgentPaise       = Math.round(basePaise * urgentSurchargePct / 100);
+  const totalPaise        = basePaise + urgentPaise + nightPaise;
+
+  return {
+    vertical: 'tank_cleaning', service,
+    baseFee: paiseToRupees(basePaise),
+    emergencySurcharge: paiseToRupees(urgentPaise),
+    nightSurcharge: paiseToRupees(nightPaise),
+    total: paiseToRupees(totalPaise),
+    currency: 'INR',
+    note: 'Includes draining, scrubbing, sludge removal and disinfection.',
+    paise: { baseFee: basePaise, emergencySurcharge: urgentPaise, nightSurcharge: nightPaise, total: totalPaise },
+  };
+}
+
 // --- New Vertical Pricing Engines (all admin-configurable via vertical configs) ---
 
 async function calculateLaptopPrice({ service, priority }) {
@@ -811,6 +847,8 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
   // Route to vertical-specific pricing engines
   if (TOWING_SERVICES.has(service)) {
     result = await calculateTowingPrice({ origin, dest, priority, vehicleType });
+  } else if (TANK_CLEANING_SERVICES.has(service)) {
+    result = await calculateTankCleaningPrice({ service, priority });
   } else if (MOBILE_SERVICES.has(service)) {
     result = await calculateMobilePrice({ service, priority, deviceBrand, deviceModel, deviceSeries, partsTier });
   } else if (LAPTOP_SERVICES.has(service)) {
@@ -1050,6 +1088,7 @@ module.exports = {
   calculateSmartDevicePrice,
   calculateVehiclePrice,
   calculateTowingPrice,
+  calculateTankCleaningPrice,
   calculateFamilyAssistPrice,
   calculateEventPrice,
   calculatePetPrice,
@@ -1060,6 +1099,7 @@ module.exports = {
   SMART_DEVICE_SERVICES,
   VEHICLE_SERVICES,
   TOWING_SERVICES,
+  TANK_CLEANING_SERVICES,
   FAMILY_SERVICES,
   EVENT_SERVICES,
   PET_SERVICES,

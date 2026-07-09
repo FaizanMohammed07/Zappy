@@ -73,6 +73,10 @@ const ALL_SERVICES = [
   // ── PET ASSISTANCE NETWORK ───────────────────────────────────────────────────
   'pet_grooming', 'pet_walking', 'pet_transport',
   'pet_sitting', 'pet_vet_assist', 'pet_training_assist',
+
+  // ── TANK & WATER CLEANING ────────────────────────────────────────────────────
+  'water_tank_cleaning', 'overhead_tank_cleaning',
+  'underground_sump_cleaning', 'sintex_tank_cleaning',
 ];
 
 const createOrderSchema = Joi.object({

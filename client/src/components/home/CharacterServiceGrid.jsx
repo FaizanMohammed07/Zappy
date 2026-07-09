@@ -33,33 +33,31 @@ export default function CharacterServiceGrid() {
           animate="idle"
           whileHover="hover"
         >
-          {/* Tile surface */}
+          {/* Premium Floating Character (No hard background) */}
           <motion.div
-            className="w-full aspect-square rounded-[20px] bg-white relative overflow-hidden flex items-end justify-center pt-2 pb-3"
-            style={{ boxShadow: `0 8px 24px ${svc.shadow}` }}
+            className="w-full aspect-square relative flex items-end justify-center pt-2 pb-3"
             variants={{
               idle: { scale: 1 },
-              hover: { y: -2, boxShadow: `0 12px 32px ${svc.shadow}` },
-              tap: { scale: 0.94, boxShadow: `0 4px 12px ${svc.shadow}` },
+              hover: { y: -6 },
+              tap: { scale: 0.92 },
             }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
           >
-            {/* Tinted background wash (12%) */}
-            <div className="absolute inset-0 pointer-events-none transition-opacity duration-300 group-hover:opacity-80" style={{ backgroundColor: svc.tint }} />
+            {/* Magical Glowing Aura behind character */}
+            <motion.div 
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[45%] w-[65%] h-[65%] rounded-full blur-[24px] opacity-40 transition-opacity duration-300 group-hover:opacity-80"
+              style={{ backgroundColor: svc.shadow }} 
+            />
 
-            {/* Contact shadow under the character to ground it */}
-            <div className="absolute bottom-1.5 w-[60%] h-[12%] bg-black/15 blur-[6px] rounded-[100%] pointer-events-none" />
+            {/* Ground Contact Shadow */}
+            <div className="absolute bottom-1 w-[45%] h-[8%] bg-black/15 blur-[4px] rounded-[100%] pointer-events-none transition-transform duration-300 group-hover:scale-110 group-hover:bg-black/20" />
 
-            {/* Faint inner top-highlight */}
-            <div className="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
-
-            {/* 3D character with gentle idle float */}
             <motion.img
               src={svc.img}
               alt={svc.label}
-              className="w-[85%] h-auto object-contain relative z-10"
+              className="w-[90%] h-auto object-contain relative z-10 transition-transform duration-300 group-hover:scale-[1.03] mix-blend-multiply"
               loading="lazy"
-              animate={{ y: [0, -3, 0] }}
+              animate={{ y: [0, -5, 0] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
             />
           </motion.div>

@@ -368,7 +368,7 @@ export default function LoginPage({ role = 'user' }) {
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Enter OTP</h2>
                     <p className="text-xs text-slate-400 font-medium">Sent to +91 {phone}</p>
-                    <p className="text-[11px] text-amber-600 font-semibold mt-0.5">📞 OTP will be delivered via phone call</p>
+
                   </div>
                 </motion.div>
 
