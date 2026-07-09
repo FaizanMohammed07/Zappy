@@ -13,7 +13,8 @@ import {
   ShieldAlert, Cpu, MonitorSmartphone, Repeat2,
 } from 'lucide-react';
 import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
-import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery, useListServicesQuery } from '../services/api';
+import toast from 'react-hot-toast';
+import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery, useListServicesQuery, useRebookOrderMutation } from '../services/api';
 import { useGeolocation, loadGeoLocation } from '../hooks/useGeolocation';
 import { reverseGeocode } from '../utils/reverseGeocode';
 import { serviceLabel } from '../constants/services';
@@ -390,6 +391,22 @@ export default function HomePage() {
   const { data: gamData } = useGetGamificationQuery(undefined, { skip: !isAuthed });
   const { data: recData } = useGetRecommendationsQuery(undefined, { skip: !isAuthed });
 
+  const [rebook, { isLoading: rebooking }] = useRebookOrderMutation();
+  // One-click rebook: re-place a past order with fresh pricing/dispatch, then jump
+  // to tracking. Falls back to the normal booking flow on any issue.
+  const handleRebook = async (id, service) => {
+    if (rebooking) return;
+    try {
+      const res = await rebook(id).unwrap();
+      toast.success('Rebooked — finding you a pro');
+      nav(`/orders/${res.order._id}`);
+    } catch (err) {
+      const msg = err?.data?.error;
+      if (err?.data?.activeOrderId) { toast.error(msg || 'You already have an active order'); nav(`/orders/${err.data.activeOrderId}`); }
+      else { if (msg) toast.error(msg); nav(`/book/${service}`); }
+    }
+  };
+
   const activeOrder    = data?.orders?.find(o => ACTIVE_STATUSES.includes(o.status));
   const firstName      = profile?.name?.split(' ')[0] || 'there';
   const gam            = gamData?.gamification;
@@ -402,7 +419,7 @@ export default function HomePage() {
     for (const o of (data?.orders ?? [])) {
       if (o.status === 'completed' && !seen.has(o.service)) {
         seen.add(o.service);
-        result.push({ service: o.service, date: o.completedAt || o.createdAt });
+        result.push({ id: o._id, service: o.service, date: o.completedAt || o.createdAt });
         if (result.length === 3) break;
       }
     }
@@ -701,11 +718,12 @@ export default function HomePage() {
               <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Book Again</span>
             </div>
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {quickRebooks.map(({ service, date }) => (
+              {quickRebooks.map(({ id, service, date }) => (
                 <motion.button
-                  key={service}
-                  onClick={() => nav(`/book/${service}`)}
-                  className="shrink-0 w-44 md:w-56 p-3 rounded-[22px] bg-white border border-slate-200 shadow-sm flex items-center justify-between group"
+                  key={id || service}
+                  onClick={() => handleRebook(id, service)}
+                  disabled={rebooking}
+                  className="shrink-0 w-44 md:w-56 p-3 rounded-[22px] bg-white border border-slate-200 shadow-sm flex items-center justify-between group disabled:opacity-60"
                   whileTap={{ scale: 0.96 }}
                   whileHover={{ y: -2, boxShadow: '0 12px 24px -8px rgba(99,102,241,0.25)' }}
                 >
@@ -715,10 +733,12 @@ export default function HomePage() {
                     </div>
                     <div className="text-left min-w-0">
                       <span className="block text-sm font-bold text-slate-900 leading-tight mb-0.5 truncate">{serviceLabel(service)}</span>
-                      <span className="block text-[10px] font-medium text-slate-400">{timeAgo(date)}</span>
+                      <span className="block text-[10px] font-medium text-indigo-500">Tap to book again · {timeAgo(date)}</span>
                     </div>
                   </div>
-                  <ChevronRight size={14} className="text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" />
+                  {rebooking
+                    ? <Loader2 size={14} className="text-indigo-500 animate-spin shrink-0" />
+                    : <Repeat2 size={14} className="text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" />}
                 </motion.button>
               ))}
             </div>

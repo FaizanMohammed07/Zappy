@@ -232,6 +232,10 @@ export const api = createApi({
     getCancelPreview: b.query({
       query: (id) => `/orders/${id}/cancel-preview`,
     }),
+    rebookOrder: b.mutation({
+      query: (id) => ({ url: `/orders/${id}/rebook`, method: 'POST' }),
+      invalidatesTags: ['Order'],
+    }),
     cancelOrder: b.mutation({
       query: ({ id, reason }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { reason } }),
       invalidatesTags: (r, e, a) => ['Order', { type: 'Order', id: a.id }],
@@ -1564,6 +1568,7 @@ export const {
   useListOrdersQuery,
   useGetCancelPreviewQuery,
   useCancelOrderMutation,
+  useRebookOrderMutation,
   useWorkerReportNoResponseMutation,
   useWorkerReportPartUnavailableMutation,
   useRateOrderMutation,

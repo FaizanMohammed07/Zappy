@@ -47,6 +47,17 @@ async function listMine(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function rebookOrder(req, res, next) {
+  try {
+    // Same IP-fraud gate as a fresh booking.
+    const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim();
+    await abuseService.assertIpCanBook(clientIp);
+
+    const order = await orderService.rebookOrder({ userId: req.auth.sub, sourceOrderId: req.params.id });
+    res.status(201).json({ order: { _id: order._id, status: order.status, service: order.service, pickupLocation: order.pickupLocation, pricing: order.pricing } });
+  } catch (err) { next(err); }
+}
+
 async function getOne(req, res, next) {
   try {
     const order = await orderService.getOrder(req.params.id);

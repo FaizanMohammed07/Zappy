@@ -129,6 +129,8 @@ const rateSchema = Joi.object({
 router.get('/quote', authenticate, requireRole('user'), quoteLimiter, validate(quoteSchema, 'query'), ctrl.getQuote);
 router.post('/', authenticate, requireRole('user'), orderLimiter, validate(createOrderSchema), ctrl.createOrder);
 router.get('/mine', authenticate, requireRole('user'), ctrl.listMine);
+// One-click rebook — clones a past order and re-places it (fresh pricing/dispatch).
+router.post('/:id/rebook', authenticate, requireRole('user'), orderLimiter, ctrl.rebookOrder);
 router.get('/:id', authenticate, ctrl.getOne);
 router.get('/:id/cancel-preview', authenticate, requireRole('user'), ctrl.getCancelPreview);
 router.get('/:id/invoice', authenticate, requireRole('user'), ctrl.getInvoice);
