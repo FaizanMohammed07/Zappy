@@ -368,9 +368,30 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
     if (!searchQ.trim() || searchQ.length < 3) { setResults([]); return; }
     const t = setTimeout(async () => {
       setSearching(true);
-      try {
-        // ── Google Places Autocomplete (primary) ─────────────────────────────
-        if (gmapsLoaded && window.google?.maps?.places) {
+
+      // Mapbox geocoding — used as the fallback whenever Google Places is
+      // unavailable OR returns a non-OK status (REQUEST_DENIED / quota / zero).
+      // Previously a Google failure returned an empty list and NEVER fell back,
+      // so typing an address found nothing (bug #12). Proximity-biased to the
+      // user's area for more accurate, nearby results.
+      const mapboxFallback = async () => {
+        try {
+          if (!TOKEN) { setResults([]); return; }
+          const bias = coords || detectedLoc;
+          const prox = bias ? `&proximity=${bias.lng},${bias.lat}` : '';
+          const r = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQ)}.json` +
+            `?access_token=${TOKEN}&country=IN&language=en&limit=6&types=address,place,neighborhood,locality,poi${prox}`,
+          );
+          const d = await r.json();
+          setResults(d.features || []);
+        } catch { setResults([]); }
+        finally { setSearching(false); }
+      };
+
+      // ── Google Places Autocomplete (primary) ─────────────────────────────
+      if (gmapsLoaded && window.google?.maps?.places) {
+        try {
           const svc = new window.google.maps.places.AutocompleteService();
           const bias = coords
             ? new window.google.maps.Circle({ center: { lat: coords.lat, lng: coords.lng }, radius: 50000 })
@@ -390,26 +411,19 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
                   place_name  : p.description,
                   secondaryText: p.structured_formatting?.secondary_text || '',
                 })));
+                setSearching(false);
               } else {
-                setResults([]);
+                // Google failed (denied/quota/zero) → fall back instead of showing nothing.
+                mapboxFallback();
               }
-              setSearching(false);
             },
           );
-          return; // autocomplete callback handles setSearching(false)
-        }
+        } catch { mapboxFallback(); }
+        return;
+      }
 
-        // ── Mapbox Geocoding (fallback) ───────────────────────────────────────
-        if (TOKEN) {
-          const r = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQ)}.json` +
-            `?access_token=${TOKEN}&country=IN&language=en&limit=6&types=address,place,neighborhood,locality`,
-          );
-          const d = await r.json();
-          setResults(d.features || []);
-        }
-      } catch { setResults([]); }
-      setSearching(false);
+      // Google not available at all → Mapbox directly.
+      await mapboxFallback();
     }, 350);
     return () => clearTimeout(t);
   }, [searchQ, gmapsLoaded, coords, detectedLoc]);

@@ -200,7 +200,7 @@ function NewDisputeForm({ onClose, onCreated }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col justify-end"
+      className="fixed inset-0 z-[110] flex flex-col justify-end"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     >
       <motion.div className="absolute inset-0 bg-black/50" onClick={onClose} />
