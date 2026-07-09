@@ -8,10 +8,10 @@ import { useNavigate } from 'react-router-dom';
  * surface #fff) so it renders identically without pulling in that token layer.
  */
 const SERVICES = [
-  { id: 'phones',  label: 'Phones',  img: '/images/characters/phones.png',  price: '₹99',  tint: 'rgba(37, 99, 235, 0.12)',  shadow: 'rgba(37, 99, 235, 0.18)' },
-  { id: 'laptops', label: 'Laptops', img: '/images/characters/laptops.png', price: '₹149', tint: 'rgba(109, 77, 246, 0.12)',  shadow: 'rgba(109, 77, 246, 0.18)' },
-  { id: 'cars',    label: 'Cars',    img: '/images/characters/cars.png',    price: '₹199', tint: 'rgba(14, 165, 160, 0.12)',  shadow: 'rgba(14, 165, 160, 0.18)' },
-  { id: 'elders',  label: 'Elders',  img: '/images/characters/elders.png',  price: '₹299', tint: 'rgba(225, 29, 116, 0.12)',  shadow: 'rgba(225, 29, 116, 0.18)' },
+  { id: 'phones',  label: 'Phones',  img: '/images/characters/phone2.mp4',  price: '₹99',  tint: 'rgba(37, 99, 235, 0.12)',  shadow: 'rgba(37, 99, 235, 0.18)' },
+  { id: 'laptops', label: 'Laptops', img: '/images/characters/laptops2.mp4', price: '₹149', tint: 'rgba(109, 77, 246, 0.12)',  shadow: 'rgba(109, 77, 246, 0.18)' },
+  { id: 'cars',    label: 'Cars',    img: '/images/characters/cars2.mp4',    price: '₹199', tint: 'rgba(14, 165, 160, 0.12)',  shadow: 'rgba(14, 165, 160, 0.18)' },
+  { id: 'elders',  label: 'Elders',  img: '/images/characters/elders.mp4',  price: '₹299', tint: 'rgba(225, 29, 116, 0.12)',  shadow: 'rgba(225, 29, 116, 0.18)' },
   { id: 'pets',    label: 'Pets',    img: '/images/characters/pets.png',    price: '₹149', tint: 'rgba(245, 158, 11, 0.12)',  shadow: 'rgba(245, 158, 11, 0.18)' },
   { id: 'events',  label: 'Events',  img: '/images/characters/events.png',  price: '₹499', tint: 'rgba(192, 38, 211, 0.12)',  shadow: 'rgba(192, 38, 211, 0.18)' },
   { id: 'home',    label: 'Home',    img: '/images/characters/home.png',    price: '₹99',  tint: 'rgba(8, 145, 178, 0.12)',   shadow: 'rgba(8, 145, 178, 0.18)' },
@@ -52,14 +52,28 @@ export default function CharacterServiceGrid() {
             {/* Ground Contact Shadow */}
             <div className="absolute bottom-1 w-[45%] h-[8%] bg-black/15 blur-[4px] rounded-[100%] pointer-events-none transition-transform duration-300 group-hover:scale-110 group-hover:bg-black/20" />
 
-            <motion.img
-              src={svc.img}
-              alt={svc.label}
-              className="w-[90%] h-auto object-contain relative z-10 transition-transform duration-300 group-hover:scale-[1.03] mix-blend-multiply"
-              loading="lazy"
-              animate={{ y: [0, -5, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
-            />
+            {svc.img.endsWith('.mp4') ? (
+              <motion.video
+                src={svc.img}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="absolute inset-0 w-full h-full object-contain z-10 transition-transform duration-300 group-hover:scale-[1.05] mix-blend-multiply"
+                style={{ filter: 'brightness(1.3) contrast(1.5)' }}
+                animate={{ y: [0, -3, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
+              />
+            ) : (
+              <motion.img
+                src={svc.img}
+                alt={svc.label}
+                className="absolute inset-0 w-full h-full object-contain p-2 z-10 transition-transform duration-300 group-hover:scale-[1.05] mix-blend-multiply"
+                loading="lazy"
+                animate={{ y: [0, -3, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
+              />
+            )}
           </motion.div>
 
           {/* Labels — exact asif_app typography */}
