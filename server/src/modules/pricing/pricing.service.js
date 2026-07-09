@@ -57,6 +57,10 @@ const VEHICLE_SERVICES = new Set([
   'auto_repair', 'van_repair',
 ]);
 
+// Towing is priced separately — base hookup fee + per-km on the TOW leg
+// (pickup → destination), which is longer and costlier than a service visit.
+const TOWING_SERVICES = new Set(['car_towing', 'bike_towing']);
+
 const FAMILY_SERVICES = new Set([
   'medicine_pickup', 'hospital_companion', 'grocery_assistance',
   'bill_payment_assist', 'document_submission', 'home_visit_check',
@@ -577,6 +581,47 @@ async function calculateVehiclePrice({ origin, dest, priority }) {
   };
 }
 
+/**
+ * Towing: base hookup/handling fee + per-km on the tow leg (pickup → destination).
+ * `dest` here is the customer's chosen drop-off, so distanceKm is the tow distance.
+ * Cars cost more than two-wheelers (flatbed vs. lift). Emergency + night surcharges apply.
+ */
+async function calculateTowingPrice({ origin, dest, priority, vehicleType }) {
+  const cfg = await verticalConfigService.getConfig('vehicle').catch(() => ({}));
+  const { distanceKm, etaMinutes } = await getDistanceAndEta(origin, dest);
+
+  const isCar = vehicleType === 'car' || vehicleType === 'commercial';
+  const baseHookupPaise = isCar ? (cfg.towBaseCarPaise  || 50000) : (cfg.towBaseBikePaise || 20000); // ₹500 / ₹200
+  const perKmPaise      = isCar ? (cfg.towPerKmCarPaise || 3500)  : (cfg.towPerKmBikePaise || 1800);  // ₹35 / ₹18 per km
+  const emergencyPaise  = priority === 'emergency' ? (cfg.emergencySurchargePaise || 15000) : 0;
+  const nightPaise      = verticalConfigService.isNightTime(cfg) ? (cfg.nightSurchargePaise || 10000) : 0;
+
+  const towFeePaise   = Math.round(distanceKm * perKmPaise);
+  const subtotalPaise = baseHookupPaise + towFeePaise;
+  const totalPaise    = subtotalPaise + emergencyPaise + nightPaise;
+
+  return {
+    vertical: 'towing',
+    baseHookupFee: paiseToRupees(baseHookupPaise),
+    distanceKm: Number(distanceKm.toFixed(2)),
+    towFee: paiseToRupees(towFeePaise),
+    etaMinutes,
+    emergencySurcharge: paiseToRupees(emergencyPaise),
+    nightSurcharge: paiseToRupees(nightPaise),
+    subtotal: paiseToRupees(subtotalPaise),
+    total: paiseToRupees(totalPaise),
+    currency: 'INR',
+    paise: {
+      baseHookupFee: baseHookupPaise,
+      towFee: towFeePaise,
+      emergencySurcharge: emergencyPaise,
+      nightSurcharge: nightPaise,
+      subtotal: subtotalPaise,
+      total: totalPaise,
+    },
+  };
+}
+
 // --- New Vertical Pricing Engines (all admin-configurable via vertical configs) ---
 
 async function calculateLaptopPrice({ service, priority }) {
@@ -760,11 +805,13 @@ async function calculatePetPrice({ service, priority }) {
  * @param {number} [p.estimatedHours] — construction hourly jobs
  * @returns {object} priced quote (rupees + paise) suitable for client display
  */
-async function calculatePrice({ origin, dest, service, userId, priority = 'normal', deviceBrand, deviceModel, deviceSeries, partsTier, pricingModel, estimatedHours }) {
+async function calculatePrice({ origin, dest, service, userId, priority = 'normal', deviceBrand, deviceModel, deviceSeries, partsTier, pricingModel, estimatedHours, vehicleType }) {
   let result;
 
   // Route to vertical-specific pricing engines
-  if (MOBILE_SERVICES.has(service)) {
+  if (TOWING_SERVICES.has(service)) {
+    result = await calculateTowingPrice({ origin, dest, priority, vehicleType });
+  } else if (MOBILE_SERVICES.has(service)) {
     result = await calculateMobilePrice({ service, priority, deviceBrand, deviceModel, deviceSeries, partsTier });
   } else if (LAPTOP_SERVICES.has(service)) {
     result = await calculateLaptopPrice({ service, priority });
@@ -1002,6 +1049,7 @@ module.exports = {
   calculateLaptopPrice,
   calculateSmartDevicePrice,
   calculateVehiclePrice,
+  calculateTowingPrice,
   calculateFamilyAssistPrice,
   calculateEventPrice,
   calculatePetPrice,
@@ -1011,6 +1059,7 @@ module.exports = {
   LAPTOP_SERVICES,
   SMART_DEVICE_SERVICES,
   VEHICLE_SERVICES,
+  TOWING_SERVICES,
   FAMILY_SERVICES,
   EVENT_SERVICES,
   PET_SERVICES,

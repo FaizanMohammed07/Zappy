@@ -51,6 +51,8 @@ const ALL_SERVICES = [
   // Car
   'car_wash', 'car_detailing', 'battery_jump_start', 'car_puncture',
   'car_breakdown', 'fuel_delivery', 'car_service',
+  // Towing — disabled vehicle picked up and towed to a destination
+  'car_towing', 'bike_towing',
   // Commercial Vehicles
   'commercial_emergency', 'commercial_scheduled_maintenance', 'fleet_support',
   'auto_repair', 'van_repair',

@@ -110,6 +110,8 @@ const SERVICE_META = {
   car_breakdown:         { label: 'Car Breakdown',         icon: AlertTriangle, gradient: 'from-red-500 to-rose-600',      accent: '#ef4444', vertical: 'vehicle'      },
   fuel_delivery:         { label: 'Fuel Delivery',         icon: Fuel,         gradient: 'from-orange-500 to-red-500',     accent: '#f97316', vertical: 'vehicle'      },
   car_service:           { label: 'Car Full Service',      icon: Wrench,       gradient: 'from-blue-600 to-indigo-700',    accent: '#2563eb', vertical: 'vehicle'      },
+  car_towing:            { label: 'Car Towing',            icon: Car,          gradient: 'from-slate-700 to-slate-900',    accent: '#334155', vertical: 'towing'       },
+  bike_towing:           { label: 'Bike Towing',           icon: Bike,         gradient: 'from-slate-600 to-slate-800',    accent: '#475569', vertical: 'towing'       },
   commercial_emergency:  { label: 'Commercial Emergency',  icon: AlertTriangle, gradient: 'from-red-600 to-rose-700',      accent: '#dc2626', vertical: 'vehicle'      },
   commercial_scheduled_maintenance: { label: 'Fleet Maintenance', icon: Wrench, gradient: 'from-slate-600 to-slate-800',  accent: '#475569', vertical: 'vehicle'      },
   fleet_support:         { label: 'Fleet Support',         icon: Car,          gradient: 'from-indigo-600 to-blue-700',    accent: '#4f46e5', vertical: 'vehicle'      },
@@ -315,6 +317,8 @@ export default function BookingPage() {
   const nav = useNavigate();
   const isMobile  = MOBILE_SERVICES.has(service);
   const isVehicle = VEHICLE_SERVICES.has(service);
+  // Towing: needs a destination (where to tow) + is priced on the tow distance.
+  const isTowing  = service === 'car_towing' || service === 'bike_towing';
   // Breakdown/tow services need a worker with specialised equipment (#72).
   // We warn the customer upfront so they can also call a tow operator.
   const isTowRequired = service === 'car_breakdown' || service === 'bike_breakdown' || service === 'commercial_emergency';
@@ -388,6 +392,9 @@ export default function BookingPage() {
 
   // Vehicle-specific state
   const [vehicleType,   setVehicleType]   = useState('');
+  // Towing destination { lat, lng, address } + its picker overlay
+  const [towDest,       setTowDest]       = useState(null);
+  const [showDestPicker, setShowDestPicker] = useState(false);
 
   // Construction-specific state
   const [pricingModel,  setPricingModel]  = useState('standard');
@@ -443,11 +450,26 @@ export default function BookingPage() {
       ...(deviceBrand && { deviceBrand }),
       ...(deviceModel && { deviceModel }),
       ...(vehicleType && { vehicleType }),
+      ...(isTowing && { vehicleType: service === 'car_towing' ? 'car' : 'bike' }),
+      ...(isTowing && towDest && { dropLat: towDest.lat, dropLng: towDest.lng }),
       ...(pricingModel !== 'standard' && { pricingModel }),
       ...(pricingModel === 'hourly' && { estimatedHours }),
     });
     fetchNearby({ lat: loc.lat, lng: loc.lng });
     fetchSurge({ lat: loc.lat, lng: loc.lng });
+  }
+
+  // Towing destination chosen — store it and re-price on the tow distance.
+  function onTowDestConfirmed(loc) {
+    setTowDest({ lat: loc.lat, lng: loc.lng, address: loc.address });
+    setShowDestPicker(false);
+    if (location) {
+      fetchQuote({
+        service, pickupLat: location.lat, pickupLng: location.lng,
+        vehicleType: service === 'car_towing' ? 'car' : 'bike',
+        dropLat: loc.lat, dropLng: loc.lng,
+      });
+    }
   }
 
   async function uploadImage(file) {
@@ -532,6 +554,11 @@ export default function BookingPage() {
       ...(isMobile && { serviceMode }),
       // Vehicle extras
       ...(isVehicle && vehicleType && { vehicleType }),
+      // Towing: destination + tow vehicle type drive the tow-distance price
+      ...(isTowing && towDest && {
+        dropLocation: { lat: towDest.lat, lng: towDest.lng, address: towDest.address },
+        vehicleType: service === 'car_towing' ? 'car' : 'bike',
+      }),
       // Construction extras
       ...(isConstruction && { pricingModel }),
       ...(isConstruction && pricingModel === 'hourly' && { estimatedHours }),
@@ -645,9 +672,33 @@ export default function BookingPage() {
     );
   }
 
+  // Towing destination picker (full-screen) — where to tow the vehicle to.
+  if (showDestPicker) {
+    return (
+      <div className="h-screen flex flex-col">
+        <header className="shrink-0 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)' }}>
+          <div className="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
+            <motion.button onClick={() => setShowDestPicker(false)} whileTap={{ scale: 0.92 }}
+              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 backdrop-blur-sm">
+              <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
+            </motion.button>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Tow destination</p>
+              <p className="font-bold text-white leading-tight">Where should we tow it?</p>
+            </div>
+          </div>
+          <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        </header>
+        <div className="flex-1 min-h-0">
+          <LocationPicker onConfirm={onTowDestConfirmed} onCancel={() => setShowDestPicker(false)} serviceLabel="Tow destination" service={service} />
+        </div>
+      </div>
+    );
+  }
+
   /* ── Details stage ── */
   const hasUploadingImages = images.some(i => i.uploading);
-  const canBook = !!q && !creating && pricingMode !== 'wait' && !hasUploadingImages;
+  const canBook = !!q && !creating && pricingMode !== 'wait' && !hasUploadingImages && (!isTowing || !!towDest);
 
   const TIER_MULTIPLIERS = { standard: 1.0, priority: 1.2, express: 1.4 };
   const baseTotal = q ? (pricingMode === 'wait' ? Math.round(q.total / (q.surgeMultiplier || 1)) : q.total) : 0;
@@ -838,6 +889,37 @@ export default function BookingPage() {
                 ))}
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* ── Towing: destination picker ────────────────────────────── */}
+        {isTowing && (
+          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
+                <MapPin size={14} strokeWidth={2.5} className="text-white" />
+              </div>
+              <p className="font-bold text-[#0F172A] text-sm">Tow to</p>
+            </div>
+            <button onClick={() => setShowDestPicker(true)}
+              className={`w-full text-left rounded-xl border-2 px-3.5 py-3 flex items-center justify-between gap-3 transition ${towDest ? 'border-slate-200 bg-white' : 'border-dashed border-indigo-300 bg-indigo-50/40'}`}>
+              <div className="min-w-0">
+                {towDest ? (
+                  <p className="text-sm font-semibold text-[#0F172A] truncate">{towDest.address}</p>
+                ) : (
+                  <p className="text-sm font-semibold text-indigo-600">Select destination</p>
+                )}
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {q?.vertical === 'towing' && q.distanceKm != null
+                    ? `Tow distance ~${q.distanceKm} km`
+                    : 'Where should we tow your vehicle?'}
+                </p>
+              </div>
+              <ChevronRight size={16} className="text-slate-400 shrink-0" />
+            </button>
+            {!towDest && (
+              <p className="text-[11px] text-amber-600 font-medium mt-2">Add a destination to see the tow price.</p>
+            )}
           </motion.div>
         )}
 

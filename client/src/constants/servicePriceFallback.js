@@ -23,6 +23,8 @@ export const SERVICE_PRICE_FALLBACK = {
   car_detailing: 1499,
   car_puncture: 199,
   car_service: 1499,
+  car_towing: 500,
+  bike_towing: 200,
   car_wash: 299,
   cctv_install: 1499,
   cctv_repair: 799,

@@ -103,6 +103,15 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     }
   }
 
+  // Towing must have a destination — the tow leg (pickup → destination) is what
+  // we charge for, so without it the price would be meaningless.
+  if ((service === 'car_towing' || service === 'bike_towing') && !dropLocation) {
+    throw Object.assign(
+      new Error('Please select where to tow the vehicle before booking.'),
+      { status: 400, code: 'TOWING_DEST_REQUIRED' }
+    );
+  }
+
   const origin = { lat: pickupLocation.lat, lng: pickupLocation.lng };
   // For home services without a drop location, use a tiny 50m nominal dest so
   // the pricing engine can call getDistanceAndEta without a zero-distance edge
@@ -114,7 +123,7 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     : { lat: pickupLocation.lat + 0.00045, lng: pickupLocation.lng }; // ~50m nominal
 
   let pricing = await Promise.race([
-    pricingService.quote({ origin, dest, service, userId }),
+    pricingService.quote({ origin, dest, service, userId, priority, vehicleType }),
     new Promise((_, reject) => setTimeout(
       () => reject(Object.assign(new Error('Pricing service timed out. Please try again.'), { status: 503, code: 'PRICING_TIMEOUT' })),
       appConfig.dispatch.pricingTimeoutMs

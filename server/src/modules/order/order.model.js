@@ -38,6 +38,8 @@ const orderSchema = new mongoose.Schema(
         // Vehicle Care — Car
         'car_wash', 'car_detailing', 'battery_jump_start', 'car_puncture',
         'car_breakdown', 'fuel_delivery', 'car_service',
+        // Towing — pick up a disabled vehicle and tow it to a destination
+        'car_towing', 'bike_towing',
         // Vehicle Care — Commercial
         'commercial_emergency', 'commercial_scheduled_maintenance', 'fleet_support',
         'auto_repair', 'van_repair',
