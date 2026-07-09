@@ -410,10 +410,53 @@ async function loginWorkerWithOtp({ phone, otp, name, skills, deviceId }) {
     Worker.updateOne({ _id: worker._id }, { $addToSet: { deviceIds: deviceId } }).catch(() => {});
   }
 
+  // ── Trusted-device binding (re-login security) ──────────────────────────────
+  // OTP proves possession of the SIM, but a relayed/SIM-swapped OTP could sign in
+  // from an attacker's device. We bind the account to its devices: a sign-in from
+  // a NEW device on an established account is recorded + alerted, and (optionally,
+  // when WORKER_NEW_DEVICE_BLOCK=true) blocked pending admin review.
+  let newDevice = false;
+  if (deviceId) {
+    const devices = worker.knownDevices || [];
+    const match = devices.find((d) => d.deviceId === deviceId);
+    if (match) {
+      Worker.updateOne({ _id: worker._id, 'knownDevices.deviceId': deviceId },
+        { $set: { 'knownDevices.$.lastSeenAt': new Date() } }).catch(() => {});
+    } else if (devices.length === 0) {
+      // First device we've seen for this account — trust it silently (bootstrap).
+      Worker.updateOne({ _id: worker._id },
+        { $push: { knownDevices: { deviceId, firstSeenAt: new Date(), lastSeenAt: new Date(), trusted: true } },
+          $addToSet: { deviceIds: deviceId } }).catch(() => {});
+    } else {
+      // Established account + unrecognised device → security event.
+      newDevice = true;
+      if (process.env.WORKER_NEW_DEVICE_BLOCK === 'true') {
+        logger.warn({ workerId: worker._id, deviceId }, '[SECURITY] Worker new-device login BLOCKED (enforcement on)');
+        throw Object.assign(
+          new Error('For your security, sign-in from a new device needs verification. Please contact support to approve this device.'),
+          { status: 403, code: 'NEW_DEVICE_BLOCKED' }
+        );
+      }
+      await Worker.updateOne({ _id: worker._id },
+        { $push: { knownDevices: { deviceId, firstSeenAt: new Date(), lastSeenAt: new Date(), trusted: true } },
+          $addToSet: { deviceIds: deviceId }, $set: { lastNewDeviceAt: new Date() } }).catch(() => {});
+      logger.warn({ workerId: worker._id, deviceId }, '[SECURITY] Worker signed in from a NEW device');
+      try {
+        require('../notification/notification.service').notify({
+          recipient: { kind: 'worker', id: worker._id },
+          type: 'security_alert',
+          title: '🔐 New device sign-in',
+          body: 'Your Zappy Partner account was just accessed from a new device. If this was not you, contact support immediately.',
+          deepLink: '/worker',
+        }).catch(() => {});
+      } catch { /* non-fatal */ }
+    }
+  }
+
   const tokens = await tokenService.issueTokenPair({
     sub: worker._id.toString(), role: 'worker', phone: worker.phone,
   });
-  return { worker, ...tokens };
+  return { worker, ...tokens, newDevice };
 }
 
 // ---- Event Partner (phone OTP) — self-registration allowed, admin approves KYC ----

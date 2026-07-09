@@ -530,9 +530,30 @@ async function respondChangeRequest(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * Clear a worker's trusted-device bindings. Approves a legitimate device change
+ * (their next sign-in re-registers the device) or revokes devices after a
+ * suspected takeover.
+ */
+async function resetWorkerDevices(req, res, next) {
+  try {
+    const Worker = require('../../worker/worker.model');
+    const worker = await Worker.findByIdAndUpdate(
+      req.params.id,
+      { $set: { knownDevices: [], deviceIds: [], lastNewDeviceAt: null } },
+      { new: true }
+    ).select('_id name').lean();
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+    const auditService = require('../audit.service');
+    await auditService.fromRequest(req, 'admin.worker_reset_devices', { kind: 'worker', id: req.params.id }, null, null);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listWorkers,
   blockWorker,
+  resetWorkerDevices,
   approveKyc,
   rejectKyc,
   listKycPending,

@@ -167,6 +167,15 @@ const workerSchema = new mongoose.Schema(
     // Ops
     deviceTokens: [String], // FCM push tokens
     deviceIds:    [String], // hardware fingerprints (for multi-account detection)
+    // Trusted-device binding for re-login security. A sign-in from a device not
+    // in this list (on an established account) is flagged + alerted.
+    knownDevices: [{
+      deviceId:    { type: String },
+      firstSeenAt: { type: Date, default: Date.now },
+      lastSeenAt:  { type: Date, default: Date.now },
+      trusted:     { type: Boolean, default: true },
+    }],
+    lastNewDeviceAt: { type: Date, default: null },
     isBlocked: { type: Boolean, default: false },
     lastSeenAt: { type: Date },
 
