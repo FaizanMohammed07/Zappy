@@ -908,6 +908,21 @@ export default function WorkerJobPage() {
           </div>
         )}
 
+        {/* Tow destination — where the vehicle must be taken (towing jobs) */}
+        {order.dropLocation?.address && (
+          <div className="card">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                <Navigation size={15} strokeWidth={2} className="text-slate-700" />
+              </div>
+              <div className="flex-1">
+                <p className="t-label mb-1">Tow to (destination)</p>
+                <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">{order.dropLocation.address}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Contact customer */}
         {!terminal && (
           <div className="card flex items-center gap-3">

@@ -14,6 +14,8 @@ const ALL_SKILLS = [
   { id: 'battery_jump_start',    label: 'Battery Jump Start',     Icon: Zap,        color: 'text-yellow-500', bg: 'bg-yellow-50', unlockAt: null },
   { id: 'fuel_delivery',         label: 'Fuel Delivery',          Icon: Fuel,       color: 'text-orange-500', bg: 'bg-orange-50', unlockAt: null },
   { id: 'minor_roadside_repair', label: 'Minor Roadside Repair',  Icon: Wrench,     color: 'text-stone-500',  bg: 'bg-stone-50',  unlockAt: null },
+  { id: 'car_towing',            label: 'Car Towing',             Icon: Truck,      color: 'text-slate-700',  bg: 'bg-slate-100', unlockAt: null },
+  { id: 'bike_towing',           label: 'Bike Towing',            Icon: Truck,      color: 'text-slate-600',  bg: 'bg-slate-50',  unlockAt: null },
   // Home services
   { id: 'electrical',            label: 'Electrical Work',        Icon: Bolt,       color: 'text-amber-500',  bg: 'bg-amber-50',  unlockAt: null },
   { id: 'plumbing',              label: 'Plumbing',               Icon: Droplets,   color: 'text-blue-500',   bg: 'bg-blue-50',   unlockAt: null },

@@ -21,6 +21,8 @@ const ALL_SKILLS = [
   { id: 'battery_jump_start',    label: 'Battery Jump Start',     emoji: '⚡' },
   { id: 'fuel_delivery',         label: 'Fuel Delivery',          emoji: '⛽' },
   { id: 'minor_roadside_repair', label: 'Minor Roadside Repair',  emoji: '🔧' },
+  { id: 'car_towing',            label: 'Car Towing',             emoji: '🚛' },
+  { id: 'bike_towing',           label: 'Bike Towing',            emoji: '🛻' },
   // Home services
   { id: 'electrical',            label: 'Electrical',             emoji: '💡' },
   { id: 'plumbing',              label: 'Plumbing',               emoji: '🚿' },

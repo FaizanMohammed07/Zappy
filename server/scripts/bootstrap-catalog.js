@@ -553,6 +553,31 @@ const SERVICES = [
     guidelines: [],
     sortOrder: 417,
   },
+  {
+    code: 'car_towing', name: 'Car Towing', category: 'vehicle',
+    description: 'Flatbed/lift towing for cars — picked up and towed to your chosen destination.',
+    estimatedDurationMinutes: 45, priceRangeMinPaise: 50000, priceRangeMaxPaise: 500000,
+    requiredSkills: ['car_towing'], requiredTools: ['Tow truck', 'Straps', 'Wheel dollies'],
+    checklist: [
+      { item: 'Confirm destination with customer', required: true },
+      { item: 'Secure vehicle to flatbed/lift', required: true },
+      { item: 'Photograph vehicle condition before towing', required: true },
+    ],
+    guidelines: [],
+    sortOrder: 418,
+  },
+  {
+    code: 'bike_towing', name: 'Bike Towing', category: 'vehicle',
+    description: 'Two-wheeler towing — your bike towed to a garage or destination.',
+    estimatedDurationMinutes: 30, priceRangeMinPaise: 20000, priceRangeMaxPaise: 200000,
+    requiredSkills: ['bike_towing'], requiredTools: ['Tow vehicle', 'Straps'],
+    checklist: [
+      { item: 'Confirm destination with customer', required: true },
+      { item: 'Secure the two-wheeler', required: true },
+    ],
+    guidelines: [],
+    sortOrder: 419,
+  },
 
   // ── Commercial Vehicles ────────────────────────────────────────
   {
