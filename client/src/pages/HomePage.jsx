@@ -132,6 +132,7 @@ const VEHICLE_HIGHLIGHTS = [
   { key: 'battery_jump_start',name: 'Jump Start',      img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
   { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
   { key: 'car_detailing',    name: 'Car Detailing',    img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_towing',       name: 'Vehicle Towing',   img: 'https://images.unsplash.com/photo-1591543620767-582b2e76369e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
 ];
 
 /* ─── Service tile data ────────────────────────────────────────────────── */
@@ -172,7 +173,6 @@ const VEHICLE_TILES = [
   { key: 'bike_wash',          name: 'Bike Wash',     Icon: Bike,          grad: 'from-cyan-500 to-blue-600',    shadow: 'rgba(6,182,212,0.35)', eta: '30 mins' },
   { key: 'car_wash',           name: 'Car Wash',      Icon: Car,           grad: 'from-sky-500 to-blue-700',     shadow: 'rgba(14,165,233,0.35)',eta: '35 mins' },
   { key: 'car_breakdown',      name: 'Breakdown',     Icon: Hammer,        grad: 'from-red-500 to-rose-700',     shadow: 'rgba(239,68,68,0.35)', eta: '20 mins' },
-  { key: 'car_towing',         name: 'Towing',        Icon: Car,           grad: 'from-slate-700 to-slate-900',  shadow: 'rgba(51,65,85,0.4)',   eta: '25 mins' },
   { key: 'fuel_delivery',      name: 'Fuel Delivery', Icon: Fuel,          grad: 'from-orange-500 to-red-500',   shadow: 'rgba(249,115,22,0.4)', eta: '25 mins' },
 ];
 
