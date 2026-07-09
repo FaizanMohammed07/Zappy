@@ -550,10 +550,50 @@ async function resetWorkerDevices(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * Run 3rd-party KYC verification for a worker (bank penny-drop on their saved
+ * account + optional PAN). Stores results on kyc.verification to assist review.
+ */
+async function runKycVerification(req, res, next) {
+  try {
+    const Worker = require('../../worker/worker.model');
+    const kycVerify = require('../../worker/kyc-verification.service');
+    if (!kycVerify.isConfigured()) {
+      return res.status(503).json({ error: 'No KYC provider configured. Set KYC_PROVIDER/KYC_API_URL/KYC_API_KEY.' });
+    }
+    const worker = await Worker.findById(req.params.id).select('name savedBankAccounts kyc').lean();
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+    const bankAcct = (worker.savedBankAccounts || []).find((b) => b.isDefault) || (worker.savedBankAccounts || [])[0];
+    const results = {};
+    if (bankAcct) {
+      results.bank = await kycVerify.verifyBankAccount({
+        accountNumber: bankAcct.accountNumber, ifsc: bankAcct.ifsc,
+        name: bankAcct.accountName || worker.name,
+      });
+    }
+    if (req.body?.pan) {
+      results.pan = await kycVerify.verifyPan({ pan: req.body.pan, name: worker.name });
+    }
+
+    await Worker.updateOne({ _id: req.params.id }, {
+      $set: {
+        ...(results.bank ? { 'kyc.verification.bank': results.bank } : {}),
+        ...(results.pan ? { 'kyc.verification.pan': results.pan } : {}),
+        'kyc.verification.lastRunAt': new Date(),
+      },
+    });
+    const auditService = require('../audit.service');
+    await auditService.fromRequest(req, 'admin.worker_kyc_verify', { kind: 'worker', id: req.params.id }, null, { checks: Object.keys(results) });
+    res.json({ ok: true, results });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listWorkers,
   blockWorker,
   resetWorkerDevices,
+  runKycVerification,
   approveKyc,
   rejectKyc,
   listKycPending,

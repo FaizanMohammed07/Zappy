@@ -39,6 +39,14 @@ const workerSchema = new mongoose.Schema(
       },
       isUpdate: { type: Boolean, default: false },
 
+      // 3rd-party API verification results (bank penny-drop, PAN, …). Assists the
+      // admin's manual review; auto-populated when a KYC provider is configured.
+      verification: {
+        bank: { type: mongoose.Schema.Types.Mixed, default: null },
+        pan:  { type: mongoose.Schema.Types.Mixed, default: null },
+        lastRunAt: { type: Date, default: null },
+      },
+
       // Worker-initiated document change request — must be admin-approved before re-upload
       changeRequest: {
         status:      { type: String, enum: ['pending', 'approved', 'denied'], default: null },

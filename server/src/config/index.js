@@ -51,6 +51,11 @@ const schema = Joi.object({
   LENS_CONFIDENCE_THRESHOLD: Joi.number().min(0).max(1).default(0.7),               // below → escalate to smart model
   LENS_TIMEOUT_MS:           Joi.number().default(20000),
   LENS_PUBLIC_URL:           Joi.string().default('https://www.zappyone.com'),       // sent as OpenRouter HTTP-Referer
+  // Worker KYC verification — 3rd-party API provider (Surepass-style). Empty → manual only.
+  KYC_PROVIDER:  Joi.string().default(''),          // e.g. 'surepass' — empty disables auto-verification
+  KYC_API_URL:   Joi.string().allow('').default(''),// provider base URL
+  KYC_API_KEY:   Joi.string().allow('').default(''),// provider bearer token
+  KYC_TIMEOUT_MS: Joi.number().default(15000),
 }).unknown();
 
 const { value: env, error } = schema.validate(process.env, { abortEarly: false });
@@ -110,6 +115,12 @@ module.exports = {
   sms: {
     providerKey: env.SMS_PROVIDER_KEY,
     from: env.SMS_FROM,
+  },
+  kyc: {
+    provider:  env.KYC_PROVIDER,
+    apiUrl:    env.KYC_API_URL,
+    apiKey:    env.KYC_API_KEY,
+    timeoutMs: env.KYC_TIMEOUT_MS,
   },
   lens: {
     apiKey:              env.OPENROUTER_API_KEY,

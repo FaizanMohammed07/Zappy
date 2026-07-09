@@ -406,6 +406,15 @@ export const api = createApi({
       query: (body) => ({ url: adminApiPath('/rewards-config/grant'), method: 'POST', body }),
     }),
 
+    // --- Worker KYC: 3rd-party API verification ---
+    adminResetWorkerDevices: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/workers/${id}/reset-devices`), method: 'POST' }),
+    }),
+    adminRunKycVerify: b.mutation({
+      query: ({ id, pan }) => ({ url: adminApiPath(`/workers/${id}/kyc/verify`), method: 'POST', body: pan ? { pan } : {} }),
+      invalidatesTags: ['Kyc'],
+    }),
+
     // --- Admin ---
     adminMetrics: b.query({ query: () => adminApiPath('/metrics'), providesTags: ['AdminMetrics'] }),
     adminOrders: b.query({
@@ -1623,6 +1632,8 @@ export const {
   useAdminGetRewardsConfigQuery,
   useAdminUpdateRewardsConfigMutation,
   useAdminGrantRewardPointsMutation,
+  useAdminResetWorkerDevicesMutation,
+  useAdminRunKycVerifyMutation,
   useAdminMetricsQuery,
   useAdminOrdersQuery,
   useAdminWorkersQuery,
