@@ -65,6 +65,8 @@ const WorkerEarningsPage           = lazy(() => import('./pages/WorkerEarningsPa
 const WorkerSkillsPage             = lazy(() => import('./pages/WorkerSkillsPage'));
 const WorkerTrainingPage           = lazy(() => import('./pages/WorkerTrainingPage'));
 const WorkerGoalsPage              = lazy(() => import('./pages/WorkerGoalsPage'));
+const FaqPage                      = lazy(() => import('./pages/FaqPage'));
+const PolicyPage                   = lazy(() => import('./pages/PolicyPage'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -101,6 +103,10 @@ export default function App() {
       <AnimatePresence mode="wait" initial={false}>
       <Routes location={location} key={location.pathname}>
         {/* Public */}
+        {/* Public help content — FAQs + policy pages (admin-managed) */}
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/policy/:slug" element={<PolicyPage />} />
+
         <Route path="/login" element={token ? <RedirectByRole role={role} /> : <LoginPage role="user" />} />
         <Route
           path="/worker/login"

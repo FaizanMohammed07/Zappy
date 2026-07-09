@@ -30,6 +30,7 @@ const trainingRoutes = require('../modules/worker/training.routes');
 const mapsRoutes = require('../modules/maps/maps.routes');
 const telemetryRoutes = require('../modules/telemetry/telemetry.routes');
 const lensRoutes = require('../modules/lens/lens.routes');
+const contentRoutes = require('../modules/content/content.routes');
 
 function mountRoutes(app) {
   const slug = process.env.ADMIN_LOGIN_SLUG;
@@ -94,6 +95,9 @@ function mountRoutes(app) {
 
   // ZappyLens — visual service search (auth, rate-limited)
   app.use('/api/lens', lensRoutes);
+
+  // Admin-managed content — public FAQs + policy pages (read-only)
+  app.use('/api/content', contentRoutes);
 
   // Block anyone probing the old /api/admin path
   app.use('/api/admin', (req, res) => res.status(404).json({ error: 'Not found' }));

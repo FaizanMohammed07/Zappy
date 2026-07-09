@@ -95,7 +95,7 @@ export const api = createApi({
   // Keep fetched data cached for 5 min after a component unmounts, so jumping
   // back to a tab shows data instantly (no skeleton) instead of refetching.
   keepUnusedDataFor: 300,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -347,6 +347,40 @@ export const api = createApi({
     }),
     getLensScan: b.query({
       query: (id) => `/lens/scan/${id}`,
+    }),
+
+    // --- Content (admin-managed FAQs + policy pages) ---
+    getFaqs: b.query({
+      query: (audience) => `/content/faqs${audience ? `?audience=${audience}` : ''}`,
+      providesTags: ['Content'],
+    }),
+    getPolicy: b.query({
+      query: (slug) => `/content/policy/${slug}`,
+      providesTags: (r, e, slug) => [{ type: 'Content', id: slug }],
+    }),
+    getPolicies: b.query({
+      query: () => '/content/policies',
+      providesTags: ['Content'],
+    }),
+    adminListContent: b.query({
+      query: (type) => ({ url: adminApiPath('/content'), params: type ? { type } : {} }),
+      providesTags: ['Content'],
+    }),
+    adminCreateContent: b.mutation({
+      query: (body) => ({ url: adminApiPath('/content'), method: 'POST', body }),
+      invalidatesTags: ['Content'],
+    }),
+    adminUpdateContent: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/content/${id}`), method: 'PUT', body }),
+      invalidatesTags: ['Content'],
+    }),
+    adminToggleContent: b.mutation({
+      query: ({ id, isActive }) => ({ url: adminApiPath(`/content/${id}/active`), method: 'PATCH', body: { isActive } }),
+      invalidatesTags: ['Content'],
+    }),
+    adminDeleteContent: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/content/${id}`), method: 'DELETE' }),
+      invalidatesTags: ['Content'],
     }),
 
     // --- Admin ---
@@ -1551,6 +1585,14 @@ export const {
   useAnalyzeLensMutation,
   useLazyGetLensScanQuery,
   useGetLensScanQuery,
+  useGetFaqsQuery,
+  useGetPolicyQuery,
+  useGetPoliciesQuery,
+  useAdminListContentQuery,
+  useAdminCreateContentMutation,
+  useAdminUpdateContentMutation,
+  useAdminToggleContentMutation,
+  useAdminDeleteContentMutation,
   useAdminMetricsQuery,
   useAdminOrdersQuery,
   useAdminWorkersQuery,

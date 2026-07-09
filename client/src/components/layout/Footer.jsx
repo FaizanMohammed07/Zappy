@@ -35,10 +35,11 @@ const CITIES = [
 const COMPANY = [
   { label: 'About Us',        href: '#' },
   { label: 'Careers',         href: '#' },
-  { label: 'Trust & Safety',  href: '#' },
-  { label: 'Terms of Service',href: '#' },
-  { label: 'Privacy Policy',  href: '#' },
-  { label: 'Refund Policy',   href: '#' },
+  { label: 'Help & FAQs',     href: '/faq' },
+  { label: 'Trust & Safety',  href: '/faq' },
+  { label: 'Privacy Policy',  href: '/policy/privacy-policy' },
+  { label: 'Refund Policy',   href: '/policy/refund-policy' },
+  { label: 'Warranty',        href: '/policy/warranty-guidelines' },
 ];
 
 const PARTNERS = [

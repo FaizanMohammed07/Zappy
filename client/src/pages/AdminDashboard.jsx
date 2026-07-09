@@ -47,6 +47,7 @@ import ShieldFund from './admin/ShieldFund';
 import Events from './admin/Events';
 import Fraud from './admin/Fraud';
 import Zones from './admin/Zones';
+import Content from './admin/Content';
 import Intervention from './admin/Intervention';
 import Cities from './admin/Cities';
 import Appeals from './admin/Appeals';
@@ -93,6 +94,7 @@ const NAV_GROUPS = [
       { id: 'incentives',   label: 'Incentives',       icon: Gift },
       { id: 'retention',    label: 'Retention',        icon: Repeat2 },
       { id: 'support',      label: 'Support',          icon: HeadphonesIcon },
+      { id: 'content',      label: 'Content & Help',   icon: FileText },
     ],
   },
   {
@@ -132,7 +134,7 @@ const SECTION_MAP = {
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
   events: Events,
   fraud: Fraud, zones: Zones, intervention: Intervention, cities: Cities,
-  appeals: Appeals, training: Training,
+  appeals: Appeals, training: Training, content: Content,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */
