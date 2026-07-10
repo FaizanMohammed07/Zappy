@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { Star, Repeat2, Calendar, FileDown, Loader2, MapPin, ArrowRight, ChevronLeft, ChevronRight,
   Bike, Car, Smartphone, Laptop, Tv, Heart, PartyPopper, Wrench } from 'lucide-react';
 import { useListOrdersQuery } from '../services/api';
+import { ErrorState } from '../components/common/QueryState';
+import PullToRefresh from '../components/common/PullToRefresh';
 import { API_BASE } from '../services/apiBase';
 import { selectAuth } from '../modules/auth/authSlice';
 import BottomNav from '../components/layout/BottomNav';
@@ -150,7 +152,7 @@ export default function OrdersListPage() {
   const { accessToken: token } = useSelector(selectAuth);
   const [page, setPage] = useState(1);
   const [downloadingId, setDownloadingId] = useState(null);
-  const { data, isLoading, isFetching } = useListOrdersQuery(page);
+  const { data, isLoading, isFetching, isError, refetch } = useListOrdersQuery(page);
 
   async function downloadInvoice(e, orderId) {
     e.stopPropagation();
@@ -177,11 +179,14 @@ export default function OrdersListPage() {
     <PageTransition>
       <div className="min-h-screen bg-slate-50 pb-40">
        <div className="mx-auto w-full max-w-[480px]">
+        <PullToRefresh onRefresh={() => refetch()}>
         <header className="px-5 pt-8 pb-2" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2rem)' }}>
           <h1 className="text-3xl font-black text-[#0F172A]">Activity</h1>
         </header>
 
-        {isLoading ? (
+        {isError ? (
+          <ErrorState onRetry={refetch} />
+        ) : isLoading ? (
           <div className="px-5 pt-4"><SkeletonList count={4} Item={SkeletonOrderCard} /></div>
         ) : allOrders.length === 0 ? (
           <div className="px-5 pt-6">
@@ -242,6 +247,7 @@ export default function OrdersListPage() {
             )}
           </motion.div>
         )}
+        </PullToRefresh>
        </div>
 
         <BottomNav active="bookings" />

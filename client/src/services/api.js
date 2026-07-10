@@ -503,6 +503,23 @@ export const api = createApi({
     }),
     markNotificationRead: b.mutation({
       query: (id) => ({ url: `/notifications/${id}/read`, method: 'POST' }),
+      // Optimistic: mark read instantly (set readAt in the "all" view, drop it from
+      // the "unread" view), roll back if the request fails.
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        const patches = [];
+        for (const unreadOnly of [false, true]) {
+          patches.push(dispatch(api.util.updateQueryData('listNotifications', { page: 1, unreadOnly }, (draft) => {
+            if (!draft?.notifications) return;
+            if (unreadOnly) {
+              draft.notifications = draft.notifications.filter((n) => String(n._id) !== String(id));
+            } else {
+              const n = draft.notifications.find((x) => String(x._id) === String(id));
+              if (n && !n.readAt) n.readAt = new Date().toISOString();
+            }
+          })));
+        }
+        try { await queryFulfilled; } catch { patches.forEach((p) => p.undo()); }
+      },
       invalidatesTags: ['Notification'],
     }),
     markAllNotificationsRead: b.mutation({

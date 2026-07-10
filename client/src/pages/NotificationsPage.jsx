@@ -11,6 +11,7 @@ import {
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
 } from '../services/api';
+import { ErrorState } from '../components/common/QueryState';
 import PageTransition from '../components/common/PageTransition';
 import toast from 'react-hot-toast';
 
@@ -233,7 +234,7 @@ export default function NotificationsPage() {
   const nav = useNavigate();
   const [filter, setFilter] = useState('all'); // 'all' | 'unread'
 
-  const { data, isLoading, isFetching } = useListNotificationsQuery({ page: 1, unreadOnly: filter === 'unread' });
+  const { data, isLoading, isFetching, isError, refetch } = useListNotificationsQuery({ page: 1, unreadOnly: filter === 'unread' });
   const [markRead]   = useMarkNotificationReadMutation();
   const [markAllMut] = useMarkAllNotificationsReadMutation();
 
@@ -314,7 +315,9 @@ export default function NotificationsPage() {
         </header>
 
         {/* Content */}
-        {isLoading ? (
+        {isError ? (
+          <ErrorState onRetry={refetch} />
+        ) : isLoading ? (
           /* Skeleton */
           <div className="max-w-lg mx-auto px-4 pt-4 space-y-3">
             {[...Array(5)].map((_, i) => (
