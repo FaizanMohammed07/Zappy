@@ -3,10 +3,11 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Phone, ArrowRight, ChevronLeft, CheckCircle2, Loader2, Zap, Shield, Star } from 'lucide-react';
-import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation } from '../services/api';
-import { setAuth } from '../modules/auth/authSlice';
+import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation, useUpdateMeMutation } from '../services/api';
+import { setAuth, updateProfile } from '../modules/auth/authSlice';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import toast from 'react-hot-toast';
+import SEO, { LOGIN_SCHEMA, BASE_URL } from '../components/SEO';
 import { easeSoft, springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 
 const SKILLS = [
@@ -53,15 +54,19 @@ function OtpInput({ value, onChange, onKeyDown, inputRef, filled }) {
 
 export default function LoginPage({ role = 'user' }) {
   const [phone, setPhone]       = useState('');
-  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const OTP_LEN = 6; // 2Factor plain AUTOGEN (no template) sends 6-digit SMS OTP
+  const [otpDigits, setOtpDigits] = useState(Array(OTP_LEN).fill(''));
   const [name, setName]         = useState('');
+  const [email, setEmail]       = useState('');
   const [skills, setSkills]     = useState([]);
   const [step, setStep]         = useState('phone');
   const [isNewUser, setIsNewUser] = useState(true);
+  const [pendingProfile, setPendingProfile] = useState(null);
   const pendingOtp = useRef(null);
   const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
   const [loginUser,  { isLoading: loggingUser }]   = useLoginUserMutation();
   const [loginWorker, { isLoading: loggingWorker }] = useLoginWorkerMutation();
+  const [updateMe,   { isLoading: savingProfile }]  = useUpdateMeMutation();
   const nav      = useNavigate();
   const loc      = useLocation();
   const dispatch = useDispatch();
@@ -70,19 +75,19 @@ export default function LoginPage({ role = 'user' }) {
 
   const otp = otpDigits.join('');
 
-  // After OTP form mounts: fill digits from API response
+  // After OTP form mounts: fill digits from API response (dev auto-fill)
   useEffect(() => {
     if (step !== 'otp' || !pendingOtp.current) return;
     const code = String(pendingOtp.current);
     pendingOtp.current = null;
-    const digits = code.slice(0, 6).split('').concat(Array(Math.max(0, 6 - code.length)).fill(''));
+    const digits = code.slice(0, OTP_LEN).split('').concat(Array(Math.max(0, OTP_LEN - code.length)).fill(''));
     setOtpDigits(digits);
-    setTimeout(() => otpRefs.current[5]?.focus(), 80);
+    setTimeout(() => otpRefs.current[OTP_LEN - 1]?.focus(), 80);
   }, [step]);
 
-  // Auto-submit once all 6 digits filled (existing users only — new users must enter name)
+  // Auto-submit once all digits filled (existing users only — new users must enter name)
   useEffect(() => {
-    if (step === 'otp' && otp.length === 6 && !isNewUser) verify();
+    if (step === 'otp' && otp.length === OTP_LEN && !isNewUser) verify();
   }, [otp]);
 
   // Mouse parallax for hero
@@ -101,7 +106,7 @@ export default function LoginPage({ role = 'user' }) {
     const next = [...otpDigits];
     next[i] = d;
     setOtpDigits(next);
-    if (d && i < 5) otpRefs.current[i + 1]?.focus();
+    if (d && i < OTP_LEN - 1) otpRefs.current[i + 1]?.focus();
   }
 
   function handleOtpKey(i, e) {
@@ -114,10 +119,10 @@ export default function LoginPage({ role = 'user' }) {
   }
 
   function handleOtpPaste(e) {
-    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LEN);
     if (text.length >= 4) {
-      setOtpDigits(text.slice(0, 6).split('').concat(Array(Math.max(0, 6 - text.length)).fill('')));
-      otpRefs.current[Math.min(text.length, 5)]?.focus();
+      setOtpDigits(text.split('').concat(Array(Math.max(0, OTP_LEN - text.length)).fill('')));
+      otpRefs.current[Math.min(text.length, OTP_LEN - 1)]?.focus();
     }
   }
 
@@ -136,18 +141,58 @@ export default function LoginPage({ role = 'user' }) {
   async function verify() {
     try {
       const fn = role === 'worker' ? loginWorker : loginUser;
-      const r = await fn({ phone, otp, name, skills }).unwrap();
+      const r = await fn({
+        phone,
+        otp,
+        ...(name.trim()   ? { name: name.trim() }     : {}),
+        ...(skills.length  ? { skills }                : {}),
+      }).unwrap();
       const profile = role === 'worker' ? r.worker : r.user;
       dispatch(setAuth({ accessToken: r.accessToken, refreshToken: r.refreshToken, profile, role }));
+      // User-only: if name or email missing, collect before proceeding
+      if (role !== 'worker' && (!profile.name || !profile.email)) {
+        setPendingProfile(profile);
+        setName(profile.name || '');
+        setEmail(profile.email || '');
+        setStep('complete');
+        return;
+      }
       nav(loc.state?.from || (role === 'worker' ? '/worker' : '/'), { replace: true });
     } catch (err) {
-      toast.error(err.data?.error || 'Verification failed');
+      const detail = typeof err.data?.details?.[0] === 'string' ? err.data.details[0] : err.data?.error || 'Verification failed';
+      toast.error(detail);
+      console.error('[verify] status:', err.status, 'body:', err.data);
     }
+  }
+
+  async function saveProfileAndContinue() {
+    const updates = {};
+    if (!pendingProfile?.name && name.trim()) updates.name = name.trim();
+    if (!pendingProfile?.email && email.trim()) updates.email = email.trim();
+    if (Object.keys(updates).length) {
+      try {
+        await updateMe(updates).unwrap();
+        dispatch(updateProfile(updates));
+      } catch { /* non-fatal — continue anyway */ }
+    }
+    nav(loc.state?.from || '/', { replace: true });
   }
 
   const isWorker = role === 'worker';
 
   return (
+    <>
+    <SEO
+      title={isWorker ? 'Worker Login — Join Zappy & Earn Daily | Zappy India' : 'Login to Zappy — Book Home Services Instantly'}
+      description={isWorker
+        ? 'Join Zappy as a service professional. Earn ₹500–₹2000/day. Verified workers get instant job notifications and daily payments.'
+        : 'Login to Zappy with your phone number. Book verified professionals for home services instantly — puncture repair, phone repair, laptop repair and more.'}
+      canonical={isWorker ? `${BASE_URL}/worker/login` : `${BASE_URL}/login`}
+      keywords={isWorker
+        ? 'join Zappy as worker, earn money home services, service professional jobs India'
+        : 'Zappy login, book home services India, on-demand services app login'}
+      jsonLd={LOGIN_SCHEMA}
+    />
     <div
       className="min-h-screen flex flex-col overflow-hidden relative"
       onMouseMove={handleMouseMove}
@@ -304,7 +349,7 @@ export default function LoginPage({ role = 'user' }) {
                   )}
                 </motion.p>
               </motion.div>
-            ) : (
+            ) : step === 'otp' ? (
               <motion.div
                 className="space-y-5"
                 variants={staggerContainer}
@@ -323,6 +368,7 @@ export default function LoginPage({ role = 'user' }) {
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Enter OTP</h2>
                     <p className="text-xs text-slate-400 font-medium">Sent to +91 {phone}</p>
+
                   </div>
                 </motion.div>
 
@@ -398,10 +444,71 @@ export default function LoginPage({ role = 'user' }) {
                   {isLoading ? 'Verifying…' : 'Confirm & Continue'}
                 </motion.button>
               </motion.div>
-            )}
+            ) : step === 'complete' ? (
+              <motion.div
+                className="space-y-5"
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+              >
+                <motion.div variants={fadeInUp}>
+                  <h2 className="text-xl font-black text-slate-900">One last step</h2>
+                  <p className="text-sm text-slate-400 mt-1 font-medium">Complete your profile to continue</p>
+                </motion.div>
+
+                {!pendingProfile?.name && (
+                  <motion.div variants={fadeInUp}>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Name</label>
+                    <input
+                      className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                      placeholder="e.g. Priya Sharma"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      autoFocus
+                    />
+                  </motion.div>
+                )}
+
+                <motion.div variants={fadeInUp}>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Email <span className="text-slate-300 font-medium normal-case">(for receipts)</span></label>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && saveProfileAndContinue()}
+                    autoFocus={!!pendingProfile?.name}
+                  />
+                </motion.div>
+
+                <motion.button
+                  variants={fadeInUp}
+                  onClick={saveProfileAndContinue}
+                  disabled={savingProfile || (!pendingProfile?.name && !name.trim())}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-3.5 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+                  style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)', boxShadow: '0 8px 24px rgba(79,70,229,0.35)' }}
+                >
+                  {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                  {savingProfile ? 'Saving…' : 'Continue'}
+                </motion.button>
+
+                <motion.button
+                  variants={fadeInUp}
+                  onClick={() => nav(loc.state?.from || '/', { replace: true })}
+                  className="w-full text-center text-xs text-slate-400 hover:text-slate-600 py-1 transition-colors"
+                >
+                  Skip for now
+                </motion.button>
+              </motion.div>
+            ) : null}
           </div>
         </motion.div>
       </AnimatePresence>
     </div>
+    </>
   );
 }

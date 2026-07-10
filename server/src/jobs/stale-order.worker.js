@@ -31,6 +31,10 @@ let ASSIGNED_NUDGE_MIN      = 4;
 let ASSIGNED_REDISPATCH_MIN = 6;
 let OTW_ALERT_MIN           = 20;
 const SEARCHING_STALE_MIN   = 6;   // always fixed — dispatch restart threshold
+// No worker ever found → give up and auto-cancel (system fault: no fee, refund if prepaid).
+const SEARCHING_CANCEL_MIN  = parseInt(process.env.AUTO_CANCEL_NO_WORKER_MIN || '30', 10);
+// Worker tapped "start trip" but is stuck / GPS off this long → strip + re-dispatch.
+const OTW_REDISPATCH_MIN    = parseInt(process.env.STALE_OTW_REDISPATCH_MIN || '45', 10);
 const ARRIVED_STALE_MIN     = 15;  // worker marked arrived but never entered OTP — auto-cancel after 15 min
 const IN_PROGRESS_MAX_MIN      = 180;  // 3 hours → admin alert
 const IN_PROGRESS_ABANDON_MIN  = 1440; // 24 hours → auto-flag for reconciliation + mark failed
@@ -66,10 +70,10 @@ async function sweep() {
   ) * 60 * 1000);
 
   const staleOrders = await Order.find({
-    status: { $in: ['assigned', 'searching', 'on_the_way', 'arrived', 'in_progress'] },
+    status: { $in: ['created', 'assigned', 'searching', 'on_the_way', 'arrived', 'in_progress'] },
     updatedAt: { $lt: earliestThreshold },
   })
-    .select('_id status userId workerId service pricing pickupLocation statusHistory dispatch updatedAt')
+    .select('_id status userId workerId service pricing pickupLocation statusHistory dispatch updatedAt createdAt scheduledAt payment')
     .lean();
 
   if (!staleOrders.length) return;
@@ -81,7 +85,9 @@ async function sweep() {
     arrived:     [],
     in_progress: [],
   };
-  for (const o of staleOrders) byStatus[o.status]?.push(o);
+  // A never-dispatched 'created' order is handled like a stuck 'searching' one
+  // (re-queue dispatch, then auto-cancel if no worker is ever found).
+  for (const o of staleOrders) byStatus[o.status === 'created' ? 'searching' : o.status]?.push(o);
 
   await Promise.all([
     handleStaleAssigned(now,    byStatus.assigned),
@@ -178,6 +184,9 @@ async function redispatchFromAssigned(order) {
     );
     await geoService.setAvailability(workerId, true);
 
+    // Tell the old worker's job page to dismiss immediately
+    await redis.publish('worker:job_pulled', JSON.stringify({ workerId: String(workerId), orderId }));
+
     notificationService.notify({
       recipient: { kind: 'worker', id: workerId },
       type: 'job_removed',
@@ -236,6 +245,119 @@ async function redispatchFromAssigned(order) {
   }));
 }
 
+/* ── Helpers: how long has this order been actively searching? ── */
+// Measured from the last time it ENTERED 'searching' (or createdAt), but never
+// before its scheduled time — so a scheduled order that sits in 'created' for
+// days until dispatch fires is NOT counted as "searching for days".
+function searchingMinutes(order, now) {
+  const hist = (order.statusHistory || []).filter((h) => h.status === 'searching');
+  let start = hist.length ? new Date(hist[hist.length - 1].at) : new Date(order.createdAt);
+  if (order.scheduledAt) {
+    const sched = new Date(order.scheduledAt);
+    if (sched > start) start = sched; // clock starts no earlier than the scheduled time
+  }
+  return (now - start) / 60000;
+}
+
+/* ── Auto-cancel an order that never found a worker ── */
+async function autoCancelNoWorker(order, now) {
+  const orderId = String(order._id);
+  // Idempotency lock — one cancel attempt per order per hour.
+  const lock = await redis.set(`stale:autocancel:${orderId}`, '1', 'NX', 'EX', 3600);
+  if (!lock) return;
+
+  // Atomic + safe: only cancel if STILL unassigned (a worker may have accepted meanwhile).
+  const updated = await Order.findOneAndUpdate(
+    { _id: orderId, status: { $in: ['created', 'searching'] }, workerId: null },
+    {
+      $set: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: 'auto_no_worker' },
+      $push: { statusHistory: { status: 'cancelled', at: new Date(), meta: { reason: 'auto_no_worker', afterMin: Math.round(searchingMinutes(order, now)) } } },
+    },
+    { new: true }
+  );
+  if (!updated) return; // got assigned in the meantime — leave it
+
+  logger.warn({ orderId, service: updated.service, minutes: Math.round(searchingMinutes(order, now)) },
+    '[STALE] Auto-cancelled — no worker found within window');
+
+  // Stop it from searching: remove any pending dispatch job.
+  try { const j = await dispatchQueue.getJob(`order_${orderId}`); if (j) await j.remove(); } catch { /* noop */ }
+
+  // System fault — no cancellation fee. Refund if the customer already paid.
+  if (updated.payment?.status === 'paid') {
+    try { require('../modules/wallet/ledger.service').recordRefund(updated, 'auto_no_worker'); }
+    catch (e) { logger.error({ orderId, err: e.message }, '[STALE] auto-cancel refund failed'); }
+  }
+
+  const notificationService = require('../modules/notification/notification.service');
+  notificationService.notify({
+    recipient: { kind: 'user', id: updated.userId },
+    type: 'order_cancelled',
+    title: 'No worker available',
+    body: `We couldn't find a ${updated.service.replace(/_/g, ' ')} pro nearby in time, so we cancelled the order`
+      + (updated.payment?.status === 'paid' ? ' and started your refund.' : '.') + ' Please try again shortly.',
+    deepLink: `/orders/${orderId}`,
+    data: { orderId },
+  }).catch(() => {});
+
+  redis.publish('order:event', JSON.stringify({
+    orderId, event: 'order.status',
+    payload: { status: 'cancelled', reason: 'auto_no_worker', at: new Date().toISOString() },
+  })).catch(() => {});
+}
+
+/* ── Strip a stuck on_the_way worker and re-dispatch the order ── */
+async function redispatchStuckOnTheWay(order) {
+  const orderId = String(order._id);
+  if (!(await redis.set(`stale:otw_redispatch:${orderId}`, '1', 'NX', 'EX', 1800))) return;
+
+  const notificationService = require('../modules/notification/notification.service');
+  logger.warn({ orderId, workerId: order.workerId, minutes: OTW_REDISPATCH_MIN },
+    '[STALE] Worker stuck on_the_way — stripping worker and re-dispatching');
+
+  if (order.workerId) {
+    await Worker.updateOne(
+      { _id: order.workerId },
+      { $set: { isAvailable: true, currentOrderId: null }, $inc: { 'penalties.totalCancels': 1, 'penalties.totalNoShows': 1 } }
+    );
+    await geoService.setAvailability(order.workerId, true);
+    await redis.publish('worker:job_pulled', JSON.stringify({ workerId: String(order.workerId), orderId }));
+    notificationService.notify({
+      recipient: { kind: 'worker', id: order.workerId },
+      type: 'job_removed',
+      title: 'Job reassigned — you never arrived',
+      body: 'You marked on the way but did not arrive in time. The job was reassigned.',
+      deepLink: '/worker', data: { orderId },
+    }).catch(() => {});
+  }
+
+  const attempted = (order.dispatch?.attemptedWorkerIds || []).map(String);
+  if (order.workerId && !attempted.includes(String(order.workerId))) attempted.push(String(order.workerId));
+
+  const updated = await Order.findOneAndUpdate(
+    { _id: orderId, status: 'on_the_way' },
+    {
+      $set: { status: 'searching', workerId: null, 'dispatch.currentOfferWorkerId': null, 'dispatch.offerExpiresAt': null, 'dispatch.attemptedWorkerIds': attempted },
+      $push: { statusHistory: { status: 'searching', at: new Date(), meta: { requeued: 'stale_on_the_way', prevWorkerId: order.workerId } } },
+    },
+    { new: true }
+  );
+  if (!updated) return; // status changed under us
+
+  await dispatchQueue.add('dispatch', { orderId, retryCount: 0 }, { jobId: `order_${orderId}_stale_otw_${Date.now()}`, priority: 1 });
+
+  notificationService.notify({
+    recipient: { kind: 'user', id: updated.userId },
+    type: 'order_reassigned',
+    title: 'Finding a new worker',
+    body: 'Your worker was stuck on the way, so we are assigning someone else now.',
+    deepLink: `/orders/${orderId}`, data: { orderId },
+  }).catch(() => {});
+  redis.publish('order:event', JSON.stringify({
+    orderId, event: 'order.status', payload: { status: 'searching', at: new Date().toISOString() },
+  })).catch(() => {});
+}
+
 /* ── 2. Orders stuck in searching (dispatch job dead/crashed) ── */
 
 async function handleStaleSearching(now, stale) {
@@ -244,6 +366,16 @@ async function handleStaleSearching(now, stale) {
 
   for (const order of stale) {
     const orderId = String(order._id);
+
+    // Scheduled booking whose time hasn't arrived yet — it's waiting on purpose,
+    // not stuck. Don't re-queue or cancel it; its delayed dispatch job will fire.
+    if (order.scheduledAt && new Date(order.scheduledAt) > now) continue;
+
+    // Give up: no worker found within the window → auto-cancel (no fee, refund if prepaid).
+    if (searchingMinutes(order, now) >= SEARCHING_CANCEL_MIN) {
+      await autoCancelNoWorker(order, now);
+      continue;
+    }
 
     // Check if there's already an active BullMQ dispatch job for this order
     const existingJob = await dispatchQueue.getJob(`order_${orderId}`).catch(() => null);
@@ -274,6 +406,15 @@ async function handleStaleOnTheWay(now, stale) {
 
   for (const order of stale) {
     const orderId = String(order._id);
+    const minutesOtw = (now - new Date(order.updatedAt)) / 60000;
+
+    // Worker never arrived → strip them and re-dispatch. If nobody else is found,
+    // the searching-timeout backstop (SEARCHING_CANCEL_MIN) cancels it later.
+    if (minutesOtw >= OTW_REDISPATCH_MIN) {
+      await redispatchStuckOnTheWay(order);
+      continue;
+    }
+
     const alreadyAlerted = await redis.get(`stale:otw_alert:${orderId}`);
     if (alreadyAlerted) continue;
 

@@ -9,6 +9,7 @@ import {
   Repeat2, CheckCircle2, UserCheck, HelpCircle, Share2, ShieldAlert, Copy,
 } from 'lucide-react';
 import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery, useGetPricingConfigQuery, useSendTipMutation } from '../services/api';
+import { API_BASE } from '../services/apiBase';
 import BoostOfferCard from '../components/tracking/BoostOfferCard';
 import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
 import { selectOrder, setActiveOrder, setWorkerLocation } from '../modules/order/orderSlice';
@@ -212,7 +213,7 @@ export default function OrderTrackingPage() {
 
   async function callWorker() {
     try {
-      const res = await fetch(`/api/orders/${id}/call`, {
+      const res = await fetch(`${API_BASE}/api/orders/${id}/call`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -231,11 +232,12 @@ export default function OrderTrackingPage() {
       setCancelReason('');
       if (result.feeRupees > 0) {
         toast(`Order cancelled — ₹${result.feeRupees} cancellation fee charged`, {
+          id: 'order-cancel',
           icon: '💳',
           duration: 5000,
         });
       } else {
-        toast.success('Order cancelled — no charge');
+        toast.success('Order cancelled — no charge', { id: 'order-cancel' });
       }
       refetch();
     } catch (err) {
@@ -246,7 +248,7 @@ export default function OrderTrackingPage() {
   function triggerSOS() {
     setShowSOSConfirm(false);
     // Call emergency — open dialer to 112 + notify server
-    fetch(`/api/orders/${id}/sos`, {
+    fetch(`${API_BASE}/api/orders/${id}/sos`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ lat: pickup?.lat, lng: pickup?.lng }),
@@ -320,7 +322,7 @@ export default function OrderTrackingPage() {
       </AnimatePresence>
 
       {/* Premium header */}
-      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
           <motion.button onClick={() => nav('/')} className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0" whileTap={{ scale: 0.92 }}>
             <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
@@ -372,24 +374,90 @@ export default function OrderTrackingPage() {
         animate="animate"
       >
 
-        {/* Failed state */}
+        {/* Failed state — no workers found: turn it into an expansion hype card */}
         {status === 'failed' && (
-          <motion.div variants={fadeInUp} className="card bg-red-50 ring-1 ring-red-100">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-                <AlertCircle size={16} className="text-red-600" />
+          <motion.div
+            variants={fadeInUp}
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #0F172A 0%, #1a1060 60%, #0f2a5e 100%)',
+              boxShadow: '0 12px 40px rgba(15,23,42,0.45)',
+            }}
+          >
+            {/* Top pulse bar */}
+            <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899,#f59e0b)' }} />
+
+            <div className="px-5 pt-5 pb-6">
+              {/* Animated rocket icon */}
+              <motion.div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 mx-auto"
+                style={{ background: 'rgba(99,102,241,0.18)', border: '1.5px solid rgba(99,102,241,0.35)' }}
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <span className="text-3xl">🚀</span>
+              </motion.div>
+
+              {/* Headline */}
+              <p className="text-center font-black text-white text-lg leading-snug mb-1">
+                We're launching in your area soon!
+              </p>
+              <p className="text-center text-xs font-semibold text-indigo-300 mb-4">
+                You're one of our <span className="text-amber-400">early pioneers</span> in this location
+              </p>
+
+              {/* Info pill row */}
+              <div className="flex justify-center gap-2 flex-wrap mb-5">
+                {['⚡ Rapid expansion', '📍 Your area is next', '🎯 Priority launch'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[11px] font-bold px-3 py-1 rounded-full"
+                    style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }}
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
-              <div className="flex-1">
-                <p className="font-bold text-red-800 text-sm">No workers available</p>
-                <p className="text-xs text-red-600 mt-0.5">
-                  All nearby workers are busy. Try again in a few minutes.
-                </p>
+
+              {/* Body copy */}
+              <div
+                className="rounded-xl px-4 py-3 mb-5 text-xs text-indigo-200 text-center leading-relaxed"
+                style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)' }}
+              >
+                No Zappy workers are in your zone <strong className="text-white">yet</strong> — but we're expanding fast.
+                Our team is actively onboarding workers in your locality.
+                <br />
+                <span className="text-amber-300 font-semibold">Sit tight — it won't be long.</span>
+              </div>
+
+              {/* CTA buttons */}
+              <div className="space-y-2.5">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    toast("We'll notify you the moment workers go live in your area!", {
+                      icon: '🔔',
+                      duration: 4000,
+                      style: { fontWeight: 600 },
+                    });
+                  }}
+                  className="w-full h-12 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 text-white"
+                  style={{
+                    background: 'linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%)',
+                    boxShadow: '0 6px 20px rgba(99,102,241,0.45)',
+                  }}
+                >
+                  <span>🔔</span>
+                  Notify me when live here
+                </motion.button>
+
                 <button
                   onClick={() => nav(`/book/${order.service}`)}
-                  className="flex items-center gap-1.5 mt-3 text-xs font-bold text-red-700 bg-red-100 px-3 py-1.5 rounded-lg hover:bg-red-200 transition"
+                  className="w-full h-10 rounded-2xl border font-semibold text-xs flex items-center justify-center gap-1.5 transition"
+                  style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.55)' }}
                 >
                   <RefreshCw size={12} />
-                  Try Again
+                  Try again anyway
                 </button>
               </div>
             </div>
@@ -399,8 +467,8 @@ export default function OrderTrackingPage() {
         {/* Worker card */}
         {order.workerId && !terminal && status !== 'searching' && (
           <motion.div
-            className="rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100"
-            style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+            className="rounded-[24px] overflow-hidden bg-white/90 backdrop-blur-xl border border-slate-900/5"
+            style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
             variants={fadeInUp}
           >
             {/* Worker gradient banner */}
@@ -451,29 +519,59 @@ export default function OrderTrackingPage() {
           </motion.div>
         )}
 
-        {/* Live map */}
-        <motion.div variants={fadeInUp}>
-          <LiveTrackingMap
-            pickup={pickup}
-            workerLocation={
-              // When arrived and no socket location yet, pin the worker dot at the
-              // pickup coordinate so the map always shows "someone is here".
-              liveOrder.workerLocation ||
-              (status === 'arrived' && pickup ? pickup : null)
-            }
-            service={order.service}
-            status={status}
-            height="38vh"
-          />
-        </motion.div>
+        {/* Live map — only while the order is active. Once terminal
+            (cancelled / completed / failed) there is no worker to track. */}
+        {!terminal && (
+          <motion.div variants={fadeInUp}>
+            <LiveTrackingMap
+              pickup={pickup}
+              workerLocation={
+                // When arrived and no socket location yet, pin the worker dot at the
+                // pickup coordinate so the map always shows "someone is here".
+                liveOrder.workerLocation ||
+                (status === 'arrived' && pickup ? pickup : null)
+              }
+              service={order.service}
+              status={status}
+              height="38vh"
+            />
+          </motion.div>
+        )}
 
-        {/* Progress stepper */}
+        {/* Cancelled state — clear terminal card instead of a stale live map */}
+        {status === 'cancelled' && (
+          <motion.div
+            variants={fadeInUp}
+            className="rounded-[24px] bg-white border border-slate-900/5 p-6 text-center"
+            style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
+          >
+            <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={30} strokeWidth={2} className="text-red-500" />
+            </div>
+            <p className="font-black text-slate-900 text-lg">Order cancelled</p>
+            <p className="text-sm text-slate-500 mt-1.5 max-w-xs mx-auto">
+              This order was cancelled and is no longer being tracked.
+            </p>
+            {order.workerId && (
+              <p className="text-xs text-slate-400 mt-1">Your worker has been notified and released.</p>
+            )}
+            <button
+              onClick={() => nav(`/book/${order.service}`)}
+              className="mt-5 w-full py-3 bg-slate-900 text-white text-sm font-bold rounded-2xl hover:bg-slate-800 transition"
+            >
+              Book again
+            </button>
+          </motion.div>
+        )}
+
+        {/* Progress stepper — hidden for terminal cancelled/failed orders */}
+        {!['cancelled', 'failed'].includes(status) && (
         <motion.div
-          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4"
-          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          className="rounded-[24px] bg-white/95 backdrop-blur-xl border border-slate-900/5 p-6"
+          style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
           variants={fadeInUp}
         >
-          <p className="font-bold text-[#0F172A] text-sm mb-4">Order Progress</p>
+          <p className="font-black tracking-tight text-[#0F172A] text-base mb-5">Order Progress</p>
           <div className="space-y-3">
             {STEPS.map((s, i) => {
               const done    = activeStepIdx > i;
@@ -495,24 +593,25 @@ export default function OrderTrackingPage() {
                       )}
                     </div>
                     {i < STEPS.length - 1 && (
-                      <div className={`w-0.5 h-4 mt-1 rounded-full ${done ? 'bg-green-200' : 'bg-slate-100'}`} />
+                      <div className={`w-0.5 h-6 mt-1.5 rounded-full ${done ? 'bg-gradient-to-b from-green-400 to-green-500' : 'bg-slate-100'}`} />
                     )}
-                  </div>
-                  <div className={`pb-1 pt-1 ${future ? 'opacity-35' : ''}`}>
-                    <p className={`text-sm font-bold leading-tight ${
-                      current ? 'text-blue-700' : done ? 'text-[#0F172A]' : 'text-slate-400'
-                    }`}>
-                      {s.label}
-                    </p>
-                    {current && (
-                      <p className="text-xs text-slate-400 mt-0.5">{s.desc}</p>
-                    )}
-                  </div>
                 </div>
+                <div className={`pb-2 pt-1.5 ${future ? 'opacity-35' : ''}`}>
+                  <p className={`text-[15px] font-black leading-tight tracking-wide ${
+                    current ? 'text-blue-700' : done ? 'text-[#0F172A]' : 'text-slate-400'
+                  }`}>
+                    {s.label}
+                  </p>
+                  {current && (
+                    <p className="text-[13px] font-medium text-slate-500 mt-1 leading-snug">{s.desc}</p>
+                  )}
+                </div>
+              </div>
               );
             })}
           </div>
         </motion.div>
+        )}
 
         {/* OTP card ─────────────────────────────────────────────────────────
             • assigned / on_the_way → hidden (show lock placeholder)
@@ -556,8 +655,8 @@ export default function OrderTrackingPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="rounded-2xl overflow-hidden ring-1 ring-violet-200"
-                style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' }}
+                className="rounded-[24px] overflow-hidden border border-violet-200/50"
+                style={{ background: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', boxShadow: '0 8px 24px -4px rgba(139, 92, 246, 0.15)' }}
               >
                 <div className="px-4 py-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
@@ -582,14 +681,14 @@ export default function OrderTrackingPage() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: 'spring', damping: 20, stiffness: 260 }}
-                className="rounded-2xl overflow-hidden"
+                className="rounded-[24px] overflow-hidden border border-white/10"
                 style={{
                   background: status === 'arrived'
                     ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)'
                     : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                   boxShadow: status === 'arrived'
-                    ? '0 8px 28px rgba(124,58,237,0.35)'
-                    : '0 8px 24px rgba(245,158,11,0.3)',
+                    ? '0 12px 32px -4px rgba(124,58,237,0.4)'
+                    : '0 12px 32px -4px rgba(245,158,11,0.35)',
                 }}
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
@@ -619,8 +718,8 @@ export default function OrderTrackingPage() {
 
         {/* Service location */}
         <motion.div
-          className="rounded-2xl bg-white ring-1 ring-slate-100 p-4 flex items-start gap-3"
-          style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+          className="rounded-[24px] bg-white/95 backdrop-blur-xl border border-slate-900/5 p-5 flex items-start gap-4"
+          style={{ boxShadow: '0 12px 32px -4px rgba(15,23,42,0.08)' }}
           variants={fadeInUp}
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-sm">
@@ -678,7 +777,7 @@ export default function OrderTrackingPage() {
             <button
               onClick={async () => {
                 try {
-                  const res = await fetch(`/api/orders/${id}/invoice`, {
+                  const res = await fetch(`${API_BASE}/api/orders/${id}/invoice`, {
                     headers: { Authorization: `Bearer ${token}` },
                   });
                   if (!res.ok) throw new Error('Invoice not available');

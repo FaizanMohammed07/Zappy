@@ -11,6 +11,7 @@ import {
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
 } from '../services/api';
+import { ErrorState } from '../components/common/QueryState';
 import PageTransition from '../components/common/PageTransition';
 import toast from 'react-hot-toast';
 
@@ -233,7 +234,7 @@ export default function NotificationsPage() {
   const nav = useNavigate();
   const [filter, setFilter] = useState('all'); // 'all' | 'unread'
 
-  const { data, isLoading, isFetching } = useListNotificationsQuery({ page: 1, unreadOnly: filter === 'unread' });
+  const { data, isLoading, isFetching, isError, refetch } = useListNotificationsQuery({ page: 1, unreadOnly: filter === 'unread' });
   const [markRead]   = useMarkNotificationReadMutation();
   const [markAllMut] = useMarkAllNotificationsReadMutation();
 
@@ -259,7 +260,7 @@ export default function NotificationsPage() {
       <div className="min-h-screen" style={{ background: 'linear-gradient(180deg,#f0f4ff 0%,#f9fafb 120px)' }}>
 
         {/* Header */}
-        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid rgba(0,0,0,0.05)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-3">
             <motion.button
               onClick={() => nav(-1)}
@@ -314,7 +315,9 @@ export default function NotificationsPage() {
         </header>
 
         {/* Content */}
-        {isLoading ? (
+        {isError ? (
+          <ErrorState onRetry={refetch} />
+        ) : isLoading ? (
           /* Skeleton */
           <div className="max-w-lg mx-auto px-4 pt-4 space-y-3">
             {[...Array(5)].map((_, i) => (

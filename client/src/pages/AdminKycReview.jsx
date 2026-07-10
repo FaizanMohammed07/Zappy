@@ -9,6 +9,7 @@ import {
   useAdminKycPendingQuery,
   useAdminKycApproveMutation,
   useAdminKycRejectMutation,
+  useAdminRunKycVerifyMutation,
   useAdminKycDocUrlsQuery,
   useAdminKycClarifyMutation,
   useAdminKycChangeRequestsQuery,
@@ -17,6 +18,7 @@ import {
 import { useSelector } from 'react-redux';
 import { selectAuth } from '../modules/auth/authSlice';
 import { adminApiPath } from '../config/admin';
+import { API_BASE } from '../services/apiBase';
 import toast from 'react-hot-toast';
 
 /* ─── Image lightbox ────────────────────────────────────────────────────────── */
@@ -107,7 +109,7 @@ function useKycDoc(workerId, docType, token, enabled = true) {
     let cancelled = false;
     setLoading(true);
 
-    fetch(`/api${adminApiPath(`/workers/${workerId}/kyc/stream/${docType}`)}`, {
+    fetch(`${API_BASE}/api${adminApiPath(`/workers/${workerId}/kyc/stream/${docType}`)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -239,6 +241,16 @@ function KycDetailPanel({ worker, onDone }) {
   const { data: docData, isLoading: metaLoading } = useAdminKycDocUrlsQuery(worker._id);
   const [approve, { isLoading: approving }] = useAdminKycApproveMutation();
   const [reject,  { isLoading: rejecting }] = useAdminKycRejectMutation();
+  const [runVerify, { isLoading: verifying }] = useAdminRunKycVerifyMutation();
+  const [verifyResult, setVerifyResult] = useState(null);
+
+  async function onRunVerify() {
+    try {
+      const res = await runVerify({ id: worker._id }).unwrap();
+      setVerifyResult(res.results || {});
+      toast.success('API verification complete');
+    } catch (err) { toast.error(err.data?.error || 'Verification unavailable'); }
+  }
   const [clarify, { isLoading: clarifying }] = useAdminKycClarifyMutation();
 
   const isUpdate = docData?.isUpdate ?? worker.kyc?.isUpdate ?? false;
@@ -395,6 +407,30 @@ function KycDetailPanel({ worker, onDone }) {
           </p>
         )}
       </div>
+
+      {/* 3rd-party API verification (assists review) */}
+      {!showReject && !showClarify && (
+        <div className="px-5 pb-3">
+          <button onClick={onRunVerify} disabled={verifying}
+            className="w-full flex items-center justify-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold text-xs py-2.5 rounded-xl hover:bg-indigo-100 transition disabled:opacity-50">
+            {verifying ? <Loader2 size={13} className="animate-spin" /> : <BadgeCheck size={13} />} Run API verification (bank)
+          </button>
+          {verifyResult && (
+            <div className="mt-2 space-y-1">
+              {['bank', 'pan'].filter((k) => verifyResult[k]).map((k) => {
+                const r = verifyResult[k];
+                const ok = r.verified === true;
+                return (
+                  <div key={k} className={`flex items-center justify-between text-[11px] px-2.5 py-1.5 rounded-lg ${ok ? 'bg-green-50 text-green-700' : r.skipped ? 'bg-slate-50 text-slate-500' : 'bg-amber-50 text-amber-700'}`}>
+                    <span className="font-bold uppercase">{k}</span>
+                    <span>{r.skipped ? 'skipped' : ok ? `verified${r.nameMatchScore != null ? ` · name ${Math.round(r.nameMatchScore * 100)}%` : ''}` : (r.error || 'not verified')}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* action buttons */}
       {!showReject && !showClarify && (

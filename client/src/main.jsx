@@ -6,6 +6,8 @@ import { Toaster } from 'react-hot-toast';
 import { store } from './store';
 import { setAuth } from './modules/auth/authSlice';
 import App from './App';
+import { I18nProvider } from './i18n/I18nProvider';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import './styles/index.css';
 
 /**
@@ -33,7 +35,8 @@ function jwtPayload(token) {
  */
 async function restoreSession() {
   try {
-    const res = await fetch('/api/auth/refresh', {
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    const res = await fetch(`${apiBase}/api/auth/refresh`, {
       method: 'POST',
       credentials: 'include',            // sends the httpOnly RT cookie
       headers: { 'Content-Type': 'application/json' },
@@ -77,8 +80,12 @@ function Root() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <App />
-      <Toaster position="top-center" toastOptions={{ duration: 3500 }} />
+      <I18nProvider>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+        <Toaster position="top-center" toastOptions={{ duration: 3500 }} />
+      </I18nProvider>
     </BrowserRouter>
   );
 }

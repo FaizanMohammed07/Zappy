@@ -72,13 +72,17 @@ export default {
       },
       borderRadius: {
         'card': '16px',
-        'btn': '12px',
+        'card-lg': '24px',
+        'card-xl': '32px',
+        'btn': '14px',
       },
       boxShadow: {
-        // Soft, low-opacity shadows — "soft shadows" per the guide
-        'soft':    '0 2px 8px rgba(15, 23, 42, 0.04)',
-        'soft-lg': '0 8px 24px rgba(15, 23, 42, 0.06)',
-        'card':    '0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02)',
+        // Premium soft shadows
+        'soft':    '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
+        'soft-lg': '0 12px 32px -4px rgba(15, 23, 42, 0.08)',
+        'card':    '0 2px 8px -1px rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.02)',
+        'glow-blue': '0 8px 24px -4px rgba(37, 99, 235, 0.35)',
+        'glow-amber': '0 8px 24px -4px rgba(245, 158, 11, 0.35)',
       },
       backgroundImage: {
         // The signature blue → navy gradient

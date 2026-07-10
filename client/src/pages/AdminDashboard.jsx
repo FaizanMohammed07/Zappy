@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, ShoppingBag, Users, Briefcase, Tag,
@@ -8,7 +8,7 @@ import {
   FileText, LogOut, Menu, X, ChevronRight, FileCheck, Crown,
   Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
   HeadphonesIcon, Radio, Globe, Layers, Zap, Sparkles, TrendingUp,
-  Shield, PartyPopper, PawPrint, ShieldAlert, Map as MapIcon,
+  Shield, PartyPopper, ShieldAlert, Map as MapIcon,
   AlertCircle, GraduationCap,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
@@ -41,12 +41,14 @@ import LiveOps from './admin/LiveOps';
 import Services from './admin/Services';
 import Rewards from './admin/Rewards';
 import BusinessIntelligence from './admin/BusinessIntelligence';
+import Intelligence from './admin/Intelligence';
 import NotificationsAdmin from './admin/Notifications';
 import ShieldFund from './admin/ShieldFund';
 import Events from './admin/Events';
-import PetAssistance from './admin/PetAssistance';
 import Fraud from './admin/Fraud';
 import Zones from './admin/Zones';
+import Content from './admin/Content';
+import RewardsConfig from './admin/RewardsConfig';
 import Intervention from './admin/Intervention';
 import Cities from './admin/Cities';
 import Appeals from './admin/Appeals';
@@ -71,6 +73,7 @@ const NAV_GROUPS = [
       { id: 'services',  label: 'Service Catalog',     icon: Layers },
       { id: 'plans',     label: 'Plans',               icon: Crown },
       { id: 'rewards',   label: 'Rewards',             icon: Sparkles },
+      { id: 'rewardpoints', label: 'Points & Cards',  icon: Gift },
       { id: 'wallet',      label: 'Wallet',              icon: Wallet },
       { id: 'payouts',     label: 'Payouts',             icon: CreditCard },
       { id: 'shield',      label: 'Shield Fund',         icon: Shield },
@@ -93,15 +96,14 @@ const NAV_GROUPS = [
       { id: 'incentives',   label: 'Incentives',       icon: Gift },
       { id: 'retention',    label: 'Retention',        icon: Repeat2 },
       { id: 'support',      label: 'Support',          icon: HeadphonesIcon },
+      { id: 'content',      label: 'Content & Help',   icon: FileText },
     ],
   },
   {
     label: 'Intelligence',
     items: [
-      { id: 'analytics',      label: 'Analytics',          icon: BarChart2 },
-      { id: 'business',       label: 'Business Intel',     icon: TrendingUp },
+      { id: 'intelligence',   label: 'Intelligence & Expansion', icon: Sparkles },
       { id: 'notifications',  label: 'Notifications',      icon: Bell },
-      { id: 'heatmap',        label: 'Geo Intelligence',   icon: Globe },
       { id: 'alerts',         label: 'Alerts',             icon: Bell },
       { id: 'audit',          label: 'Audit Logs',         icon: FileText },
     ],
@@ -110,12 +112,6 @@ const NAV_GROUPS = [
     label: 'Events',
     items: [
       { id: 'events', label: 'Event Commerce', icon: PartyPopper },
-    ],
-  },
-  {
-    label: 'Future Planning',
-    items: [
-      { id: 'pet-assistance', label: 'Pet Assistance', icon: PawPrint },
     ],
   },
   {
@@ -132,15 +128,15 @@ const ALL_NAV = NAV_GROUPS.flatMap(g => g.items);
 const SECTION_MAP = {
   overview: Overview, orders: Orders, users: AdminUsers, workers: Workers,
   kyc: AdminKycReview, pricing: Pricing, services: Services, wallet: AdminWallet,
-  disputes: Disputes, payouts: Payouts, analytics: Analytics, business: BusinessIntelligence, notifications: NotificationsAdmin, heatmap: Heatmap,
+  disputes: Disputes, payouts: Payouts, intelligence: Intelligence,
+  analytics: Analytics, business: BusinessIntelligence, notifications: NotificationsAdmin, heatmap: Heatmap,
   incentives: Incentives, cancellation: Cancellation, ads: Ads, promos: Promos,
   rewards: Rewards, shield: ShieldFund,
   audit: Audit, plans: AdminPlans, liveops: LiveOps, alerts: Alerts,
   retention: Retention, support: Support, flags: FeatureFlags, health: SystemHealth,
   events: Events,
-  'pet-assistance': PetAssistance,
   fraud: Fraud, zones: Zones, intervention: Intervention, cities: Cities,
-  appeals: Appeals, training: Training,
+  appeals: Appeals, training: Training, content: Content, rewardpoints: RewardsConfig,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */
@@ -182,7 +178,8 @@ function NavItem({ item, isActive, onClick }) {
 
 /* ─── Main ─────────────────────────────────────────────────────────────── */
 export default function AdminDashboard() {
-  const [active,      setActive]      = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const active = searchParams.get('tab') || 'overview';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dispatch  = useDispatch();
   const navigate  = useNavigate();
@@ -192,9 +189,9 @@ export default function AdminDashboard() {
   const activeLabel = ALL_NAV.find(n => n.id === active)?.label || 'Dashboard';
 
   const handleNav = useCallback((id) => {
-    setActive(id);
+    setSearchParams({ tab: id }, { replace: true });
     setSidebarOpen(false);
-  }, []);
+  }, [setSearchParams]);
 
   async function doLogout() {
     try { await callLogout().unwrap(); } catch {}

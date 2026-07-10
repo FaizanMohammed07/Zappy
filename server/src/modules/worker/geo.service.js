@@ -7,8 +7,37 @@ const ONLINE_GEO_KEY    = 'workers:online';    // Redis GEO set
 const AVAIL_HASH_KEY    = 'workers:available'; // hash: workerId -> 1|0
 const SKILLS_SET_PREFIX = 'workers:skill:';    // set: skill -> workerIds
 const ALIVE_ZSET_KEY    = 'workers:alive';     // sorted set: workerId -> last_seen_timestamp
+const AVAIL_SINCE_ZSET  = 'workers:available_since'; // zset: workerId -> ts became available (idle fairness)
 
 const STALE_THRESHOLD_MS = 8 * 60 * 1000; // 8 min without ping = stale
+
+/* ── Geo-write buffer ─────────────────────────────────────────────────────────
+ * High-frequency location updates are coalesced per-node and flushed every
+ * ~1.5s in a single pipelined GEOADD+ZADD. Turns N writes/sec/worker into a
+ * handful of batched ops — the difference between surviving 10k and 1M movers.
+ * The flusher starts lazily (only in processes that actually write locations).
+ */
+const _geoBuffer = new Map(); // workerId -> { lng, lat }
+let _flushTimer = null;
+
+async function flushGeoBuffer() {
+  if (_geoBuffer.size === 0) return;
+  const entries = [..._geoBuffer.entries()];
+  _geoBuffer.clear();
+  const now = Date.now();
+  const pipe = redis.pipeline();
+  for (const [wid, { lng, lat }] of entries) {
+    pipe.geoadd(ONLINE_GEO_KEY, lng, lat, wid);
+    pipe.zadd(ALIVE_ZSET_KEY, now, wid);
+  }
+  try { await pipe.exec(); } catch { /* dropped batch — next tick refreshes */ }
+}
+
+function startGeoFlusher() {
+  if (_flushTimer) return;
+  _flushTimer = setInterval(() => { flushGeoBuffer().catch(() => {}); }, 1500);
+  if (_flushTimer.unref) _flushTimer.unref(); // don't keep the process alive
+}
 
 /**
  * Called whenever a worker goes online or updates location.
@@ -23,13 +52,25 @@ async function markOnline(worker) {
   pipe.geoadd(ONLINE_GEO_KEY, lng, lat, String(_id));
   pipe.hset(AVAIL_HASH_KEY, String(_id), isAvailable ? '1' : '0');
   pipe.zadd(ALIVE_ZSET_KEY, now, String(_id)); // heartbeat
+  if (isAvailable) pipe.zadd(AVAIL_SINCE_ZSET, now, String(_id)); // idle-fairness clock
   for (const skill of skills) pipe.sadd(`${SKILLS_SET_PREFIX}${skill}`, String(_id));
-  // 10-minute TTL: workers:alive heartbeat re-registers every ~30s via location update,
-  // so any worker silent for >10 min is genuinely offline. 1-hour TTL caused stale
-  // phantom workers to appear in dispatch searches after ungraceful disconnects.
   pipe.expire(ONLINE_GEO_KEY, 600);
   pipe.expire(ALIVE_ZSET_KEY, 600);
   await pipe.exec();
+
+  // Notify any active dispatches that a new worker is available.
+  // Dispatches subscribe to this channel and immediately offer the worker
+  // if they fall within the already-searched radius — eliminates the case
+  // where a worker comes online after their radius step already passed.
+  if (isAvailable) {
+    for (const skill of skills) {
+      redis.publish(`worker:came_online:${skill}`, JSON.stringify({
+        workerId: String(_id),
+        lat,
+        lng,
+      })).catch(() => {});
+    }
+  }
 }
 
 async function markOffline(workerId) {
@@ -45,19 +86,43 @@ async function markOffline(workerId) {
   pipe.zrem(ONLINE_GEO_KEY, String(workerId));
   pipe.hdel(AVAIL_HASH_KEY, String(workerId));
   pipe.zrem(ALIVE_ZSET_KEY, String(workerId));
+  pipe.zrem(AVAIL_SINCE_ZSET, String(workerId));
   for (const skill of skills) pipe.srem(`${SKILLS_SET_PREFIX}${skill}`, String(workerId));
   await pipe.exec();
 }
 
 async function updateLocation(workerId, lng, lat) {
-  const pipe = redis.pipeline();
-  pipe.geoadd(ONLINE_GEO_KEY, lng, lat, String(workerId));
-  pipe.zadd(ALIVE_ZSET_KEY, Date.now(), String(workerId)); // heartbeat
-  await pipe.exec();
+  // Coalesce into the per-node buffer; flushed in batches every ~1.5s.
+  _geoBuffer.set(String(workerId), { lng, lat });
+  startGeoFlusher();
 }
 
 async function setAvailability(workerId, isAvailable) {
-  await redis.hset(AVAIL_HASH_KEY, String(workerId), isAvailable ? '1' : '0');
+  const wid = String(workerId);
+  if (isAvailable) {
+    // Reset the idle-fairness clock when the worker frees up.
+    await redis.multi().hset(AVAIL_HASH_KEY, wid, '1').zadd(AVAIL_SINCE_ZSET, Date.now(), wid).exec();
+  } else {
+    await redis.multi().hset(AVAIL_HASH_KEY, wid, '0').zrem(AVAIL_SINCE_ZSET, wid).exec();
+  }
+  // When a worker marks themselves available again (e.g. after completing a job),
+  // notify active dispatches so they can offer immediately without waiting for the
+  // next radius step.
+  if (isAvailable) {
+    try {
+      const pos = await getWorkerPosition(workerId);
+      const w   = await Worker.findById(workerId).select('skills').lean();
+      if (pos && w?.skills?.length) {
+        for (const skill of w.skills) {
+          redis.publish(`worker:came_online:${skill}`, JSON.stringify({
+            workerId: String(workerId),
+            lat: pos.lat,
+            lng: pos.lng,
+          })).catch(() => {});
+        }
+      }
+    } catch { /* best-effort */ }
+  }
 }
 
 /**
@@ -183,6 +248,15 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
     ids.map((id, i) => [id, cachedBoosts[i] !== null ? Number(cachedBoosts[i]) : (missMap.get(id) || 0)])
   );
 
+  // Idle-fairness clock: how long each candidate has been available (sec).
+  let sinceResults = [];
+  try {
+    const sincePipe = redis.pipeline();
+    ids.forEach((id) => sincePipe.zscore(AVAIL_SINCE_ZSET, id));
+    sinceResults = await sincePipe.exec();
+  } catch { sinceResults = []; }
+  const sinceMap = new Map(ids.map((id, i) => [id, Number(sinceResults?.[i]?.[1] ?? 0)]));
+
   const ratingMap = new Map(ratings.map((r) => [String(r._id), r]));
   const scored = filtered
     .filter((f) => ratingMap.has(f.workerId))
@@ -215,12 +289,22 @@ async function findCandidates({ lng, lat, skill, excludeIds = [], radiusKm: radi
         ? (Math.random() - 0.5) * 0.1
         : 0;
 
+      // Reliability + fairness (tie-breakers — distance still dominates):
+      //  - acceptanceRate rewards workers who actually take offers
+      //  - idleBonus nudges the longest-waiting available worker up (Rapido-style)
+      const acceptanceRate = 1 - rejectRate; // 0..1
+      const since   = sinceMap.get(f.workerId) || 0;
+      const idleSec = since ? Math.max(0, (Date.now() - since) / 1000) : 0;
+      const idleBonus = Math.min(idleSec / 300, 1) * (cancellationCfg.idleFairnessWeight ?? 0.6); // caps at 5min
+
       const score = f.distanceKm * 10
         - (w.rating || 0) * 0.5
         - Math.log1p(w.completedJobs) * 0.1
         - proBoost
+        - acceptanceRate * (cancellationCfg.acceptanceBoostWeight ?? 0.5)
         + penaltyScore
-        + fairnessJitter;
+        + fairnessJitter
+        - idleBonus;
       return { ...f, score };
     })
     .sort((a, b) => a.score - b.score);

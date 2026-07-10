@@ -9,6 +9,13 @@ const s3 = new S3Client({
     accessKeyId: config.aws.accessKeyId,
     secretAccessKey: config.aws.secretAccessKey,
   },
+  // AWS SDK v3 (>= 3.729) embeds a CRC32 checksum into presigned PUT URLs by
+  // default. That breaks direct browser uploads — the browser must then send an
+  // x-amz-checksum-crc32 header matching a checksum computed at sign time, which
+  // it can't. Reverting to WHEN_REQUIRED keeps presigned PUTs simple (just
+  // Content-Type), so the client can upload with no extra headers.
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 /**
@@ -60,16 +67,21 @@ async function streamToResponse(key, res) {
   const cmd = new GetObjectCommand({ Bucket: config.aws.bucket, Key: key });
   const obj = await s3.send(cmd);
 
-  // Detect content type from key extension; default jpeg for photos
+  // KYC/doc keys are UUIDs with no extension, so extension sniffing fails.
+  // Prefer the Content-Type stored on the object at upload time (set via the
+  // presigned PUT), fall back to extension, then jpeg.
   const ext = key.split('.').pop()?.toLowerCase();
-  const contentType = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', pdf: 'application/pdf' }[ext] ?? 'image/jpeg';
+  const extType = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf' }[ext];
+  const contentType = obj.ContentType || extType || 'image/jpeg';
 
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Disposition', 'inline');
   res.setHeader('Cache-Control', 'private, max-age=86400'); // browser caches for 24h — admin session
   if (obj.ContentLength) res.setHeader('Content-Length', obj.ContentLength);
 
-  // AWS SDK v3 returns a ReadableStream — pipe it directly
+  // AWS SDK v3 returns a Node Readable — pipe it, and tear down cleanly on error
+  // so a mid-stream S3 failure doesn't leave the response hanging.
+  obj.Body.on('error', () => { res.destroy(); });
   obj.Body.pipe(res);
 }
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SEO, { PLANS_SCHEMA, BASE_URL } from '../components/SEO';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -75,6 +76,13 @@ export default function PlansPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 md:flex md:justify-center">
+      <SEO
+        title="Zappy Premium Plans — No Surge Pricing, Max Cashback | Zappy India"
+        description="Upgrade to Zappy Premium. Get zero surge pricing, zero platform fees, 10% cashback, and priority worker dispatch. Plans starting from ₹99/month."
+        canonical={`${BASE_URL}/plans`}
+        keywords="Zappy premium, Zappy gold, Zappy platinum, home services subscription India, no surge pricing app"
+        jsonLd={PLANS_SCHEMA}
+      />
       <div className="w-full max-w-lg bg-slate-900 min-h-screen relative shadow-[0_0_40px_rgba(0,0,0,0.2)] md:border-x border-slate-800 pb-12 overflow-hidden">
         
         {/* Dark Cinematic Background */}

@@ -46,69 +46,75 @@ export default function HeroCarousel() {
   }, []);
 
   return (
-    <div className="relative w-full h-[280px] sm:h-[350px] md:h-[360px] lg:h-[460px] xl:h-[520px] rounded-3xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+    <div 
+      className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-soft-lg cursor-pointer group"
+      onClick={() => nav('/services')}
+    >
       <AnimatePresence mode="wait">
-        <motion.div
+        <motion.img
           key={current}
-          className="absolute inset-0"
+          src={SLIDES[current].image}
+          alt={SLIDES[current].title}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
           initial={{ opacity: 0, scale: 1.05 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.6, ease: 'easeInOut' }}
-        >
-          {/* Background Image */}
-          <img
-            src={SLIDES[current].image}
-            alt={SLIDES[current].title}
-            className="w-full h-full object-cover"
-          />
-          
-          {/* Gradient Overlay for Text Readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/60 to-transparent" />
-
-          {/* Content Overlay */}
-          <div className="absolute inset-0 p-5 md:p-10 lg:p-14 flex flex-col justify-end">
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="max-w-2xl"
-            >
-              <span className="inline-block px-3 py-1 mb-3 text-[10px] md:text-xs font-black uppercase tracking-wider text-white bg-indigo-600 rounded-full backdrop-blur-md shadow-sm">
-                {SLIDES[current].tag}
-              </span>
-              <h2 className="text-2xl md:text-4xl lg:text-6xl font-black text-white leading-tight mb-2 md:mb-4">
-                {SLIDES[current].title}
-              </h2>
-              <p className="text-sm md:text-lg lg:text-xl text-slate-300 mb-5 md:mb-8 line-clamp-2 md:line-clamp-none max-w-xl">
-                {SLIDES[current].subtitle}
-              </p>
-              
-              <motion.button
-                onClick={() => nav('/services')}
-                className="w-full sm:w-auto flex items-center justify-between sm:justify-center gap-4 bg-white text-indigo-900 font-bold px-5 py-3 md:px-8 md:py-4 rounded-xl md:rounded-2xl shadow-lg md:text-lg"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <span className="flex items-center gap-2">
-                  <Zap size={16} className="text-indigo-600" fill="currentColor" />
-                  Book Now
-                </span>
-                <ChevronRight size={18} className="text-slate-400" />
-              </motion.button>
-            </motion.div>
-          </div>
-        </motion.div>
+          transition={{ duration: 0.6 }}
+        />
       </AnimatePresence>
 
-      {/* Pagination Dots */}
-      <div className="absolute top-4 md:top-8 left-0 right-0 flex justify-center gap-1.5 md:gap-2 z-10">
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+      {/* Content */}
+      <div className="absolute bottom-0 left-0 p-5 md:p-6 w-full">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`tag-${current}`}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className="inline-block px-2.5 py-1 bg-white/20 backdrop-blur-md rounded border border-white/30 text-white text-[10px] md:text-xs font-bold uppercase tracking-wider mb-2"
+          >
+            {SLIDES[current].tag}
+          </motion.div>
+        </AnimatePresence>
+        <AnimatePresence mode="wait">
+          <motion.h3 
+            key={`title-${current}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="text-white text-2xl md:text-3xl font-black tracking-tight mb-1"
+          >
+            {SLIDES[current].title}
+          </motion.h3>
+        </AnimatePresence>
+        <AnimatePresence mode="wait">
+          <motion.p 
+            key={`sub-${current}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-white/90 text-sm md:text-base font-medium mb-4"
+          >
+            {SLIDES[current].subtitle}
+          </motion.p>
+        </AnimatePresence>
+        <div className="flex items-center justify-between">
+          <button className="bg-white text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-lg flex items-center gap-1.5">
+            <Zap size={16} className="text-indigo-600 fill-indigo-600" />
+            Book Now
+          </button>
+        </div>
+      </div>
+
+      {/* Indicators */}
+      <div className="absolute top-4 right-4 flex gap-1.5 z-10">
         {SLIDES.map((_, idx) => (
-          <div
-            key={idx}
-            className={`h-1 md:h-1.5 rounded-full transition-all duration-300 ${
-              idx === current ? 'w-6 md:w-10 bg-white' : 'w-2 md:w-3 bg-white/40'
-            }`}
+          <div 
+            key={idx} 
+            className={`h-1 rounded-full transition-all duration-300 ${idx === current ? 'w-4 bg-white' : 'w-1.5 bg-white/40'}`} 
           />
         ))}
       </div>

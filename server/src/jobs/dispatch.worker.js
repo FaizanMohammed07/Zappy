@@ -38,7 +38,10 @@ const pricingService = require('../modules/pricing/pricing.service');
 const MAX_BATCH_SIZE     = 10;
 const MAX_RETRIES        = 2;
 const RETRY_DELAY_MS     = 90_000;     // 90s between retry attempts
-const MIN_STEP_WAIT_MS   = 10_000;     // minimum wait per step even if no workers found
+const MIN_STEP_WAIT_MS   = 3_000;      // wait per later empty step (was 10s)
+// Steps below this index (50m, 100m, 250m, 500m) are skipped instantly when empty
+// — in dense cities nobody is within 500m, burning 4×10s here was wasteful.
+const INSTANT_SKIP_STEPS = 4;
 
 /* ─── Main job processor ────────────────────────────────────────── */
 
@@ -125,7 +128,7 @@ async function processDispatchJob(job) {
     ? 15000
     : orderTier === 'priority'
       ? 25000
-      : config.dispatch.stepWindowMs;
+      : (config.dispatch.stepWindowMs ?? 20_000); // default 20s — workers respond in <10s if at all
   const minSearchMs = orderTier === 'express'
     ? (cfg.tierExpressMaxSearchMs ?? 60000)
     : orderTier === 'priority'
@@ -135,6 +138,54 @@ async function processDispatchJob(job) {
   const alreadyNotified = new Set(
     (order.dispatch?.attemptedWorkerIds || []).map(String)
   );
+
+  /* ── Background listener: worker comes online mid-dispatch ──────────────────
+   * If a worker was offline when their radius step ran, they'd normally be
+   * missed until force-assign. This subscriber receives `worker:came_online:{skill}`
+   * events (published by geo.service.markOnline) and offers immediately if the
+   * worker is within the radius we've already searched.
+   * The offer fires in parallel — it does NOT interrupt the main step loop.
+   */
+  let _cameOnlineSub = null;
+  let _latestOrderPayload = null;  // kept in sync as each step builds the payload
+  let _maxSearchedKm = 0;          // grows as we walk steps
+
+  try {
+    _cameOnlineSub = createBullConnection();
+    await _cameOnlineSub.subscribe(`worker:came_online:${order.service}`);
+
+    _cameOnlineSub.on('message', async (_ch, raw) => {
+      try {
+        const { workerId: wId, lat: wLat, lng: wLng } = JSON.parse(raw);
+        const wIdStr = String(wId);
+        if (alreadyNotified.has(wIdStr)) return;
+        if (!_latestOrderPayload) return;
+
+        // Only offer if this worker is within the radius we've already searched
+        const distKm = haversineKm(lat, lng, wLat, wLng);
+        if (distKm > _maxSearchedKm) return;
+
+        alreadyNotified.add(wIdStr);
+        logger.info({ orderId, workerId: wIdStr, distKm: distKm.toFixed(2) },
+          '[DISPATCH] Worker came online mid-dispatch — offering immediately');
+
+        await redis.publish('worker:offer', JSON.stringify({
+          workerId: wIdStr,
+          order:    _latestOrderPayload,
+        }));
+      } catch { /* best-effort */ }
+    });
+  } catch (err) {
+    logger.warn({ err: err.message }, '[DISPATCH] Could not subscribe to worker:came_online — continuing without it');
+  }
+
+  const releaseCameOnlineSub = () => {
+    if (_cameOnlineSub) {
+      _cameOnlineSub.unsubscribe().catch(() => {});
+      _cameOnlineSub.quit().catch(() => {});
+      _cameOnlineSub = null;
+    }
+  };
 
   /* ── Preferred worker: user's last accepted worker for same service ── */
   const preferredWorkerId = await getPreferredWorker(order);
@@ -201,13 +252,40 @@ async function processDispatchJob(job) {
       );
 
       if (candidates.length === 0) {
-        // No workers at this step — wait a minimum window anyway so we don't
-        // burn through all steps in milliseconds when nobody is online.
+        // Early small-radius steps: skip instantly (no workers within 500m is normal).
+        if (stepIdx < INSTANT_SKIP_STEPS) {
+          logger.info({ orderId, radiusKm, stepIdx }, '[DISPATCH] No workers — instant skip (early step)');
+          continue;
+        }
+
+        // After notifying at least one worker, check if ANY new workers exist
+        // at the maximum radius before wasting time on remaining steps.
+        // If max-radius scan is also empty, all available workers are already
+        // notified — bail out and go straight to force-assign / hold.
+        if (alreadyNotified.size > 0) {
+          const anyLeft = await geoService.findCandidates({
+            lng, lat,
+            skill:      order.service,
+            excludeIds: [...alreadyNotified],
+            radiusKm:   radiusSteps.at(-1),
+          });
+          if (anyLeft.length === 0) {
+            logger.info(
+              { orderId, alreadyNotified: alreadyNotified.size },
+              '[DISPATCH] All available workers already notified — stopping expansion early',
+            );
+            break; // fall through to force-assign / min-search hold
+          }
+        }
+
         const waitMs = Math.min(MIN_STEP_WAIT_MS, stepWindowMs);
         logger.info({ orderId, radiusKm, waitMs }, '[DISPATCH] No workers, holding before next step');
         await sleep(waitMs);
         continue;
       }
+
+      // Update background listener's view of "how far we've searched so far"
+      _maxSearchedKm = Math.max(_maxSearchedKm, radiusKm);
 
       const batchWorkers = candidates.slice(0, MAX_BATCH_SIZE).map(String);
       const expiresAt = new Date(Date.now() + stepWindowMs);
@@ -273,6 +351,10 @@ async function processDispatchJob(job) {
 
       batchWorkers.forEach((id) => alreadyNotified.add(id));
 
+      // Keep the background listener's payload current so newly-online workers
+      // receive the same offer data as the current batch.
+      _latestOrderPayload = orderPayload;
+
       await Promise.all([
         Promise.allSettled(pubMessages),                    // socket fan-out
         notificationsQueue.addBulk(notifJobs).catch(() => {}), // push notifications — single Redis tx
@@ -294,6 +376,7 @@ async function processDispatchJob(job) {
         const locked = await lockOrderToWorker(order._id, result.acceptedBy, order.service);
         if (locked) {
           logger.info({ orderId, workerId: result.acceptedBy }, '[DISPATCH] ✅ Order assigned via accept');
+          releaseCameOnlineSub();
           await onOrderAssigned(order, result.acceptedBy, [...result.rejected, ...result.ignored]);
           recordOutcomes(result.acceptedBy, 'accept', result.rejected, result.ignored);
           return { ok: true, workerId: result.acceptedBy };
@@ -310,6 +393,8 @@ async function processDispatchJob(job) {
       clearInterval(keepAlive);
     }
   }
+
+  releaseCameOnlineSub();
 
   /* ── Guarantee minimum 5-minute search window before force-assign ── */
   const elapsedMs = Date.now() - jobStartMs;

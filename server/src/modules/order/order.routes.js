@@ -51,6 +51,8 @@ const ALL_SERVICES = [
   // Car
   'car_wash', 'car_detailing', 'battery_jump_start', 'car_puncture',
   'car_breakdown', 'fuel_delivery', 'car_service',
+  // Towing — disabled vehicle picked up and towed to a destination
+  'car_towing', 'bike_towing',
   // Commercial Vehicles
   'commercial_emergency', 'commercial_scheduled_maintenance', 'fleet_support',
   'auto_repair', 'van_repair',
@@ -71,6 +73,10 @@ const ALL_SERVICES = [
   // ── PET ASSISTANCE NETWORK ───────────────────────────────────────────────────
   'pet_grooming', 'pet_walking', 'pet_transport',
   'pet_sitting', 'pet_vet_assist', 'pet_training_assist',
+
+  // ── TANK & WATER CLEANING ────────────────────────────────────────────────────
+  'water_tank_cleaning', 'overhead_tank_cleaning',
+  'underground_sump_cleaning', 'sintex_tank_cleaning',
 ];
 
 const createOrderSchema = Joi.object({
@@ -129,6 +135,8 @@ const rateSchema = Joi.object({
 router.get('/quote', authenticate, requireRole('user'), quoteLimiter, validate(quoteSchema, 'query'), ctrl.getQuote);
 router.post('/', authenticate, requireRole('user'), orderLimiter, validate(createOrderSchema), ctrl.createOrder);
 router.get('/mine', authenticate, requireRole('user'), ctrl.listMine);
+// One-click rebook — clones a past order and re-places it (fresh pricing/dispatch).
+router.post('/:id/rebook', authenticate, requireRole('user'), orderLimiter, ctrl.rebookOrder);
 router.get('/:id', authenticate, ctrl.getOne);
 router.get('/:id/cancel-preview', authenticate, requireRole('user'), ctrl.getCancelPreview);
 router.get('/:id/invoice', authenticate, requireRole('user'), ctrl.getInvoice);

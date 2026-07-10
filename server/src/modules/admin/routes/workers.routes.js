@@ -7,6 +7,8 @@ const earningsCtrl = require('../controllers/worker-earnings.controller');
 const router = express.Router();
 
 router.get('/workers', ctrl.listWorkers);
+router.post('/workers/:id/reset-devices', ctrl.resetWorkerDevices);
+router.post('/workers/:id/kyc/verify', ctrl.runKycVerification);
 router.post(
   '/workers/:id/block',
   validate(Joi.object({ blocked: Joi.boolean().required() })),

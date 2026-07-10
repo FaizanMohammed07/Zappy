@@ -5,9 +5,13 @@ import { useSelector } from 'react-redux';
 import { selectAuth } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
 import { useFCM } from './hooks/useFCM.jsx';
+import useTelemetry from './hooks/useTelemetry';
+import { prefetchMainTabs, onIdle } from './lib/routePrefetch';
 import { adminPath } from './config/admin';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
+import ConnectionBanner from './components/common/ConnectionBanner';
+import RouteProgress from './components/common/RouteProgress';
 
 // ── Route-level code splitting ─────────────────────────────────────────────
 // Each page is a separate chunk. Browsers only download the chunk for the
@@ -62,6 +66,9 @@ const WorkerEarningsPage           = lazy(() => import('./pages/WorkerEarningsPa
 const WorkerSkillsPage             = lazy(() => import('./pages/WorkerSkillsPage'));
 const WorkerTrainingPage           = lazy(() => import('./pages/WorkerTrainingPage'));
 const WorkerGoalsPage              = lazy(() => import('./pages/WorkerGoalsPage'));
+const FaqPage                      = lazy(() => import('./pages/FaqPage'));
+const PolicyPage                   = lazy(() => import('./pages/PolicyPage'));
+const RewardsPage                  = lazy(() => import('./pages/RewardsPage'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -76,20 +83,33 @@ function PageLoader() {
 export default function App() {
   useDisconnectOnLogout();
   useFCM();
+  useTelemetry();
   const { accessToken: token, role } = useSelector(selectAuth);
   const location = useLocation();
 
+  // Warm the main tab chunks once the browser is idle after first paint, so
+  // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [location.pathname]);
+    if (!token) return;
+    onIdle(prefetchMainTabs);
+  }, [token]);
 
   return (
-    <Suspense fallback={<PageLoader />}>
+    <>
+      {/* Top progress bar fires on every route change — "arriving fast" cue.
+          Outside Suspense so it stays visible even while a chunk downloads. */}
+      <RouteProgress />
+      <ConnectionBanner />
+      <Suspense fallback={<PageLoader />}>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
       <AnimatePresence mode="wait" initial={false}>
       <Routes location={location} key={location.pathname}>
         {/* Public */}
+        {/* Public help content — FAQs + policy pages (admin-managed) */}
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/policy/:slug" element={<PolicyPage />} />
+
         <Route path="/login" element={token ? <RedirectByRole role={role} /> : <LoginPage role="user" />} />
         <Route
           path="/worker/login"
@@ -101,8 +121,8 @@ export default function App() {
         />
 
         {/* User app */}
-        <Route path="/"       element={<RequireAuth role="user"><HomePage /></RequireAuth>} />
-        <Route path="/home"   element={<RequireAuth role="user"><HomePage /></RequireAuth>} />
+        <Route path="/"       element={<HomeOrRedirect role={role} token={token} />} />
+        <Route path="/home"   element={<HomeOrRedirect role={role} token={token} />} />
         <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
         <Route path="/book/:service" element={<RequireAuth role="user"><BookingPage /></RequireAuth>} />
         <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
@@ -119,6 +139,7 @@ export default function App() {
         <Route path="/notification-prefs" element={<RequireAuth role="user"><NotificationPrefsPage /></RequireAuth>} />
         <Route path="/promos" element={<RequireAuth role="user"><PromosHubPage /></RequireAuth>} />
         <Route path="/scheduled" element={<RequireAuth role="user"><ScheduledBookingsPage /></RequireAuth>} />
+        <Route path="/rewards" element={<RequireAuth role="user"><RewardsPage /></RequireAuth>} />
         <Route path="/account-security" element={<RequireAuth role="user"><AccountSecurityPage /></RequireAuth>} />
         <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
 
@@ -164,6 +185,7 @@ export default function App() {
       </Routes>
       </AnimatePresence>
     </Suspense>
+    </>
   );
 }
 
@@ -173,4 +195,10 @@ function RedirectByRole({ role }) {
     : role === 'event_partner' ? '/partner'
     : '/';
   return <Navigate to={dest} replace />;
+}
+
+// Home is public — but logged-in workers/admins/partners still get redirected to their dashboard.
+function HomeOrRedirect({ role, token }) {
+  if (token && role && role !== 'user') return <RedirectByRole role={role} />;
+  return <HomePage />;
 }

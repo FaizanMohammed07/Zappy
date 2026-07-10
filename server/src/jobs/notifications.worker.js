@@ -74,7 +74,8 @@ async function sendFcm({ tokens, title, body, data = {}, imageUrl } = {}) {
   const admin = require('firebase-admin');
   const messaging = admin.messaging(app);
 
-  // Stringify all data values — FCM requires string values
+  // Stringify all data values — FCM requires string values. `data` carries
+  // routing info (type, deepLink, orderId) for the notification click handler.
   const stringData = Object.fromEntries(
     Object.entries(data).map(([k, v]) => [k, String(v)])
   );
@@ -88,6 +89,10 @@ async function sendFcm({ tokens, title, body, data = {}, imageUrl } = {}) {
   for (let i = 0; i < uniqueTokens.length; i += BATCH_SIZE) {
     const batch = uniqueTokens.slice(i, i + BATCH_SIZE);
     try {
+      // A `notification` payload makes FCM render the notification itself (reliable,
+      // even if the SW is asleep). All web styling lives in webpush.notification.
+      // The service worker must NOT also call showNotification() or you get a
+      // duplicate — that's why onBackgroundMessage was removed from the SW.
       const message = {
         tokens: batch,
         notification: { title, body: body || '' },
@@ -101,7 +106,15 @@ async function sendFcm({ tokens, title, body, data = {}, imageUrl } = {}) {
           payload: { aps: { sound: 'default', badge: 1 } },
         },
         webpush: {
-          notification: { icon: '/icons/icon-192.png', badge: '/icons/badge-72.png' },
+          headers: { Urgency: 'high', TTL: '86400' },
+          notification: {
+            icon:  '/branding/zappylogo.png',
+            badge: '/branding/zappylogo.png',
+            vibrate: [200, 100, 200],
+            requireInteraction: data.type === 'new_job_request' || data.type === 'sos',
+            ...(imageUrl ? { image: imageUrl } : {}),
+            actions: [{ action: 'open', title: data.type === 'promotional' ? 'Book Now' : 'Open' }],
+          },
           fcmOptions: { link: data.deepLink || '/' },
         },
       };

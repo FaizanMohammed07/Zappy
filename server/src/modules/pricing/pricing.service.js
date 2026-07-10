@@ -57,6 +57,16 @@ const VEHICLE_SERVICES = new Set([
   'auto_repair', 'van_repair',
 ]);
 
+// Towing is priced separately — base hookup fee + per-km on the TOW leg
+// (pickup → destination), which is longer and costlier than a service visit.
+const TOWING_SERVICES = new Set(['car_towing', 'bike_towing']);
+
+// Tank & water cleaning — flat per-service visit pricing (crew + equipment).
+const TANK_CLEANING_SERVICES = new Set([
+  'water_tank_cleaning', 'overhead_tank_cleaning', 'underground_sump_cleaning',
+  'sintex_tank_cleaning',
+]);
+
 const FAMILY_SERVICES = new Set([
   'medicine_pickup', 'hospital_companion', 'grocery_assistance',
   'bill_payment_assist', 'document_submission', 'home_visit_check',
@@ -150,6 +160,19 @@ function toView(doc) {
     tierMultiplierExpress:   doc.tierMultiplierExpress   ?? 1.4,
     tierExpressMaxSearchMs:  doc.tierExpressMaxSearchMs  ?? 60000,
     tierPriorityMaxSearchMs: doc.tierPriorityMaxSearchMs ?? 120000,
+    surgeTolerancePct:        doc.surgeTolerancePct        ?? 0.10,
+    // Auto-pricing
+    nightSurchargeEnabled:    doc.nightSurchargeEnabled    ?? false,
+    nightSurchargeMultiplier: doc.nightSurchargeMultiplier ?? 1.3,
+    nightStartHour:           doc.nightStartHour           ?? 22,
+    nightEndHour:             doc.nightEndHour             ?? 6,
+    rainSurchargeEnabled:     doc.rainSurchargeEnabled     ?? false,
+    rainSurchargeMultiplier:  doc.rainSurchargeMultiplier  ?? 1.2,
+    rainActiveUntil:          doc.rainActiveUntil          ?? null,
+    weekendSurchargeEnabled:    doc.weekendSurchargeEnabled    ?? false,
+    weekendSurchargeMultiplier: doc.weekendSurchargeMultiplier ?? 1.1,
+    peakHourSurchargeEnabled: doc.peakHourSurchargeEnabled ?? false,
+    peakHourRanges:           doc.peakHourRanges           ?? [],
   };
 }
 
@@ -278,26 +301,90 @@ function geoBucket(lat, lng) {
   return `${lat.toFixed(2)}:${lng.toFixed(2)}`;
 }
 
-async function computeSurge(lat, lng, cfg) {
-  if (!cfg.surgeEnabled) return 1.0;
-  const bucket = geoBucket(lat, lng);
-  const [demand, supply] = await Promise.all([
-    redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
-    redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0),
-  ]);
-
-  let surge;
-  if (supply === 0 && demand > 0) surge = 2.0;
-  else if (supply === 0) surge = 1.0;
-  else {
-    const ratio = demand / supply;
-    if (ratio < 1) surge = 1.0;
-    else if (ratio < 2) surge = 1.2;
-    else if (ratio < 3) surge = 1.5;
-    else if (ratio < 5) surge = 1.8;
-    else surge = 2.5;
+async function computeSurgeBreakdown(lat, lng, cfg) {
+  const anyAutoPricingOn = cfg.nightSurchargeEnabled || cfg.rainSurchargeEnabled ||
+                           cfg.weekendSurchargeEnabled || cfg.peakHourSurchargeEnabled;
+  if (!cfg.surgeEnabled && !anyAutoPricingOn) {
+    return { multiplier: 1.0, factors: [], demand: 0, supply: 0 };
   }
-  return Math.min(surge, cfg.surgeMaxCap);
+
+  let demand = 0, supply = 0;
+  let surge = 1.0;
+
+  // Demand/supply ratio — only when global surge toggle is on
+  if (cfg.surgeEnabled) {
+    const bucket = geoBucket(lat, lng);
+    [demand, supply] = await Promise.all([
+      redis.get(`demand:${bucket}`).then((v) => Number(v) || 0),
+      redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0),
+    ]);
+
+    if (supply > 0) {
+      const ratio = demand / supply;
+      if (ratio < 1) surge = 1.0;
+      else if (ratio < 2) surge = 1.2;
+      else if (ratio < 3) surge = 1.5;
+      else if (ratio < 5) surge = 1.8;
+      else surge = 2.5;
+    }
+    // supply === 0 → surge stays 1.0 (no workers = not a surge situation)
+  }
+
+  const factors = [];
+  // IST = UTC + 5h30m
+  const nowMs  = Date.now();
+  const istMs  = nowMs + 330 * 60000;
+  const istDate = new Date(istMs);
+  const istHour = istDate.getUTCHours();
+  const istDow  = istDate.getUTCDay(); // 0=Sun, 6=Sat
+
+  if (cfg.nightSurchargeEnabled) {
+    const start = cfg.nightStartHour ?? 22;
+    const end   = cfg.nightEndHour   ?? 6;
+    const m     = cfg.nightSurchargeMultiplier ?? 1.3;
+    const isNight = start > end
+      ? istHour >= start || istHour < end  // crosses midnight e.g. 22–6
+      : istHour >= start && istHour < end;
+    if (isNight && m > 1) {
+      surge *= m;
+      factors.push({ type: 'night', multiplier: m, label: 'Night Surcharge' });
+    }
+  }
+
+  if (cfg.rainSurchargeEnabled && cfg.rainActiveUntil) {
+    const m = cfg.rainSurchargeMultiplier ?? 1.2;
+    if (new Date(cfg.rainActiveUntil) > new Date(nowMs) && m > 1) {
+      surge *= m;
+      factors.push({ type: 'rain', multiplier: m, label: 'Rain Surcharge' });
+    }
+  }
+
+  if (cfg.weekendSurchargeEnabled) {
+    const m = cfg.weekendSurchargeMultiplier ?? 1.1;
+    if ((istDow === 0 || istDow === 6) && m > 1) {
+      surge *= m;
+      factors.push({ type: 'weekend', multiplier: m, label: 'Weekend Surcharge' });
+    }
+  }
+
+  if (cfg.peakHourSurchargeEnabled && Array.isArray(cfg.peakHourRanges)) {
+    for (const range of cfg.peakHourRanges) {
+      const { startHour, endHour, multiplier: m, label } = range;
+      if (istHour >= startHour && istHour < endHour && m > 1) {
+        surge *= m;
+        factors.push({ type: 'peak', multiplier: m, label: label || 'Peak Hour Surcharge' });
+        break;
+      }
+    }
+  }
+
+  const raw = Math.min(surge, cfg.surgeMaxCap ?? 2.5);
+  return { multiplier: Math.round(raw * 100) / 100, factors, demand, supply };
+}
+
+async function computeSurge(lat, lng, cfg) {
+  const { multiplier } = await computeSurgeBreakdown(lat, lng, cfg);
+  return multiplier;
 }
 
 async function recordDemand(lat, lng, service) {
@@ -500,6 +587,79 @@ async function calculateVehiclePrice({ origin, dest, priority }) {
   };
 }
 
+/**
+ * Towing: base hookup/handling fee + per-km on the tow leg (pickup → destination).
+ * `dest` here is the customer's chosen drop-off, so distanceKm is the tow distance.
+ * Cars cost more than two-wheelers (flatbed vs. lift). Emergency + night surcharges apply.
+ */
+async function calculateTowingPrice({ origin, dest, priority, vehicleType }) {
+  const cfg = await verticalConfigService.getConfig('vehicle').catch(() => ({}));
+  const { distanceKm, etaMinutes } = await getDistanceAndEta(origin, dest);
+
+  const isCar = vehicleType === 'car' || vehicleType === 'commercial';
+  const baseHookupPaise = isCar ? (cfg.towBaseCarPaise  || 50000) : (cfg.towBaseBikePaise || 20000); // ₹500 / ₹200
+  const perKmPaise      = isCar ? (cfg.towPerKmCarPaise || 3500)  : (cfg.towPerKmBikePaise || 1800);  // ₹35 / ₹18 per km
+  const emergencyPaise  = priority === 'emergency' ? (cfg.emergencySurchargePaise || 15000) : 0;
+  const nightPaise      = verticalConfigService.isNightTime(cfg) ? (cfg.nightSurchargePaise || 10000) : 0;
+
+  const towFeePaise   = Math.round(distanceKm * perKmPaise);
+  const subtotalPaise = baseHookupPaise + towFeePaise;
+  const totalPaise    = subtotalPaise + emergencyPaise + nightPaise;
+
+  return {
+    vertical: 'towing',
+    baseHookupFee: paiseToRupees(baseHookupPaise),
+    distanceKm: Number(distanceKm.toFixed(2)),
+    towFee: paiseToRupees(towFeePaise),
+    etaMinutes,
+    emergencySurcharge: paiseToRupees(emergencyPaise),
+    nightSurcharge: paiseToRupees(nightPaise),
+    subtotal: paiseToRupees(subtotalPaise),
+    total: paiseToRupees(totalPaise),
+    currency: 'INR',
+    paise: {
+      baseHookupFee: baseHookupPaise,
+      towFee: towFeePaise,
+      emergencySurcharge: emergencyPaise,
+      nightSurcharge: nightPaise,
+      subtotal: subtotalPaise,
+      total: totalPaise,
+    },
+  };
+}
+
+/**
+ * Tank & water cleaning — flat per-service visit fee (crew + pump + disinfection).
+ * Priced by tank type; emergency/night surcharges apply. No distance component.
+ */
+async function calculateTankCleaningPrice({ service, priority }) {
+  // No dedicated 'home' vertical config exists — reuse the vehicle config for the
+  // shared night/emergency surcharge settings (guaranteed to resolve to an object).
+  const cfg = (await verticalConfigService.getConfig('vehicle').catch(() => ({}))) || {};
+  const BASE = {
+    water_tank_cleaning:      59900,  // ₹599
+    overhead_tank_cleaning:   69900,  // ₹699
+    underground_sump_cleaning:99900,  // ₹999
+    sintex_tank_cleaning:     49900,  // ₹499
+  };
+  const basePaise         = BASE[service] || 59900;
+  const urgentSurchargePct = priority === 'emergency' ? (cfg.urgentSurchargePct || 20) : 0;
+  const nightPaise        = verticalConfigService.isNightTime(cfg) ? (cfg.nightSurchargePaise || 8000) : 0;
+  const urgentPaise       = Math.round(basePaise * urgentSurchargePct / 100);
+  const totalPaise        = basePaise + urgentPaise + nightPaise;
+
+  return {
+    vertical: 'tank_cleaning', service,
+    baseFee: paiseToRupees(basePaise),
+    emergencySurcharge: paiseToRupees(urgentPaise),
+    nightSurcharge: paiseToRupees(nightPaise),
+    total: paiseToRupees(totalPaise),
+    currency: 'INR',
+    note: 'Includes draining, scrubbing, sludge removal and disinfection.',
+    paise: { baseFee: basePaise, emergencySurcharge: urgentPaise, nightSurcharge: nightPaise, total: totalPaise },
+  };
+}
+
 // --- New Vertical Pricing Engines (all admin-configurable via vertical configs) ---
 
 async function calculateLaptopPrice({ service, priority }) {
@@ -683,11 +843,15 @@ async function calculatePetPrice({ service, priority }) {
  * @param {number} [p.estimatedHours] — construction hourly jobs
  * @returns {object} priced quote (rupees + paise) suitable for client display
  */
-async function calculatePrice({ origin, dest, service, userId, priority = 'normal', deviceBrand, deviceModel, deviceSeries, partsTier, pricingModel, estimatedHours }) {
+async function calculatePrice({ origin, dest, service, userId, priority = 'normal', deviceBrand, deviceModel, deviceSeries, partsTier, pricingModel, estimatedHours, vehicleType }) {
   let result;
 
   // Route to vertical-specific pricing engines
-  if (MOBILE_SERVICES.has(service)) {
+  if (TOWING_SERVICES.has(service)) {
+    result = await calculateTowingPrice({ origin, dest, priority, vehicleType });
+  } else if (TANK_CLEANING_SERVICES.has(service)) {
+    result = await calculateTankCleaningPrice({ service, priority });
+  } else if (MOBILE_SERVICES.has(service)) {
     result = await calculateMobilePrice({ service, priority, deviceBrand, deviceModel, deviceSeries, partsTier });
   } else if (LAPTOP_SERVICES.has(service)) {
     result = await calculateLaptopPrice({ service, priority });
@@ -754,10 +918,18 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
     };
   }
 
-  // ── Admin floor + ceiling from catalog ──────────────────────────────────
-  // Floor: quote never below priceRangeMinPaise (set by admin).
-  // Ceiling: quote never above priceRangeMaxPaise (protects retention). (#82)
-  // Both are admin-controlled via the Services pricing page.
+  // ── Catalog floor/ceiling + global surge — order: FLOOR → SURGE → CEILING ──
+  // Applying surge AFTER the floor means ₹150 floor × 1.3× night = ₹195,
+  // not ₹50 base × 1.3 = ₹65 → floored back to ₹150 (surge invisible).
+  // Generic path already has surgeMultiplier set so _pendingSurge is 1.0 (no-op).
+  let _pendingSurge = 1.0;
+  if (result.surgeMultiplier == null) {
+    try {
+      const surgeCfg = await getActiveConfig();
+      _pendingSurge = await computeSurge(origin.lat, origin.lng, surgeCfg);
+    } catch (_) { /* non-fatal */ }
+  }
+
   try {
     const ServiceCatalog = require('../service/service-catalog.model');
     const catalogEntry = await ServiceCatalog.findOne(
@@ -766,17 +938,26 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
     ).lean();
 
     if (catalogEntry) {
-      const currentPaise = result.paise?.total ?? result.total * 100;
-
-      // Floor
-      if (catalogEntry.priceRangeMinPaise && currentPaise < catalogEntry.priceRangeMinPaise) {
-        if (result.paise) result.paise.total = catalogEntry.priceRangeMinPaise;
-        result.total = paiseToRupees(catalogEntry.priceRangeMinPaise);
+      // Step 1 — Floor on raw pre-surge price
+      if (catalogEntry.priceRangeMinPaise) {
+        const rawPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        if (rawPaise < catalogEntry.priceRangeMinPaise) {
+          if (result.paise) result.paise.total = catalogEntry.priceRangeMinPaise;
+          result.total = paiseToRupees(catalogEntry.priceRangeMinPaise);
+        }
       }
 
-      // Ceiling (#82): cap at max to prevent sticker shock that kills conversions.
-      // Only apply when max is set and is meaningfully above the floor.
-      const finalPaise = result.paise?.total ?? result.total * 100;
+      // Step 2 — Surge on the floored price (no-op for generic path which already has surgeMultiplier)
+      if (_pendingSurge > 1.0) {
+        const flooredPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        const surgedPaise  = Math.round(flooredPaise * _pendingSurge);
+        if (result.paise) result.paise.total = surgedPaise;
+        result.total = paiseToRupees(surgedPaise);
+        result.surgeMultiplier = _pendingSurge;
+      }
+
+      // Step 3 — Ceiling (hard cap even after surge)
+      const finalPaise = result.paise?.total ?? Math.round((result.total || 0) * 100);
       if (
         catalogEntry.priceRangeMaxPaise &&
         catalogEntry.priceRangeMaxPaise > (catalogEntry.priceRangeMinPaise || 0) &&
@@ -784,7 +965,16 @@ async function calculatePrice({ origin, dest, service, userId, priority = 'norma
       ) {
         if (result.paise) result.paise.total = catalogEntry.priceRangeMaxPaise;
         result.total = paiseToRupees(catalogEntry.priceRangeMaxPaise);
-        result.ceilingApplied = true; // flag so admin analytics can detect this
+        result.ceilingApplied = true;
+      }
+    } else {
+      // No catalog entry — apply surge directly to raw price
+      if (_pendingSurge > 1.0) {
+        const rawPaise    = result.paise?.total ?? Math.round((result.total || 0) * 100);
+        const surgedPaise = Math.round(rawPaise * _pendingSurge);
+        if (result.paise) result.paise.total = surgedPaise;
+        result.total = paiseToRupees(surgedPaise);
+        result.surgeMultiplier = _pendingSurge;
       }
     }
   } catch (_) { /* non-fatal — pricing still works if catalog lookup fails */ }
@@ -888,6 +1078,7 @@ module.exports = {
   quote, // alias
   calculateEarnings,
   computeSurge,
+  computeSurgeBreakdown,
   recordDemand,
   recordSupply,
   getActiveConfig,
@@ -898,6 +1089,8 @@ module.exports = {
   calculateLaptopPrice,
   calculateSmartDevicePrice,
   calculateVehiclePrice,
+  calculateTowingPrice,
+  calculateTankCleaningPrice,
   calculateFamilyAssistPrice,
   calculateEventPrice,
   calculatePetPrice,
@@ -907,6 +1100,8 @@ module.exports = {
   LAPTOP_SERVICES,
   SMART_DEVICE_SERVICES,
   VEHICLE_SERVICES,
+  TOWING_SERVICES,
+  TANK_CLEANING_SERVICES,
   FAMILY_SERVICES,
   EVENT_SERVICES,
   PET_SERVICES,

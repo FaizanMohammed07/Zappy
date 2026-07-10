@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { selectAuth } from '../../modules/auth/authSlice';
 import { adminApiPath } from '../../config/admin';
+import { API_BASE } from '../../services/apiBase';
 import {
   useAdminWorkersQuery, useAdminBlockWorkerMutation,
   useAdminWorkerPenaltiesQuery, useAdminKycDocUrlsQuery,
@@ -20,7 +21,7 @@ function useKycDoc(workerId, docType, token, enabled = true) {
     if (!workerId || !docType || !token || !enabled) return;
     let cancelled = false;
     setLoading(true);
-    fetch(`/api${adminApiPath(`/workers/${workerId}/kyc/stream/${docType}`)}`, {
+    fetch(`${API_BASE}/api${adminApiPath(`/workers/${workerId}/kyc/stream/${docType}`)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })

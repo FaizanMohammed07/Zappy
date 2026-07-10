@@ -14,6 +14,8 @@ const ALL_SKILLS = [
   { id: 'battery_jump_start',    label: 'Battery Jump Start',     Icon: Zap,        color: 'text-yellow-500', bg: 'bg-yellow-50', unlockAt: null },
   { id: 'fuel_delivery',         label: 'Fuel Delivery',          Icon: Fuel,       color: 'text-orange-500', bg: 'bg-orange-50', unlockAt: null },
   { id: 'minor_roadside_repair', label: 'Minor Roadside Repair',  Icon: Wrench,     color: 'text-stone-500',  bg: 'bg-stone-50',  unlockAt: null },
+  { id: 'car_towing',            label: 'Car Towing',             Icon: Truck,      color: 'text-slate-700',  bg: 'bg-slate-100', unlockAt: null },
+  { id: 'bike_towing',           label: 'Bike Towing',            Icon: Truck,      color: 'text-slate-600',  bg: 'bg-slate-50',  unlockAt: null },
   // Home services
   { id: 'electrical',            label: 'Electrical Work',        Icon: Bolt,       color: 'text-amber-500',  bg: 'bg-amber-50',  unlockAt: null },
   { id: 'plumbing',              label: 'Plumbing',               Icon: Droplets,   color: 'text-blue-500',   bg: 'bg-blue-50',   unlockAt: null },
@@ -28,6 +30,7 @@ const ALL_SKILLS = [
   { id: 'gardening',             label: 'Gardening',              Icon: Leaf,       color: 'text-green-500',  bg: 'bg-green-50',  unlockAt: null },
   { id: 'security',              label: 'Security',               Icon: Shield,     color: 'text-slate-600',  bg: 'bg-slate-100', unlockAt: null },
   { id: 'appliance',             label: 'Appliance Repair',       Icon: PlugZap,    color: 'text-violet-500', bg: 'bg-violet-50', unlockAt: null },
+  { id: 'tank_cleaning',         label: 'Tank & Water Cleaning',  Icon: Droplets,   color: 'text-sky-500',    bg: 'bg-sky-50',    unlockAt: null },
   { id: 'internet',              label: 'Internet / Networking',  Icon: Wifi,       color: 'text-sky-500',    bg: 'bg-sky-50',    unlockAt: null },
   // Mobile repair
   { id: 'screen_replacement',    label: 'Phone Screen Repair',    Icon: Smartphone, color: 'text-pink-500',   bg: 'bg-pink-50',   unlockAt: null },

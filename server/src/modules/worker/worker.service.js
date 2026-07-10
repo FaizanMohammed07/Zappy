@@ -20,6 +20,16 @@ function haversineKm(lat1, lng1, lat2, lng2) {
 }
 
 async function goOnline({ workerId, lng, lat }) {
+  // Reject foreign / impossible coordinates (VPN, IP-geolocation, spoofing).
+  // Server is authoritative — a worker physically in India must report India.
+  const { isInIndia } = require('../../utils/geo-validate');
+  if (!isInIndia(lat, lng)) {
+    throw Object.assign(
+      new Error('Could not verify your location is within the service area. Turn off any VPN and enable precise GPS.'),
+      { status: 422, code: 'LOCATION_OUT_OF_AREA' },
+    );
+  }
+
   // Load first to check KYC status — cheap guard before we write anything.
   const existing = await Worker.findById(workerId).select('kyc.status isBlocked').lean();
   if (!existing) throw Object.assign(new Error('Worker not found'), { status: 404, code: 'WORKER_NOT_FOUND' });

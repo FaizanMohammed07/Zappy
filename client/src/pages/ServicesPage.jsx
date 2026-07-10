@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Search, Clock, ChevronRight, X,
@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
+import VoiceSearchButton from '../components/common/VoiceSearchButton';
+import { searchServices } from '../lib/serviceSearch';
 import { SkeletonServiceCard } from '../components/common/Skeleton';
 import { staggerContainer, fadeInUp, easeSoft } from '../lib/animations';
 import toast from 'react-hot-toast';
@@ -100,17 +102,30 @@ const SERVICE_ICONS = {
 const CATEGORIES = [
   { key: 'all',          label: 'All',           Icon: Sparkles    },
   { key: 'mobile',       label: 'Phone',         Icon: Smartphone  },
-  { key: 'other',        label: 'Smart Devices', Icon: Tv          },
+  { key: 'smart_device', label: 'Smart Devices', Icon: Tv          },
   { key: 'vehicle',      label: 'Vehicle',       Icon: Car         },
   { key: 'helper',       label: 'Family',        Icon: Heart       },
-  { key: 'other2',       label: 'Events',        Icon: Star        },
-  { key: 'other3',       label: 'Pets',          Icon: Dog         },
+  { key: 'event',        label: 'Events',        Icon: Star        },
+  { key: 'pet',          label: 'Pets',          Icon: Dog         },
 ];
+
+// Smart Devices, Events, and Pets all share category='other' in the DB schema.
+// Use code-prefix matching to distinguish them on the frontend.
+const CATEGORY_MATCHERS = {
+  mobile:       (s) => s.category === 'mobile',
+  vehicle:      (s) => s.category === 'vehicle',
+  helper:       (s) => s.category === 'helper',
+  smart_device: (s) => s.category === 'other' && !s.code?.startsWith('event_') && !s.code?.startsWith('pet_'),
+  event:        (s) => s.code?.startsWith('event_'),
+  pet:          (s) => s.code?.startsWith('pet_'),
+};
 
 export default function ServicesPage() {
   const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [services, setServices] = useState([]);
-  const [query, setQuery] = useState('');
+  // Seed the query from ?q= so voice search from the Home page lands here.
+  const [query, setQuery] = useState(() => searchParams.get('q') || '');
   const [category, setCategory] = useState('all');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -119,7 +134,8 @@ export default function ServicesPage() {
     setLoading(true);
     setLoadError(false);
     try {
-      const res = await fetch('/api/catalog/services');
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${baseUrl}/api/catalog/services`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setServices(data.services || []);
@@ -133,13 +149,21 @@ export default function ServicesPage() {
 
   useEffect(() => { fetchServices(); }, []);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return services.filter((s) => {
-      if (category !== 'all' && s.category !== category) return false;
-      if (q && !s.name.toLowerCase().includes(q) && !(s.description || '').toLowerCase().includes(q)) return false;
-      return true;
-    });
+  const { filtered, noExactMatch } = useMemo(() => {
+    // 1. Narrow by the selected category first.
+    let list = services;
+    if (category !== 'all') {
+      const matcher = CATEGORY_MATCHERS[category];
+      list = list.filter((s) => (matcher ? matcher(s) : s.category === category));
+    }
+    // 2. No search text → show the (category) list as-is.
+    const q = query.trim();
+    if (!q) return { filtered: list, noExactMatch: false };
+    // 3. Smart intent search ("book puncture", "phone screen broken", …).
+    const results = searchServices(list, q);
+    if (results.length) return { filtered: results, noExactMatch: false };
+    // 4. Never dead-end: show everything in the category instead of "No services".
+    return { filtered: list, noExactMatch: true };
   }, [services, query, category]);
 
   return (
@@ -147,7 +171,7 @@ export default function ServicesPage() {
       <div className="min-h-screen bg-[#F8FAFC] pb-40 font-sans selection:bg-indigo-500/30">
         
         {/* Immersive Header */}
-        <header className="sticky top-0 z-30 pt-4 pb-2 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50">
+        <header className="sticky top-0 z-30 pb-2 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
           <div className="page-container">
             {/* Top Bar */}
             <div className="flex items-center justify-between mb-6">
@@ -183,6 +207,12 @@ export default function ServicesPage() {
                     </motion.button>
                   )}
                 </AnimatePresence>
+                <VoiceSearchButton
+                  onResult={(text) => {
+                    setQuery(text);
+                    setSearchParams(text ? { q: text } : {}, { replace: true });
+                  }}
+                />
               </div>
             </div>
 
@@ -273,11 +303,24 @@ export default function ServicesPage() {
             </motion.div>
           )}
 
+          {/* Soft "no exact match" banner — we still show services, never a dead-end */}
+          {!loading && noExactMatch && (
+            <motion.div
+              className="mb-5 flex items-start gap-3 rounded-2xl bg-indigo-50 border border-indigo-100 px-4 py-3"
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            >
+              <Search size={18} className="text-indigo-500 shrink-0 mt-0.5" />
+              <p className="text-sm font-semibold text-indigo-900">
+                No exact match for “{query}” — here’s everything we offer. Tap any service to book.
+              </p>
+            </motion.div>
+          )}
+
           {/* Results Header */}
           {!loading && filtered.length > 0 && (
             <div className="flex items-center justify-between mb-5">
               <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                {filtered.length} Services Available
+                {noExactMatch ? `${filtered.length} Services` : `${filtered.length} Services Available`}
               </p>
             </div>
           )}

@@ -13,7 +13,9 @@ import {
   ShieldAlert, Cpu, MonitorSmartphone, Repeat2,
 } from 'lucide-react';
 import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
-import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery } from '../services/api';
+import toast from 'react-hot-toast';
+import { useT } from '../i18n/I18nProvider';
+import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery, useListServicesQuery, useRebookOrderMutation } from '../services/api';
 import { useGeolocation, loadGeoLocation } from '../hooks/useGeolocation';
 import { reverseGeocode } from '../utils/reverseGeocode';
 import { serviceLabel } from '../constants/services';
@@ -21,28 +23,116 @@ import { ZappyLogo } from '../components/common/ZappyLogo';
 import BottomNav from '../components/layout/BottomNav';
 import Footer from '../components/layout/Footer';
 import PageTransition from '../components/common/PageTransition';
+import VoiceSearchButton from '../components/common/VoiceSearchButton';
+import LensModal from '../components/lens/LensModal';
+import { ScanLine } from 'lucide-react';
+
+function LensButton({ onClick }) {
+  return (
+    <button type="button" onClick={onClick} aria-label="ZappyLens — scan to find a service"
+      className="relative shrink-0 w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition">
+      <ScanLine size={18} />
+    </button>
+  );
+}
 import AdBanner from '../components/common/AdBanner';
 import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 import IntroSplash from '../components/common/IntroSplash';
 import HeroCarousel from '../components/home/HeroCarousel';
+import CharacterServiceGrid from '../components/home/CharacterServiceGrid';
+import { SERVICE_PRICE_FALLBACK } from '../constants/servicePriceFallback';
 import OffersSection from '../components/home/OffersSection';
+import { 
+  PromoBannerVehicle, 
+  PromoBannerElectronics,
+  PromoBannerFamily,
+  PromoBannerEvents
+} from '../components/home/PromoBanners';
+import SEO, { HOME_SCHEMA, BASE_URL } from '../components/SEO';
+
+const SEARCH_PLACEHOLDERS = [
+  "Search 'Puncture Repair'...",
+  "Search 'Laptop Service'...",
+  "Search 'Electrician'...",
+  "Search 'Car Wash'...",
+  "Search 'Plumber'..."
+];
+
+function AnimatedSearchPlaceholder() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setIndex(i => (i + 1) % SEARCH_PLACEHOLDERS.length), 2500);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="flex-1 h-full relative overflow-hidden flex items-center">
+      <AnimatePresence>
+        <motion.span
+          key={index}
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -20, opacity: 0 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="absolute left-0 right-0 truncate text-slate-400 font-medium text-[14px] sm:text-[15px]"
+        >
+          {SEARCH_PLACEHOLDERS[index]}
+        </motion.span>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─── Book Again helpers ───────────────────────────────────────────────── */
+// Emoji for the rebook card's icon tile, chosen from the service code keyword.
+function serviceEmoji(code = '') {
+  const c = code.toLowerCase();
+  if (c.includes('puncture') || c.includes('tyre')) return '🛞';
+  if (c.includes('bike')) return '🏍️';
+  if (c.includes('car') || c.includes('fuel') || c.includes('breakdown') || c.includes('jump')) return '🚗';
+  if (c.includes('laptop')) return '💻';
+  if (c.includes('screen') || c.includes('battery') || c.includes('charging') || c.includes('phone') || c.includes('camera') || c.includes('software') || c.includes('water') || c.includes('data')) return '📱';
+  if (c.includes('tv')) return '📺';
+  if (c.includes('cctv')) return '📷';
+  if (c.includes('router') || c.includes('wifi')) return '📶';
+  if (c.includes('lock') || c.includes('automation')) return '🔐';
+  if (c.includes('electric') || c.includes('fan') || c.includes('light') || c.includes('switch')) return '💡';
+  if (c.includes('plumb') || c.includes('pipe') || c.includes('tap')) return '🚿';
+  if (c.includes('pet') || c.includes('dog') || c.includes('groom')) return '🐾';
+  if (c.includes('event') || c.includes('birthday') || c.includes('decor')) return '🎉';
+  if (c.includes('elder') || c.includes('medicine') || c.includes('hospital') || c.includes('grocery')) return '🧓';
+  return '🔧';
+}
+
+// Short "time ago" label for the rebook card.
+function timeAgo(date) {
+  if (!date) return 'Booked before';
+  const days = Math.floor((Date.now() - new Date(date).getTime()) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (days < 14) return '1 week ago';
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+  if (days < 60) return '1 month ago';
+  return `${Math.floor(days / 30)} months ago`;
+}
 
 /* ─── Most booked — Electronics Rescue ────────────────────────────────── */
 const MOST_BOOKED = [
-  { key: 'screen_replacement',  name: 'Screen Replacement', img: 'https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.88, price: 399, mrp: 499, instant: true },
-  { key: 'battery_replacement', name: 'Battery Replacement',img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.83, price: 299, mrp: null, instant: true },
-  { key: 'laptop_slow',         name: 'Laptop Speed Fix',   img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.79, price: 499, mrp: 599, instant: false },
-  { key: 'charging_issue',      name: 'Charging Port Fix',  img: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.76, price: 199, mrp: null, instant: true },
-  { key: 'data_recovery',       name: 'Data Recovery',      img: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.81, price: 799, mrp: 999, instant: false },
+  { key: 'screen_replacement',  name: 'Screen Replacement', img: 'https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'battery_replacement', name: 'Battery Replacement',img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'laptop_slow',         name: 'Laptop Speed Fix',   img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'charging_issue',      name: 'Charging Port Fix',  img: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'data_recovery',       name: 'Data Recovery',      img: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
 ];
 
 /* ─── Vehicle care highlights ──────────────────────────────────────────── */
 const VEHICLE_HIGHLIGHTS = [
-  { key: 'puncture',         name: 'Puncture Repair',  img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.82, price: 149, mrp: null, instant: true  },
-  { key: 'car_wash',         name: 'Car Wash',         img: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.75, price: 349, mrp: null, instant: true  },
-  { key: 'battery_jump_start',name: 'Jump Start',      img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.91, price: 299, mrp: null, instant: true  },
-  { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.77, price: 499, mrp: 599, instant: false },
-  { key: 'car_detailing',    name: 'Car Detailing',    img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', rating: 4.85, price: 1499, mrp: 1799, instant: false },
+  { key: 'puncture',         name: 'Puncture Repair',  img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_wash',         name: 'Car Wash',         img: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'battery_jump_start',name: 'Jump Start',      img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_detailing',    name: 'Car Detailing',    img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_towing',       name: 'Vehicle Towing',   img: 'https://images.unsplash.com/photo-1591543620767-582b2e76369e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
 ];
 
 /* ─── Service tile data ────────────────────────────────────────────────── */
@@ -93,6 +183,14 @@ const FAMILY_TILES = [
   { key: 'grocery_assistance', name: 'Grocery',       img: '/images/grocery_delivery.png',   eta: '45 mins' },
   { key: 'elder_companion',    name: 'Elder Care',    img: '/images/elder_care.png',         eta: null      },
   { key: 'home_visit_check',   name: 'Home Visit',    img: '/images/home_visit.png',         eta: null      },
+];
+
+// Tank & Water Cleaning
+const TANK_TILES = [
+  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
 ];
 
 // Event Commerce tiles — navigate to event commerce module
@@ -151,14 +249,22 @@ function LiveBadge() {
 
 /* ─── UC-style image service card ──────────────────────────────────────── */
 function ServiceImageCard({ item, nav }) {
+  // Live price from the admin Service Catalog — single source of truth. When the
+  // catalog hasn't loaded yet (or a request failed), fall back to a snapshot of
+  // catalog minimums so the card shows a real "From ₹X" instead of "Get Quote".
+  const { data: catalog } = useListServicesQuery();
+  const svc   = catalog?.byCode?.[item.key];
+  const livePrice = svc?.priceRangeMinPaise != null ? Math.round(svc.priceRangeMinPaise / 100) : null;
+  const price = livePrice ?? SERVICE_PRICE_FALLBACK[item.key] ?? null;
+  const isServiceCode = /^[a-z][a-z0-9_]+$/.test(item.key || '');
+  const badge = item.badge || 'Popular';
+
   return (
-    <motion.button
+    <div
       onClick={() => nav(`/book/${item.key}`)}
-      className="shrink-0 w-44 md:w-56 flex flex-col text-left group"
-      whileHover={{ y: -4 }}
-      whileTap={{ scale: 0.96 }}
+      className="shrink-0 w-36 sm:w-44 md:w-[200px] lg:w-[240px] flex flex-col text-left cursor-pointer group"
     >
-      <div className="w-full h-36 md:h-44 rounded-2xl md:rounded-[1.5rem] overflow-hidden bg-slate-100 mb-3 relative shadow-sm border border-slate-100">
+      <div className="w-full aspect-[4/3] sm:aspect-square rounded-[12px] md:rounded-[16px] overflow-hidden bg-slate-100 mb-2.5 relative">
         <img
           src={item.img}
           alt={item.name}
@@ -166,30 +272,22 @@ function ServiceImageCard({ item, nav }) {
           loading="lazy"
           onError={e => { e.target.style.display = 'none'; }}
         />
-        {item.instant && (
-          <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-full px-2.5 py-1 shadow-sm border border-white/20">
-            <Zap size={10} className="text-green-600 fill-green-600" strokeWidth={2.5} />
-            <span className="text-[10px] font-black text-green-600 tracking-wide">Instant</span>
-          </div>
-        )}
+        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur-sm">
+          {badge}
+        </span>
       </div>
-      <p className="text-[14px] md:text-base font-black text-slate-900 leading-tight mb-1 group-hover:text-indigo-600 transition-colors">{item.name}</p>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Star size={12} className="text-amber-400 fill-amber-400" />
-        <span className="text-xs font-bold text-slate-700">{item.rating.toFixed(2)}</span>
-        {item.instant && (
+      <p className="text-[13px] md:text-[15px] font-bold text-[#0f172a] leading-snug mb-0.5 truncate">{item.name}</p>
+      <div className="flex items-center gap-1.5">
+        {price != null ? (
           <>
-            <span className="text-slate-300 mx-0.5">·</span>
-            <Zap size={10} className="text-green-600 fill-green-600" />
-            <span className="text-[10px] font-bold text-green-600">Instant</span>
+            <span className="text-[11px] md:text-[12px] text-slate-400 font-medium">From</span>
+            <span className="text-[13px] md:text-[15px] font-bold text-[#0f172a]">₹{price}</span>
           </>
-        )}
+        ) : isServiceCode ? (
+          <span className="text-[12px] md:text-[13px] font-semibold text-indigo-600">Get Quote</span>
+        ) : null}
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm md:text-base font-black text-slate-900">₹{item.price}</span>
-        {item.mrp && <span className="text-xs md:text-[13px] font-semibold text-slate-400 line-through">₹{item.mrp}</span>}
-      </div>
-    </motion.button>
+    </div>
   );
 }
 
@@ -199,25 +297,23 @@ function PosterTile({ svc, nav }) {
   return (
     <motion.button onClick={() => nav(`/book/${key}`)} className="w-[104px] sm:w-[124px] md:w-[140px] lg:w-[156px] flex flex-col items-center gap-2.5 group shrink-0"
       whileHover={{ y: -4 }} whileTap={{ scale: 0.92 }} transition={springSnap}>
-      <div className={`w-full aspect-square rounded-[1.25rem] bg-gradient-to-br ${grad} relative overflow-hidden`}
-        style={{ boxShadow: shadow ? `0 6px 20px ${shadow}` : '0 4px 12px rgba(0,0,0,0.15)' }}>
-        <div className="absolute -right-3 -top-3 w-16 h-16 rounded-full bg-white/10" />
-        <div className="absolute -left-2 -bottom-3 w-12 h-12 rounded-full bg-white/10" />
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,0.4) 0px,rgba(255,255,255,0.4) 1px,transparent 1px,transparent 8px)',
-        }} />
+      <div className={`w-full aspect-square rounded-[28px] bg-gradient-to-br ${grad} relative overflow-hidden highlight-edge`}
+        style={{ boxShadow: shadow ? `0 12px 32px -4px ${shadow}` : '0 12px 32px -4px rgba(15,23,42,0.15)' }}>
+        <div className="absolute -right-3 -top-3 w-20 h-20 rounded-full bg-white/20 blur-xl" />
+        <div className="absolute -left-2 -bottom-3 w-16 h-16 rounded-full bg-black/10 blur-xl" />
+        <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-50" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Icon size={32} strokeWidth={1.5} className="text-white drop-shadow-md relative z-10 transition-transform duration-300 group-hover:scale-110" />
+          <Icon size={36} strokeWidth={1.5} className="text-white drop-shadow-lg relative z-10 transition-transform duration-500 group-hover:scale-110 group-hover:-translate-y-1" />
         </div>
         {eta && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
-            <div className="bg-black/30 backdrop-blur-sm rounded-full px-2 py-1 flex items-center gap-1 border border-white/10">
-              <Clock size={10} className="text-white/90" />
-              <span className="text-[10px] font-black text-white uppercase tracking-wider">{eta}</span>
+          <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/20 backdrop-blur-md rounded-full px-2.5 py-1 flex items-center gap-1.5 border border-white/20 highlight-edge">
+              <Clock size={10} className="text-white" />
+              <span className="text-[9px] font-black text-white uppercase tracking-widest">{eta}</span>
             </div>
           </div>
         )}
-        <motion.div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
+        <motion.div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       </div>
       <span className="text-xs sm:text-[13px] font-bold text-slate-700 text-center leading-tight">{name}</span>
     </motion.button>
@@ -232,18 +328,17 @@ function CompactTile({ svc, nav }) {
   return (
     <motion.button onClick={handleClick} className="w-[88px] sm:w-[104px] md:w-[120px] lg:w-[136px] flex flex-col items-center gap-2 group shrink-0"
       whileHover={{ y: -3 }} whileTap={{ scale: 0.93 }}>
-      <div className={`w-full aspect-square rounded-[1.1rem] bg-gradient-to-br ${grad} relative overflow-hidden shadow-sm group-hover:shadow-md transition-shadow`}
-        style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
-        <div className="absolute -right-2 -top-2 w-12 h-12 rounded-full bg-white/10" />
-        <div className="absolute -left-1 -bottom-2 w-8 h-8 rounded-full bg-white/10" />
+      <div className={`w-full aspect-square rounded-[24px] bg-gradient-to-br ${grad} relative overflow-hidden shadow-soft highlight-edge group-hover:shadow-soft-lg transition-shadow`}>
+        <div className="absolute -right-2 -top-2 w-16 h-16 rounded-full bg-white/10 blur-md" />
+        <div className="absolute inset-0 bg-noise mix-blend-overlay opacity-30" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Icon size={24} strokeWidth={1.5} className="text-white relative z-10 transition-transform duration-300 group-hover:scale-110 drop-shadow-sm" />
+          <Icon size={28} strokeWidth={1.5} className="text-white relative z-10 transition-transform duration-500 group-hover:scale-110 drop-shadow-md" />
         </div>
         {eta && (
-          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-10">
-            <div className="bg-black/25 backdrop-blur-sm rounded-full px-1.5 py-0.5 flex items-center gap-0.5 border border-white/10">
-              <Clock size={8} className="text-white/90" />
-              <span className="text-[9px] font-black text-white">{eta}</span>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/20 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center gap-1 border border-white/20 highlight-edge">
+              <Clock size={8} className="text-white" />
+              <span className="text-[8px] font-black text-white uppercase tracking-widest">{eta}</span>
             </div>
           </div>
         )}
@@ -279,17 +374,17 @@ function CompactImageTile({ svc, nav }) {
 }
 
 /* ─── Section header ───────────────────────────────────────────────────── */
-function SectionHeader({ title, badge, badgeColor = 'bg-indigo-50 text-indigo-600 ring-indigo-100', onSeeAll }) {
+function SectionHeader({ title, badge, badgeColor = 'bg-slate-100 text-slate-800', onSeeAll }) {
   return (
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-2">
-        <h3 className="text-[17px] font-black text-slate-900">{title}</h3>
-        {badge && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 ${badgeColor}`}>{badge}</span>}
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 mb-4 md:mb-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-[20px] md:text-[28px] font-bold text-black tracking-tight">{title}</h2>
+        {badge && <span className={`text-[10px] md:text-xs font-medium px-2 py-0.5 rounded-md ${badgeColor}`}>{badge}</span>}
       </div>
       {onSeeAll && (
-        <motion.button onClick={onSeeAll} className="text-xs font-bold text-indigo-600 flex items-center gap-0.5" whileHover={{ x: 2 }}>
-          See all <ChevronRight size={12} strokeWidth={3} />
-        </motion.button>
+        <button onClick={onSeeAll} className="text-sm md:text-[15px] font-medium text-black hover:text-slate-600">
+          See all
+        </button>
       )}
     </div>
   );
@@ -300,24 +395,42 @@ export default function HomePage() {
   const nav = useNavigate();
   const { profile } = useSelector(selectAuth);
   const isAuthed     = useSelector(selectIsAuthed);
+  const [lensOpen, setLensOpen] = useState(false);
 
   const { data }          = useListOrdersQuery(1, { skip: !isAuthed });
   const { data: gamData } = useGetGamificationQuery(undefined, { skip: !isAuthed });
   const { data: recData } = useGetRecommendationsQuery(undefined, { skip: !isAuthed });
+
+  const tHome = useT();
+  const [rebook, { isLoading: rebooking }] = useRebookOrderMutation();
+  // One-click rebook: re-place a past order with fresh pricing/dispatch, then jump
+  // to tracking. Falls back to the normal booking flow on any issue.
+  const handleRebook = async (id, service) => {
+    if (rebooking) return;
+    try {
+      const res = await rebook(id).unwrap();
+      toast.success('Rebooked — finding you a pro');
+      nav(`/orders/${res.order._id}`);
+    } catch (err) {
+      const msg = err?.data?.error;
+      if (err?.data?.activeOrderId) { toast.error(msg || 'You already have an active order'); nav(`/orders/${err.data.activeOrderId}`); }
+      else { if (msg) toast.error(msg); nav(`/book/${service}`); }
+    }
+  };
 
   const activeOrder    = data?.orders?.find(o => ACTIVE_STATUSES.includes(o.status));
   const firstName      = profile?.name?.split(' ')[0] || 'there';
   const gam            = gamData?.gamification;
   const recommendations = recData?.recommendations || [];
 
-  // Quick rebook: last 3 distinct services from completed orders
+  // Quick rebook: last 3 distinct services from completed orders (with the date)
   const quickRebooks = (() => {
     const seen = new Set();
     const result = [];
     for (const o of (data?.orders ?? [])) {
       if (o.status === 'completed' && !seen.has(o.service)) {
         seen.add(o.service);
-        result.push(o.service);
+        result.push({ id: o._id, service: o.service, date: o.completedAt || o.createdAt });
         if (result.length === 3) break;
       }
     }
@@ -425,29 +538,34 @@ export default function HomePage() {
 
   return (
     <PageTransition>
+      <SEO
+        title="Zappy — Book Verified Professionals Instantly | Home Services India"
+        description="India's fastest on-demand home services app. Puncture repair, phone repair, laptop repair, electrician, plumber, bike mechanic, car wash, pet grooming — verified pros arrive in 30 minutes. Book in 60 seconds."
+        canonical={BASE_URL}
+        keywords="home services near me, on-demand services India, puncture repair, phone repair near me, laptop repair at home, electrician near me, plumber near me, bike mechanic near me, car wash at home, Zappy, instant services"
+        jsonLd={HOME_SCHEMA}
+      />
       <IntroSplash />
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-white bg-noise overflow-x-hidden w-full">
 
         {/* ─── Premium Navbar ───────────────────────────────────────── */}
-        <header className="sticky top-0 z-30 bg-white" style={{ boxShadow: '0 1px 0 0 #f1f5f9, 0 4px 20px rgba(0,0,0,0.05)' }}>
-          {/* Top accent gradient line */}
-          <div className="h-[4px] bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-900/5" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
 
-          <div className="max-w-[1600px] w-full mx-auto px-4 h-[60px] md:h-[80px] flex items-center gap-3 md:gap-8">
+
+          <div className="max-w-7xl w-full mx-auto px-4 md:px-6 h-[60px] md:h-[84px] flex items-center gap-3 md:gap-8">
             {/* Logo */}
-            <div className="flex items-center gap-2 shrink-0 cursor-pointer" onClick={() => nav('/')}>
-              <ZappyLogo size={32} className="md:w-10 md:h-10" />
-              <span className="hidden lg:block text-2xl font-black tracking-tighter text-slate-900">Zappy</span>
+            <div className="flex items-center shrink-0 cursor-pointer" onClick={() => nav('/')}>
+              <img 
+                src="/branding/zappylogo.png" 
+                alt="Zappy" 
+                className="h-[46px] md:h-[60px] object-contain drop-shadow-sm"
+              />
             </div>
 
             {/* Location widget ─ world-class GPS chip */}
             <motion.button
               onClick={() => setLocSheet(true)}
-              className="flex-1 md:flex-none md:w-[280px] min-w-0 flex items-center gap-3 px-4 h-10 md:h-12 rounded-xl relative overflow-hidden text-left"
-              style={{
-                background: 'linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%)',
-                border: '1px solid rgba(99,102,241,0.15)',
-              }}
+              className="flex-1 md:flex-none md:w-[280px] min-w-0 flex items-center gap-2 md:gap-3 px-3 md:px-4 h-11 md:h-14 rounded-[20px] relative overflow-hidden text-left bg-slate-50/50 hover:bg-indigo-50/50 border border-slate-200/50 hover:border-indigo-200/80 transition-colors"
               whileTap={{ scale: 0.98 }}
             >
               {/* Animated GPS pin */}
@@ -506,22 +624,20 @@ export default function HomePage() {
 
             {/* ─── Desktop Search bar ───────────────────────────────────────────── */}
             <div className="hidden md:block flex-1 max-w-2xl mx-auto">
-              <motion.button
-                onClick={() => nav('/services')}
-                className="w-full flex items-center gap-3 rounded-2xl px-5 h-12 text-left"
-                style={{ background: '#f8fafc', border: '2px solid #e2e8f0' }}
-                whileHover={{ borderColor: '#6366f1', background: '#fafbff' }}
-                whileTap={{ scale: 0.99 }}
-              >
-                <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
-                <span className="text-[15px] font-medium text-slate-400 flex-1">Search for a service…</span>
+              <div className="w-full flex items-center gap-3 rounded-[24px] pl-6 pr-3 h-14 bg-slate-50 border border-slate-200/80 shadow-inner hover:bg-white hover:border-indigo-300/60 transition-colors">
+                <button onClick={() => nav('/services')} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
+                  <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
+                  <AnimatedSearchPlaceholder />
+                </button>
                 <motion.span
                   className="text-xs font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0"
                   animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
                 >
                   50+ services
                 </motion.span>
-              </motion.button>
+                <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
+                <LensButton onClick={() => setLensOpen(true)} />
+              </div>
             </div>
 
             {/* Action Icons */}
@@ -529,7 +645,7 @@ export default function HomePage() {
               {/* Bell */}
               <motion.button
                 onClick={() => nav('/notifications')}
-                className="relative w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 hover:bg-slate-100 transition-colors"
+                className="relative w-11 h-11 md:w-[52px] md:h-[52px] rounded-full bg-white border border-slate-900/5 shadow-soft flex items-center justify-center shrink-0 hover:shadow-soft-lg hover:-translate-y-0.5 transition-all"
                 whileTap={{ scale: 0.88 }}
               >
                 <Bell size={18} strokeWidth={1.75} className="text-slate-600" />
@@ -542,7 +658,7 @@ export default function HomePage() {
               {/* Avatar */}
               <motion.button
                 onClick={() => nav('/profile')}
-                className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-black shadow-md hover:shadow-lg transition-shadow"
+                className="hidden md:flex w-11 h-11 md:w-[52px] md:h-[52px] rounded-full items-center justify-center shrink-0 text-white text-sm font-black shadow-glow-blue border border-white/20 hover:scale-105 transition-transform"
                 style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)' }}
                 whileTap={{ scale: 0.88 }}
               >
@@ -553,46 +669,50 @@ export default function HomePage() {
         </header>
 
         {/* ─── Mobile Search bar ───────────────────────────────────────────── */}
-        <div className="md:hidden bg-white px-4 pt-2 pb-4" style={{ borderBottom: '1px solid #f1f5f9' }}>
-          <motion.button
-            onClick={() => nav('/services')}
-            className="w-full flex items-center gap-3 rounded-[1rem] px-4 h-12 text-left"
-            style={{ background: '#f8fafc', border: '2px solid #e2e8f0' }}
-            whileHover={{ borderColor: '#6366f1', background: '#fafbff' }}
-            whileTap={{ scale: 0.99 }}
-          >
-            <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
-            <span className="text-[15px] font-medium text-slate-400 flex-1 leading-none pt-[2px]">Search for a service…</span>
+        <div className="md:hidden bg-white/80 backdrop-blur-md px-4 pt-3 pb-5 border-b border-slate-900/5">
+          <div className="w-full flex items-center gap-2 rounded-[20px] pl-4 pr-2 h-14 bg-slate-50 border border-slate-200/80 shadow-inner">
+            <button onClick={() => nav('/services')} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
+              <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
+              <AnimatedSearchPlaceholder />
+            </button>
             <motion.span
-              className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0 leading-none"
+              className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full shrink-0 leading-none"
               animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
             >
-              50+ services
+              50+
             </motion.span>
-          </motion.button>
+            <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
+            <LensButton onClick={() => setLensOpen(true)} />
+          </div>
         </div>
 
         {/* ─── Hero section ─────────────────────────────────────────── */}
-        <div className="max-w-[1600px] w-full mx-auto px-4 pt-5 pb-5">
-          <div className="mb-6 flex items-start justify-between">
-            <div>
-              <motion.h1
-                className="text-[26px] font-black text-slate-900 leading-[1.2] mb-2"
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-              >
-                Trusted assistance,<br />at your doorstep
-              </motion.h1>
-              <motion.p className="text-sm text-slate-500 font-medium"
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
-                Phones · Laptops · Cars · Elders · Pets · Events
-              </motion.p>
-            </div>
-            <div className="mt-2">
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-2 md:pt-5 pb-5">
+          <div className="mb-4 md:mb-5 flex items-end justify-between gap-3">
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+              <h1 className="text-[26px] md:text-[34px] font-extrabold text-slate-900 leading-[1.08] tracking-[-0.025em]">
+                {tHome('home.greeting', 'What can we fix')}{firstName !== 'there' ? <>, <span className="text-indigo-600">{firstName}</span></> : ''}?
+              </h1>
+              <p className="mt-1 text-[14px] md:text-[15px] text-slate-500 font-medium">
+                {tHome('home.tagline', 'Trusted pros, at your door in minutes.')}
+              </p>
+            </motion.div>
+            <div className="shrink-0 pb-1">
               <LiveBadge />
             </div>
           </div>
-          
-          <motion.div 
+
+          {/* Character service grid — illustrated category tiles */}
+          <motion.div
+            className="mb-6"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+          >
+            <CharacterServiceGrid />
+          </motion.div>
+
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
@@ -601,140 +721,58 @@ export default function HomePage() {
           </motion.div>
         </div>
 
-        {/* ─── Quick Rebook ─────────────────────────────────────────── */}
+        {/* ─── Book Again (card style) ──────────────────────────────── */}
         {quickRebooks.length > 0 && (
-          <div className="max-w-5xl mx-auto px-5 mt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Repeat2 size={15} className="text-indigo-500" />
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Book Again</span>
+          <div className="max-w-7xl w-full mx-auto px-4 md:px-6 mt-6">
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <Repeat2 size={16} className="text-indigo-500" />
+              <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Book Again</span>
             </div>
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-              {quickRebooks.map(service => (
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {quickRebooks.map(({ id, service, date }) => (
                 <motion.button
-                  key={service}
-                  onClick={() => nav(`/book/${service}`)}
-                  className="flex-shrink-0 flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm"
-                  whileHover={{ y: -2, boxShadow: '0 8px 20px rgba(99,102,241,0.12)' }}
-                  whileTap={{ scale: 0.95 }}
+                  key={id || service}
+                  onClick={() => handleRebook(id, service)}
+                  disabled={rebooking}
+                  className="shrink-0 w-44 md:w-56 p-3 rounded-[22px] bg-white border border-slate-200 shadow-sm flex items-center justify-between group disabled:opacity-60"
+                  whileTap={{ scale: 0.96 }}
+                  whileHover={{ y: -2, boxShadow: '0 12px 24px -8px rgba(99,102,241,0.25)' }}
                 >
-                  <span className="text-sm font-semibold text-slate-700">{serviceLabel(service)}</span>
-                  <ChevronRight size={14} className="text-indigo-400" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-lg shadow-inner shrink-0">
+                      {serviceEmoji(service)}
+                    </div>
+                    <div className="text-left min-w-0">
+                      <span className="block text-sm font-bold text-slate-900 leading-tight mb-0.5 truncate">{serviceLabel(service)}</span>
+                      <span className="block text-[10px] font-medium text-indigo-500">Tap to book again · {timeAgo(date)}</span>
+                    </div>
+                  </div>
+                  {rebooking
+                    ? <Loader2 size={14} className="text-indigo-500 animate-spin shrink-0" />
+                    : <Repeat2 size={14} className="text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" />}
                 </motion.button>
               ))}
             </div>
           </div>
         )}
 
-        {/* ─── Premium Dashboard Widgets (Gamification & Quick Actions) ─── */}
-        <div className="max-w-5xl mx-auto px-5 mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Gamification Card (Left on Desktop, Top on Mobile) */}
-          {gam ? (
-            <motion.div className="rounded-[2rem] bg-white border border-slate-100 p-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group"
-              whileHover={{ y: -4 }} transition={{ duration: 0.3 }}>
-              {/* Background accent */}
-              <div className={`absolute -right-12 -top-12 w-40 h-40 rounded-full bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} opacity-10 filter blur-3xl group-hover:opacity-20 transition-opacity`} />
-              
-              <div className="flex justify-between items-start mb-8 relative z-10">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1.5">Your Progress</p>
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="text-2xl font-black text-slate-900">{gam.levelName}</h3>
-                    {gam.streak >= 2 && (
-                      <div className="flex items-center gap-1 bg-gradient-to-r from-orange-500 to-rose-500 px-2 py-1 rounded-lg text-white shadow-lg shadow-orange-500/20">
-                        <Flame size={12} className="fill-white" />
-                        <span className="text-[10px] font-black">{gam.streak} Day Streak</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className={`w-14 h-14 rounded-[1.2rem] bg-gradient-to-br ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'} flex items-center justify-center shadow-lg transform rotate-3 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500`}>
-                  <Trophy size={24} className="text-white drop-shadow-md" />
-                </div>
-              </div>
-              
-              <div className="relative z-10">
-                <div className="flex justify-between text-xs font-bold mb-2">
-                  <span className="text-slate-700">{gam.xp} XP Earned</span>
-                  {gam.nextLevelName && <span className="text-slate-400">{gam.xpToNext} XP to {gam.nextLevelName}</span>}
-                </div>
-                <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                  <motion.div className={`h-full rounded-full bg-gradient-to-r ${LEVEL_COLORS[gam.levelName] || 'from-slate-400 to-slate-500'}`}
-                    initial={{ width: '0%' }} animate={{ width: `${Math.min(100, gam.progressPercent || 0)}%` }}
-                    transition={{ duration: 1.5, delay: 0.2, ease: "easeOut" }} />
-                </div>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="rounded-[2rem] bg-white border border-slate-100 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-center items-center text-center">
-              <Trophy size={32} className="text-slate-300 mb-3" />
-              <p className="font-bold text-slate-900">Complete jobs to level up!</p>
-              <p className="text-xs text-slate-500 mt-1">Earn XP and unlock exclusive rewards.</p>
-            </div>
-          )}
+        {/* ─── Premium Dashboard Widgets Removed ─── */}
 
-          {/* Quick Cards Grid (Right on Desktop, Bottom on Mobile) */}
-          <div className="grid grid-cols-2 gap-4">
-            <motion.button onClick={() => nav('/plans')} className="rounded-[2rem] p-5 flex flex-col justify-between text-left relative overflow-hidden group shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200/50"
-              whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-              <div className="w-12 h-12 rounded-[1.2rem] bg-amber-400 flex items-center justify-center shadow-lg shadow-amber-400/30 mb-4 group-hover:scale-110 transition-transform duration-300">
-                <Star size={20} className="text-white fill-white" />
-              </div>
-              <div>
-                <p className="text-lg sm:text-xl font-black text-amber-900 leading-tight">Zappy<br/>Premium</p>
-                <p className="text-[10px] sm:text-xs font-bold text-amber-700 mt-2 bg-amber-200/50 inline-block px-2 py-1 rounded-md">No surge fees</p>
-              </div>
-            </motion.button>
 
-            <motion.button onClick={() => nav('/wallet')} className="rounded-[2rem] p-5 flex flex-col justify-between text-left relative overflow-hidden group shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/50"
-              whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-              <div className="w-12 h-12 rounded-[1.2rem] bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/30 mb-4 group-hover:scale-110 transition-transform duration-300">
-                <Wallet size={20} className="text-white" />
-              </div>
-              <div>
-                <p className="text-lg sm:text-xl font-black text-blue-900 leading-tight">Zappy<br/>Wallet</p>
-                <p className="text-[10px] sm:text-xs font-bold text-blue-700 mt-2 bg-blue-200/50 inline-block px-2 py-1 rounded-md">Check balance</p>
-              </div>
-            </motion.button>
-          </div>
-        </div>
 
-        {/* ─── Trust stats (Re-designed) ──────────────────────────── */}
-        <div className="max-w-5xl mx-auto px-5 mt-8 mb-6">
-          <div className="bg-slate-900 rounded-[2rem] py-6 px-4 sm:p-8 shadow-xl relative overflow-hidden">
-            {/* Decorative orbs */}
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-rose-500/20 rounded-full blur-3xl" />
-            
-            <div className="relative z-10 flex flex-wrap items-center justify-around md:justify-between gap-y-8 gap-x-2">
-              {[
-                { val: '50K+', label: 'Happy Bookings', color: 'text-indigo-400' },
-                { val: '4.8/5',  label: 'Average Rating', color: 'text-amber-400'  },
-                { val: '500+', label: 'Verified Pros', color: 'text-emerald-400' },
-                { val: '< 1m', label: 'Match Time',     color: 'text-fuchsia-400' },
-              ].map(({ val, label, color }) => (
-                <div key={label} className="text-center w-[45%] md:w-auto">
-                  <p className={`text-3xl sm:text-4xl font-black ${color} drop-shadow-md`}>{val}</p>
-                  <p className="text-[10px] sm:text-xs text-slate-400 font-bold mt-1.5 uppercase tracking-widest">{label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-5xl mx-auto px-5">
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6">
 
           {/* ─── Offers ──────────────────────────────────────────────── */}
           <OffersSection />
 
           {/* Ad Banners */}
-          <div className="px-4"><AdBanner className="mt-4" /></div>
+          <AdBanner className="mt-4" />
 
           {/* ─── Electronics Rescue — Most Booked ────────────────────── */}
           <div className="mt-7">
-            <div className="px-4">
-              <SectionHeader title="Electronics Rescue" badge="Most Booked" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
-            </div>
-            <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-1">
+            <SectionHeader title="Electronics Rescue" badge="Most Booked" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
               {MOST_BOOKED.map((item, i) => (
                 <ServiceImageCard key={i} item={item} nav={nav} />
               ))}
@@ -744,70 +782,111 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ─── Phone Repair grid ────────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#eef2ff,#f5f3ff)', border: '1px solid rgba(99,102,241,0.12)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {PHONE_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
-            </div>
-          </div>
+          <PromoBannerElectronics />
 
-          {/* ─── Laptop Services ──────────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-600 ring-slate-200" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)', border: '1px solid rgba(100,116,139,0.15)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {LAPTOP_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
-            </div>
-          </div>
-
-          {/* ─── Smart Devices ────────────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Smart Devices" badge="Install & Fix" badgeColor="bg-amber-50 text-amber-700 ring-amber-100" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fffbeb,#fef3c7)', border: '1px solid rgba(245,158,11,0.15)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {SMART_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
-            </div>
-          </div>
-
-          {/* ─── Vehicle Care — Image cards ───────────────────────────── */}
+          {/* ─── Phone Repair ────────────────────────────────────── */}
           <div className="mt-7">
-            <div className="px-4">
-              <SectionHeader title="Vehicle Care" badge="On-Road Help" badgeColor="bg-cyan-50 text-cyan-700 ring-cyan-100" onSeeAll={() => nav('/services')} />
+            <div>
+              <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
             </div>
-            <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-1">
-              {VEHICLE_HIGHLIGHTS.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {PHONE_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
               <div className="shrink-0 w-12 flex items-center justify-center">
-                <motion.button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></motion.button>
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
               </div>
             </div>
           </div>
 
-          {/* ─── Family & Elder Assist ────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Family Assist" badge="Trusted Help" badgeColor="bg-rose-50 text-rose-600 ring-rose-100" onSeeAll={() => nav('/services')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fff1f2,#ffe4e6)', border: '1px solid rgba(244,63,94,0.12)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {FAMILY_TILES.map(svc => <motion.div key={svc.key} variants={fadeInUp}><CompactImageTile svc={svc} nav={nav} /></motion.div>)}
-              </motion.div>
+          {/* ─── Laptop Services ──────────────────────────────────────── */}
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {LAPTOP_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
             </div>
           </div>
 
+          {/* ─── Smart Devices ────────────────────────────────────────── */}
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Smart Devices" badge="Install & Fix" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {SMART_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
+            </div>
+          </div>
+
+          <PromoBannerVehicle />
+
+          {/* ─── Vehicle Care ───────────────────────────── */}
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Vehicle Care" badge="On-Road Help" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {VEHICLE_HIGHLIGHTS.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
+            </div>
+          </div>
+
+          <PromoBannerFamily />
+
+          {/* ─── Family & Elder Assist ────────────────────────────────── */}
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Family Assist" badge="Trusted Help" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {FAMILY_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Tank & Water Cleaning ─────────────────────────────────── */}
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Tank & Water Cleaning" badge="Home Care" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {TANK_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
+            </div>
+          </div>
+
+          <PromoBannerEvents />
+
           {/* ─── Event Decorations ─────────────────────────────────── */}
-          <div className="px-4 mt-7">
-            <SectionHeader title="Event Decorations" badge="🎉 Book a Theme" badgeColor="bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100" onSeeAll={() => nav('/events')} />
-            <div className="rounded-2xl p-3" style={{ background: 'linear-gradient(135deg,#fdf4ff,#fae8ff)', border: '1px solid rgba(168,85,247,0.12)' }}>
-              <motion.div className="flex flex-wrap justify-start md:justify-center gap-4 md:gap-8 xl:gap-10" variants={staggerContainer} initial="initial" animate="animate">
-                {EVENT_TILES.map(svc => (
-                  <motion.div key={svc.key} variants={fadeInUp}>
-                    <CompactImageTile svc={svc} nav={() => nav(`/events/browse?category=${svc.category}`)} />
-                  </motion.div>
-                ))}
-              </motion.div>
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Event Decorations" badge="🎉 Book a Theme" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/events')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {EVENT_TILES.map((item, i) => (
+                <ServiceImageCard key={i} item={{...item, key: `../events/browse?category=${item.category}`}} nav={nav} />
+              ))}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/events')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
             </div>
           </div>
 
@@ -837,6 +916,7 @@ export default function HomePage() {
         </div>
         <Footer />
         <BottomNav active="home" />
+        <LensModal open={lensOpen} onClose={() => setLensOpen(false)} />
       </div>
 
       {/* ── Location Search Sheet ── */}
@@ -845,13 +925,13 @@ export default function HomePage() {
           <>
             {/* backdrop */}
             <motion.div
-              className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+              className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => { setLocSheet(false); setLocSearch(''); setLocResults([]); }}
             />
             {/* bottom sheet */}
             <motion.div
-              className="fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-2xl"
+              className="fixed bottom-0 inset-x-0 z-[110] bg-white rounded-t-3xl shadow-2xl"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 380, damping: 38 }}
             >
@@ -860,7 +940,7 @@ export default function HomePage() {
                 <div className="w-10 h-1 rounded-full bg-slate-200" />
               </div>
 
-              <div className="px-5 pt-2 pb-6">
+              <div className="px-5 pt-2 pb-10">
                 <h2 className="text-lg font-black text-slate-900 mb-4">Set your location</h2>
 
                 {/* Search input */}

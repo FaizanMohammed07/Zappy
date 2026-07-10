@@ -21,6 +21,8 @@ const ALL_SKILLS = [
   { id: 'battery_jump_start',    label: 'Battery Jump Start',     emoji: '⚡' },
   { id: 'fuel_delivery',         label: 'Fuel Delivery',          emoji: '⛽' },
   { id: 'minor_roadside_repair', label: 'Minor Roadside Repair',  emoji: '🔧' },
+  { id: 'car_towing',            label: 'Car Towing',             emoji: '🚛' },
+  { id: 'bike_towing',           label: 'Bike Towing',            emoji: '🛻' },
   // Home services
   { id: 'electrical',            label: 'Electrical',             emoji: '💡' },
   { id: 'plumbing',              label: 'Plumbing',               emoji: '🚿' },
@@ -35,6 +37,7 @@ const ALL_SKILLS = [
   { id: 'gardening',             label: 'Gardening',              emoji: '🌱' },
   { id: 'security',              label: 'Security',               emoji: '🔒' },
   { id: 'appliance',             label: 'Appliance Repair',       emoji: '🔌' },
+  { id: 'tank_cleaning',         label: 'Tank & Water Cleaning',  emoji: '🪣' },
   { id: 'internet',              label: 'Internet / Networking',  emoji: '📡' },
   // Mobile repair
   { id: 'screen_replacement',    label: 'Phone Screen Repair',    emoji: '📱' },

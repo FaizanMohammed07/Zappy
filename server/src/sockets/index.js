@@ -21,6 +21,8 @@ const { verifyToken } = require('../modules/auth/auth.service');
 const etaService = require('../modules/worker/eta.service');
 const geoService = require('../modules/worker/geo.service');
 const Order = require('../modules/order/order.model');
+const LocationPing = require('../modules/worker/location-ping.model');
+const { isInIndia } = require('../utils/geo-validate');
 const logger = require('../utils/logger');
 
 let io = null;
@@ -38,9 +40,20 @@ function initSockets(httpServer) {
     }
   });
 
+  // Allow both apex and www (and any custom CLIENT_URL) — must match the
+  // Express CORS allow-list in app.js, otherwise socket.io rejects whichever
+  // host the user actually loaded (www vs non-www mismatch).
+  const SOCKET_ORIGINS = [
+    'https://www.zappyone.com',
+    'https://zappyone.com',
+  ];
+  if (process.env.CLIENT_URL && !SOCKET_ORIGINS.includes(process.env.CLIENT_URL)) {
+    SOCKET_ORIGINS.push(process.env.CLIENT_URL);
+  }
+
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? false : '*'),
+      origin: process.env.NODE_ENV === 'production' ? SOCKET_ORIGINS : '*',
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -73,6 +86,24 @@ function initSockets(httpServer) {
 
     // Join role-based personal room (restored on every reconnect automatically).
     socket.join(`${role}:${id}`);
+
+    // Multi-device eviction — done ONCE at connect time (not per location tick).
+    // The most recent device wins; older worker sockets are disconnected so only
+    // one device receives offers and writes location (anti credential-sharing).
+    if (role === 'worker') {
+      io.in(`worker:${id}`).allSockets()
+        .then((sockets) => {
+          for (const sid of sockets) {
+            if (sid === socket.id) continue;
+            const stale = io.sockets.sockets.get(sid);
+            if (stale) {
+              stale.emit('session:replaced', { reason: 'New login from another device' });
+              stale.disconnect(true);
+            }
+          }
+        })
+        .catch(() => {});
+    }
 
     // Restore order room membership after server restart / reconnect (#60).
     // Workers on an active job and users with an active order need to be
@@ -134,83 +165,61 @@ function initSockets(httpServer) {
 
     // --- Worker live location (WS-driven, bypasses HTTP for lower latency) ---
     // The client should throttle client-side; we throttle server-side too.
-    socket.on('worker:location', async ({ lat, lng, orderId, hdg, spd }) => {
+    socket.on('worker:location', async ({ lat, lng, orderId, hdg, spd, acc, mock }) => {
       if (role !== 'worker') return;
       if (typeof lat !== 'number' || typeof lng !== 'number') return;
-      // Basic coordinate range validation
       if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
+      // Anti-spoofing: drop mock-provider fixes and out-of-area coordinates
+      // (VPN / IP-geolocation), and log a fraud event for ops review.
+      if (mock === true || !isInIndia(lat, lng)) {
+        require('../modules/fraud/fraud.service')
+          .logGpsSpoofEvent(id, { reason: mock === true ? 'mock_provider' : 'outside_service_area', lat, lng })
+          .catch(() => {});
+        return;
+      }
+      // Ignore garbage-accuracy fixes (desktop Wi-Fi triangulation) for tracking.
+      if (typeof acc === 'number' && acc > 1000) return;
+
       // Server-side throttle: at most 1 broadcast/sec per worker.
-      const throttleKey = `loc:ws:${id}`;
-      const canEmit = await redis.set(throttleKey, '1', 'EX', 1, 'NX');
+      const canEmit = await redis.set(`loc:ws:${id}`, '1', 'EX', 1, 'NX');
       if (canEmit !== 'OK') return;
 
-      // GPS spoofing velocity check — reject teleportation.
-      // IMPORTANT: key by socket.id (not worker id) so each device tracks its own
-      // movement independently. With one key per worker, two phones in different
-      // cities alternating writes look like instant teleportation and incorrectly
-      // reject legitimate updates from both devices.
+      // GPS spoofing velocity check — reject teleportation. Keyed by socket.id so
+      // two devices don't look like one teleporting worker. Also yields the
+      // instantaneous speed we feed into the ETA EWMA (no client trust needed).
       const prevKey = `loc:prev:${socket.id}`;
       const prevRaw = await redis.get(prevKey);
+      let observedSpeedMps = null;
+      let distMetresFromPrev = null;
       if (prevRaw) {
-        try {
-          const prev = JSON.parse(prevRaw);
-          const R = 6371000; // Earth radius in metres
-          const dLat = (lat - prev.lat) * Math.PI / 180;
-          const dLng = (lng - prev.lng) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) ** 2
-            + Math.cos(prev.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-          const distMetres = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          const elapsedSec = Math.max(1, (Date.now() - prev.ts) / 1000);
-          const speedMps = distMetres / elapsedSec;
-          // 150 km/h ≈ 41.7 m/s — flag anything faster as suspicious
-          if (speedMps > 41.7) {
-            logger.warn({ workerId: id, speedMps: Math.round(speedMps), distMetres: Math.round(distMetres) }, '[SPOOFING] Suspicious GPS jump — location update rejected');
-            // Record a fraud event for ops review (non-blocking).
-            require('../modules/fraud/fraud.service')
-              .logGpsSpoofEvent(id, { speedMps, distMetres })
-              .catch(() => {});
-            return;
-          }
-        } catch { /* malformed prev — allow through */ }
-      }
-      // TTL matches socket lifetime expectation — cleans up automatically on disconnect
-      await redis.set(prevKey, JSON.stringify({ lat, lng, ts: Date.now() }), 'EX', 300);
-
-      // Multi-device detection: disconnect older sockets so only the most recent device
-      // receives offers. Prevents credential-sharing abuse and split-brain dispatch state.
-      const workerSockets = await io.in(`worker:${id}`).allSockets().catch(() => new Set());
-      if (workerSockets.size > 1) {
-        logger.info({ workerId: id, activeSockets: workerSockets.size }, '[MULTI_DEVICE] Worker active on multiple devices — disconnecting stale sockets');
-        for (const sid of workerSockets) {
-          if (sid !== socket.id) {
-            const staleSocket = io.sockets.sockets.get(sid);
-            if (staleSocket) {
-              staleSocket.emit('session:replaced', { reason: 'New login from another device' });
-              staleSocket.disconnect(true);
-            }
-          }
-        }
-      }
-
-      // Distance gate: suppress customer-map broadcasts for micro-jitter (<1m GPS noise).
-      // When the worker has an active order, always forward (the 1s throttle above is the
-      // true rate-limiter). When there's no active order, require ≥5m movement to avoid
-      // waking up nearby-worker map tiles for every noise wiggle.
-      let movedEnough = true;
-      if (!orderId && prevRaw) {
         try {
           const prev = JSON.parse(prevRaw);
           const R = 6371000;
           const dLat = (lat - prev.lat) * Math.PI / 180;
           const dLng = (lng - prev.lng) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) ** 2 + Math.cos(prev.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-          const distMetres = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          if (distMetres < 5) movedEnough = false;
-        } catch { /* allow */ }
+          const a = Math.sin(dLat / 2) ** 2
+            + Math.cos(prev.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+          distMetresFromPrev = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const elapsedSec = Math.max(1, (Date.now() - prev.ts) / 1000);
+          observedSpeedMps = distMetresFromPrev / elapsedSec;
+          if (observedSpeedMps > 41.7) { // > 150 km/h
+            logger.warn({ workerId: id, speedMps: Math.round(observedSpeedMps) }, '[SPOOFING] Suspicious GPS jump — rejected');
+            require('../modules/fraud/fraud.service')
+              .logGpsSpoofEvent(id, { speedMps: observedSpeedMps, distMetres: distMetresFromPrev })
+              .catch(() => {});
+            return;
+          }
+        } catch { /* malformed prev — allow through */ }
       }
+      await redis.set(prevKey, JSON.stringify({ lat, lng, ts: Date.now() }), 'EX', 300);
 
-      // Update geo + alive heartbeat so freshness filter stays current
+      // Micro-jitter gate when idle: require ≥5m movement off-order to avoid
+      // waking nearby-worker map tiles on GPS noise. On an active order the 1s
+      // throttle is the rate-limiter.
+      const movedEnough = !(!orderId && distMetresFromPrev != null && distMetresFromPrev < 5);
+
+      // Update geo + alive heartbeat (buffered — see geo.service).
       await geoService.updateLocation(id, lng, lat);
 
       if (orderId && movedEnough) {
@@ -220,7 +229,7 @@ function initSockets(httpServer) {
           spd: (typeof spd === 'number' && spd >= 0 && spd < 60)   ? spd : null,
         });
 
-        // ETA + arriving-soon notification — non-blocking, only during on_the_way
+        // ETA — non-blocking, only during on_the_way. Feeds server-computed speed.
         Order.findById(orderId).select('userId status').lean().then((o) => {
           if (!o || o.status !== 'on_the_way') return;
           return etaService.computeAndBroadcast({
@@ -229,7 +238,19 @@ function initSockets(httpServer) {
             workerLat: lat,
             workerLng: lng,
             orderUserId: o.userId,
+            observedSpeedMps,
           });
+        }).catch(() => {});
+
+        // Durable, sampled trail for replay / forensics / AI (async, capped).
+        LocationPing.create({
+          workerId: id, orderId,
+          loc: { type: 'Point', coordinates: [lng, lat] },
+          hdg: typeof hdg === 'number' ? hdg : undefined,
+          spd: observedSpeedMps,
+          acc: typeof acc === 'number' ? acc : undefined,
+          mock: mock === true,
+          at: new Date(),
         }).catch(() => {});
       }
     });
@@ -254,7 +275,7 @@ function initSockets(httpServer) {
   // Dispatch worker publishes events; we relay them to the right rooms.
   const subscriber = subClient.duplicate();
 
-  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', 'surge:alert', 'order:boost', 'worker:kyc_rejected', (err) => {
+  subscriber.subscribe('order:event', 'worker:offer', 'worker:offer_cancel', 'worker:assigned', 'surge:alert', 'order:boost', 'worker:kyc_rejected', 'worker:job_pulled', (err) => {
     if (err) logger.error({ err }, 'Pub/sub subscribe failed');
   });
   // Notifications are per-recipient — `notification:<kind>:<id>`. Use pattern sub.
@@ -325,6 +346,12 @@ function initSockets(httpServer) {
           status: data.status,
           reason: data.reason,
         });
+        return;
+      }
+
+      if (channel === 'worker:job_pulled') {
+        // { workerId, orderId } — stale-order watchdog pulled the job from this worker
+        io.to(`worker:${data.workerId}`).emit('job.pulled', { orderId: data.orderId });
         return;
       }
 

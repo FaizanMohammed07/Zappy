@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, MapPin, FileText, CreditCard, ChevronRight,
@@ -20,11 +20,13 @@ import {
   useLazyGetQuoteQuery, useCreateOrderMutation,
   usePresignUploadMutation, useLazyGetNearbyWorkersQuery,
   useValidatePromoMutation, useLazyGetSurgeInfoQuery,
-  useGetPricingConfigQuery,
+  useGetPricingConfigQuery, useLazyGetLensScanQuery,
 } from '../services/api';
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp } from '../lib/animations';
+import { trackSearch } from '../hooks/useTelemetry';
 import toast from 'react-hot-toast';
+import SEO, { SERVICE_META as SEO_SERVICE_META, buildServiceJsonLd, BASE_URL } from '../components/SEO';
 
 // ─── Vertical classification (mirrors server pricing.service.js) ─────────────
 const MOBILE_SERVICES = new Set([
@@ -108,6 +110,13 @@ const SERVICE_META = {
   car_breakdown:         { label: 'Car Breakdown',         icon: AlertTriangle, gradient: 'from-red-500 to-rose-600',      accent: '#ef4444', vertical: 'vehicle'      },
   fuel_delivery:         { label: 'Fuel Delivery',         icon: Fuel,         gradient: 'from-orange-500 to-red-500',     accent: '#f97316', vertical: 'vehicle'      },
   car_service:           { label: 'Car Full Service',      icon: Wrench,       gradient: 'from-blue-600 to-indigo-700',    accent: '#2563eb', vertical: 'vehicle'      },
+  car_towing:            { label: 'Car Towing',            icon: Car,          gradient: 'from-slate-700 to-slate-900',    accent: '#334155', vertical: 'towing'       },
+  bike_towing:           { label: 'Bike Towing',           icon: Bike,         gradient: 'from-slate-600 to-slate-800',    accent: '#475569', vertical: 'towing'       },
+  // ── Tank & Water Cleaning ────────────────────────────────────────────────
+  water_tank_cleaning:       { label: 'Water Tank Cleaning',       icon: Droplets, gradient: 'from-sky-500 to-blue-600',    accent: '#0ea5e9', vertical: 'tank_cleaning' },
+  overhead_tank_cleaning:    { label: 'Overhead Tank Cleaning',    icon: Droplets, gradient: 'from-cyan-500 to-sky-600',    accent: '#06b6d4', vertical: 'tank_cleaning' },
+  underground_sump_cleaning: { label: 'Underground Sump Cleaning', icon: Droplets, gradient: 'from-blue-600 to-indigo-700', accent: '#2563eb', vertical: 'tank_cleaning' },
+  sintex_tank_cleaning:      { label: 'Sintex Tank Cleaning',      icon: Droplets, gradient: 'from-teal-500 to-cyan-600',   accent: '#14b8a6', vertical: 'tank_cleaning' },
   commercial_emergency:  { label: 'Commercial Emergency',  icon: AlertTriangle, gradient: 'from-red-600 to-rose-700',      accent: '#dc2626', vertical: 'vehicle'      },
   commercial_scheduled_maintenance: { label: 'Fleet Maintenance', icon: Wrench, gradient: 'from-slate-600 to-slate-800',  accent: '#475569', vertical: 'vehicle'      },
   fleet_support:         { label: 'Fleet Support',         icon: Car,          gradient: 'from-indigo-600 to-blue-700',    accent: '#4f46e5', vertical: 'vehicle'      },
@@ -313,6 +322,8 @@ export default function BookingPage() {
   const nav = useNavigate();
   const isMobile  = MOBILE_SERVICES.has(service);
   const isVehicle = VEHICLE_SERVICES.has(service);
+  // Towing: needs a destination (where to tow) + is priced on the tow distance.
+  const isTowing  = service === 'car_towing' || service === 'bike_towing';
   // Breakdown/tow services need a worker with specialised equipment (#72).
   // We warn the customer upfront so they can also call a tow operator.
   const isTowRequired = service === 'car_breakdown' || service === 'bike_breakdown' || service === 'commercial_emergency';
@@ -327,6 +338,35 @@ export default function BookingPage() {
   const [subCategory,   setSubCategory]   = useState('');
   const [description,   setDescription]   = useState('');
   const [images,        setImages]        = useState([]);
+
+  // ── ZappyLens hydration ──────────────────────────────────────────────
+  // Arrived from a Lens scan (/book/:service?lens=<scanId>) → prefill the
+  // description with the AI diagnosis and attach the scanned photo so the
+  // worker sees exactly what was scanned.
+  const [searchParams]   = useSearchParams();
+  const lensScanId       = searchParams.get('lens');
+  const [fetchLensScan]  = useLazyGetLensScanQuery();
+  const lensHydrated     = useRef(false);
+  useEffect(() => {
+    if (!lensScanId || lensHydrated.current) return;
+    lensHydrated.current = true;
+    (async () => {
+      try {
+        const { scan } = await fetchLensScan(lensScanId).unwrap();
+        if (!scan) return;
+        const match = (scan.matches || []).find((m) => m.serviceCode === service) || scan.matches?.[0];
+        const parts = [];
+        if (match?.issueSummary)   parts.push(match.issueSummary);
+        if (match?.notesForWorker) parts.push(`For the pro: ${match.notesForWorker}`);
+        if (parts.length) setDescription((d) => d || parts.join('\n'));
+        if (scan.imageKeys?.length) {
+          setImages((imgs) => imgs.length ? imgs : scan.imageKeys.map((k, i) => ({
+            s3Key: k, url: scan.imageUrls?.[i] || null, uploading: false, fromLens: true,
+          })));
+        }
+      } catch { /* lens hydration is best-effort */ }
+    })();
+  }, [lensScanId, service, fetchLensScan]);
   const [schedMode,     setSchedMode]     = useState('now');
   const [scheduledAt,   setScheduledAt]   = useState('');
   // Scheduled booking — separate date + time state
@@ -348,6 +388,7 @@ export default function BookingPage() {
   const [diagnosisAnswers, setDiagnosisAnswers] = useState(null);
   const [showDiagnosis,    setShowDiagnosis]    = useState(false);
   const [noWorkersModal,   setNoWorkersModal]   = useState(false);
+  const [priceChangedModal, setPriceChangedModal] = useState(null); // { quotedTotal, freshTotal, pendingBody }
 
   // Mobile-specific state
   const [deviceBrand,   setDeviceBrand]   = useState('');
@@ -356,6 +397,9 @@ export default function BookingPage() {
 
   // Vehicle-specific state
   const [vehicleType,   setVehicleType]   = useState('');
+  // Towing destination { lat, lng, address } + its picker overlay
+  const [towDest,       setTowDest]       = useState(null);
+  const [showDestPicker, setShowDestPicker] = useState(false);
 
   // Construction-specific state
   const [pricingModel,  setPricingModel]  = useState('standard');
@@ -402,16 +446,35 @@ export default function BookingPage() {
     setLocation(loc);
     setPricingMode('now');
     setStage('details');
+    // Demand intelligence: user expressed intent for `service` at this location.
+    // Also stash coords so the visitor session inherits city/district/state.
+    try { localStorage.setItem('zappy:lastCoords', JSON.stringify({ lat: loc.lat, lng: loc.lng })); } catch { /* ignore */ }
+    trackSearch({ category: service, lat: loc.lat, lng: loc.lng, result: 'served', userType: 'user' });
     fetchQuote({
       service, pickupLat: loc.lat, pickupLng: loc.lng,
       ...(deviceBrand && { deviceBrand }),
       ...(deviceModel && { deviceModel }),
       ...(vehicleType && { vehicleType }),
+      ...(isTowing && { vehicleType: service === 'car_towing' ? 'car' : 'bike' }),
+      ...(isTowing && towDest && { dropLat: towDest.lat, dropLng: towDest.lng }),
       ...(pricingModel !== 'standard' && { pricingModel }),
       ...(pricingModel === 'hourly' && { estimatedHours }),
     });
     fetchNearby({ lat: loc.lat, lng: loc.lng });
     fetchSurge({ lat: loc.lat, lng: loc.lng });
+  }
+
+  // Towing destination chosen — store it and re-price on the tow distance.
+  function onTowDestConfirmed(loc) {
+    setTowDest({ lat: loc.lat, lng: loc.lng, address: loc.address });
+    setShowDestPicker(false);
+    if (location) {
+      fetchQuote({
+        service, pickupLat: location.lat, pickupLng: location.lng,
+        vehicleType: service === 'car_towing' ? 'car' : 'bike',
+        dropLat: loc.lat, dropLng: loc.lng,
+      });
+    }
   }
 
   async function uploadImage(file) {
@@ -477,33 +540,38 @@ export default function BookingPage() {
       ? new Date(`${schedDate}T${schedTime}`).toISOString()
       : undefined;
     setPricingMode('locked');
+    // Prefer the S3 key; fall back to URL (blob URLs are stripped server-side anyway)
+    const uploadedUrls = images.filter(i => i.s3Key || i.url).map(i => i.s3Key || i.url);
+    const body = {
+      service,
+      subCategory: subCategory || undefined,
+      description,
+      images: uploadedUrls,
+      scheduledAt: scheduledAtIso,
+      pickupLocation: location,
+      paymentMethod,
+      promoCode: promoResult?.code || undefined,
+      tier: selectedTier,
+      tipAmount: tipAmount > 0 ? tipAmount : undefined,
+      // Mobile extras
+      ...(isMobile && deviceBrand && { deviceBrand }),
+      ...(isMobile && deviceModel && { deviceModel }),
+      ...(isMobile && { serviceMode }),
+      // Vehicle extras
+      ...(isVehicle && vehicleType && { vehicleType }),
+      // Towing: destination + tow vehicle type drive the tow-distance price
+      ...(isTowing && towDest && {
+        dropLocation: { lat: towDest.lat, lng: towDest.lng, address: towDest.address },
+        vehicleType: service === 'car_towing' ? 'car' : 'bike',
+      }),
+      // Construction extras
+      ...(isConstruction && { pricingModel }),
+      ...(isConstruction && pricingModel === 'hourly' && { estimatedHours }),
+      // Surge price protection — send tier-adjusted price so server compares apples-to-apples.
+      // Server will apply the same tier multiplier and reject if surge pushed price >20% higher.
+      quotedTotalRupees: tierPrice || undefined,
+    };
     try {
-      // Prefer the S3 key; fall back to URL (blob URLs are stripped server-side anyway)
-      const uploadedUrls = images.filter(i => i.s3Key || i.url).map(i => i.s3Key || i.url);
-      const body = {
-        service,
-        subCategory: subCategory || undefined,
-        description,
-        images: uploadedUrls,
-        scheduledAt: scheduledAtIso,
-        pickupLocation: location,
-        paymentMethod,
-        promoCode: promoResult?.code || undefined,
-        tier: selectedTier,
-        tipAmount: tipAmount > 0 ? tipAmount : undefined,
-        // Mobile extras
-        ...(isMobile && deviceBrand && { deviceBrand }),
-        ...(isMobile && deviceModel && { deviceModel }),
-        ...(isMobile && { serviceMode }),
-        // Vehicle extras
-        ...(isVehicle && vehicleType && { vehicleType }),
-        // Construction extras
-        ...(isConstruction && { pricingModel }),
-        ...(isConstruction && pricingModel === 'hourly' && { estimatedHours }),
-        // Surge price protection — send tier-adjusted price so server compares apples-to-apples.
-        // Server will apply the same tier multiplier and reject if surge pushed price >20% higher.
-        quotedTotalRupees: tierPrice || undefined,
-      };
       const r = await createOrder(body).unwrap();
       setActiveOrderId(r.order._id);
       setShowOverlay(true);  // show overlay in "searching" state — boost sheet slides up
@@ -516,7 +584,17 @@ export default function BookingPage() {
     } catch (err) {
       setPricingMode('now');
       if (err.data?.code === 'NO_WORKERS_IN_AREA') {
+        // Unmet demand: capture the "No Service Available" signal for expansion analytics.
+        trackSearch({ category: service, lat: location?.lat, lng: location?.lng, result: 'no_service', userType: 'user' });
         setNoWorkersModal(true);
+        return;
+      }
+      if (err.data?.code === 'PRICE_CHANGED') {
+        setPriceChangedModal({
+          quotedTotal: err.data.quotedTotal,
+          freshTotal:  err.data.freshTotal,
+          pendingBody: body,
+        });
         return;
       }
       const msg = err.data?.error || 'Failed to place order';
@@ -529,10 +607,41 @@ export default function BookingPage() {
     }
   }
 
+  async function confirmPriceChange() {
+    if (!priceChangedModal) return;
+    const { freshTotal, pendingBody } = priceChangedModal;
+    setPriceChangedModal(null);
+    try {
+      const r = await createOrder({ ...pendingBody, quotedTotalRupees: freshTotal }).unwrap();
+      setActiveOrderId(r.order._id);
+      setShowOverlay(true);
+      setTimeout(() => setMatchFound(true), 3000);
+      setTimeout(() => {
+        toast.success(bookMode === 'later' ? 'Booking scheduled!' : 'Order placed — finding a worker');
+        nav(`/orders/${r.order._id}`, { replace: true });
+      }, 4500);
+    } catch (err2) {
+      toast.error(err2.data?.error || 'Failed to place order');
+    }
+  }
+
+  const svcMeta = SEO_SERVICE_META[service] || {};
+  const svcTitle = svcMeta.name
+    ? `${svcMeta.name} Near Me — Book Instantly | Zappy`
+    : `Book ${service?.replace(/_/g, ' ')} — Zappy`;
+  const svcDesc = svcMeta.desc || `Book verified professionals for ${service?.replace(/_/g, ' ')} at your doorstep. Instant booking, live tracking, transparent pricing.`;
+
   /* ── Location stage ── */
   if (stage === 'location') {
     return (
       <div className="h-screen flex flex-col">
+        <SEO
+          title={svcTitle}
+          description={svcDesc}
+          canonical={`${BASE_URL}/book/${service}`}
+          keywords={svcMeta.keywords}
+          jsonLd={buildServiceJsonLd(service)}
+        />
         {/* Premium header with gradient */}
         <header className="shrink-0 relative overflow-hidden" style={{ background: `linear-gradient(135deg, #0F172A 0%, #1e293b 100%)` }}>
           <div className="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
@@ -568,9 +677,33 @@ export default function BookingPage() {
     );
   }
 
+  // Towing destination picker (full-screen) — where to tow the vehicle to.
+  if (showDestPicker) {
+    return (
+      <div className="h-screen flex flex-col">
+        <header className="shrink-0 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)' }}>
+          <div className="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
+            <motion.button onClick={() => setShowDestPicker(false)} whileTap={{ scale: 0.92 }}
+              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 backdrop-blur-sm">
+              <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
+            </motion.button>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Tow destination</p>
+              <p className="font-bold text-white leading-tight">Where should we tow it?</p>
+            </div>
+          </div>
+          <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        </header>
+        <div className="flex-1 min-h-0">
+          <LocationPicker onConfirm={onTowDestConfirmed} onCancel={() => setShowDestPicker(false)} serviceLabel="Tow destination" service={service} />
+        </div>
+      </div>
+    );
+  }
+
   /* ── Details stage ── */
   const hasUploadingImages = images.some(i => i.uploading);
-  const canBook = !!q && !creating && pricingMode !== 'wait' && !hasUploadingImages;
+  const canBook = !!q && !creating && pricingMode !== 'wait' && !hasUploadingImages && (!isTowing || !!towDest);
 
   const TIER_MULTIPLIERS = { standard: 1.0, priority: 1.2, express: 1.4 };
   const baseTotal = q ? (pricingMode === 'wait' ? Math.round(q.total / (q.surgeMultiplier || 1)) : q.total) : 0;
@@ -584,7 +717,7 @@ export default function BookingPage() {
     <div className="min-h-screen pb-32" style={{ background: 'linear-gradient(180deg, #f0f4ff 0%, #f9fafb 120px)' }}>
 
       {/* Premium header */}
-      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)' }}>
+      <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(15,23,42,0.97)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="w-full max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">
           <motion.button
             onClick={() => { setStage('location'); setPricingMode('now'); }}
@@ -761,6 +894,37 @@ export default function BookingPage() {
                 ))}
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* ── Towing: destination picker ────────────────────────────── */}
+        {isTowing && (
+          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
+                <MapPin size={14} strokeWidth={2.5} className="text-white" />
+              </div>
+              <p className="font-bold text-[#0F172A] text-sm">Tow to</p>
+            </div>
+            <button onClick={() => setShowDestPicker(true)}
+              className={`w-full text-left rounded-xl border-2 px-3.5 py-3 flex items-center justify-between gap-3 transition ${towDest ? 'border-slate-200 bg-white' : 'border-dashed border-indigo-300 bg-indigo-50/40'}`}>
+              <div className="min-w-0">
+                {towDest ? (
+                  <p className="text-sm font-semibold text-[#0F172A] truncate">{towDest.address}</p>
+                ) : (
+                  <p className="text-sm font-semibold text-indigo-600">Select destination</p>
+                )}
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {q?.vertical === 'towing' && q.distanceKm != null
+                    ? `Tow distance ~${q.distanceKm} km`
+                    : 'Where should we tow your vehicle?'}
+                </p>
+              </div>
+              <ChevronRight size={16} className="text-slate-400 shrink-0" />
+            </button>
+            {!towDest && (
+              <p className="text-[11px] text-amber-600 font-medium mt-2">Add a destination to see the tow price.</p>
+            )}
           </motion.div>
         )}
 
@@ -1589,6 +1753,62 @@ export default function BookingPage() {
                   className="w-full py-3 rounded-2xl text-sm font-medium text-slate-500 hover:text-slate-700"
                 >
                   Go back
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* ── Price Changed confirmation modal ────────────────────────────── */}
+    <AnimatePresence>
+      {priceChangedModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }}
+        >
+          <motion.div
+            initial={{ scale: 0.94, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.94, opacity: 0, y: 20 }}
+            className="w-full max-w-sm rounded-3xl overflow-hidden"
+            style={{ background: '#fff' }}
+          >
+            <div className="p-6 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4 text-2xl">⚡</div>
+              <h2 className="text-lg font-black text-slate-900 mb-1">Price Updated</h2>
+              <p className="text-sm text-slate-500 mb-5">
+                Demand just changed in your area. The updated price is shown below.
+              </p>
+              <div className="flex items-center justify-center gap-4 mb-6">
+                <div className="text-center">
+                  <p className="text-xs text-slate-400 mb-0.5">Your quote</p>
+                  <p className="text-2xl font-black text-slate-400 line-through">₹{priceChangedModal.quotedTotal}</p>
+                </div>
+                <div className="text-slate-300 text-xl">→</div>
+                <div className="text-center">
+                  <p className="text-xs text-slate-400 mb-0.5">New price</p>
+                  <p className="text-2xl font-black text-amber-600">₹{priceChangedModal.freshTotal}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <button
+                  onClick={confirmPriceChange}
+                  disabled={creating}
+                  className="w-full py-3.5 rounded-2xl text-sm font-bold text-white disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
+                >
+                  {creating ? 'Booking…' : `Confirm ₹${priceChangedModal.freshTotal}`}
+                </button>
+                <button
+                  onClick={() => setPriceChangedModal(null)}
+                  className="w-full py-3 text-sm font-medium text-slate-500 hover:text-slate-700"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

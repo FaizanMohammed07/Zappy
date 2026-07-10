@@ -39,6 +39,14 @@ const workerSchema = new mongoose.Schema(
       },
       isUpdate: { type: Boolean, default: false },
 
+      // 3rd-party API verification results (bank penny-drop, PAN, …). Assists the
+      // admin's manual review; auto-populated when a KYC provider is configured.
+      verification: {
+        bank: { type: mongoose.Schema.Types.Mixed, default: null },
+        pan:  { type: mongoose.Schema.Types.Mixed, default: null },
+        lastRunAt: { type: Date, default: null },
+      },
+
       // Worker-initiated document change request — must be admin-approved before re-upload
       changeRequest: {
         status:      { type: String, enum: ['pending', 'approved', 'denied'], default: null },
@@ -47,6 +55,15 @@ const workerSchema = new mongoose.Schema(
         reviewedAt:  Date,
         reviewedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
         denialReason: String,
+      },
+
+      // Admin "Ask Worker" clarification — status stays pending_review but the
+      // worker is re-allowed to re-upload + resubmit while this is active.
+      clarification: {
+        active:      { type: Boolean, default: false },
+        message:     { type: String, maxlength: 500 },  // what admin asked to fix
+        requestedAt: Date,
+        requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
       },
 
       // Snapshot of last approved docs — used to revert if an update is rejected
@@ -158,6 +175,15 @@ const workerSchema = new mongoose.Schema(
     // Ops
     deviceTokens: [String], // FCM push tokens
     deviceIds:    [String], // hardware fingerprints (for multi-account detection)
+    // Trusted-device binding for re-login security. A sign-in from a device not
+    // in this list (on an established account) is flagged + alerted.
+    knownDevices: [{
+      deviceId:    { type: String },
+      firstSeenAt: { type: Date, default: Date.now },
+      lastSeenAt:  { type: Date, default: Date.now },
+      trusted:     { type: Boolean, default: true },
+    }],
+    lastNewDeviceAt: { type: Date, default: null },
     isBlocked: { type: Boolean, default: false },
     lastSeenAt: { type: Date },
 

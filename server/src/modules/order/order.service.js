@@ -103,6 +103,15 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     }
   }
 
+  // Towing must have a destination — the tow leg (pickup → destination) is what
+  // we charge for, so without it the price would be meaningless.
+  if ((service === 'car_towing' || service === 'bike_towing') && !dropLocation) {
+    throw Object.assign(
+      new Error('Please select where to tow the vehicle before booking.'),
+      { status: 400, code: 'TOWING_DEST_REQUIRED' }
+    );
+  }
+
   const origin = { lat: pickupLocation.lat, lng: pickupLocation.lng };
   // For home services without a drop location, use a tiny 50m nominal dest so
   // the pricing engine can call getDistanceAndEta without a zero-distance edge
@@ -114,7 +123,7 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     : { lat: pickupLocation.lat + 0.00045, lng: pickupLocation.lng }; // ~50m nominal
 
   let pricing = await Promise.race([
-    pricingService.quote({ origin, dest, service, userId }),
+    pricingService.quote({ origin, dest, service, userId, priority, vehicleType }),
     new Promise((_, reject) => setTimeout(
       () => reject(Object.assign(new Error('Pricing service timed out. Please try again.'), { status: 503, code: 'PRICING_TIMEOUT' })),
       appConfig.dispatch.pricingTimeoutMs
@@ -202,8 +211,10 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     pricing = emergencyService.applyEmergencySurcharge(pricing);
   }
 
-  // Record demand for surge calculation.
-  await pricingService.recordDemand(origin.lat, origin.lng);
+  // Record demand for surge calculation + durable heatmap/intelligence analytics.
+  // Pass `service` so DemandEvent.service is populated (was previously null,
+  // breaking by-service demand/trending analytics).
+  await pricingService.recordDemand(origin.lat, origin.lng, service);
 
   // Apply promo code discount
   let appliedPromo = null;
@@ -809,6 +820,13 @@ async function workerComplete({ orderId, workerId, completionPhotos = [] }) {
     userId: order.userId,
     workerRatingGiven: order.workerRating || null,
   }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Gamification update failed'));
+
+  // Rewards — redeemable points + a scratch card for the completed order.
+  require('../rewards/rewards.service').onOrderCompleted({
+    userId: order.userId,
+    orderTotalPaise: order.pricing?.totalPaise ?? Math.round((order.pricing?.total || 0) * 100),
+    orderId: order._id,
+  }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Rewards update failed'));
 
   // Incentive milestone check — passes the order so the service can enforce
   // the quality gate (no milestone credit for unrated or 1-star completions).
@@ -1493,8 +1511,57 @@ async function workerRateUser({ orderId, workerId, rating, review }) {
   return order;
 }
 
+/**
+ * One-click rebook: clone a past order and place it again through createOrder,
+ * so pricing is recomputed fresh and all gates (abuse, one-active-order,
+ * geo-readiness, dispatch) apply exactly as a normal booking.
+ */
+async function rebookOrder({ userId, sourceOrderId }) {
+  const src = await Order.findById(sourceOrderId).lean();
+  if (!src) throw Object.assign(new Error('Original order not found'), { status: 404 });
+  if (String(src.userId) !== String(userId)) throw Object.assign(new Error('Not your order'), { status: 403 });
+
+  const p = src.pickupLocation || {};
+  const pickupLocation = {
+    lat: p.coordinates?.[1],
+    lng: p.coordinates?.[0],
+    address: p.address,
+    landmark: p.landmark || '',
+    flatNumber: p.flatNumber || '',
+    notes: p.notes || '',
+  };
+  if (pickupLocation.lat == null || pickupLocation.lng == null || !pickupLocation.address) {
+    throw Object.assign(new Error('Original order is missing location details — please book normally.'), { status: 400 });
+  }
+
+  const d = src.dropLocation;
+  const dropLocation = d?.coordinates?.length === 2
+    ? { lat: d.coordinates[1], lng: d.coordinates[0], address: d.address || pickupLocation.address }
+    : undefined;
+
+  return createOrder({
+    userId,
+    service: src.service,
+    subCategory: src.subCategory || undefined,
+    pickupLocation,
+    dropLocation,
+    description: src.description || '',
+    images: [],
+    scheduledAt: null, // rebook = now
+    paymentMethod: src.payment?.method || 'upi',
+    priority: src.priority === 'emergency' ? 'emergency' : 'normal',
+    deviceBrand: src.deviceBrand || undefined,
+    deviceModel: src.deviceModel || undefined,
+    serviceMode: src.serviceMode || undefined,
+    vehicleType: src.vehicleType || undefined,
+    pricingModel: src.pricingModel || undefined,
+    tier: src.tier || 'standard',
+  });
+}
+
 module.exports = {
   createOrder,
+  rebookOrder,
   acceptOffer,
   rejectOffer,
   workerStartTrip,

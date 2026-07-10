@@ -292,21 +292,48 @@ function animateRouteDraw(map, st, allCoords) {
   st.routeAnimFrame = requestAnimationFrame(frame);
 }
 
-/* ─── Route fetch (Mapbox Directions) ───────────────────────────── */
+/* ─── Route fetch — Google Directions primary, Mapbox fallback ──── */
 async function fetchRoute(map, st, from, to) {
-  if (!TOKEN) return;
   const now = Date.now();
-  // Always fetch on first call (lastRoute === 0); then enforce cooldown
   if (st.lastRoute !== 0 && now - st.lastRoute < ROUTE_COOLDOWN) return;
   st.lastRoute = now;
+
+  // ── Google Directions via JS API (loaded globally by @react-google-maps/api)
+  if (window.google?.maps?.DirectionsService) {
+    try {
+      const svc = new window.google.maps.DirectionsService();
+      svc.route(
+        {
+          origin     : { lat: from.lat, lng: from.lng },
+          destination: { lat: to.lat,   lng: to.lng   },
+          travelMode : window.google.maps.TravelMode.DRIVING,
+          drivingOptions: {
+            departureTime: new Date(),
+            trafficModel : window.google.maps.TrafficModel.BEST_GUESS,
+          },
+        },
+        (result, status) => {
+          if (status !== 'OK' || !result.routes?.[0]) return;
+          // Overview path gives [[LatLng], ...] — convert to [[lng, lat]] for Mapbox
+          const path   = result.routes[0].overview_path;
+          const coords = path.map((p) => [p.lng(), p.lat()]);
+          if (coords.length) animateRouteDraw(map, st, coords);
+        },
+      );
+      return; // callback handles drawing
+    } catch { /* fall through to Mapbox */ }
+  }
+
+  // ── Mapbox Directions fallback ────────────────────────────────────
+  if (!TOKEN) return;
   try {
     const url =
       `https://api.mapbox.com/directions/v5/mapbox/driving/` +
       `${from.lng},${from.lat};${to.lng},${to.lat}` +
       `?access_token=${TOKEN}&geometries=geojson&overview=full`;
-    const res   = await fetch(url);
+    const res  = await fetch(url);
     if (!res.ok) return;
-    const data  = await res.json();
+    const data = await res.json();
     const coords = data.routes?.[0]?.geometry?.coordinates;
     if (coords) animateRouteDraw(map, st, coords);
   } catch { /* non-critical */ }

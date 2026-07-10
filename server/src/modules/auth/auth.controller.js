@@ -4,13 +4,15 @@ const config = require('../../config');
 // Refresh token cookie settings.
 // httpOnly   — JS cannot read it (defeats XSS token theft). (#78)
 // secure     — HTTPS only in production.
-// sameSite   — Strict: never sent cross-origin (CSRF protection).
+// sameSite   — 'none' required for cross-origin Vercel→EC2 split deployment.
+//              'strict' would block the cookie when frontend (zappyone.com)
+//              calls the API subdomain (api.zappyone.com). 'none' requires secure=true.
 // path       — only sent to /api/auth/* endpoints, not every request.
 const RT_COOKIE_NAME = 'zappy_rt';
 const RT_COOKIE_OPTS = {
   httpOnly: true,
-  secure:   config.env === 'production',
-  sameSite: 'strict',
+  secure:   true,   // always true — 'none' requires secure
+  sameSite: config.env === 'production' ? 'none' : 'lax',
   path:     '/api/auth',
   maxAge:   30 * 24 * 60 * 60 * 1000, // 30 days in ms — matches RT_EXPIRES_SEC
 };
@@ -22,11 +24,29 @@ function clearRtCookie(res) {
   res.clearCookie(RT_COOKIE_NAME, { ...RT_COOKIE_OPTS, maxAge: 0 });
 }
 
+// Native apps can't use httpOnly cookies, so mobile clients send
+// `X-Client-Type: mobile` and we ALSO return the refresh token in the JSON body
+// for them. Web clients never get the RT in the body (XSS-safe — cookie only).
+function isMobile(req) {
+  return req.headers['x-client-type'] === 'mobile';
+}
+function withMobileRt(req, body, refreshToken) {
+  return isMobile(req) ? { ...body, refreshToken } : body;
+}
+
 async function requestOtp(req, res, next) {
   try {
     const { phone, role } = req.body;
     const { otp, isNewUser } = await authService.requestOtp(phone, role);
-    res.json({ ok: true, isNewUser, ...(config.env !== 'production' ? { otp } : {}) });
+    res.json({ ok: true, isNewUser, ...(config.env !== 'production' && otp ? { otp } : {}) });
+  } catch (err) { next(err); }
+}
+
+async function resendOtp(req, res, next) {
+  try {
+    const { phone } = req.body;
+    const { otp } = await authService.resendOtp(phone);
+    res.json({ ok: true, ...(config.env !== 'production' && otp ? { otp } : {}) });
   } catch (err) { next(err); }
 }
 
@@ -34,8 +54,8 @@ async function loginUser(req, res, next) {
   try {
     const result = await authService.loginUserWithOtp(req.body);
     setRtCookie(res, result.refreshToken);
-    // Return accessToken in body; refreshToken via httpOnly cookie only.
-    res.json({ accessToken: result.accessToken, user: result.user });
+    // Web: refreshToken via httpOnly cookie only. Mobile: also in body.
+    res.json(withMobileRt(req, { accessToken: result.accessToken, user: result.user }, result.refreshToken));
   } catch (err) { next(err); }
 }
 
@@ -43,7 +63,7 @@ async function loginWorker(req, res, next) {
   try {
     const result = await authService.loginWorkerWithOtp(req.body);
     setRtCookie(res, result.refreshToken);
-    res.json({ accessToken: result.accessToken, worker: result.worker });
+    res.json(withMobileRt(req, { accessToken: result.accessToken, worker: result.worker }, result.refreshToken));
   } catch (err) { next(err); }
 }
 
@@ -101,7 +121,8 @@ async function refresh(req, res, next) {
     const tokens = await authService.refresh(rt);
     setRtCookie(res, tokens.refreshToken);
     // Include role so clients can fully restore session without sessionStorage.
-    res.json({ accessToken: tokens.accessToken, role: tokens.role });
+    // Mobile also needs the rotated refreshToken in the body to persist it.
+    res.json(withMobileRt(req, { accessToken: tokens.accessToken, role: tokens.role }, tokens.refreshToken));
   } catch (err) { next(err); }
 }
 
@@ -147,6 +168,6 @@ async function verifySensitiveOtp(req, res, next) {
 }
 
 module.exports = {
-  requestOtp, loginUser, loginWorker, loginPartner, googlePartnerLogin,
+  requestOtp, resendOtp, loginUser, loginWorker, loginPartner, googlePartnerLogin,
   loginAdmin, refresh, logout, revokeAll, verifySensitiveOtp,
 };

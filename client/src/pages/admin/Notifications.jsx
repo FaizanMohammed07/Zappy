@@ -4,11 +4,15 @@ import {
   Bell, Send, CheckCircle, XCircle, Loader2, RefreshCw,
   BarChart2, MessageSquare, Users, Smartphone, AlertTriangle,
 } from 'lucide-react';
-import { SectionHeader, Card, PageLoader } from './_shared';
+import { SectionHeader, Card } from './_shared';
 import toast from 'react-hot-toast';
-import { adminApiPath } from '../../config/admin';
-import { useSelector } from 'react-redux';
-import { selectAuth } from '../../modules/auth/authSlice';
+import {
+  useLazyAdminNotificationHealthQuery,
+  useLazyAdminNotificationStatsQuery,
+  useAdminSendNotificationMutation,
+  useAdminBroadcastNotificationMutation,
+  useAdminMetricsQuery,
+} from '../../services/api';
 
 const NOTIFICATION_TYPES = [
   'order_placed', 'worker_assigned', 'worker_on_the_way', 'worker_arriving_soon',
@@ -28,18 +32,11 @@ function StatCard({ label, value, sub, color = 'text-slate-800' }) {
 }
 
 /* ── FCM Health Check ─────────────────────────────────────────────────── */
-function FcmHealth({ token }) {
-  const [health, setHealth] = useState(null);
-  const [loading, setLoading] = useState(false);
+function FcmHealth() {
+  const [checkHealth, { data, isFetching: loading, error }] = useLazyAdminNotificationHealthQuery();
+  const health = data ?? (error ? { ok: false, message: 'Failed to check — try again' } : null);
 
-  async function check() {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api${adminApiPath('/notifications/health')}`, { headers: { Authorization: `Bearer ${token}` } });
-      setHealth(await res.json());
-    } catch { setHealth({ ok: false, message: 'Network error' }); }
-    setLoading(false);
-  }
+  function check() { checkHealth(); }
 
   return (
     <Card className="p-5 space-y-3">
@@ -84,18 +81,12 @@ function FcmHealth({ token }) {
 }
 
 /* ── Delivery Stats ──────────────────────────────────────────────────── */
-function DeliveryStats({ token }) {
+function DeliveryStats() {
   const [days, setDays] = useState(7);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadStats, { data: stats, isFetching: loading }] = useLazyAdminNotificationStatsQuery();
 
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api${adminApiPath(`/notifications/stats?days=${days}`)}`, { headers: { Authorization: `Bearer ${token}` } });
-      setStats(await res.json());
-    } catch { toast.error('Failed to load stats'); }
-    setLoading(false);
+  function load() {
+    loadStats(days).unwrap().catch(() => toast.error('Failed to load stats'));
   }
 
   return (
@@ -179,8 +170,63 @@ function DeliveryStats({ token }) {
   );
 }
 
+/* ── Live Preview Component ──────────────────────────────────────────── */
+function NotificationPreview({ title, body, type }) {
+  return (
+    <div className="sticky top-6">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">Live Preview</p>
+      <div className="relative rounded-[2rem] p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-2xl overflow-hidden ring-1 ring-white/10">
+        {/* Glossy lighting */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/10 pointer-events-none" />
+        <div className="absolute top-0 right-0 -mr-12 -mt-12 w-32 h-32 bg-blue-500/30 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -ml-12 -mb-12 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl pointer-events-none" />
+        
+        {/* Mock Screen Context */}
+        <div className="h-6 flex justify-between items-center px-2 mb-2 text-white/50 text-[10px] font-medium">
+          <span>9:41</span>
+          <div className="flex gap-1.5">
+            <span className="w-3 h-2 rounded-[2px] border border-white/50 relative after:content-[''] after:absolute after:right-[-2px] after:top-[2px] after:h-1 after:w-0.5 after:bg-white/50"></span>
+          </div>
+        </div>
+
+        {/* The Notification Bubble */}
+        <motion.div 
+          key={`${title}-${body}`} // Remount on change for a subtle jump effect
+          initial={{ y: 5, opacity: 0.8, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          className="bg-white/95 backdrop-blur-xl rounded-[1.2rem] p-3.5 shadow-[0_8px_30px_rgb(0,0,0,0.15)] flex gap-3 relative border border-white/50 overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-white/60 to-transparent pointer-events-none" />
+          
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 shadow-inner relative z-10 border border-slate-200/50 p-1">
+             <img src="/branding/zappylogo.png" className="w-full h-full object-contain drop-shadow-sm" alt="Zappy" />
+          </div>
+          <div className="flex-1 min-w-0 relative z-10">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-bold text-slate-800 tracking-wide">ZAPPY</span>
+              <span className="text-[10px] font-medium text-slate-400">now</span>
+            </div>
+            <h4 className="text-[13px] font-bold text-slate-900 truncate leading-tight">
+              {title || 'Notification title'}
+            </h4>
+            <p className="text-[12px] text-slate-600 line-clamp-2 mt-0.5 leading-snug">
+              {body || 'Your notification body text goes here. Make it catchy!'}
+            </p>
+          </div>
+        </motion.div>
+        
+        {/* Screen Bottom Bar */}
+        <div className="mt-16 flex justify-center pb-1">
+           <div className="w-1/3 h-1 bg-white/20 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Manual Send ─────────────────────────────────────────────────────── */
-function ManualSend({ token }) {
+function ManualSend() {
   const [form, setForm] = useState({
     recipientKind: 'user',
     recipientId: '',
@@ -189,7 +235,7 @@ function ManualSend({ token }) {
     body: '',
     deepLink: '',
   });
-  const [sending, setSending] = useState(false);
+  const [sendNotification, { isLoading: sending }] = useAdminSendNotificationMutation();
 
   const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -199,26 +245,18 @@ function ManualSend({ token }) {
       return;
     }
     if (!form.title.trim()) { toast.error('Title required'); return; }
-    setSending(true);
     try {
-      const res = await fetch(`/api${adminApiPath('/notifications/send')}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success('Notification sent');
-        setForm((p) => ({ ...p, recipientId: '', title: '', body: '', deepLink: '' }));
-      } else {
-        toast.error(data.error || 'Send failed');
-      }
-    } catch { toast.error('Network error'); }
-    setSending(false);
+      await sendNotification(form).unwrap();
+      toast.success('Notification sent');
+      setForm((p) => ({ ...p, recipientId: '', title: '', body: '', deepLink: '' }));
+    } catch (e) {
+      toast.error(e.data?.error || 'Send failed');
+    }
   }
 
   return (
-    <Card className="p-5 space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6 items-start">
+      <Card className="p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Send size={15} strokeWidth={2} className="text-blue-600" />
         <p className="text-sm font-bold text-slate-700">Send to Specific User / Worker</p>
@@ -272,38 +310,100 @@ function ManualSend({ token }) {
         {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
         {sending ? 'Sending…' : 'Send Notification'}
       </motion.button>
-    </Card>
+      </Card>
+      <NotificationPreview title={form.title} body={form.body} type={form.type} />
+    </div>
   );
 }
 
 /* ── Broadcast ────────────────────────────────────────────────────────── */
-function Broadcast({ token }) {
+function Broadcast() {
   const [form, setForm] = useState({ recipientKind: 'user', type: 'promotional', title: '', body: '', deepLink: '', limit: 1000 });
   const [confirm, setConfirm] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const [broadcast, { isLoading: sending }] = useAdminBroadcastNotificationMutation();
+  const { data: metrics } = useAdminMetricsQuery();
   const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
+  const isWorkers = form.recipientKind === 'worker';
+  const audienceTotal = isWorkers ? metrics?.totalWorkers : metrics?.totalUsers;
+  const audienceLabel = isWorkers ? 'workers' : 'users';
+
   async function send() {
-    setSending(true);
     try {
-      const res = await fetch(`/api${adminApiPath('/notifications/broadcast')}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(`Broadcast queued — ${data.recipientCount} recipients, ${data.tokenCount} tokens`);
-        setConfirm(false);
-      } else {
-        toast.error(data.error || 'Broadcast failed');
-      }
-    } catch { toast.error('Network error'); }
-    setSending(false);
+      const data = await broadcast(form).unwrap();
+      setResult(data);
+      setConfirm(false);
+    } catch (e) {
+      toast.error(e.data?.error || 'Broadcast failed');
+    }
+  }
+
+  // ── Animated success state ──
+  if (result) {
+    return (
+      <Card className="p-8">
+        <div className="flex flex-col items-center text-center">
+          <motion.div
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+            className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-1 relative"
+          >
+            <motion.span
+              className="absolute inset-0 rounded-full bg-green-400/40"
+              initial={{ scale: 1, opacity: 0.6 }}
+              animate={{ scale: 1.8, opacity: 0 }}
+              transition={{ duration: 1.1, repeat: 2 }}
+            />
+            <CheckCircle size={40} strokeWidth={2.5} className="text-green-600" />
+          </motion.div>
+          <motion.h3 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+            className="text-lg font-black text-slate-900 mt-3">Broadcast sent 🎉</motion.h3>
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
+            className="text-xs text-slate-500 mt-1">"{form.title}" delivered to your {form.recipientKind}s</motion.p>
+
+          <div className="grid grid-cols-2 gap-3 w-full mt-6">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+              className="bg-slate-50 rounded-2xl p-4">
+              <p className="text-2xl font-black text-slate-900">{result.inAppDelivered ?? result.recipientCount ?? 0}</p>
+              <p className="text-[11px] font-bold text-slate-500 mt-0.5">Delivered in-app</p>
+              <p className="text-[9px] text-green-600 font-bold mt-1">✓ Guaranteed — can't be missed</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
+              className="bg-slate-50 rounded-2xl p-4">
+              <p className="text-2xl font-black text-slate-900">{result.pushTokenCount ?? 0}</p>
+              <p className="text-[11px] font-bold text-slate-500 mt-0.5">Push devices</p>
+              <p className="text-[9px] text-slate-400 font-bold mt-1">Bonus channel</p>
+            </motion.div>
+          </div>
+
+          <button onClick={() => { setResult(null); setForm((p) => ({ ...p, title: '', body: '' })); }}
+            className="mt-6 w-full py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition">
+            Send another
+          </button>
+        </div>
+      </Card>
+    );
   }
 
   return (
-    <Card className="p-5 space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6 items-start">
+      <Card className="p-5 space-y-4 relative overflow-hidden">
+      {/* Sending overlay — animated paper plane */}
+      {sending && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+          <motion.div
+            animate={{ x: [-8, 8, -8], y: [4, -4, 4] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+            className="w-14 h-14 rounded-2xl bg-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30">
+            <Send size={24} className="text-white" />
+          </motion.div>
+          <p className="text-sm font-bold text-slate-700">Broadcasting to your {form.recipientKind}s…</p>
+        </motion.div>
+      )}
+
       <div className="flex items-center gap-2">
         <Users size={15} strokeWidth={2} className="text-orange-600" />
         <p className="text-sm font-bold text-slate-700">Broadcast to All</p>
@@ -315,8 +415,8 @@ function Broadcast({ token }) {
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Audience</label>
           <select value={form.recipientKind} onChange={f('recipientKind')}
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none">
-            <option value="user">All Users</option>
-            <option value="worker">All Workers</option>
+            <option value="user">All Users{metrics?.totalUsers != null ? ` (${metrics.totalUsers.toLocaleString('en-IN')})` : ''}</option>
+            <option value="worker">All Workers{metrics?.totalWorkers != null ? ` (${metrics.totalWorkers.toLocaleString('en-IN')})` : ''}</option>
           </select>
         </div>
         <div>
@@ -329,8 +429,18 @@ function Broadcast({ token }) {
         </div>
         <div>
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Max recipients</label>
-          <input type="number" value={form.limit} onChange={f('limit')} min="1" max="10000"
+          <input type="number" value={form.limit} onChange={f('limit')} min="1" max="100000"
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none" />
+          <p className="text-[10px] text-slate-400 mt-1">
+            {audienceTotal != null ? `${audienceTotal.toLocaleString('en-IN')} total ${audienceLabel}` : 'loading…'}
+            {audienceTotal != null && (
+              <button type="button"
+                onClick={() => setForm((p) => ({ ...p, limit: audienceTotal }))}
+                className="ml-1.5 font-semibold text-orange-600 hover:underline">
+                send to all
+              </button>
+            )}
+          </p>
         </div>
       </div>
 
@@ -362,13 +472,14 @@ function Broadcast({ token }) {
           </div>
         </div>
       )}
-    </Card>
+      </Card>
+      <NotificationPreview title={form.title} body={form.body} type={form.type} />
+    </div>
   );
 }
 
 /* ── Main Page ────────────────────────────────────────────────────────── */
 export default function NotificationsAdmin() {
-  const { accessToken: token } = useSelector(selectAuth);
   const [tab, setTab] = useState('stats');
 
   const tabs = [
@@ -378,7 +489,7 @@ export default function NotificationsAdmin() {
   ];
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
+    <div className="p-6 space-y-6 max-w-5xl">
       <SectionHeader
         title="Push Notifications"
         subtitle="Monitor delivery, send manual pushes, broadcast platform-wide announcements, and verify Firebase config."
@@ -401,12 +512,12 @@ export default function NotificationsAdmin() {
 
       {tab === 'stats' && (
         <div className="space-y-4">
-          <FcmHealth token={token} />
-          <DeliveryStats token={token} />
+          <FcmHealth />
+          <DeliveryStats />
         </div>
       )}
-      {tab === 'send' && <ManualSend token={token} />}
-      {tab === 'broadcast' && <Broadcast token={token} />}
+      {tab === 'send' && <ManualSend />}
+      {tab === 'broadcast' && <Broadcast />}
     </div>
   );
 }

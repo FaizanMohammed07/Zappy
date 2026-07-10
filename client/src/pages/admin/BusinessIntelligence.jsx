@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TrendingDown, TrendingUp, AlertTriangle, Users, MapPin, BarChart2, Loader2, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { TrendingDown, TrendingUp, AlertTriangle, Users, MapPin, BarChart2, Loader2, RefreshCw, CheckCircle, XCircle, Search } from 'lucide-react';
 import {
   useAdminServicePnLQuery,
   useAdminChurnRiskQuery,
@@ -265,8 +265,11 @@ export default function BusinessIntelligence() {
 
 /* ── Geo readiness tool (#85) ────────────────────────────────────────────── */
 function GeoReadinessTool() {
-  const [coords, setCoords] = useState({ lat: '', lng: '', radius: 15 });
+  const [coords, setCoords] = useState({ lat: '', lng: '', radius: 20 });
   const [query, setQuery] = useState(null);
+  const [area, setArea] = useState('');
+  const [resolving, setResolving] = useState(false);
+  const [resolved, setResolved] = useState(null); // { label } | 'not_found' | 'error'
   const { data, isLoading, isFetching } = useAdminGeoReadinessQuery(query, { skip: !query });
 
   function handleCheck() {
@@ -276,19 +279,81 @@ function GeoReadinessTool() {
     setQuery({ lat, lng, radiusKm: coords.radius });
   }
 
+  // Forward-geocode a typed area name → coordinates (free OpenStreetMap, no key),
+  // auto-fill lat/lng and run the readiness check. No need to know coordinates.
+  async function findArea() {
+    const q = area.trim();
+    if (!q) return;
+    setResolving(true); setResolved(null);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=in&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const arr = await res.json();
+      // Prefer a TOWN/CITY point over a district/state polygon centroid — the
+      // centroid can sit 15–20km from where demand & workers actually cluster,
+      // which would put everything outside the search radius and read as 0.
+      const PLACE_TYPES = ['city', 'town', 'village', 'suburb', 'municipality', 'hamlet'];
+      const best = arr?.find((r) => PLACE_TYPES.includes(r.type) || PLACE_TYPES.includes(r.addresstype)) || arr?.[0];
+      if (best) {
+        const lat = Number(best.lat);
+        const lng = Number(best.lon);
+        setCoords((c) => ({ ...c, lat: String(lat.toFixed(5)), lng: String(lng.toFixed(5)) }));
+        const a = best.address || {};
+        const label = [a.city || a.town || a.village || a.county || a.state_district, a.state]
+          .filter(Boolean).join(', ') || best.display_name?.split(',').slice(0, 2).join(',');
+        setResolved({ label });
+        setQuery({ lat, lng, radiusKm: coords.radius }); // auto-run readiness
+      } else {
+        setResolved('not_found');
+      }
+    } catch { setResolved('error'); }
+    setResolving(false);
+  }
+
   return (
     <Card>
-      <SectionTitle icon={MapPin} title="City Expansion Readiness" subtitle="Check worker density before launching in a new area (#85)" color="text-blue-600" />
+      <SectionTitle icon={MapPin} title="City Expansion Readiness" subtitle="Type an area name — or coordinates — to check worker density before launching (#85)" color="text-blue-600" />
       <div className="px-5 pb-5 pt-3 space-y-4">
+        {/* Area-name search → resolves to coordinates automatically */}
+        <div>
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Search city / area</label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && findArea()}
+                placeholder="e.g. Vikarabad, Warangal, Karimnagar…"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-indigo-400"
+              />
+            </div>
+            <button onClick={findArea} disabled={resolving || !area.trim()}
+              className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl disabled:opacity-50 flex items-center gap-2">
+              {resolving ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+              Find
+            </button>
+          </div>
+          {resolved && resolved !== 'not_found' && resolved !== 'error' && (
+            <p className="text-[11px] text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
+              <MapPin size={10} /> {resolved.label} · {coords.lat}, {coords.lng}
+            </p>
+          )}
+          {resolved === 'not_found' && <p className="text-[11px] text-amber-600 font-semibold mt-1.5">No match found — try a nearby city or enter coordinates below.</p>}
+          {resolved === 'error' && <p className="text-[11px] text-red-500 font-semibold mt-1.5">Lookup failed — enter coordinates manually below.</p>}
+        </div>
+
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Latitude</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Latitude <span className="text-slate-300 normal-case font-medium">(auto)</span></label>
             <input type="number" placeholder="28.6139" value={coords.lat}
               onChange={(e) => setCoords((c) => ({ ...c, lat: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-indigo-400" />
           </div>
           <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Longitude</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Longitude <span className="text-slate-300 normal-case font-medium">(auto)</span></label>
             <input type="number" placeholder="77.2090" value={coords.lng}
               onChange={(e) => setCoords((c) => ({ ...c, lng: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-indigo-400" />
@@ -310,8 +375,12 @@ function GeoReadinessTool() {
           <div className={`rounded-2xl p-4 ring-1 space-y-4 ${data.isReady ? 'bg-green-50 ring-green-100' : 'bg-red-50 ring-red-100'}`}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className={`text-sm font-black ${data.isReady ? 'text-green-800' : 'text-red-800'}`}>
-                  {data.isReady ? '✅ Area Ready' : '❌ Not Ready for Launch'}
+                {resolved && resolved.label && (
+                  <p className="text-[11px] font-bold text-slate-500 flex items-center gap-1 mb-0.5"><MapPin size={10} />{resolved.label}</p>
+                )}
+                <p className={`text-sm font-black flex items-center gap-1.5 ${data.isReady ? 'text-green-800' : 'text-red-800'}`}>
+                  {data.isReady ? <CheckCircle size={15} /> : <XCircle size={15} />}
+                  {data.isReady ? 'Area Ready' : 'Not Ready for Launch'}
                 </p>
                 <p className="text-xs mt-0.5 text-slate-600">{data.recommendation}</p>
               </div>

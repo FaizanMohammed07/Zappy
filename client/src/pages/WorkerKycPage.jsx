@@ -23,7 +23,9 @@ function useMyDoc(docType, token, enabled) {
     if (!enabled || !token) return;
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/kyc/stream/${docType}`, { headers: { Authorization: `Bearer ${token}` } })
+    // Must use absolute URL — on Vercel+EC2 split, relative /api hits Vercel (404).
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    fetch(`${apiBase}/api/kyc/stream/${docType}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.blob() : null)
       .then(blob => {
         if (cancelled || !blob) return;
@@ -122,6 +124,10 @@ export default function WorkerKycPage() {
   const status          = data?.kyc?.status || 'not_submitted';
   const rejectionReason = data?.kyc?.rejectionReason;
   const changeRequest   = data?.kyc?.changeRequest;
+  const clarification   = data?.kyc?.clarification;
+  // Admin asked for a fix ("upload a clear selfie") — re-open the upload form
+  // even though the submission is still technically pending_review.
+  const needsClarification = status === 'pending_review' && clarification?.active;
 
   async function handleRequestChange() {
     if (changeMsg.trim().length < 10) { toast.error('Please describe why you need to change documents (min 10 chars)'); return; }
@@ -134,6 +140,21 @@ export default function WorkerKycPage() {
     } catch (err) { toast.error(err.data?.error || 'Failed'); }
   }
 
+  /* ── Shared S3 PUT helper ──────────────────────────────────────────────── */
+  async function uploadToS3(signed, body, contentType) {
+    let putRes;
+    try {
+      putRes = await fetch(signed.uploadUrl, {
+        method: 'PUT',
+        body,
+        headers: { 'Content-Type': contentType },
+      });
+    } catch {
+      throw new Error('Upload failed. Please check your internet connection and try again.');
+    }
+    if (!putRes.ok) throw new Error('Upload failed. Please try again or use a smaller file.');
+  }
+
   /* ── File upload (Aadhaar / License) ──────────────────────────────────── */
   async function handleUpload(docKey, file) {
     if (!file) return;
@@ -141,15 +162,11 @@ export default function WorkerKycPage() {
     try {
       setUploading(docKey);
       const { data: signed } = await presign({ folder: 'kyc', contentType: file.type || 'image/jpeg' });
-      const putRes = await fetch(signed.uploadUrl, {
-        method: 'PUT', body: file,
-        headers: { 'Content-Type': file.type || 'image/jpeg' },
-      });
-      if (!putRes.ok) throw new Error('Upload failed');
+      await uploadToS3(signed, file, file.type || 'image/jpeg');
       setUrls((prev) => ({ ...prev, [docKey]: signed.key }));
       toast.success('Document uploaded');
     } catch (err) {
-      toast.error(err.message || 'Upload failed');
+      toast.error('Document upload failed. Please try again.');
     } finally {
       setUploading(null);
     }
@@ -161,16 +178,12 @@ export default function WorkerKycPage() {
     try {
       setUploading('selfieUrl');
       const { data: signed } = await presign({ folder: 'kyc', contentType: 'image/jpeg' });
-      const putRes = await fetch(signed.uploadUrl, {
-        method: 'PUT', body: blob,
-        headers: { 'Content-Type': 'image/jpeg' },
-      });
-      if (!putRes.ok) throw new Error('Selfie upload failed');
+      await uploadToS3(signed, blob, 'image/jpeg');
       setUrls((prev) => ({ ...prev, selfieUrl: signed.key }));
       setSelfieMetadata(metadata);
       toast.success('Selfie captured ✓');
     } catch (err) {
-      toast.error(err.message || 'Selfie upload failed');
+      toast.error('Selfie upload failed. Please try again.');
     } finally {
       setUploading(null);
     }
@@ -180,6 +193,11 @@ export default function WorkerKycPage() {
   async function submit() {
     if (!urls.aadhaarUrl || !urls.licenseUrl || !urls.selfieUrl) {
       toast.error('Aadhaar, driving license, and live selfie are all required');
+      return;
+    }
+    // Location is mandatory — the live selfie must carry GPS coordinates.
+    if (typeof selfieMetadata?.lat !== 'number' || typeof selfieMetadata?.lng !== 'number') {
+      toast.error('Location is required. Please enable GPS and recapture your live selfie.');
       return;
     }
     try {
@@ -200,7 +218,7 @@ export default function WorkerKycPage() {
     );
   }
 
-  if (status === 'pending_review') {
+  if (status === 'pending_review' && !needsClarification) {
     return (
       <div className="min-h-screen bg-[#F9FAFB]">
         <header className="page-header"><div className="page-header-inner">
@@ -317,6 +335,20 @@ export default function WorkerKycPage() {
         </header>
 
         <div className="max-w-lg mx-auto px-4 pt-4 space-y-3">
+
+          {/* Admin clarification — action needed, re-upload requested */}
+          {needsClarification && (
+            <div className="card bg-amber-50 ring-1 ring-amber-200">
+              <div className="flex items-start gap-3">
+                <MessageSquare size={16} strokeWidth={2} className="text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Action needed from admin</p>
+                  <p className="text-sm text-amber-700 mt-1 leading-relaxed">{clarification.message}</p>
+                  <p className="text-xs text-amber-500 mt-1.5">Please fix the above and re-upload your documents below.</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Rejection notice */}
           {status === 'rejected' && rejectionReason && (

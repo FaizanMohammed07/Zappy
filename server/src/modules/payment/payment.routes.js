@@ -26,9 +26,10 @@ router.post(
 router.post(
   '/verify',
   authenticate,
+  authLimiter, // hits the Cashfree API — cap to protect quota + block verify spam
   validate(Joi.object({
-    cfOrderId:   Joi.string().required(),
-    cfPaymentId: Joi.string().required(),
+    cfOrderId:   Joi.string().max(120).required(),
+    cfPaymentId: Joi.string().max(120).required(),
   })),
   ctrl.verify
 );

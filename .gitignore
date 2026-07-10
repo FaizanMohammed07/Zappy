@@ -8,6 +8,7 @@ build/
 .DS_Store
 .vscode/
 .idea/
+.claude/worktrees/
 coverage/
 deploy/certs/
 deploy/certbot-www/

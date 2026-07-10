@@ -38,6 +38,8 @@ const orderSchema = new mongoose.Schema(
         // Vehicle Care — Car
         'car_wash', 'car_detailing', 'battery_jump_start', 'car_puncture',
         'car_breakdown', 'fuel_delivery', 'car_service',
+        // Towing — pick up a disabled vehicle and tow it to a destination
+        'car_towing', 'bike_towing',
         // Vehicle Care — Commercial
         'commercial_emergency', 'commercial_scheduled_maintenance', 'fleet_support',
         'auto_repair', 'van_repair',
@@ -54,6 +56,9 @@ const orderSchema = new mongoose.Schema(
         // Pet Assistance
         'pet_grooming', 'pet_walking', 'pet_transport',
         'pet_sitting', 'pet_vet_assist', 'pet_training_assist',
+        // Tank & Water Cleaning
+        'water_tank_cleaning', 'overhead_tank_cleaning',
+        'underground_sump_cleaning', 'sintex_tank_cleaning',
       ],
     },
     subCategory: { type: String, maxlength: 100 },

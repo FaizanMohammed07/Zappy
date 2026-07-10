@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import {
   useAdminShieldSummaryQuery,
   useAdminShieldWeeksQuery,
@@ -188,8 +188,8 @@ function WeeklyFundsTab() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {data?.weeks?.map(week => (
-                <>
-                  <tr key={week._id} className="hover:bg-slate-50/60 transition-colors">
+                <Fragment key={week._id}>
+                  <tr className="hover:bg-slate-50/60 transition-colors">
                     <Td mono>
                       <p className="font-semibold text-slate-800">{fmtDate(week.weekStart)}</p>
                       <p className="text-[11px] text-slate-400">→ {fmtDate(week.weekEnd)}</p>
@@ -214,7 +214,7 @@ function WeeklyFundsTab() {
 
                   {/* Expandable worker payout breakdown */}
                   {expanded === week._id && (
-                    <tr key={`${week._id}-expand`}>
+                    <tr>
                       <td colSpan={8} className="bg-indigo-50/40 px-6 py-4">
                         <p className="text-xs font-bold text-slate-600 mb-2">Worker payouts this week</p>
                         {!payoutsData ? (
@@ -237,7 +237,7 @@ function WeeklyFundsTab() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
 
               {!isFetching && !data?.weeks?.length && (

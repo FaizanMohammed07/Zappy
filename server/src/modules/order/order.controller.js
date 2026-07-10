@@ -4,7 +4,7 @@ const abuseService = require('./abuse.service');
 
 async function getQuote(req, res, next) {
   try {
-    const { service, deviceBrand, deviceModel, priority, pricingModel, estimatedHours } = req.query;
+    const { service, deviceBrand, deviceModel, priority, pricingModel, estimatedHours, vehicleType } = req.query;
     const pickupLat = parseFloat(req.query.pickupLat);
     const pickupLng = parseFloat(req.query.pickupLng);
     const dropLat   = req.query.dropLat  != null ? parseFloat(req.query.dropLat)  : null;
@@ -21,6 +21,7 @@ async function getQuote(req, res, next) {
       deviceBrand,
       deviceModel,
       pricingModel,
+      vehicleType,
       estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
     });
     res.json({ quote });
@@ -44,6 +45,17 @@ async function listMine(req, res, next) {
     const limit = 20;
     const [orders, total] = await orderService.listByUser(req.auth.sub, { page, limit });
     res.json({ orders, total, totalPages: Math.ceil(total / limit), page });
+  } catch (err) { next(err); }
+}
+
+async function rebookOrder(req, res, next) {
+  try {
+    // Same IP-fraud gate as a fresh booking.
+    const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim();
+    await abuseService.assertIpCanBook(clientIp);
+
+    const order = await orderService.rebookOrder({ userId: req.auth.sub, sourceOrderId: req.params.id });
+    res.status(201).json({ order: { _id: order._id, status: order.status, service: order.service, pickupLocation: order.pickupLocation, pricing: order.pricing } });
   } catch (err) { next(err); }
 }
 
@@ -435,4 +447,4 @@ async function rescheduleOrder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getQuote, createOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };
+module.exports = { getQuote, createOrder, rebookOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };

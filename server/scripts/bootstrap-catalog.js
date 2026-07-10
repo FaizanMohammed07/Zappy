@@ -553,6 +553,31 @@ const SERVICES = [
     guidelines: [],
     sortOrder: 417,
   },
+  {
+    code: 'car_towing', name: 'Car Towing', category: 'vehicle',
+    description: 'Flatbed/lift towing for cars — picked up and towed to your chosen destination.',
+    estimatedDurationMinutes: 45, priceRangeMinPaise: 50000, priceRangeMaxPaise: 500000,
+    requiredSkills: ['car_towing'], requiredTools: ['Tow truck', 'Straps', 'Wheel dollies'],
+    checklist: [
+      { item: 'Confirm destination with customer', required: true },
+      { item: 'Secure vehicle to flatbed/lift', required: true },
+      { item: 'Photograph vehicle condition before towing', required: true },
+    ],
+    guidelines: [],
+    sortOrder: 418,
+  },
+  {
+    code: 'bike_towing', name: 'Bike Towing', category: 'vehicle',
+    description: 'Two-wheeler towing — your bike towed to a garage or destination.',
+    estimatedDurationMinutes: 30, priceRangeMinPaise: 20000, priceRangeMaxPaise: 200000,
+    requiredSkills: ['bike_towing'], requiredTools: ['Tow vehicle', 'Straps'],
+    checklist: [
+      { item: 'Confirm destination with customer', required: true },
+      { item: 'Secure the two-wheeler', required: true },
+    ],
+    guidelines: [],
+    sortOrder: 419,
+  },
 
   // ── Commercial Vehicles ────────────────────────────────────────
   {
@@ -952,6 +977,60 @@ const SERVICES = [
     ],
     guidelines: ['Positive reinforcement only — never punishment'],
     sortOrder: 706,
+  },
+
+  // ── Tank & Water Cleaning ──────────────────────────────────────
+  {
+    code: 'water_tank_cleaning', name: 'Water Tank Cleaning', category: 'home',
+    description: 'Doorstep water tank cleaning — draining, scrubbing, sludge removal and disinfection.',
+    estimatedDurationMinutes: 60, priceRangeMinPaise: 59900, priceRangeMaxPaise: 250000,
+    requiredSkills: ['tank_cleaning'], requiredTools: ['Submersible pump', 'Pressure washer', 'Disinfectant', 'Vacuum'],
+    checklist: [
+      { item: 'Drain the tank completely', required: true },
+      { item: 'Scrub walls and remove sludge', required: true },
+      { item: 'Disinfect and rinse before refilling', required: true },
+      { item: 'Share before/after photos with customer', required: true },
+    ],
+    guidelines: ['Use food-grade disinfectant only'],
+    sortOrder: 720,
+  },
+  {
+    code: 'overhead_tank_cleaning', name: 'Overhead Tank Cleaning', category: 'home',
+    description: 'Rooftop / overhead tank cleaning with full disinfection.',
+    estimatedDurationMinutes: 60, priceRangeMinPaise: 69900, priceRangeMaxPaise: 300000,
+    requiredSkills: ['tank_cleaning'], requiredTools: ['Submersible pump', 'Pressure washer', 'Disinfectant', 'Safety harness'],
+    checklist: [
+      { item: 'Check roof access and safety', required: true },
+      { item: 'Drain, scrub and remove sludge', required: true },
+      { item: 'Disinfect and rinse', required: true },
+    ],
+    guidelines: ['Use a safety harness for rooftop work'],
+    sortOrder: 721,
+  },
+  {
+    code: 'underground_sump_cleaning', name: 'Underground Sump Cleaning', category: 'home',
+    description: 'Underground sump/tank cleaning — desludging, scrubbing and disinfection.',
+    estimatedDurationMinutes: 90, priceRangeMinPaise: 99900, priceRangeMaxPaise: 400000,
+    requiredSkills: ['tank_cleaning'], requiredTools: ['Submersible pump', 'Pressure washer', 'Disinfectant', 'Blower/ventilation'],
+    checklist: [
+      { item: 'Ventilate the sump before entry', required: true },
+      { item: 'Desludge, scrub and remove debris', required: true },
+      { item: 'Disinfect and rinse', required: true },
+    ],
+    guidelines: ['Ensure confined-space ventilation before entry'],
+    sortOrder: 722,
+  },
+  {
+    code: 'sintex_tank_cleaning', name: 'Sintex / Plastic Tank Cleaning', category: 'home',
+    description: 'Plastic (Sintex) water tank cleaning and disinfection.',
+    estimatedDurationMinutes: 45, priceRangeMinPaise: 49900, priceRangeMaxPaise: 200000,
+    requiredSkills: ['tank_cleaning'], requiredTools: ['Submersible pump', 'Soft brush', 'Disinfectant'],
+    checklist: [
+      { item: 'Drain and soft-scrub (no abrasive tools on plastic)', required: true },
+      { item: 'Disinfect and rinse', required: true },
+    ],
+    guidelines: ['Use soft brushes only to avoid scratching plastic'],
+    sortOrder: 723,
   },
 ];
 

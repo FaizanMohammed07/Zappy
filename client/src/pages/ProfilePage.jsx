@@ -6,8 +6,9 @@ import {
   ClipboardList, Wallet, Bell, Star, MapPin, HelpCircle,
   LogOut, ChevronRight, ShieldCheck, Home, Briefcase, Plus,
   Trash2, X, Loader2, Scale, HeadphonesIcon, CreditCard,
-  Pencil, Check, TrendingUp, Tag, Calendar, Shield,
+  Pencil, Check, TrendingUp, Tag, Calendar, Shield, Gift,
 } from 'lucide-react';
+import LanguageSwitcher from '../i18n/LanguageSwitcher';
 import { selectAuth, logout } from '../modules/auth/authSlice';
 import {
   useGetMeQuery, useGetAddressesQuery, useAddAddressMutation,
@@ -140,10 +141,10 @@ export default function ProfilePage() {
   return (
     <PageTransition>
       <div className="min-h-screen bg-[#F9FAFB] pb-40">
-        <header className="page-header">
-          <div className="page-header-inner">
-            <h1 className="h-card flex-1">Profile</h1>
-            <span className="chip-neutral capitalize">{role}</span>
+        <header className="page-header !bg-transparent border-none">
+          <div className="page-header-inner justify-center pt-4">
+            <h1 className="text-xl font-black tracking-tight text-[#0F172A]">Profile</h1>
+            <span className="absolute right-4 chip-neutral bg-white/60 backdrop-blur-md capitalize font-bold">{role}</span>
           </div>
         </header>
 
@@ -163,42 +164,52 @@ export default function ProfilePage() {
           >
             {/* Avatar section */}
             <motion.div
-              className="bg-white border-b border-slate-100 lg:border lg:rounded-card lg:shadow-card lg:h-fit px-4 py-6"
+              className="py-8 relative"
               variants={fadeInUp}
             >
-              <div className="flex items-center gap-4 lg:flex-col lg:text-center lg:gap-3 lg:pb-2">
+              {/* Decorative glow behind avatar */}
+              <div className="absolute top-8 left-1/2 -translate-x-1/2 w-32 h-32 bg-zappy-500/30 rounded-full blur-3xl pointer-events-none" />
+              
+              <div className="flex flex-col items-center text-center gap-3 relative z-10">
                 <motion.div
-                  className="w-16 h-16 lg:w-20 lg:h-20 rounded-2xl bg-zappy-gradient flex items-center justify-center text-white text-xl font-bold shrink-0"
-                  whileHover={{ scale: 1.05 }}
+                  className="w-24 h-24 rounded-[32px] bg-zappy-gradient flex items-center justify-center text-white text-3xl font-black shrink-0 shadow-glow-blue border-2 border-white/20"
+                  whileHover={{ scale: 1.05, rotate: -2 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                   {initials}
                 </motion.div>
-                <div className="flex-1 min-w-0 lg:flex-none">
-                  <h2 className="font-bold text-lg text-[#0F172A] truncate">{user?.name || 'User'}</h2>
-                  <p className="text-sm text-slate-500 mt-0.5">{user?.phone || user?.email || '—'}</p>
-                  {user?.email && user?.phone && (
-                    <p className="text-xs text-slate-400 mt-0.5 truncate">{user.email}</p>
-                  )}
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-black text-2xl tracking-tight text-[#0F172A]">{user?.name || 'User'}</h2>
+                  <p className="text-sm font-semibold text-slate-500 mt-1">{user?.phone || user?.email || '—'}</p>
                 </div>
-                <div className="flex items-center gap-1 bg-success-50 px-2 py-1 rounded-full lg:mx-auto">
-                  <ShieldCheck size={11} strokeWidth={2.5} className="text-success-600" />
-                  <span className="text-[10px] font-bold text-success-700">Verified</span>
+                <div className="flex items-center gap-1.5 bg-success-50/80 backdrop-blur-md px-3 py-1.5 rounded-full mt-2 shadow-sm border border-success-100">
+                  <ShieldCheck size={14} strokeWidth={3} className="text-success-600" />
+                  <span className="text-xs font-black tracking-wide text-success-700">VERIFIED</span>
                 </div>
               </div>
             </motion.div>
 
             {/* Menu */}
-            <div className="px-4 lg:px-0 pt-5 lg:pt-0 space-y-4">
+            <div className="pt-5 lg:pt-0 space-y-4">
               <motion.div variants={fadeInUp}>
                 <MenuSection title="Activity">
                   <MenuItem Icon={ClipboardList} label="My Bookings" sublabel="View order history" onClick={() => nav('/orders')} />
                   <MenuItem Icon={Wallet} label="Wallet" sublabel="Balance & transactions" onClick={() => nav('/wallet')} />
+                  <MenuItem Icon={Gift} label="Rewards" sublabel="Points & scratch cards" onClick={() => nav('/rewards')} />
                   <MenuItem Icon={CreditCard} label="Payment Methods" sublabel="Cards, UPI & more" onClick={() => nav('/payments')} />
                   <MenuItem Icon={Bell} label="Notifications" onClick={() => nav('/notifications')} />
                   <MenuItem Icon={TrendingUp} label="Spending Analytics" sublabel="Monthly & service breakdown" onClick={() => nav('/spending')} />
                   <MenuItem Icon={Tag} label="Promo Codes" sublabel="Browse all active offers" onClick={() => nav('/promos')} />
                   <MenuItem Icon={Calendar} label="Scheduled Bookings" sublabel="View & reschedule" onClick={() => nav('/scheduled')} />
                 </MenuSection>
+              </motion.div>
+
+              {/* ── Language ── */}
+              <motion.div variants={fadeInUp}>
+                <p className="section-title px-1 mb-2">Language</p>
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3">
+                  <LanguageSwitcher variant="menu" />
+                </div>
               </motion.div>
 
               {/* ── Saved Addresses ── */}
@@ -414,7 +425,7 @@ export default function ProfilePage() {
                     <motion.button
                       key="logout-btn"
                       onClick={() => setShowLogout(true)}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 rounded-card bg-white ring-1 ring-red-100 text-red-500 hover:bg-red-50 transition"
+                      className="w-full flex items-center gap-3 px-4 py-4 rounded-[24px] bg-red-50 ring-1 ring-red-100/50 text-red-500 hover:bg-red-100 transition shadow-sm border border-red-100"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -458,9 +469,9 @@ export default function ProfilePage() {
 
 function MenuSection({ title, children }) {
   return (
-    <div>
-      <p className="section-title px-1">{title}</p>
-      <div className="card divide-y divide-slate-100 p-0 overflow-hidden">
+    <div className="mb-6">
+      <p className="px-4 mb-2 text-[11px] font-black uppercase tracking-widest text-slate-400">{title}</p>
+      <div className="card !p-1 overflow-hidden space-y-0.5">
         {children}
       </div>
     </div>
@@ -471,18 +482,18 @@ function MenuItem({ Icon, label, sublabel, onClick }) {
   return (
     <motion.button
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 active:bg-slate-100 transition"
-      whileHover={{ x: 2 }}
-      whileTap={{ scale: 0.99 }}
+      className="w-full flex items-center gap-3.5 px-3 py-3 text-left hover:bg-slate-50/80 rounded-[20px] transition"
+      whileHover={{ scale: 0.99, backgroundColor: 'rgba(248,250,252,0.8)' }}
+      whileTap={{ scale: 0.97 }}
     >
-      <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
-        <Icon size={16} strokeWidth={2} className="text-slate-500" />
+      <div className="w-10 h-10 rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 flex items-center justify-center shrink-0">
+        <Icon size={18} strokeWidth={2} className="text-zappy-600" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[#0F172A]">{label}</p>
-        {sublabel && <p className="text-xs text-slate-400 mt-0.5 truncate">{sublabel}</p>}
+        <p className="text-[15px] font-bold text-[#0F172A]">{label}</p>
+        {sublabel && <p className="text-xs font-medium text-slate-400 mt-0.5 truncate">{sublabel}</p>}
       </div>
-      <ChevronRight size={14} className="text-slate-300 shrink-0" />
+      <ChevronRight size={16} strokeWidth={2.5} className="text-slate-300 shrink-0" />
     </motion.button>
   );
 }

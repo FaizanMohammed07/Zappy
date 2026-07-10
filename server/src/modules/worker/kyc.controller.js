@@ -23,7 +23,9 @@ async function submitKyc(req, res, next) {
         });
       }
     }
-    if (w.kyc?.status === 'pending_review' && !isUpdate) {
+    // An active admin clarification re-opens re-upload even while pending_review.
+    const clarificationActive = w.kyc?.clarification?.active === true;
+    if (w.kyc?.status === 'pending_review' && !isUpdate && !clarificationActive) {
       return res.status(409).json({ error: 'KYC already submitted and under review', code: 'KYC_PENDING' });
     }
     if (w.kyc?.status === 'pending_review' && isUpdate) {
@@ -47,6 +49,29 @@ async function submitKyc(req, res, next) {
           waitHours,
         });
       }
+    }
+
+    // Location is MANDATORY — anti-fraud + dispatch zoning. Reject submissions
+    // whose live selfie has no GPS fix (denied/spoofed/unavailable).
+    const meta = req.body.selfieMetadata;
+    if (!meta || typeof meta.lat !== 'number' || typeof meta.lng !== 'number') {
+      return res.status(400).json({
+        error: 'Location is required. Please enable GPS/location and recapture your live selfie.',
+        code: 'KYC_LOCATION_REQUIRED',
+      });
+    }
+    // Reject mock-provider fixes and coordinates outside the service area
+    // (VPN / IP-geolocation place spoofed selfies in e.g. Peru / Costa Rica).
+    const { validateLocation } = require('../../utils/geo-validate');
+    const locCheck = validateLocation({ lat: meta.lat, lng: meta.lng, accuracy: meta.accuracy, mock: meta.mock, maxAccuracy: 500 });
+    if (!locCheck.ok) {
+      return res.status(422).json({
+        error: locCheck.reason === 'mock_location'
+          ? 'Mock/spoofed location detected. Disable fake-GPS apps and recapture your live selfie.'
+          : 'Your captured location is outside the service area. Turn off any VPN, enable precise GPS, and recapture.',
+        code: 'KYC_LOCATION_INVALID',
+        reason: locCheck.reason,
+      });
     }
 
     const now = new Date();
@@ -74,6 +99,7 @@ async function submitKyc(req, res, next) {
           'kyc.rejectionReason': null,
           'kyc.isUpdate':        isUpdate,
           'kyc.changeRequest':   null, // clear approved change request after submission
+          'kyc.clarification':   null, // clear admin clarification — fresh docs supersede it
           // Snapshot previous approved docs for comparison and revert-on-reject
           ...(isUpdate && {
             'kyc.approvedSnapshot': {

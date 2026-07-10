@@ -210,6 +210,14 @@ async function onRefereeFirstOrder({ refereeKind, refereeId, orderId }) {
     deepLink: '/wallet',
   });
 
+  // Refer & Earn points — award the referrer redeemable reward points too (only
+  // for user referrers; workers don't have a rewards wallet). Non-blocking.
+  if (use.referrer.kind === 'user') {
+    require('../rewards/rewards.service')
+      .onReferralCompleted({ referrerId: use.referrer.id, refereeId: use.referee.id, orderId })
+      .catch(() => {});
+  }
+
   return use;
 }
 

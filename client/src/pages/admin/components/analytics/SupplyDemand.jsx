@@ -15,7 +15,7 @@ export default function SupplyDemand({ hourly = [], onlineWorkers = 2 }) {
             <div key={d.hour} className="flex-1 group relative flex flex-col justify-end" style={{ height: '100%' }}>
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-10 pointer-events-none">
                 <div className="bg-slate-900 text-white text-[9px] px-1.5 py-1 rounded shadow-lg whitespace-nowrap">
-                  {d.hour}:00 — {d.orders} orders{gapped ? ' ⚠ supply gap' : ''}
+                  {d.hour}:00 — {d.orders} orders{gapped ? ' · supply gap' : ''}
                 </div>
               </div>
               <div

@@ -4,7 +4,7 @@ import { setAuth, logout } from '../modules/auth/authSlice';
 import { adminApiPath } from '../config/admin';
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: '/api',
+  baseUrl: `${import.meta.env.VITE_API_URL || ''}/api`,
   // credentials: 'include' sends the httpOnly refresh-token cookie on every request.
   // The server only reads it on /auth/refresh and /auth/logout — all other routes
   // ignore it. Required for the silent refresh flow. (#78)
@@ -92,7 +92,10 @@ export const api = createApi({
   // Disable refetch-on-focus — dashboard fires 6-8 queries; tab switching floods the limiter
   refetchOnFocus: false,
   refetchOnReconnect: true,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans'],
+  // Keep fetched data cached for 5 min after a component unmounts, so jumping
+  // back to a tab shows data instantly (no skeleton) instead of refetching.
+  keepUnusedDataFor: 300,
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content', 'Rewards'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -125,6 +128,10 @@ export const api = createApi({
 
     // --- User ---
     getMe: b.query({ query: () => '/users/me', providesTags: ['Me'] }),
+    updateMe: b.mutation({
+      query: (body) => ({ url: '/users/me', method: 'PATCH', body }),
+      invalidatesTags: ['Me'],
+    }),
     getAddresses: b.query({
       query: () => '/users/addresses',
       providesTags: ['Addresses'],
@@ -224,6 +231,10 @@ export const api = createApi({
     }),
     getCancelPreview: b.query({
       query: (id) => `/orders/${id}/cancel-preview`,
+    }),
+    rebookOrder: b.mutation({
+      query: (id) => ({ url: `/orders/${id}/rebook`, method: 'POST' }),
+      invalidatesTags: ['Order'],
     }),
     cancelOrder: b.mutation({
       query: ({ id, reason }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { reason } }),
@@ -331,6 +342,79 @@ export const api = createApi({
       query: (body) => ({ url: '/uploads/presign', method: 'POST', body }),
     }),
 
+    // --- ZappyLens (visual service search) ---
+    lensUploadUrl: b.mutation({
+      query: (body) => ({ url: '/lens/upload-url', method: 'POST', body }), // { contentType } → { uploadUrl, key }
+    }),
+    analyzeLens: b.mutation({
+      query: (body) => ({ url: '/lens/analyze', method: 'POST', body }),    // { imageKeys, lat?, lng? }
+    }),
+    getLensScan: b.query({
+      query: (id) => `/lens/scan/${id}`,
+    }),
+
+    // --- Content (admin-managed FAQs + policy pages) ---
+    getFaqs: b.query({
+      query: (audience) => `/content/faqs${audience ? `?audience=${audience}` : ''}`,
+      providesTags: ['Content'],
+    }),
+    getPolicy: b.query({
+      query: (slug) => `/content/policy/${slug}`,
+      providesTags: (r, e, slug) => [{ type: 'Content', id: slug }],
+    }),
+    getPolicies: b.query({
+      query: () => '/content/policies',
+      providesTags: ['Content'],
+    }),
+    adminListContent: b.query({
+      query: (type) => ({ url: adminApiPath('/content'), params: type ? { type } : {} }),
+      providesTags: ['Content'],
+    }),
+    adminCreateContent: b.mutation({
+      query: (body) => ({ url: adminApiPath('/content'), method: 'POST', body }),
+      invalidatesTags: ['Content'],
+    }),
+    adminUpdateContent: b.mutation({
+      query: ({ id, ...body }) => ({ url: adminApiPath(`/content/${id}`), method: 'PUT', body }),
+      invalidatesTags: ['Content'],
+    }),
+    adminToggleContent: b.mutation({
+      query: ({ id, isActive }) => ({ url: adminApiPath(`/content/${id}/active`), method: 'PATCH', body: { isActive } }),
+      invalidatesTags: ['Content'],
+    }),
+    adminDeleteContent: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/content/${id}`), method: 'DELETE' }),
+      invalidatesTags: ['Content'],
+    }),
+
+    // --- Rewards (points + scratch cards) ---
+    getRewards: b.query({ query: () => '/rewards', providesTags: ['Rewards'] }),
+    redeemRewardPoints: b.mutation({
+      query: (points) => ({ url: '/rewards/redeem', method: 'POST', body: { points } }),
+      invalidatesTags: ['Rewards', 'Wallet'],
+    }),
+    scratchRewardCard: b.mutation({
+      query: (cardId) => ({ url: `/rewards/scratch/${cardId}`, method: 'POST' }),
+      invalidatesTags: ['Rewards', 'Wallet'],
+    }),
+    adminGetRewardsConfig: b.query({ query: () => adminApiPath('/rewards-config'), providesTags: ['Rewards'] }),
+    adminUpdateRewardsConfig: b.mutation({
+      query: (body) => ({ url: adminApiPath('/rewards-config'), method: 'PUT', body }),
+      invalidatesTags: ['Rewards'],
+    }),
+    adminGrantRewardPoints: b.mutation({
+      query: (body) => ({ url: adminApiPath('/rewards-config/grant'), method: 'POST', body }),
+    }),
+
+    // --- Worker KYC: 3rd-party API verification ---
+    adminResetWorkerDevices: b.mutation({
+      query: (id) => ({ url: adminApiPath(`/workers/${id}/reset-devices`), method: 'POST' }),
+    }),
+    adminRunKycVerify: b.mutation({
+      query: ({ id, pan }) => ({ url: adminApiPath(`/workers/${id}/kyc/verify`), method: 'POST', body: pan ? { pan } : {} }),
+      invalidatesTags: ['Kyc'],
+    }),
+
     // --- Admin ---
     adminMetrics: b.query({ query: () => adminApiPath('/metrics'), providesTags: ['AdminMetrics'] }),
     adminOrders: b.query({
@@ -419,6 +503,23 @@ export const api = createApi({
     }),
     markNotificationRead: b.mutation({
       query: (id) => ({ url: `/notifications/${id}/read`, method: 'POST' }),
+      // Optimistic: mark read instantly (set readAt in the "all" view, drop it from
+      // the "unread" view), roll back if the request fails.
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        const patches = [];
+        for (const unreadOnly of [false, true]) {
+          patches.push(dispatch(api.util.updateQueryData('listNotifications', { page: 1, unreadOnly }, (draft) => {
+            if (!draft?.notifications) return;
+            if (unreadOnly) {
+              draft.notifications = draft.notifications.filter((n) => String(n._id) !== String(id));
+            } else {
+              const n = draft.notifications.find((x) => String(x._id) === String(id));
+              if (n && !n.readAt) n.readAt = new Date().toISOString();
+            }
+          })));
+        }
+        try { await queryFulfilled; } catch { patches.forEach((p) => p.undo()); }
+      },
       invalidatesTags: ['Notification'],
     }),
     markAllNotificationsRead: b.mutation({
@@ -447,6 +548,9 @@ export const api = createApi({
     // --- Admin: Extended ---
     adminAnalytics: b.query({
       query: (days = 30) => adminApiPath(`/analytics?days=${days}`),
+    }),
+    adminOtpAnalytics: b.query({
+      query: (days = 7) => adminApiPath(`/otp-analytics?days=${days}`),
     }),
     // Founder Audit (scenarios 96-98)
     adminOrderAudit: b.query({
@@ -480,9 +584,57 @@ export const api = createApi({
     adminQuoteAbandonment: b.query({
       query: (days = 7) => adminApiPath(`/business/quote-abandonment?days=${days}`),
     }),
+
+    // Intelligence & Expansion dashboard
+    adminIntelLiveTraffic: b.query({
+      query: () => adminApiPath('/intelligence/live-traffic'),
+    }),
+    adminIntelVisitorLocations: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/visitor-locations?days=${days}`),
+    }),
+    adminIntelDemand: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/demand?days=${days}`),
+    }),
+    adminIntelUnmetDemand: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/unmet-demand?days=${days}`),
+    }),
+    adminIntelExpansion: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/expansion?days=${days}`),
+    }),
+    adminIntelCeo: b.query({
+      query: () => adminApiPath('/intelligence/ceo'),
+    }),
+    adminIntelFunnel: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/funnel?days=${days}`),
+    }),
+    adminIntelReport: b.query({
+      query: (period = 'daily') => adminApiPath(`/intelligence/report?period=${period}`),
+    }),
+    adminIntelPartners: b.query({
+      query: (days = 30) => adminApiPath(`/intelligence/partners?days=${days}`),
+    }),
+
+    // Admin push notifications — via RTK so they ride the silent token-refresh
+    // (previously raw fetch() → 401 'Invalid or expired token' on AT expiry).
+    adminNotificationHealth: b.query({
+      query: () => adminApiPath('/notifications/health'),
+    }),
+    adminNotificationStats: b.query({
+      query: (days = 7) => adminApiPath(`/notifications/stats?days=${days}`),
+    }),
+    adminSendNotification: b.mutation({
+      query: (body) => ({ url: adminApiPath('/notifications/send'), method: 'POST', body }),
+    }),
+    adminBroadcastNotification: b.mutation({
+      query: (body) => ({ url: adminApiPath('/notifications/broadcast'), method: 'POST', body }),
+    }),
     adminListUsers: b.query({
       query: ({ q, blocked, page = 1 } = {}) => ({ url: adminApiPath('/users'), params: { q, blocked, page } }),
       providesTags: ['AdminUsers'],
+    }),
+    adminGetUser: b.query({
+      query: (id) => adminApiPath(`/users/${id}`),
+      providesTags: (r, e, id) => [{ type: 'AdminUsers', id }],
     }),
     adminBlockUser: b.mutation({
       query: ({ id, blocked }) => ({ url: adminApiPath(`/users/${id}/block`), method: 'POST', body: { blocked } }),
@@ -835,6 +987,15 @@ export const api = createApi({
     getVehicleHealthReport: b.query({ query: (orderId) => `/vertical-features/vehicles/health-report/${orderId}` }),
     submitVehicleHealthReport: b.mutation({
       query: ({ orderId, reportType, preDamageDocs }) => ({ url: '/vertical-features/vehicles/health-report', method: 'POST', body: { orderId, reportType, preDamageDocs } }),
+    }),
+
+    // --- Public Catalog — live service list + prices for home/services pages ---
+    listServices: b.query({
+      query: () => '/catalog/services',
+      transformResponse: (r) => {
+        const list = r?.services || [];
+        return { list, byCode: Object.fromEntries(list.map((s) => [s.code, s])) };
+      },
     }),
 
     // --- Admin Catalog (correct server path: /catalog/admin/services) ---
@@ -1444,6 +1605,7 @@ export const {
   useRevokeAllSessionsMutation,
   useVerifySensitiveOtpMutation,
   useGetMeQuery,
+  useUpdateMeMutation,
   useGetQuoteQuery,
   useLazyGetQuoteQuery,
   useCreateOrderMutation,
@@ -1451,6 +1613,7 @@ export const {
   useListOrdersQuery,
   useGetCancelPreviewQuery,
   useCancelOrderMutation,
+  useRebookOrderMutation,
   useWorkerReportNoResponseMutation,
   useWorkerReportPartUnavailableMutation,
   useRateOrderMutation,
@@ -1468,6 +1631,26 @@ export const {
   useGetKycStatusQuery,
   useSubmitKycMutation,
   usePresignUploadMutation,
+  useLensUploadUrlMutation,
+  useAnalyzeLensMutation,
+  useLazyGetLensScanQuery,
+  useGetLensScanQuery,
+  useGetFaqsQuery,
+  useGetPolicyQuery,
+  useGetPoliciesQuery,
+  useAdminListContentQuery,
+  useAdminCreateContentMutation,
+  useAdminUpdateContentMutation,
+  useAdminToggleContentMutation,
+  useAdminDeleteContentMutation,
+  useGetRewardsQuery,
+  useRedeemRewardPointsMutation,
+  useScratchRewardCardMutation,
+  useAdminGetRewardsConfigQuery,
+  useAdminUpdateRewardsConfigMutation,
+  useAdminGrantRewardPointsMutation,
+  useAdminResetWorkerDevicesMutation,
+  useAdminRunKycVerifyMutation,
   useAdminMetricsQuery,
   useAdminOrdersQuery,
   useAdminWorkersQuery,
@@ -1499,7 +1682,21 @@ export const {
   useAdminDeadCategoriesQuery,
   useAdminGeoReadinessQuery,
   useAdminQuoteAbandonmentQuery,
+  useAdminIntelLiveTrafficQuery,
+  useAdminIntelVisitorLocationsQuery,
+  useAdminIntelDemandQuery,
+  useAdminIntelUnmetDemandQuery,
+  useAdminIntelExpansionQuery,
+  useAdminIntelCeoQuery,
+  useAdminIntelFunnelQuery,
+  useAdminIntelReportQuery,
+  useAdminIntelPartnersQuery,
+  useLazyAdminNotificationHealthQuery,
+  useLazyAdminNotificationStatsQuery,
+  useAdminSendNotificationMutation,
+  useAdminBroadcastNotificationMutation,
   useAdminListUsersQuery,
+  useAdminGetUserQuery,
   useAdminBlockUserMutation,
   useAdminGetPricingConfigQuery,
   useAdminSetPricingConfigMutation,
@@ -1653,6 +1850,7 @@ export const {
   useGetVehicleHealthReportQuery,
   useSubmitVehicleHealthReportMutation,
   // Admin catalog + verticals
+  useListServicesQuery,
   useAdminGetCatalogServicesQuery,
   useAdminUpdateCatalogServiceMutation,
   useAdminServiceActiveOrderCountQuery,
@@ -1787,4 +1985,5 @@ export const {
   useAdminGetTrainingModulesQuery,
   useAdminCreateTrainingModuleMutation,
   useAdminUpdateTrainingModuleMutation,
+  useAdminOtpAnalyticsQuery,
 } = api;

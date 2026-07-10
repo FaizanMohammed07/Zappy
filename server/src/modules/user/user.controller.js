@@ -9,9 +9,18 @@ async function getMe(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Only these fields may be self-updated. Explicit whitelist so privileged fields
+// (role, isBlocked, rating, wallet, abuse counters…) can NEVER be mass-assigned,
+// independent of whatever the route validator allows.
+const SELF_EDITABLE_FIELDS = ['name', 'email', 'defaultPayment'];
+
 async function updateMe(req, res, next) {
   try {
-    const user = await User.findByIdAndUpdate(req.auth.sub, req.body, { new: true });
+    const update = {};
+    for (const f of SELF_EDITABLE_FIELDS) {
+      if (req.body[f] !== undefined) update[f] = req.body[f];
+    }
+    const user = await User.findByIdAndUpdate(req.auth.sub, update, { new: true, runValidators: true });
     res.json({ user });
   } catch (err) { next(err); }
 }

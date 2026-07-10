@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { useAdminGeoAnalyticsQuery, useAdminDemandPatternsQuery, useAdminLiveOpsQuery } from '../../services/api';
+import { useAdminGeoAnalyticsQuery, useAdminDemandPatternsQuery, useAdminLiveOpsQuery, useAdminIntelUnmetDemandQuery } from '../../services/api';
 import { SectionHeader, Card, PageLoader } from './_shared';
 import {
   Flame, IndianRupee, XCircle, Users, TrendingUp, Clock,
-  Calendar, AlertTriangle, MapPin, ArrowUp, ArrowDown,
+  Calendar, AlertTriangle, MapPin, ArrowUp, ArrowDown, MapPinOff,
 } from 'lucide-react';
 import useZoneNames    from './hooks/useZoneNames';
 import useMapLayers    from './hooks/useMapLayers';
@@ -26,11 +26,12 @@ const VIEWS = [
   { id: 'demand',  label: 'Demand Heatmap',   Icon: Flame,       color: '#f97316', desc: 'Order density — hottest areas = most bookings' },
   { id: 'revenue', label: 'Revenue Zones',    Icon: IndianRupee, color: '#2563eb', desc: 'Revenue per zone — blue intensity = earnings' },
   { id: 'cancel',  label: 'Cancel Rate',      Icon: XCircle,     color: '#dc2626', desc: 'Cancel rate — red circles = problem zones' },
+  { id: 'no_service', label: 'No-Service',    Icon: MapPinOff,   color: '#e11d48', desc: 'Where customers found no coverage — expansion targets' },
   { id: 'workers', label: 'Live Workers',     Icon: Users,       color: '#10b981', desc: 'Live worker positions from GPS' },
 ];
 
 /* ── MapView ── */
-function MapView({ cells, workerLocations, view, isLoading }) {
+function MapView({ cells, workerLocations, noServicePoints, view, isLoading }) {
   const containerRef = useRef(null);
   const mapRef       = useRef(null);
   const [ready, setReady] = useState(false);
@@ -44,7 +45,7 @@ function MapView({ cells, workerLocations, view, isLoading }) {
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-  useMapLayers(mapRef, ready ? cells : [], ready ? workerLocations : [], view);
+  useMapLayers(mapRef, ready ? cells : [], ready ? workerLocations : [], view, ready ? noServicePoints : []);
 
   return (
     <div className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: 500 }}>
@@ -65,9 +66,11 @@ export default function Heatmap() {
   const { data: geoData, isLoading: geoLoading } = useAdminGeoAnalyticsQuery({ days, service });
   const { data: patData, isLoading: patLoading } = useAdminDemandPatternsQuery({ days, service });
   const { data: liveData }                        = useAdminLiveOpsQuery(undefined, { pollingInterval: 30000 });
+  const { data: unmetData } = useAdminIntelUnmetDemandQuery(days, { skip: view !== 'no_service' });
 
   const rawCells   = geoData?.cells            || [];
   const workerLocs = liveData?.workerLocations || [];
+  const noServicePoints = unmetData?.mapPoints || [];
   const topZones   = geoData?.topZones         || {};
 
   const allNamedZones = useMemo(() => [
@@ -125,9 +128,17 @@ export default function Heatmap() {
         <span className="text-xs text-slate-400 ml-1 hidden sm:inline">{currentViewMeta?.desc}</span>
       </div>
 
-      <MapView cells={cells} workerLocations={workerLocs} view={view} isLoading={geoLoading} />
+      <MapView cells={cells} workerLocations={workerLocs} noServicePoints={noServicePoints} view={view} isLoading={geoLoading} />
 
-      {view !== 'workers' && (
+      {view === 'no_service' && (
+        <p className="text-xs text-slate-400 px-1">
+          {noServicePoints.length > 0
+            ? `${noServicePoints.length} no-service hotspots · ${(unmetData?.lostBookings || 0).toLocaleString('en-IN')} lost bookings · ₹${(unmetData?.potentialRevenueLost || 0).toLocaleString('en-IN')} potential revenue lost`
+            : 'No "No Service Available" events captured yet in this window.'}
+        </p>
+      )}
+
+      {view !== 'workers' && view !== 'no_service' && (
         <div className="flex items-center gap-3 px-1">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{view === 'cancel' ? 'Cancel rate' : view === 'revenue' ? 'Revenue' : 'Order volume'}:</span>
           <div className="flex items-center gap-1.5">

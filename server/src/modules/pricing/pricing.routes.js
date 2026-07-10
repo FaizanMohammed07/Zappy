@@ -23,12 +23,30 @@ adminRouter.patch(
     minFarePaise: Joi.number().integer().min(0),
     surgeEnabled: Joi.boolean(),
     surgeMaxCap: Joi.number().min(1).max(5),
+    surgeTolerancePct: Joi.number().min(0.02).max(0.50),
     commissionRate: Joi.number().min(0).max(0.5),
     serviceOverrides: Joi.array().items(Joi.object({
       service: Joi.string().required(),
       multiplier: Joi.number().required(),
       minFarePaise: Joi.number().integer().min(0).optional(),
     })),
+    // Auto-pricing
+    nightSurchargeEnabled:    Joi.boolean(),
+    nightSurchargeMultiplier: Joi.number().min(1.0).max(3.0),
+    nightStartHour:           Joi.number().integer().min(0).max(23),
+    nightEndHour:             Joi.number().integer().min(0).max(23),
+    rainSurchargeEnabled:     Joi.boolean(),
+    rainSurchargeMultiplier:  Joi.number().min(1.0).max(3.0),
+    rainActiveUntil:          Joi.date().allow(null),
+    weekendSurchargeEnabled:    Joi.boolean(),
+    weekendSurchargeMultiplier: Joi.number().min(1.0).max(2.0),
+    peakHourSurchargeEnabled: Joi.boolean(),
+    peakHourRanges: Joi.array().items(Joi.object({
+      label:      Joi.string().max(50),
+      startHour:  Joi.number().integer().min(0).max(23).required(),
+      endHour:    Joi.number().integer().min(0).max(23).required(),
+      multiplier: Joi.number().min(1.0).max(3.0).required(),
+    })).max(10),
   })),
   ctrl.adminUpdateConfig
 );

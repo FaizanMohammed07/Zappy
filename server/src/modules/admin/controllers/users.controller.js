@@ -1,4 +1,5 @@
 const User = require('../../user/user.model');
+const Order = require('../../order/order.model');
 const auditService = require('../audit.service');
 
 async function listUsers(req, res, next) {
@@ -51,4 +52,23 @@ async function blockUser(req, res, next) {
   }
 }
 
-module.exports = { listUsers, blockUser };
+async function getUser(req, res, next) {
+  try {
+    const user = await User.findById(req.params.id)
+      .select('-password -otp -otpExpiry')
+      .lean();
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const orders = await Order.find({ userId: req.params.id })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select('service status totalPaise surgeMultiplier createdAt address workerName rating')
+      .lean();
+
+    res.json({ user, orders });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listUsers, getUser, blockUser };

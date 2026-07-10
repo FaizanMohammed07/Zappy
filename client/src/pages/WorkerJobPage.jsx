@@ -31,6 +31,7 @@ import { useGeolocation } from '../hooks/useGeolocation';
 import { selectOrder } from '../modules/order/orderSlice';
 import { selectAuth } from '../modules/auth/authSlice';
 import { getSocket } from '../services/socket';
+import { API_BASE } from '../services/apiBase';
 import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
 import SOSButton from '../components/worker/SOSButton';
 import ServiceChecklistPanel from '../components/worker/ServiceChecklistPanel';
@@ -520,7 +521,7 @@ function PhoneHealthPanel({ orderId }) {
 export default function WorkerJobPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { accessToken: token } = useSelector(selectAuth);
+  const { accessToken: token, profile } = useSelector(selectAuth);
   const { data, isLoading, isError, error, refetch } = useGetOrderQuery(id, { skip: !token || !id });
   const [startTrip,    { isLoading: starting }]        = useWorkerStartTripMutation();
   const [arrive,       { isLoading: arriving }]         = useWorkerArriveMutation();
@@ -587,8 +588,8 @@ export default function WorkerJobPage() {
         }
 
         const isParked = (now - stationaryRef.lastMovedAt) > 45000;
-        // Parked: heartbeat every 60s. Moving: every 4s.
-        const minInterval = isParked ? 60000 : 4000;
+        // Parked: heartbeat every 30s. Moving: every 2s for smoother customer tracking.
+        const minInterval = isParked ? 30000 : 2000;
         if (now - lastSentRef.current < minInterval) return;
 
         lastSentRef.current = now;
@@ -643,10 +644,54 @@ export default function WorkerJobPage() {
   /* ── Redirect if job pulled away (reassigned back to searching) ── */
   useEffect(() => {
     if (status !== 'searching') return;
-    // status flipping back to searching means the server reassigned the order
     toast.error('Job reassigned — you were inactive too long. Penalty applied.', { duration: 5000 });
     nav('/worker');
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Direct socket event when stale-order watchdog pulls the job ── */
+  useEffect(() => {
+    if (!token || !id) return;
+    const socket = getSocket(token);
+    function onJobPulled({ orderId: pulledId }) {
+      if (String(pulledId) !== String(id)) return;
+      toast.error('Job reassigned — you were inactive too long. Penalty applied.', { duration: 5000 });
+      nav('/worker');
+    }
+    socket.on('job.pulled', onJobPulled);
+    return () => socket.off('job.pulled', onJobPulled);
+  }, [token, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Customer cancelled the order — leave the live job cleanly ── */
+  useEffect(() => {
+    if (!token || !id) return;
+    const socket = getSocket(token);
+    function onCancelled(payload) {
+      if (payload?.orderId && String(payload.orderId) !== String(id)) return;
+      toast.error('Order was cancelled by the customer.', { duration: 5000, id: 'job-terminal' });
+      setTimeout(() => nav('/worker'), 1500);
+    }
+    socket.on('order.cancelled', onCancelled);
+    return () => socket.off('order.cancelled', onCancelled);
+  }, [token, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Backup: page opened/refreshed when the order is already terminal-cancelled ── */
+  useEffect(() => {
+    if (status !== 'cancelled' && status !== 'failed') return;
+    toast.error(status === 'cancelled' ? 'This order was cancelled.' : 'This order is no longer active.', { duration: 5000, id: 'job-terminal' });
+    const t = setTimeout(() => nav('/worker'), 1500);
+    return () => clearTimeout(t);
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Safety fallback: if order is now assigned to a different worker, leave ── */
+  useEffect(() => {
+    if (!order || !profile?._id) return;
+    const orderWorkerId = order.workerId ? String(order.workerId) : null;
+    if (!orderWorkerId) return;
+    if (orderWorkerId !== String(profile._id)) {
+      toast.error('This job has been reassigned.', { duration: 5000 });
+      nav('/worker');
+    }
+  }, [order?.workerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Loading / error states ── */
   if (isLoading) {
@@ -716,7 +761,7 @@ export default function WorkerJobPage() {
 
   async function callCustomer() {
     try {
-      const res = await fetch(`/api/orders/${id}/call`, {
+      const res = await fetch(`${API_BASE}/api/orders/${id}/call`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
@@ -860,6 +905,21 @@ export default function WorkerJobPage() {
                 <Navigation size={14} strokeWidth={2} />Open Navigation
               </button>
             )}
+          </div>
+        )}
+
+        {/* Tow destination — where the vehicle must be taken (towing jobs) */}
+        {order.dropLocation?.address && (
+          <div className="card">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                <Navigation size={15} strokeWidth={2} className="text-slate-700" />
+              </div>
+              <div className="flex-1">
+                <p className="t-label mb-1">Tow to (destination)</p>
+                <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">{order.dropLocation.address}</p>
+              </div>
+            </div>
           </div>
         )}
 
