@@ -633,7 +633,9 @@ async function calculateTowingPrice({ origin, dest, priority, vehicleType }) {
  * Priced by tank type; emergency/night surcharges apply. No distance component.
  */
 async function calculateTankCleaningPrice({ service, priority }) {
-  const cfg = await verticalConfigService.getConfig('home').catch(() => ({}));
+  // No dedicated 'home' vertical config exists — reuse the vehicle config for the
+  // shared night/emergency surcharge settings (guaranteed to resolve to an object).
+  const cfg = (await verticalConfigService.getConfig('vehicle').catch(() => ({}))) || {};
   const BASE = {
     water_tank_cleaning:      59900,  // ₹599
     overhead_tank_cleaning:   69900,  // ₹699

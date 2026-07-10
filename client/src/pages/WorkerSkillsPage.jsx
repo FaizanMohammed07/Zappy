@@ -30,6 +30,7 @@ const ALL_SKILLS = [
   { id: 'gardening',             label: 'Gardening',              Icon: Leaf,       color: 'text-green-500',  bg: 'bg-green-50',  unlockAt: null },
   { id: 'security',              label: 'Security',               Icon: Shield,     color: 'text-slate-600',  bg: 'bg-slate-100', unlockAt: null },
   { id: 'appliance',             label: 'Appliance Repair',       Icon: PlugZap,    color: 'text-violet-500', bg: 'bg-violet-50', unlockAt: null },
+  { id: 'tank_cleaning',         label: 'Tank & Water Cleaning',  Icon: Droplets,   color: 'text-sky-500',    bg: 'bg-sky-50',    unlockAt: null },
   { id: 'internet',              label: 'Internet / Networking',  Icon: Wifi,       color: 'text-sky-500',    bg: 'bg-sky-50',    unlockAt: null },
   // Mobile repair
   { id: 'screen_replacement',    label: 'Phone Screen Repair',    Icon: Smartphone, color: 'text-pink-500',   bg: 'bg-pink-50',   unlockAt: null },

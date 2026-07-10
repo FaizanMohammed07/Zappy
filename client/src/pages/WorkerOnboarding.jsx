@@ -37,6 +37,7 @@ const ALL_SKILLS = [
   { id: 'gardening',             label: 'Gardening',              emoji: '🌱' },
   { id: 'security',              label: 'Security',               emoji: '🔒' },
   { id: 'appliance',             label: 'Appliance Repair',       emoji: '🔌' },
+  { id: 'tank_cleaning',         label: 'Tank & Water Cleaning',  emoji: '🪣' },
   { id: 'internet',              label: 'Internet / Networking',  emoji: '📡' },
   // Mobile repair
   { id: 'screen_replacement',    label: 'Phone Screen Repair',    emoji: '📱' },

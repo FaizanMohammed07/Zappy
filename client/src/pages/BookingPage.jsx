@@ -112,6 +112,11 @@ const SERVICE_META = {
   car_service:           { label: 'Car Full Service',      icon: Wrench,       gradient: 'from-blue-600 to-indigo-700',    accent: '#2563eb', vertical: 'vehicle'      },
   car_towing:            { label: 'Car Towing',            icon: Car,          gradient: 'from-slate-700 to-slate-900',    accent: '#334155', vertical: 'towing'       },
   bike_towing:           { label: 'Bike Towing',           icon: Bike,         gradient: 'from-slate-600 to-slate-800',    accent: '#475569', vertical: 'towing'       },
+  // ── Tank & Water Cleaning ────────────────────────────────────────────────
+  water_tank_cleaning:       { label: 'Water Tank Cleaning',       icon: Droplets, gradient: 'from-sky-500 to-blue-600',    accent: '#0ea5e9', vertical: 'tank_cleaning' },
+  overhead_tank_cleaning:    { label: 'Overhead Tank Cleaning',    icon: Droplets, gradient: 'from-cyan-500 to-sky-600',    accent: '#06b6d4', vertical: 'tank_cleaning' },
+  underground_sump_cleaning: { label: 'Underground Sump Cleaning', icon: Droplets, gradient: 'from-blue-600 to-indigo-700', accent: '#2563eb', vertical: 'tank_cleaning' },
+  sintex_tank_cleaning:      { label: 'Sintex Tank Cleaning',      icon: Droplets, gradient: 'from-teal-500 to-cyan-600',   accent: '#14b8a6', vertical: 'tank_cleaning' },
   commercial_emergency:  { label: 'Commercial Emergency',  icon: AlertTriangle, gradient: 'from-red-600 to-rose-700',      accent: '#dc2626', vertical: 'vehicle'      },
   commercial_scheduled_maintenance: { label: 'Fleet Maintenance', icon: Wrench, gradient: 'from-slate-600 to-slate-800',  accent: '#475569', vertical: 'vehicle'      },
   fleet_support:         { label: 'Fleet Support',         icon: Car,          gradient: 'from-indigo-600 to-blue-700',    accent: '#4f46e5', vertical: 'vehicle'      },

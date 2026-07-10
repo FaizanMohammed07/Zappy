@@ -185,6 +185,14 @@ const FAMILY_TILES = [
   { key: 'home_visit_check',   name: 'Home Visit',    img: '/images/home_visit.png',         eta: null      },
 ];
 
+// Tank & Water Cleaning
+const TANK_TILES = [
+  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+];
+
 // Event Commerce tiles — navigate to event commerce module
 const EVENT_TILES = [
   { key: 'birthday',      name: 'Birthday',    img: '/images/event_birthday.png',  category: 'birthday'      },
@@ -844,6 +852,20 @@ export default function HomePage() {
             <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
               <div className="shrink-0 w-1 md:w-2" />
               {FAMILY_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
+              <div className="shrink-0 w-12 flex items-center justify-center">
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Tank & Water Cleaning ─────────────────────────────────── */}
+          <div className="mt-7">
+            <div>
+              <SectionHeader title="Tank & Water Cleaning" badge="Home Care" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
+              <div className="shrink-0 w-1 md:w-2" />
+              {TANK_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
               <div className="shrink-0 w-12 flex items-center justify-center">
                 <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
               </div>
