@@ -10,6 +10,7 @@ import { prefetchMainTabs, onIdle } from './lib/routePrefetch';
 import { adminPath } from './config/admin';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
+import ConnectionBanner from './components/common/ConnectionBanner';
 import RouteProgress from './components/common/RouteProgress';
 
 // ── Route-level code splitting ─────────────────────────────────────────────
@@ -98,6 +99,7 @@ export default function App() {
       {/* Top progress bar fires on every route change — "arriving fast" cue.
           Outside Suspense so it stays visible even while a chunk downloads. */}
       <RouteProgress />
+      <ConnectionBanner />
       <Suspense fallback={<PageLoader />}>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}

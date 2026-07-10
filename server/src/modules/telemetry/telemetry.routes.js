@@ -20,5 +20,6 @@ router.use(express.json({ type: () => true, limit: '16kb' }));
 router.post('/pageview', ctrl.pageview);
 router.post('/heartbeat', ctrl.heartbeat);
 router.post('/search', ctrl.search);
+router.post('/client-error', ctrl.clientError);
 
 module.exports = router;

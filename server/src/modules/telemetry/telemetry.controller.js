@@ -176,10 +176,26 @@ async function search(req, res) {
   }
 }
 
+// Client-side crash beacon (from the app's ErrorBoundary). Logged for monitoring;
+// never blocks and never trusts the payload beyond logging.
+async function clientError(req, res) {
+  res.status(204).end();
+  try {
+    const { message, stack, path } = req.body || {};
+    logger.warn({
+      msg: typeof message === 'string' ? message.slice(0, 500) : null,
+      stack: typeof stack === 'string' ? stack.slice(0, 1000) : null,
+      path: typeof path === 'string' ? path.slice(0, 200) : null,
+      ua: req.headers['user-agent'],
+    }, '[CLIENT-ERROR] React error boundary tripped');
+  } catch { /* best-effort */ }
+}
+
 module.exports = {
   pageview,
   heartbeat,
   search,
+  clientError,
   // shared helpers for the admin intelligence controller
   activeNowCount,
   ONLINE_KEY,
