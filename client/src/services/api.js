@@ -238,6 +238,13 @@ export const api = createApi({
     }),
     cancelOrder: b.mutation({
       query: ({ id, reason }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { reason } }),
+      // Optimistic: flip status to cancelled immediately, roll back on failure.
+      async onQueryStarted({ id }, { dispatch, queryFulfilled }) {
+        const patch = dispatch(api.util.updateQueryData('getOrder', id, (draft) => {
+          if (draft?.order) draft.order.status = 'cancelled';
+        }));
+        try { await queryFulfilled; } catch { patch.undo(); }
+      },
       invalidatesTags: (r, e, a) => ['Order', { type: 'Order', id: a.id }],
     }),
     workerReportNoResponse: b.mutation({
@@ -254,6 +261,13 @@ export const api = createApi({
         method: 'POST',
         body: { rating, review },
       }),
+      // Optimistic: reflect the rating instantly so the UI switches to "rated".
+      async onQueryStarted({ id, rating, review }, { dispatch, queryFulfilled }) {
+        const patch = dispatch(api.util.updateQueryData('getOrder', id, (draft) => {
+          if (draft?.order) { draft.order.rating = rating; if (review != null) draft.order.review = review; }
+        }));
+        try { await queryFulfilled; } catch { patch.undo(); }
+      },
       invalidatesTags: (r, e, a) => [{ type: 'Order', id: a.id }],
     }),
     getOrderInvoiceUrl: b.query({

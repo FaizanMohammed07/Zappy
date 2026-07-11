@@ -24,7 +24,7 @@ const QUICK_AMOUNTS = [100, 500, 1000, 5000];
 export default function WalletPage() {
   const nav = useNavigate();
   const { profile } = useSelector(selectAuth);
-  const { data: wallet, refetch: refetchWallet } = useGetWalletQuery();
+  const { data: wallet, refetch: refetchWallet, isError: walletError } = useGetWalletQuery();
   const { data: txns, refetch: refetchTxns } = useWalletTransactionsQuery({ page: 1 });
   const [topup, { isLoading: starting }] = useWalletTopupMutation();
   const [verify] = useVerifyPaymentMutation();
@@ -75,7 +75,14 @@ export default function WalletPage() {
     <PageTransition>
       <div className="min-h-screen bg-slate-50 md:flex md:justify-center">
         <div className="w-full max-w-md bg-slate-50 min-h-screen relative shadow-[0_0_40px_rgba(0,0,0,0.05)] md:border-x border-slate-200/60 overflow-hidden">
-          
+
+          {walletError && (
+            <div className="mx-4 mt-3 flex items-center justify-between gap-2 rounded-xl bg-rose-50 border border-rose-100 px-3 py-2">
+              <span className="text-xs font-semibold text-rose-700">Couldn't refresh your balance</span>
+              <button onClick={() => { refetchWallet(); refetchTxns(); }} className="text-xs font-bold text-rose-600 underline">Retry</button>
+            </div>
+          )}
+
           {/* Dark Premium Wallet Header */}
           <header className="relative pt-6 pb-28 overflow-hidden rounded-b-[2.5rem] shadow-sm z-10" style={{ background: 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e1b4b 100%)' }}>
             <motion.div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3" animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 4, repeat: Infinity }} />
