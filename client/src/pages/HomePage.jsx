@@ -188,10 +188,10 @@ const FAMILY_TILES = [
 
 // Tank & Water Cleaning
 const TANK_TILES = [
-  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: '/images/water_tank_cleaning.png', badge: 'New' },
+  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: '/images/overhead_tank_cleaning.png', badge: 'New' },
+  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: '/images/underground_sump_cleaning.png', badge: 'New' },
+  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: '/images/sintex_tank_cleaning.png', badge: 'New' },
 ];
 
 // Event Commerce tiles — navigate to event commerce module
@@ -661,11 +661,14 @@ export default function HomePage() {
               {/* Avatar */}
               <motion.button
                 onClick={() => nav('/profile')}
-                className="hidden md:flex w-11 h-11 md:w-[52px] md:h-[52px] rounded-full items-center justify-center shrink-0 text-white text-sm font-black shadow-glow-blue border border-white/20 hover:scale-105 transition-transform"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)' }}
+                className="hidden md:flex w-11 h-11 md:w-[52px] md:h-[52px] rounded-full items-center justify-center shrink-0 hover:scale-105 transition-transform overflow-hidden bg-slate-100 ring-2 ring-indigo-500/20 shadow-md"
                 whileTap={{ scale: 0.88 }}
               >
-                {firstName[0]?.toUpperCase() || <User size={16} />}
+                <img 
+                  src={profile?.avatar || '/images/zappy_tower_avatar.png'} 
+                  alt={firstName || 'User'} 
+                  className="w-full h-full object-cover"
+                />
               </motion.button>
             </div>
           </div>

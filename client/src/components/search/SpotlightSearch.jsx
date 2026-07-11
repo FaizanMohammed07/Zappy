@@ -215,11 +215,28 @@ export default function SpotlightSearch({ open, onClose, lat, lng, initialQuery 
             </div>
           )}
 
+          {/* Resilience: if the API errors we still never dead-end — show trending. */}
+          {hasQuery && !loading && !data && (
+            <div className="p-4">
+              <p className="text-[13px] font-semibold text-slate-500 flex items-center gap-1.5 mb-3">
+                <TrendingUp size={13} className="text-indigo-500" /> Trending services
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(trending.length ? trending : CATEGORY_CHIPS.map((c) => ({ code: c.code, title: c.label, type: 'category' }))).map((t) => (
+                  <button key={t.code} onClick={() => (t.type === 'service' ? go(t.code, t.title) : submitText(t.title))}
+                    className="px-3 py-1.5 rounded-full bg-indigo-50 text-[13px] font-semibold text-indigo-600 hover:bg-indigo-100">{t.title}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Results */}
           {hasQuery && !loading && data && (
             <div className="pb-8">
               {data.empty && (
-                <p className="px-4 pt-3 text-[13px] text-slate-400">No exact match — showing popular services you can book now.</p>
+                <p className="px-4 pt-3 text-[13px] font-semibold text-slate-500 flex items-center gap-1.5">
+                  <Sparkles size={13} className="text-indigo-500" /> Popular services you can book now
+                </p>
               )}
 
               {/* Intent cards (AI Suggestions) */}

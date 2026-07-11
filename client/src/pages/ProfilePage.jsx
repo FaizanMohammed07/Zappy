@@ -172,11 +172,15 @@ export default function ProfilePage() {
               
               <div className="flex flex-col items-center text-center gap-3 relative z-10">
                 <motion.div
-                  className="w-24 h-24 rounded-[32px] bg-zappy-gradient flex items-center justify-center text-white text-3xl font-black shrink-0 shadow-glow-blue border-2 border-white/20"
+                  className="w-24 h-24 rounded-[32px] flex items-center justify-center shrink-0 shadow-xl border-4 border-white overflow-hidden bg-slate-50 relative z-10"
                   whileHover={{ scale: 1.05, rotate: -2 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
-                  {initials}
+                  <img 
+                    src={user?.avatar || '/images/zappy_tower_avatar.png'} 
+                    alt={user?.name || 'User'} 
+                    className="w-full h-full object-cover"
+                  />
                 </motion.div>
                 <div className="flex-1 min-w-0">
                   <h2 className="font-black text-2xl tracking-tight text-[#0F172A]">{user?.name || 'User'}</h2>

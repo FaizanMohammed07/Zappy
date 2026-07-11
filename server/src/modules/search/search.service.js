@@ -121,14 +121,31 @@ async function search({ q, lat, lng, userId, limit = 8 }) {
   const categories = scored.filter((x) => x.e.type === 'category').slice(0, 3).map((x) => toResult(x.e));
   const intents = scored.filter((x) => x.e.type === 'intent').slice(0, 2).map((x) => toResult(x.e));
 
-  // NO EMPTY STATE: if nothing matched, fall back to popular/trending services.
-  let empty = false;
-  let finalServices = services;
-  if (!services.length && !categories.length) {
-    empty = true; // signals UI to show a "showing popular instead" hint
-    finalServices = corpus.filter((e) => e.type === 'service')
-      .map((e) => ({ e, s: popularityFor(e, pop) }))
-      .sort((a, b) => b.s - a.s).slice(0, limit).map((x) => toResult(x.e));
+  // ── NEVER-EMPTY GUARANTEE (act like a PM: always give something bookable) ──
+  // Real matches come first; then we top up to a minimum with related (same
+  // category as the best match) and finally the most popular services. So even a
+  // garbage/misspelled query returns a full, useful list — never "no results".
+  const MIN_RESULTS = Math.min(6, limit);
+  const empty = services.length === 0;
+  const have = new Set(services.map((s) => s.code));
+  const finalServices = [...services];
+
+  if (finalServices.length < MIN_RESULTS) {
+    // Prefer services in the best-matched category (relevant), else any popular.
+    const hintCat = scored.find((x) => x.e.category)?.e.category
+      || categories[0]?.code || intents[0]?.category || null;
+    const pool = corpus
+      .filter((e) => e.type === 'service' && !have.has(e.code))
+      .map((e) => ({
+        e,
+        s: (hintCat && e.category === hintCat ? 1 : 0) + popularityFor(e, pop),
+      }))
+      .sort((a, b) => b.s - a.s);
+    for (const { e } of pool) {
+      if (finalServices.length >= MIN_RESULTS) break;
+      finalServices.push(toResult(e));
+      have.add(e.code);
+    }
   }
 
   // P2 — join nearby workers for the strongest matched service (parallel-safe).
