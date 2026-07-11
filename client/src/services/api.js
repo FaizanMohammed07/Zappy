@@ -1,7 +1,17 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { Mutex } from 'async-mutex';
+import toast from 'react-hot-toast';
 import { setAuth, logout } from '../modules/auth/authSlice';
 import { adminApiPath } from '../config/admin';
+
+// Debounced "signed out on another device" notice — a burst of in-flight requests
+// all 401 at once, but the user should see the message only once.
+let _sessionReplacedAt = 0;
+function sessionReplacedToast() {
+  if (Date.now() - _sessionReplacedAt < 4000) return;
+  _sessionReplacedAt = Date.now();
+  toast.error('You were signed out — your account was opened on another device.', { id: 'session-replaced', duration: 5000 });
+}
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: `${import.meta.env.VITE_API_URL || ''}/api`,
@@ -43,6 +53,16 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
   let result = await rawBaseQuery(args, api, extraOptions);
 
   if (result.error?.status !== 401) return result;
+
+  // Single-device: this worker's session was replaced by a login on another
+  // device. Refreshing would fail anyway (family revoked) — log out immediately
+  // with a clear message instead of a silent failure.
+  if (result.error?.data?.code === 'SESSION_REPLACED') {
+    api.dispatch(logout());
+    try { sessionReplacedToast(); } catch { /* noop */ }
+    return result;
+  }
+
   // Never try to refresh if this IS the refresh call
   if (typeof args !== 'string' && args.url === '/auth/refresh') return result;
 

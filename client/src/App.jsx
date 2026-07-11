@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { useSelector } from 'react-redux';
-import { selectAuth } from './modules/auth/authSlice';
+import { useSelector, useDispatch } from 'react-redux';
+import toast from 'react-hot-toast';
+import { selectAuth, logout } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
 import { useFCM } from './hooks/useFCM.jsx';
 import useTelemetry from './hooks/useTelemetry';
@@ -86,7 +87,19 @@ export default function App() {
   useFCM();
   useTelemetry();
   const { accessToken: token, role } = useSelector(selectAuth);
+  const dispatch = useDispatch();
   const location = useLocation();
+
+  // Single-device: the socket got a `session:replaced` (this account logged in on
+  // another device) — sign out immediately with a clear message.
+  useEffect(() => {
+    const onReplaced = () => {
+      dispatch(logout());
+      toast.error('You were signed out — your account was opened on another device.', { id: 'session-replaced', duration: 5000 });
+    };
+    window.addEventListener('zappy:session-replaced', onReplaced);
+    return () => window.removeEventListener('zappy:session-replaced', onReplaced);
+  }, [dispatch]);
 
   // Warm the main tab chunks once the browser is idle after first paint, so
   // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).

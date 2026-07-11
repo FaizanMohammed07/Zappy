@@ -33,6 +33,13 @@ export function getSocket(token) {
   // Tag the socket so we can detect token changes
   socket._authToken = token;
 
+  // Single-device: the server evicts older worker sockets when a new device logs
+  // in. Signal the app to log out immediately (handled in App to avoid an import
+  // cycle between the socket module and the redux store).
+  socket.on('session:replaced', () => {
+    window.dispatchEvent(new CustomEvent('zappy:session-replaced'));
+  });
+
   return socket;
 }
 

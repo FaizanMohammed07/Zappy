@@ -55,35 +55,49 @@ async function issueTokenPair({ sub, role, phone, email }) {
   const gen = 0;
   const tokenId = crypto.randomBytes(16).toString('hex');
 
-  // Enforce session cap: scan all families for this user, evict oldest if over limit.
-  const maxSessions = MAX_SESSIONS[role] ?? 5;
-  try {
-    const existingKeys = [];
-    const stream = redis.scanStream({ match: `rt:${sub}:*`, count: 50 });
-    for await (const batch of stream) existingKeys.push(...batch);
-
-    if (existingKeys.length >= maxSessions) {
-      // Fetch TTLs to find the oldest family (lowest remaining TTL = issued earliest)
-      const ttlPipe = redis.pipeline();
-      existingKeys.forEach((k) => ttlPipe.ttl(k));
-      const ttlResults = await ttlPipe.exec();
-      // Sort by TTL ascending (lowest TTL = expires soonest = was issued first)
-      const keysWithTtl = existingKeys
-        .map((k, i) => ({ key: k, ttl: ttlResults[i][1] ?? 0 }))
-        .sort((a, b) => a.ttl - b.ttl);
-      // Evict enough to stay under limit
-      const toEvict = keysWithTtl.slice(0, existingKeys.length - maxSessions + 1);
-      if (toEvict.length > 0) {
-        await redis.del(...toEvict.map((e) => e.key));
-        logger.info({ sub, role, evicted: toEvict.length }, 'Session cap: evicted oldest families');
-      }
+  // ── Workers = SINGLE active device ──────────────────────────────────────────
+  // A new worker login kills EVERY other session: all prior refresh families are
+  // revoked (so old devices can't refresh) and `wsid:<id>` records the one active
+  // session. The access token carries this sid so the auth middleware can reject
+  // the old device immediately (not just after its 15-min AT expires).
+  if (role === 'worker') {
+    try {
+      const keys = [];
+      const stream = redis.scanStream({ match: `rt:${sub}:*`, count: 100 });
+      for await (const batch of stream) keys.push(...batch);
+      if (keys.length) await redis.del(...keys);
+    } catch (err) {
+      logger.warn({ err: err.message, sub }, 'Single-device: prior-session revoke failed');
     }
-  } catch (err) {
-    // Session cap failure is non-fatal — login still succeeds.
-    logger.warn({ err: err.message, sub }, 'Session cap scan failed');
+  } else {
+    // Other roles: sliding-window session cap — evict oldest if over the limit.
+    const maxSessions = MAX_SESSIONS[role] ?? 5;
+    try {
+      const existingKeys = [];
+      const stream = redis.scanStream({ match: `rt:${sub}:*`, count: 50 });
+      for await (const batch of stream) existingKeys.push(...batch);
+
+      if (existingKeys.length >= maxSessions) {
+        const ttlPipe = redis.pipeline();
+        existingKeys.forEach((k) => ttlPipe.ttl(k));
+        const ttlResults = await ttlPipe.exec();
+        const keysWithTtl = existingKeys
+          .map((k, i) => ({ key: k, ttl: ttlResults[i][1] ?? 0 }))
+          .sort((a, b) => a.ttl - b.ttl);
+        const toEvict = keysWithTtl.slice(0, existingKeys.length - maxSessions + 1);
+        if (toEvict.length > 0) {
+          await redis.del(...toEvict.map((e) => e.key));
+          logger.info({ sub, role, evicted: toEvict.length }, 'Session cap: evicted oldest families');
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err.message, sub }, 'Session cap scan failed');
+    }
   }
 
-  const accessToken = signAccessToken({ sub, role, phone, email });
+  const atPayload = { sub, role, phone, email };
+  if (role === 'worker') atPayload.sid = family; // session id = active family
+  const accessToken = signAccessToken(atPayload);
   const refreshToken = jwt.sign(
     { sub, role, family, gen, jti: tokenId, type: 'refresh' },
     config.jwt.secret,
@@ -95,6 +109,9 @@ async function issueTokenPair({ sub, role, phone, email }) {
     RT_EXPIRES_SEC,
     JSON.stringify({ currentGen: gen, sub, role, rotatedAt: 0 })
   );
+  if (role === 'worker') {
+    await redis.setex(`wsid:${sub}`, RT_EXPIRES_SEC, family);
+  }
 
   return { accessToken, refreshToken };
 }
@@ -142,7 +159,7 @@ async function rotateTokenPair(presentedRefreshToken) {
 
     // Multi-tab race: issue fresh tokens for the already-current gen.
     logger.info({ sub, family, presentedGen: gen, currentGen: stored.currentGen }, 'RT concurrent race resolved — re-issuing for current gen');
-    const raceAccessToken = signAccessToken({ sub, role, phone: decoded.phone, email: decoded.email });
+    const raceAccessToken = signAccessToken({ sub, role, phone: decoded.phone, email: decoded.email, ...(role === 'worker' ? { sid: family } : {}) });
     const raceTokenId = crypto.randomBytes(16).toString('hex');
     const raceRefreshToken = jwt.sign(
       { sub, role, family, gen: stored.currentGen, jti: raceTokenId, type: 'refresh' },
@@ -154,7 +171,7 @@ async function rotateTokenPair(presentedRefreshToken) {
 
   const newGen = gen + 1;
   const newTokenId = crypto.randomBytes(16).toString('hex');
-  const accessToken = signAccessToken({ sub, role, phone: decoded.phone, email: decoded.email });
+  const accessToken = signAccessToken({ sub, role, phone: decoded.phone, email: decoded.email, ...(role === 'worker' ? { sid: family } : {}) });
   const refreshToken = jwt.sign(
     { sub, role, family, gen: newGen, jti: newTokenId, type: 'refresh' },
     config.jwt.secret,
