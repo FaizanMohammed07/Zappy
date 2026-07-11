@@ -94,7 +94,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
+    <div className="h-[100dvh] overflow-hidden bg-[#F9FAFB] flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-slate-100 shrink-0">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-3">
@@ -148,25 +148,28 @@ export default function ChatPage() {
             );
           })}
 
-          {/* Canned replies */}
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pt-1 pb-0.5">
+          })}
+        </div>
+      </div>
+
+      {/* Composer */}
+      <div className="bg-white border-t border-slate-100 shrink-0 safe-pb flex flex-col">
+        {/* Canned replies */}
+        {messages.length === 0 && (
+          <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 py-3 bg-[#F9FAFB] border-b border-slate-100/50">
             {CANNED.map((c) => (
               <button
                 key={c.code}
                 onClick={() => send(c.text, c.code)}
                 disabled={sending}
-                className="shrink-0 px-3 py-1.5 bg-white ring-1 ring-slate-200 rounded-full text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-transform disabled:opacity-50"
+                className="shrink-0 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-50 shadow-sm"
               >
                 {c.text}
               </button>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Composer */}
-      <div className="bg-white border-t border-slate-100 shrink-0 safe-pb">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-2">
+        )}
+        <div className="w-full max-w-lg mx-auto px-4 py-3 flex items-center gap-2">
           <input
             ref={inputRef}
             value={text}

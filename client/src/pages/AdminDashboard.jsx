@@ -49,6 +49,7 @@ import Fraud from './admin/Fraud';
 import Zones from './admin/Zones';
 import Content from './admin/Content';
 import RewardsConfig from './admin/RewardsConfig';
+import WorkerOps from './admin/WorkerOps';
 import Intervention from './admin/Intervention';
 import Cities from './admin/Cities';
 import Appeals from './admin/Appeals';
@@ -63,6 +64,7 @@ const NAV_GROUPS = [
       { id: 'orders',    label: 'Orders',       icon: ShoppingBag },
       { id: 'users',     label: 'Users',        icon: Users },
       { id: 'workers',   label: 'Workers',      icon: Briefcase },
+      { id: 'workerops', label: 'Worker Ops',   icon: Briefcase },
       { id: 'kyc',       label: 'KYC Review',   icon: FileCheck },
     ],
   },
@@ -137,6 +139,7 @@ const SECTION_MAP = {
   events: Events,
   fraud: Fraud, zones: Zones, intervention: Intervention, cities: Cities,
   appeals: Appeals, training: Training, content: Content, rewardpoints: RewardsConfig,
+  workerops: WorkerOps,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */

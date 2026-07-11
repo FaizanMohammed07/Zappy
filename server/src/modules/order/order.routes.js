@@ -181,6 +181,7 @@ router.post(
 );
 router.post('/:id/start-service', authenticate, requireRole('worker'), validate(Joi.object({ otp: Joi.string().length(6).required() })), ctrl.startService);
 router.post('/:id/complete', authenticate, requireRole('worker'), validate(Joi.object({ completionPhotos: Joi.array().items(Joi.string()).max(5).default([]) })), ctrl.completeOrder);
+router.get('/:id/worker-cancel-preview', authenticate, requireRole('worker'), ctrl.workerCancelPreview);
 router.post('/:id/worker-cancel', authenticate, requireRole('worker'), validate(Joi.object({ reason: Joi.string().max(300).allow('', null) })), ctrl.workerCancelOrder);
 
 // Worker reports customer didn't respond — penalty-free cancel with arrival fee charged to customer. (#73)

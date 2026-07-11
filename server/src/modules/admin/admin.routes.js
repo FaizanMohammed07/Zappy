@@ -24,6 +24,7 @@ router.use('/', require('../zone/zone.routes'));
 router.use('/', require('./routes/cities.routes'));
 router.use('/', require('./routes/content.routes'));
 router.use('/', require('./routes/rewards-config.routes'));
+router.use('/', require('./routes/worker-ops.routes'));
 router.use('/worker/appeals',  require('../worker/appeal.routes').adminRouter);
 router.use('/worker/training', require('../worker/training.routes').adminRouter);
 

@@ -115,7 +115,7 @@ export const api = createApi({
   // Keep fetched data cached for 5 min after a component unmounts, so jumping
   // back to a tab shows data instantly (no skeleton) instead of refetching.
   keepUnusedDataFor: 300,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content', 'Rewards'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content', 'Rewards', 'WorkerOps'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -358,6 +358,15 @@ export const api = createApi({
     getWorkerOrders: b.query({
       query: (page = 1) => `/workers/orders?page=${page}`,
       providesTags: ['Order'],
+    }),
+    // Worker cancels an accepted job (before service starts). Preview shows the
+    // penalty/consequences for the chosen reason before they confirm.
+    getWorkerCancelPreview: b.query({
+      query: ({ id, reason }) => ({ url: `/orders/${id}/worker-cancel-preview`, params: reason ? { reason } : {} }),
+    }),
+    workerCancel: b.mutation({
+      query: ({ id, reason }) => ({ url: `/orders/${id}/worker-cancel`, method: 'POST', body: { reason } }),
+      invalidatesTags: (r, e, a) => ['Order', 'Me', { type: 'Order', id: a.id }],
     }),
     getNearbyWorkers: b.query({
       query: ({ lat, lng }) => `/workers/nearby?lat=${lat}&lng=${lng}`,
@@ -768,7 +777,11 @@ export const api = createApi({
     }),
     adminUpdateCancellationConfig: b.mutation({
       query: (body) => ({ url: adminApiPath('/cancellation-config'), method: 'PATCH', body }),
-      invalidatesTags: ['CancellationConfig'],
+      invalidatesTags: ['CancellationConfig', 'WorkerOps'],
+    }),
+    adminWorkerOps: b.query({
+      query: () => adminApiPath('/worker-ops'),
+      providesTags: ['WorkerOps'],
     }),
     adminWorkerPenalties: b.query({
       query: (id) => adminApiPath(`/workers/${id}/penalties`),
@@ -1662,6 +1675,8 @@ export const {
   useWorkerArriveMutation,
   useWorkerStartServiceMutation,
   useWorkerCompleteMutation,
+  useLazyGetWorkerCancelPreviewQuery,
+  useWorkerCancelMutation,
   useGetKycStatusQuery,
   useSubmitKycMutation,
   usePresignUploadMutation,
@@ -1754,6 +1769,7 @@ export const {
   useAdminGetReferralStatsQuery,
   useAdminListRecentReferralsQuery,
   useAdminGetCancellationConfigQuery,
+  useAdminWorkerOpsQuery,
   useAdminUpdateCancellationConfigMutation,
   useAdminWorkerPenaltiesQuery,
   useAdminKycDocUrlsQuery,

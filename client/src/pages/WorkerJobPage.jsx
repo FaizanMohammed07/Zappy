@@ -34,6 +34,7 @@ import { getSocket } from '../services/socket';
 import { API_BASE } from '../services/apiBase';
 import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
 import SOSButton from '../components/worker/SOSButton';
+import WorkerCancelSheet from '../components/worker/WorkerCancelSheet';
 import ServiceChecklistPanel from '../components/worker/ServiceChecklistPanel';
 import toast from 'react-hot-toast';
 
@@ -521,6 +522,7 @@ function PhoneHealthPanel({ orderId }) {
 export default function WorkerJobPage() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [cancelOpen, setCancelOpen] = useState(false);
   const { accessToken: token, profile } = useSelector(selectAuth);
   const { data, isLoading, isError, error, refetch } = useGetOrderQuery(id, { skip: !token || !id });
   const [startTrip,    { isLoading: starting }]        = useWorkerStartTripMutation();
@@ -1562,9 +1564,26 @@ export default function WorkerJobPage() {
               <SOSButton orderId={order._id} lat={myLocation?.lat} lng={myLocation?.lng} service={order?.service} />
             </div>
           )}
+
+          {/* Cancel is allowed only before service starts (not once in_progress). */}
+          {['assigned', 'on_the_way', 'arrived'].includes(status) && (
+            <div className="mt-2">
+              <button onClick={() => setCancelOpen(true)}
+                className="w-full h-11 rounded-2xl border border-rose-200 text-rose-600 font-bold text-sm active:bg-rose-50 transition-colors">
+                Cancel job
+              </button>
+            </div>
+          )}
         </div>
       </div>
       </div>
+
+      <WorkerCancelSheet
+        orderId={order._id}
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        onCancelled={() => { setCancelOpen(false); nav('/worker'); }}
+      />
     </div>
   );
 }

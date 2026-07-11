@@ -246,6 +246,13 @@ async function workerCancelOrder(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function workerCancelPreview(req, res, next) {
+  try {
+    const result = await orderService.workerCancelPreview({ orderId: req.params.id, workerId: req.auth.sub, reason: req.query.reason });
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
 /**
  * Worker reports customer didn't answer door / respond. (#73)
  * - Worker must be in 'arrived' status.
@@ -447,4 +454,4 @@ async function rescheduleOrder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getQuote, createOrder, rebookOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };
+module.exports = { getQuote, createOrder, rebookOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerCancelPreview, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };

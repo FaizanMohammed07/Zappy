@@ -1115,7 +1115,7 @@ async function workerCancel({ orderId, workerId, reason }) {
   }
 
   const cancellationService = require('./cancellation.service');
-  const { penaltyPaise, reason: penaltyReason, isLate } = await cancellationService.calculateWorkerCancelPenalty(order);
+  const { penaltyPaise, reason: penaltyReason, isLate, counts } = await cancellationService.calculateWorkerCancelPenalty(order, reason);
 
   const walletService = require('../wallet/wallet.service');
   const Transaction = require('../payment/transaction.model');
@@ -1212,7 +1212,70 @@ async function workerCancel({ orderId, workerId, reason }) {
     { jobId: `order_${orderId}_redispatch_${Date.now()}` }
   );
 
-  return { ok: true, penaltyPaise, penaltyReason };
+  // ── Escalation: too many PENALISED cancels within the window → auto-offline ──
+  // Genuine reasons (breakdown/emergency/…) are free and do NOT count here.
+  let escalated = false;
+  if (counts) {
+    try {
+      const cfg = await cancellationService.getConfig();
+      // Admin-editable threshold (the Cancellation page saves `maxDailyWorkerCancels`).
+      const limit = cfg.maxDailyWorkerCancels ?? cfg.workerCancelLimit ?? 3;
+      const key = `worker:cancelwin:${workerId}`;
+      const count = await redis.incr(key);
+      if (count === 1) await redis.expire(key, cfg.workerCancelWindowSec || 86400);
+      if (count >= limit) {
+        escalated = true;
+        await Worker.updateOne({ _id: workerId }, { $set: { isOnline: false, isAvailable: false } });
+        await geoService.markOffline(String(workerId)); // full pool removal
+        notificationService.notify({
+          recipient: { kind: 'worker', id: workerId },
+          type: 'account_warning',
+          title: '⚠️ Taken offline — too many cancellations',
+          body: `You cancelled ${count} jobs recently. To protect service quality you've been set offline. You can go back online later.`,
+          deepLink: '/worker',
+          data: { orderId: String(orderId), cancels: count, limit },
+        }).catch(() => {});
+        logger.warn({ workerId, count, limit }, '[WORKER-CANCEL] Escalation — worker auto-offlined for repeated cancels');
+      }
+    } catch (err) {
+      logger.warn({ err: err.message, workerId }, '[WORKER-CANCEL] Escalation check failed');
+    }
+  }
+
+  return { ok: true, penaltyPaise, penaltyReason, escalated };
+}
+
+/**
+ * Preview what a worker cancellation would cost/mean BEFORE they confirm:
+ * penalty for the chosen reason, whether it's late, and whether this cancel
+ * would trip the escalation threshold (auto-offline).
+ */
+async function workerCancelPreview({ orderId, workerId, reason }) {
+  const order = await orderRepo.findById(orderId);
+  if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
+  if (String(order.workerId) !== String(workerId)) {
+    throw Object.assign(new Error('Not your order'), { status: 403 });
+  }
+  const cancellable = ['assigned', 'on_the_way', 'arrived'].includes(order.status);
+
+  const cancellationService = require('./cancellation.service');
+  const { penaltyPaise, isLate, isGenuine, counts } = await cancellationService.calculateWorkerCancelPenalty(order, reason);
+  const cfg = await cancellationService.getConfig();
+  const limit = cfg.maxDailyWorkerCancels ?? cfg.workerCancelLimit ?? 3;
+  const cancelsInWindow = Number(await redis.get(`worker:cancelwin:${workerId}`)) || 0;
+
+  return {
+    cancellable,
+    status: order.status,
+    isLate,
+    isGenuine,
+    penaltyPaise,
+    penaltyRupees: Math.round(penaltyPaise / 100),
+    cancelsInWindow,
+    limit,
+    willEscalate: counts && (cancelsInWindow + 1) >= limit,
+    reasons: cancellationService.WORKER_CANCEL_REASONS,
+  };
 }
 
 /**
@@ -1570,6 +1633,7 @@ module.exports = {
   workerComplete,
   cancelByUser,
   workerCancel,
+  workerCancelPreview,
   workerNoResponseCancel,
   workerPartUnavailableCancel,
   rateOrder,
