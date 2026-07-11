@@ -24,6 +24,7 @@ const TIER_MULTIPLIERS = { standard: 1.0, priority: 1.2, express: 1.4 };
 async function createOrder({ userId, service, subCategory, pickupLocation, dropLocation, description, images, scheduledAt, paymentMethod, priority, promoCode,
   deviceBrand, deviceModel, serviceMode, vehicleType, pricingModel, estimatedHours,
   teamSize, diagnosisAnswers, diagnosisUrgency, quotedTotalRupees, tier, tipAmount,
+  preferredWorkerId,
 }) {
   // Dispatch queue depth circuit breaker — shed load before the queue backs up
   // and adds latency to ALL in-flight orders. (#62/#63)
@@ -48,10 +49,16 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
   // pickup location, fail fast with a user-friendly message instead of creating
   // an order that will sit in 'searching' until the 5-minute dispatch window
   // exhausts and then silently fails. (#85)
-  // Geo-readiness check: only run when explicitly enabled via env var.
-  // Disabled by default so demos/staging work without live workers in the area.
-  // Set GEO_READINESS_CHECK=true in production .env once workers are onboarded.
-  if (!scheduledAt && process.env.GEO_READINESS_CHECK === 'true') {
+  // Geo-readiness fast-fail: if there are zero skilled workers near the pickup,
+  // reject in seconds with a clear message instead of letting the order sit in
+  // 'searching' for the full window and then silently failing.
+  // Default ON in production (once workers are onboarded); OFF in dev/staging so
+  // demos work without live workers. Explicit env override wins either way:
+  //   GEO_READINESS_CHECK=true|false
+  const geoCheckEnabled = process.env.GEO_READINESS_CHECK != null
+    ? process.env.GEO_READINESS_CHECK === 'true'
+    : process.env.NODE_ENV === 'production';
+  if (!scheduledAt && geoCheckEnabled) {
     try {
       const candidates = await geoService.findCandidates({
         lat: pickupLocation.lat,
@@ -302,6 +309,10 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     ...(diagnosisAnswers && { diagnosisAnswers }),
     ...(diagnosisUrgency && diagnosisUrgency !== 'normal' && { diagnosisUrgency }),
     ...(pendingCancellationFeePaise > 0 && { pendingCancellationFeePaise }),
+    // Customer-picked pro (worker-choice) — dispatch offers them first.
+    ...(preferredWorkerId && /^[a-f0-9]{24}$/i.test(String(preferredWorkerId)) && {
+      dispatch: { customerPreferredWorkerId: preferredWorkerId },
+    }),
   });
 
   // Order persisted — release the per-user creation lock so the user can create another order
@@ -799,6 +810,23 @@ async function workerComplete({ orderId, workerId, completionPhotos = [] }) {
     idempotencyKey: `platform:commission:${order._id}`,
     description: `Commission @ ${(earnings.commissionRate * 100).toFixed(1)}% (${paymentMethod})`,
   }).catch((e) => { if (e.code !== 11000) throw e; });
+
+  // High-demand accept bonus — platform-funded incentive that grew as dispatch
+  // widened the search. Paid on COMPLETION (never on accept) so it can't be farmed
+  // by accept-then-cancel. Idempotent; applies to both cash and online orders.
+  const urgencyBonusPaise = order.dispatch?.urgencyBonusPaise || 0;
+  if (urgencyBonusPaise > 0) {
+    await walletService.apply({
+      kind: 'worker',
+      id: workerId,
+      type: 'credit',
+      amountPaise: urgencyBonusPaise,
+      reason: Transaction.REASONS.WORKER_EARNING,
+      idempotencyKey: `urgencybonus:${order._id}`,
+      refs: { orderId: order._id },
+      description: 'High-demand accept bonus',
+    }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Urgency bonus credit failed'));
+  }
 
   // Release the worker (denormalized counters)
   await Worker.updateOne(

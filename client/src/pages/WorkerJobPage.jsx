@@ -1237,18 +1237,10 @@ export default function WorkerJobPage() {
 
                 {/* Nearby order — service must start soon */}
                 {isNearby && (
-                  <motion.div
-                    className="rounded-2xl px-4 py-3 flex items-center gap-3"
-                    style={{ background: 'linear-gradient(135deg,#14532d,#15803d)', border: '1.5px solid rgba(34,197,94,0.4)' }}
-                    animate={{ boxShadow: ['0 0 0 0px rgba(34,197,94,0.3)','0 0 0 6px rgba(34,197,94,0)','0 0 0 0px rgba(34,197,94,0)'] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <span className="text-xl">📍</span>
-                    <div className="flex-1">
-                      <p className="text-sm font-black text-green-200">You're already nearby!</p>
-                      <p className="text-xs text-green-400 mt-0.5">Start trip now — customer is within 200 m</p>
-                    </div>
-                  </motion.div>
+                  <div className="flex items-center justify-center gap-1.5 mb-1 pt-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-xs font-extrabold text-emerald-600 uppercase tracking-wide">Customer is nearby (within 200m)</span>
+                  </div>
                 )}
 
                 {/* Idle alert — amber at 5 min, red at 10 min, pulsing at 12 min */}

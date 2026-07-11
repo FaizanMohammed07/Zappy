@@ -236,6 +236,9 @@ export const api = createApi({
     // --- Pricing quote ---
     getQuote: b.query({ query: (params) => ({ url: '/orders/quote', params }) }),
 
+    // Worker-choice: top-ranked available pros near pickup (optional picker at checkout).
+    getNearbyPros: b.query({ query: (params) => ({ url: '/orders/nearby-pros', params }) }),
+
     // --- Orders ---
     createOrder: b.mutation({
       query: (body) => ({ url: '/orders', method: 'POST', body }),
@@ -1655,6 +1658,8 @@ export const {
   useUpdateMeMutation,
   useGetQuoteQuery,
   useLazyGetQuoteQuery,
+  useGetNearbyProsQuery,
+  useLazyGetNearbyProsQuery,
   useCreateOrderMutation,
   useGetOrderQuery,
   useListOrdersQuery,

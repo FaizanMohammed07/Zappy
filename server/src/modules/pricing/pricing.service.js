@@ -127,6 +127,15 @@ function toView(doc) {
     serviceOverrides: doc.serviceOverrides || [],
     // Dispatch & worker behaviour
     forceAssignBonusPaise:        doc.forceAssignBonusPaise        ?? 1500,
+    // Acceptance-first dispatch
+    forceAssignEnabled:           doc.forceAssignEnabled           ?? false,
+    urgencyBonusEnabled:          doc.urgencyBonusEnabled          ?? true,
+    urgencyBonusStartStep:        doc.urgencyBonusStartStep        ?? 4,
+    urgencyBonusStepPaise:        doc.urgencyBonusStepPaise        ?? 500,
+    urgencyBonusMaxPaise:         doc.urgencyBonusMaxPaise         ?? 3000,
+    bestFirstEnabled:             doc.bestFirstEnabled             ?? true,
+    bestFirstWindowMs:            doc.bestFirstWindowMs            ?? 8000,
+    bestFirstTopN:                doc.bestFirstTopN                ?? 1,
     workerAutoOfflineRejectRate:  doc.workerAutoOfflineRejectRate  ?? 0.70,
     workerRejectWarnRate:         doc.workerRejectWarnRate         ?? 0.50,
     rejectRatePenaltyWeight:      doc.rejectRatePenaltyWeight      ?? 3.0,

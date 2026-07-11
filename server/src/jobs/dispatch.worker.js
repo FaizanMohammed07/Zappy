@@ -203,6 +203,25 @@ async function processDispatchJob(job) {
     alreadyNotified.add(String(preferredWorkerId));
   }
 
+  /* ── Acceptance-first controls (all admin-tunable via pricing config) ── */
+  const urgencyOn      = cfg.urgencyBonusEnabled !== false;
+  const urgencyStart   = cfg.urgencyBonusStartStep ?? 4;
+  const urgencyStep    = cfg.urgencyBonusStepPaise ?? 500;
+  const urgencyMax     = cfg.urgencyBonusMaxPaise ?? 3000;
+  const bestFirstOn    = cfg.bestFirstEnabled !== false;
+  const bestFirstTopN  = Math.max(1, cfg.bestFirstTopN ?? 1);
+  const bestFirstMs    = cfg.bestFirstWindowMs ?? 8000;
+  let   bestFirstDone  = false;         // head-start only runs once (first productive step)
+  let   activeUrgencyBonusPaise = 0;    // bonus in effect at the moment of accept
+
+  // Growing "high-demand" accept bonus — the wider we search, the higher the
+  // voluntary-accept incentive. Platform-funded, shown in the offer, credited on
+  // completion (anti-farming). This is what replaces coercive force-assign.
+  const urgencyBonusForStep = (stepIdx) =>
+    (urgencyOn && stepIdx >= urgencyStart)
+      ? Math.min((stepIdx - urgencyStart + 1) * urgencyStep, urgencyMax)
+      : 0;
+
   /* ── Walk radius steps (voluntary accept window) ── */
   for (let stepIdx = 0; stepIdx < radiusSteps.length; stepIdx++) {
     const radiusKm = radiusSteps[stepIdx];
@@ -290,6 +309,84 @@ async function processDispatchJob(job) {
       const batchWorkers = candidates.slice(0, MAX_BATCH_SIZE).map(String);
       const expiresAt = new Date(Date.now() + stepWindowMs);
 
+      // High-demand accept bonus for this radius step (grows as we widen).
+      activeUrgencyBonusPaise = urgencyBonusForStep(stepIdx);
+
+      logger.info(
+        { orderId, radiusKm, notifying: batchWorkers.length, urgencyBonusPaise: activeUrgencyBonusPaise },
+        `[DISPATCH] Notifying ${batchWorkers.length} workers`,
+      );
+
+      const boostAmountPaise = order.pricing?.tipPaise || 0;
+      const boostedTotal = order.pricing?.boostedTotal || order.pricing?.total || 0;
+
+      // Shared offer payload (best-first head-start + broadcast reuse the same card).
+      const orderPayload = {
+        _id:             String(order._id),
+        service:         order.service,
+        pickupAddress:   order.pickupLocation.address,
+        pickupCoords:    order.pickupLocation.coordinates,
+        price:           boostedTotal,          // workers see boosted price
+        basePrice:       order.pricing?.total || 0,
+        boostAmountPaise,                        // explicit boost so worker UI can highlight it
+        urgencyBonusPaise: activeUrgencyBonusPaise, // platform accept bonus, grows with search
+        distanceKm:      order.pricing?.distanceKm
+          ? parseFloat(order.pricing.distanceKm).toFixed(1)
+          : null,
+        etaMinutes:      order.pricing?.etaMinutes || null,
+        expiresAt:       expiresAt.toISOString(),
+        tier:            order.tier || 'standard',
+        tierMultiplier:  order.pricing?.tierMultiplier || 1.0,
+        // Job context — worker reads these to prepare before arriving
+        description:     order.description || null,
+        images:          (order.images || []).slice(0, 3), // max 3 thumbnails in offer card
+        diagnosisUrgency: order.diagnosisUrgency || 'normal',
+        requiredTools:   order.requiredTools || [],
+        vehicleType:     order.vehicleType || null,
+        deviceBrand:     order.deviceBrand || null,
+      };
+      // Keep the background (came-online) listener's payload current.
+      _latestOrderPayload = orderPayload;
+
+      /* ── P2: best-first head-start ──────────────────────────────────────────
+       * Give the top-scored pro(s) a short EXCLUSIVE window before the broadcast,
+       * so the best-ranked worker wins — not merely whoever taps first. Runs once,
+       * on the first productive step. Falls through to broadcast if they pass.     */
+      if (bestFirstOn && !bestFirstDone && candidates.length > 1) {
+        bestFirstDone = true;
+        for (const topId of candidates.slice(0, bestFirstTopN).map(String)) {
+          if (alreadyNotified.has(topId)) continue;
+          const hsExpires = new Date(Date.now() + bestFirstMs);
+          await Order.updateOne({ _id: order._id }, {
+            $set: {
+              'dispatch.currentOfferWorkerId': topId,
+              'dispatch.currentOfferWorkerIds': [topId],
+              'dispatch.offerExpiresAt': hsExpires,
+            },
+          }).catch(() => {});
+          await redis.publish('worker:offer', JSON.stringify({
+            workerId: topId,
+            order: { ...orderPayload, expiresAt: hsExpires.toISOString(), preferred: true },
+          }));
+          notificationsQueue.add('worker_offer', { workerId: topId, orderId: String(order._id) }).catch(() => {});
+          alreadyNotified.add(topId);
+
+          const hs = await waitForBatchWindow(String(order._id), [topId], bestFirstMs);
+          if (hs.acceptedBy) {
+            const locked = await lockOrderToWorker(order._id, hs.acceptedBy, order.service);
+            if (locked) {
+              logger.info({ orderId, workerId: hs.acceptedBy }, '[DISPATCH] ✅ Assigned via best-first head-start');
+              await persistUrgencyBonus(order._id, activeUrgencyBonusPaise);
+              releaseCameOnlineSub();
+              await onOrderAssigned(order, hs.acceptedBy, []);
+              recordOutcomes(hs.acceptedBy, 'accept', [], []);
+              return { ok: true, workerId: hs.acceptedBy, bestFirst: true };
+            }
+          }
+          recordOutcomes(null, null, [], [topId]); // top pro passed → count as ignore, continue to broadcast
+        }
+      }
+
       logger.info(
         { orderId, radiusKm, notifying: batchWorkers.length },
         `[DISPATCH] Notifying ${batchWorkers.length} workers`,
@@ -307,8 +404,6 @@ async function processDispatchJob(job) {
       }).catch(() => {});
 
       // Notify user-side UI: workers have been found and notified at this step.
-      const boostAmountPaise = order.pricing?.tipPaise || 0;
-      const boostedTotal = order.pricing?.boostedTotal || order.pricing?.total || 0;
       await emitToOrderRoom(order._id, 'order.workers_notified', {
         count:          batchWorkers.length,
         radiusKm,
@@ -317,30 +412,6 @@ async function processDispatchJob(job) {
 
       // Publish offers + enqueue notifications in parallel batches.
       // addBulk is a single Redis transaction vs N individual LPUSH calls. (#62)
-      const orderPayload = {
-        _id:             String(order._id),
-        service:         order.service,
-        pickupAddress:   order.pickupLocation.address,
-        pickupCoords:    order.pickupLocation.coordinates,
-        price:           boostedTotal,          // workers see boosted price
-        basePrice:       order.pricing?.total || 0,
-        boostAmountPaise,                        // explicit boost so worker UI can highlight it
-        distanceKm:      order.pricing?.distanceKm
-          ? parseFloat(order.pricing.distanceKm).toFixed(1)
-          : null,
-        etaMinutes:      order.pricing?.etaMinutes || null,
-        expiresAt:       expiresAt.toISOString(),
-        tier:            order.tier || 'standard',
-        tierMultiplier:  order.pricing?.tierMultiplier || 1.0,
-        // Job context — worker reads these to prepare before arriving
-        description:     order.description || null,
-        images:          (order.images || []).slice(0, 3), // max 3 thumbnails in offer card
-        diagnosisUrgency: order.diagnosisUrgency || 'normal',
-        requiredTools:   order.requiredTools || [],
-        vehicleType:     order.vehicleType || null,
-        deviceBrand:     order.deviceBrand || null,
-      };
-
       const pubMessages = batchWorkers.map((workerId) =>
         redis.publish('worker:offer', JSON.stringify({ workerId, order: orderPayload }))
       );
@@ -350,10 +421,6 @@ async function processDispatchJob(job) {
       }));
 
       batchWorkers.forEach((id) => alreadyNotified.add(id));
-
-      // Keep the background listener's payload current so newly-online workers
-      // receive the same offer data as the current batch.
-      _latestOrderPayload = orderPayload;
 
       await Promise.all([
         Promise.allSettled(pubMessages),                    // socket fan-out
@@ -376,6 +443,7 @@ async function processDispatchJob(job) {
         const locked = await lockOrderToWorker(order._id, result.acceptedBy, order.service);
         if (locked) {
           logger.info({ orderId, workerId: result.acceptedBy }, '[DISPATCH] ✅ Order assigned via accept');
+          await persistUrgencyBonus(order._id, activeUrgencyBonusPaise);
           releaseCameOnlineSub();
           await onOrderAssigned(order, result.acceptedBy, [...result.rejected, ...result.ignored]);
           recordOutcomes(result.acceptedBy, 'accept', result.rejected, result.ignored);
@@ -420,17 +488,25 @@ async function processDispatchJob(job) {
     }
   }
 
-  /* ── All voluntary steps exhausted — FORCE-ASSIGN nearest skilled worker ── */
-  logger.info({ orderId }, '[DISPATCH] 5-min window elapsed — attempting force-assign (skill-matched only)');
-  await emitToOrderRoom(order._id, 'order.dispatch_update', {
-    message: 'Assigning the nearest available worker…',
-  });
-
-  const forceAssignRadius = config.dispatch.forceAssignRadiusKm ?? 20;
-  const forceResult = await attemptForceAssign(order, forceAssignRadius);
-  if (forceResult.ok) {
-    logger.info({ orderId, workerId: forceResult.workerId }, '[DISPATCH] ✅ Force-assigned');
-    return forceResult;
+  /* ── All voluntary steps exhausted ──────────────────────────────────────────
+   * ACCEPTANCE-FIRST: by default we NEVER force a non-consenting worker (that
+   * produced reluctant workers who cancel/ghost). Admin may re-enable force-assign
+   * as a last resort via pricing config `forceAssignEnabled`. Otherwise we fall
+   * through to a retry (with the now-higher accept bonus) and, if still nobody,
+   * a graceful failure + full refund via markOrderFailed. ── */
+  if (cfg.forceAssignEnabled) {
+    logger.info({ orderId }, '[DISPATCH] Voluntary window elapsed — force-assign enabled by admin, attempting');
+    await emitToOrderRoom(order._id, 'order.dispatch_update', {
+      message: 'Assigning the nearest available worker…',
+    });
+    const forceAssignRadius = config.dispatch.forceAssignRadiusKm ?? 20;
+    const forceResult = await attemptForceAssign(order, forceAssignRadius);
+    if (forceResult.ok) {
+      logger.info({ orderId, workerId: forceResult.workerId }, '[DISPATCH] ✅ Force-assigned');
+      return forceResult;
+    }
+  } else {
+    logger.info({ orderId }, '[DISPATCH] Voluntary window elapsed — no force-assign (acceptance-first)');
   }
 
   /* ── Retry dispatch if under limit ── */
@@ -470,21 +546,38 @@ async function processDispatchJob(job) {
 
 /* ─── Preferred worker: check if user's last worker is online + skilled ── */
 
+/* ─── Persist the accept bonus in effect, so completion can credit it ── */
+async function persistUrgencyBonus(orderId, bonusPaise) {
+  if (!bonusPaise || bonusPaise <= 0) return;
+  await Order.updateOne(
+    { _id: orderId },
+    { $set: { 'dispatch.urgencyBonusPaise': bonusPaise } },
+  ).catch(() => {});
+}
+
 async function getPreferredWorker(order) {
   try {
-    const lastOrder = await Order.findOne({
-      userId: order.userId,
-      service: order.service,
-      status: 'completed',
-      workerId: { $exists: true, $ne: null },
-    })
-      .sort({ completedAt: -1 })
-      .select('workerId')
-      .lean();
+    // 1) Customer explicitly picked this pro at checkout (worker-choice) — highest priority.
+    // 2) Otherwise fall back to the customer's last completed worker for this service.
+    let wId = order.dispatch?.customerPreferredWorkerId
+      ? String(order.dispatch.customerPreferredWorkerId)
+      : null;
 
-    if (!lastOrder?.workerId) return null;
+    if (!wId) {
+      const lastOrder = await Order.findOne({
+        userId: order.userId,
+        service: order.service,
+        status: 'completed',
+        workerId: { $exists: true, $ne: null },
+      })
+        .sort({ completedAt: -1 })
+        .select('workerId')
+        .lean();
 
-    const wId = String(lastOrder.workerId);
+      if (!lastOrder?.workerId) return null;
+      wId = String(lastOrder.workerId);
+    }
+
     const [avail, hasSkill, alive] = await Promise.all([
       redis.hget('workers:available', wId),
       redis.sismember(`workers:skill:${order.service}`, wId),

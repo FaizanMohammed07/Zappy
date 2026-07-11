@@ -16,6 +16,7 @@ import SmartPricingPanel from '../components/booking/SmartPricingPanel';
 import BookingMapView from '../components/booking/BookingMapView';
 import SurgeInfoCard from '../components/booking/SurgeInfoCard';
 import DiagnosisFlow from '../components/booking/DiagnosisFlow';
+import ProPicker from '../components/booking/ProPicker';
 import {
   useLazyGetQuoteQuery, useCreateOrderMutation,
   usePresignUploadMutation, useLazyGetNearbyWorkersQuery,
@@ -382,6 +383,7 @@ export default function BookingPage() {
   const [promoError,    setPromoError]    = useState('');
   const [selectedTier,  setSelectedTier]  = useState('standard');
   const [tipAmount,     setTipAmount]     = useState(0);
+  const [preferredWorkerId, setPreferredWorkerId] = useState(null); // worker-choice (optional)
   const [showOverlay,   setShowOverlay]   = useState(false); // overlay visible
   const [matchFound,    setMatchFound]    = useState(false); // "Worker found!" success state
   const [activeOrderId, setActiveOrderId] = useState(null);
@@ -553,6 +555,8 @@ export default function BookingPage() {
       promoCode: promoResult?.code || undefined,
       tier: selectedTier,
       tipAmount: tipAmount > 0 ? tipAmount : undefined,
+      // Worker-choice: if the customer picked a specific pro, dispatch offers them first.
+      ...(preferredWorkerId && { preferredWorkerId }),
       // Mobile extras
       ...(isMobile && deviceBrand && { deviceBrand }),
       ...(isMobile && deviceModel && { deviceModel }),
@@ -1061,6 +1065,19 @@ export default function BookingPage() {
             </div>
           )}
         </motion.div>
+
+        {/* Worker-choice: optionally pick a specific pro (immediate bookings only) */}
+        {bookMode === 'now' && location && (
+          <motion.div variants={fadeInUp}>
+            <ProPicker
+              service={service}
+              lat={location.lat}
+              lng={location.lng}
+              value={preferredWorkerId}
+              onChange={setPreferredWorkerId}
+            />
+          </motion.div>
+        )}
 
         {/* Surge Transparency Card */}
         {surgeInfoData && (

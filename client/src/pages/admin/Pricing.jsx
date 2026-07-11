@@ -51,6 +51,16 @@ export default function Pricing() {
     cancelRatePenaltyWeight: 5.0,
     minWorkerRating: 3.0,
   });
+  const [accept, setAccept] = useState({
+    forceAssignEnabled: false,
+    urgencyBonusEnabled: true,
+    urgencyBonusStartStep: 4,
+    urgencyBonusStepRs: 5,
+    urgencyBonusMaxRs: 30,
+    bestFirstEnabled: true,
+    bestFirstWindowSec: 8,
+    bestFirstTopN: 1,
+  });
   const [stale, setStale] = useState({
     staleNudgeMinutes: 5,
     staleRedispatchMinutes: 10,
@@ -126,6 +136,16 @@ export default function Pricing() {
       rejectRatePenaltyWeight:      p.rejectRatePenaltyWeight ?? 3.0,
       cancelRatePenaltyWeight:      p.cancelRatePenaltyWeight ?? 5.0,
       minWorkerRating:              p.minWorkerRating          ?? 3.0,
+    });
+    setAccept({
+      forceAssignEnabled:    p.forceAssignEnabled    ?? false,
+      urgencyBonusEnabled:   p.urgencyBonusEnabled   ?? true,
+      urgencyBonusStartStep: p.urgencyBonusStartStep ?? 4,
+      urgencyBonusStepRs:    (p.urgencyBonusStepPaise ?? 500) / 100,
+      urgencyBonusMaxRs:     (p.urgencyBonusMaxPaise  ?? 3000) / 100,
+      bestFirstEnabled:      p.bestFirstEnabled       ?? true,
+      bestFirstWindowSec:    (p.bestFirstWindowMs     ?? 8000) / 1000,
+      bestFirstTopN:         p.bestFirstTopN          ?? 1,
     });
     setStale({
       staleNudgeMinutes:       p.staleNudgeMinutes       ?? 5,
@@ -222,6 +242,7 @@ export default function Pricing() {
   }
 
   const df = (key) => ({ type: 'number', value: dispatch[key] ?? '', onChange: (e) => setDispatch(p => ({ ...p, [key]: Number(e.target.value) })) });
+  const af = (key) => ({ type: 'number', value: accept[key] ?? '', onChange: (e) => setAccept(p => ({ ...p, [key]: Number(e.target.value) })) });
   const sf = (key) => ({ type: 'number', value: stale[key] ?? '', onChange: (e) => setStale(p => ({ ...p, [key]: Number(e.target.value) })) });
 
   const isRainActive = autoPricing.rainActiveUntil && new Date(autoPricing.rainActiveUntil) > new Date();
@@ -404,6 +425,52 @@ export default function Pricing() {
             rejectRatePenaltyWeight:     dispatch.rejectRatePenaltyWeight,
             cancelRatePenaltyWeight:     dispatch.cancelRatePenaltyWeight,
             minWorkerRating:             dispatch.minWorkerRating,
+          })} />
+        </div>
+      </Card>
+
+      {/* ── Acceptance-First Dispatch ── */}
+      <Card className="p-6">
+        <h3 className="text-sm font-bold text-slate-700 mb-1">Acceptance-First Dispatch</h3>
+        <p className="text-xs text-slate-400 mb-4">Assign by voluntary acceptance: the best-ranked pro gets first dibs, a growing bonus incentivises workers to opt in, and no one is force-assigned unless you switch it on. If nobody accepts, the customer is refunded — never forced onto a reluctant worker.</p>
+        <div className="space-y-3 mb-4">
+          <FormRow label="Best-Pro Head-Start" hint="Give the top-ranked pro a short exclusive window before broadcasting to everyone">
+            <Toggle value={accept.bestFirstEnabled} onChange={(v) => setAccept(p => ({ ...p, bestFirstEnabled: v }))} />
+          </FormRow>
+          <FormRow label="High-Demand Accept Bonus" hint="Platform-funded bonus that grows as the search widens — paid to the worker on completion">
+            <Toggle value={accept.urgencyBonusEnabled} onChange={(v) => setAccept(p => ({ ...p, urgencyBonusEnabled: v }))} />
+          </FormRow>
+          <FormRow label="Force-Assign (last resort)" hint="OFF = never force a non-consenting worker; a failed match refunds the customer instead">
+            <Toggle value={accept.forceAssignEnabled} onChange={(v) => setAccept(p => ({ ...p, forceAssignEnabled: v }))} />
+          </FormRow>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <FormRow label="Bonus Starts At Step" hint="Search step where the bonus kicks in (higher = later / wider)">
+            <Input {...af('urgencyBonusStartStep')} step="1" min="0" max="10" />
+          </FormRow>
+          <FormRow label="Bonus Per Step (₹)" hint="Added each time the search radius widens">
+            <Input {...af('urgencyBonusStepRs')} step="1" min="0" />
+          </FormRow>
+          <FormRow label="Bonus Cap (₹)" hint="Maximum accept bonus per order">
+            <Input {...af('urgencyBonusMaxRs')} step="5" min="0" />
+          </FormRow>
+          <FormRow label="Head-Start Window (sec)" hint="Exclusive time the top pro gets before broadcast">
+            <Input {...af('bestFirstWindowSec')} step="1" min="0" max="30" />
+          </FormRow>
+          <FormRow label="Head-Start Pros (count)" hint="How many top pros get the exclusive window">
+            <Input {...af('bestFirstTopN')} step="1" min="1" max="5" />
+          </FormRow>
+        </div>
+        <div className="mt-5">
+          <SaveBtn loading={saving} onClick={() => saveSection({
+            forceAssignEnabled:    accept.forceAssignEnabled,
+            urgencyBonusEnabled:   accept.urgencyBonusEnabled,
+            urgencyBonusStartStep: accept.urgencyBonusStartStep,
+            urgencyBonusStepPaise: Math.round(accept.urgencyBonusStepRs * 100),
+            urgencyBonusMaxPaise:  Math.round(accept.urgencyBonusMaxRs * 100),
+            bestFirstEnabled:      accept.bestFirstEnabled,
+            bestFirstWindowMs:     Math.round(accept.bestFirstWindowSec * 1000),
+            bestFirstTopN:         accept.bestFirstTopN,
           })} />
         </div>
       </Card>
