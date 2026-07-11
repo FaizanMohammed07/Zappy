@@ -20,13 +20,15 @@ export default class ErrorBoundary extends Component {
     // Surface in the console; best-effort beacon to telemetry if available.
     // eslint-disable-next-line no-console
     console.error('[ErrorBoundary]', error, info?.componentStack);
+    this.setState({ errorStack: error?.stack, componentStack: info?.componentStack });
     try {
       const url = `${import.meta.env.VITE_API_URL || ''}/api/telemetry/client-error`;
       if (navigator.sendBeacon) {
         navigator.sendBeacon(url, JSON.stringify({
           message: String(error?.message || error).slice(0, 500),
-          stack: String(info?.componentStack || '').slice(0, 1000),
-          path: window.location.pathname,
+          errorStack: String(error?.stack || '').slice(0, 1500),   // real JS stack (file:line of the throw)
+          stack: String(info?.componentStack || '').slice(0, 1000), // React component stack
+          path: window.location.pathname + window.location.search,
           at: Date.now(),
         }));
       }
@@ -60,6 +62,14 @@ export default class ErrorBoundary extends Component {
             Go home
           </button>
         </div>
+
+        {/* Dev-only: show the actual error + where it threw so it's fixable at a glance. */}
+        {import.meta.env.DEV && (
+          <pre className="mt-6 max-w-full sm:max-w-xl w-full overflow-auto text-left text-[11px] leading-relaxed text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-3">
+            {String(this.state.error?.message || this.state.error)}
+            {this.state.errorStack ? `\n\n${this.state.errorStack}` : ''}
+          </pre>
+        )}
       </div>
     );
   }

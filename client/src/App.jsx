@@ -11,6 +11,7 @@ import { adminPath } from './config/admin';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
 import ConnectionBanner from './components/common/ConnectionBanner';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import RouteProgress from './components/common/RouteProgress';
 
 // ── Route-level code splitting ─────────────────────────────────────────────
@@ -103,6 +104,9 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
+      {/* Route-level boundary — a crash in one page shows the recovery screen but
+          auto-resets when the user navigates elsewhere (keyed by path). */}
+      <ErrorBoundary key={location.pathname}>
       <AnimatePresence mode="wait" initial={false}>
       <Routes location={location} key={location.pathname}>
         {/* Public */}
@@ -184,6 +188,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </AnimatePresence>
+      </ErrorBoundary>
     </Suspense>
     </>
   );
