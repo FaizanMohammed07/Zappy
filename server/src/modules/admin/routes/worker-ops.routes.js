@@ -20,18 +20,40 @@ router.get('/worker-ops', async (req, res, next) => {
     const stream = redis.scanStream({ match: 'worker:cancelwin:*', count: 200 });
     for await (const batch of stream) keys.push(...batch);
 
-    let cancelsToday = 0;
-    let workersCancellingToday = 0;
-    let workersAtLimit = 0;
+    const perWorker = [];
     if (keys.length) {
       const pipe = redis.pipeline();
       keys.forEach((k) => pipe.get(k));
       const vals = await pipe.exec();
-      for (const [, v] of vals) {
-        const n = Number(v) || 0;
-        if (n > 0) { workersCancellingToday += 1; cancelsToday += n; }
-        if (n >= limit) workersAtLimit += 1;
-      }
+      keys.forEach((k, i) => {
+        const n = Number(vals[i]?.[1]) || 0;
+        if (n > 0) perWorker.push({ id: k.replace('worker:cancelwin:', ''), cancels: n });
+      });
+    }
+    const cancelsToday = perWorker.reduce((sum, w) => sum + w.cancels, 0);
+    const workersCancellingToday = perWorker.length;
+    const workersAtLimit = perWorker.filter((w) => w.cancels >= limit).length;
+
+    // Resolve worker names for the live list (most cancels first).
+    let recentCancellers = [];
+    if (perWorker.length) {
+      const ids = perWorker.map((w) => w.id).filter((id) => /^[a-f0-9]{24}$/i.test(id));
+      const workers = await Worker.find({ _id: { $in: ids } }).select('name phone isOnline').lean();
+      const byId = new Map(workers.map((w) => [String(w._id), w]));
+      recentCancellers = perWorker
+        .map((w) => {
+          const doc = byId.get(w.id) || {};
+          return {
+            workerId: w.id,
+            name: doc.name || 'Worker',
+            phone: doc.phone || null,
+            cancels: w.cancels,
+            atLimit: w.cancels >= limit,
+            isOnline: !!doc.isOnline,
+          };
+        })
+        .sort((a, b) => b.cancels - a.cancels)
+        .slice(0, 50);
     }
 
     const [totalWorkers, onlineWorkers, availableWorkers] = await Promise.all([
