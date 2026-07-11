@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { Star, Repeat2, Calendar, FileDown, Loader2, MapPin, ArrowRight, ChevronLeft, ChevronRight,
-  Bike, Car, Smartphone, Laptop, Tv, Heart, PartyPopper, Wrench } from 'lucide-react';
+  Wrench } from 'lucide-react';
 import { useListOrdersQuery } from '../services/api';
 import { ErrorState } from '../components/common/QueryState';
 import PullToRefresh from '../components/common/PullToRefresh';
 import { API_BASE } from '../services/apiBase';
 import { selectAuth } from '../modules/auth/authSlice';
-import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
+import { categoryMap } from '../constants/categoryMap';
 import { SkeletonList, SkeletonOrderCard } from '../components/common/Skeleton';
 import { staggerContainer, fadeInUp } from '../lib/animations';
 import toast from 'react-hot-toast';
@@ -37,27 +37,37 @@ function fmtDate(d) {
   return new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-// Service-type icon for the compact rows (like Uber's auto/bike thumbnails).
+// Service-type character for the compact rows (like Uber's auto/bike thumbnails).
+// Reuses the shared categoryMap so order history matches the catalog/Home characters.
 function serviceVisual(code = '') {
   const s = code.toLowerCase();
-  if (/bike|puncture|chain|brake|scooter/.test(s))                         return { Icon: Bike, bg: 'bg-orange-50', color: 'text-orange-600' };
-  if (/car|wash|detail|fuel|jump|breakdown|auto|van|fleet|vehicle/.test(s)) return { Icon: Car, bg: 'bg-blue-50', color: 'text-blue-600' };
-  if (/screen|battery|charging|phone|mic|speaker|camera|water|software|device|data_recovery/.test(s)) return { Icon: Smartphone, bg: 'bg-violet-50', color: 'text-violet-600' };
-  if (/laptop/.test(s))                                                     return { Icon: Laptop, bg: 'bg-indigo-50', color: 'text-indigo-600' };
-  if (/cctv|tv|router|smart|home_automation|lock/.test(s))                 return { Icon: Tv, bg: 'bg-cyan-50', color: 'text-cyan-600' };
-  if (/elder|medicine|grocery|hospital|companion|doctor|bill|document/.test(s)) return { Icon: Heart, bg: 'bg-rose-50', color: 'text-rose-600' };
-  if (/event/.test(s))                                                      return { Icon: PartyPopper, bg: 'bg-amber-50', color: 'text-amber-600' };
-  return { Icon: Wrench, bg: 'bg-slate-100', color: 'text-slate-600' };
+  const byId = (id) => categoryMap.find((c) => c.id === id);
+  if (/bike|puncture|chain|brake|scooter|car|wash|detail|fuel|jump|breakdown|auto|van|fleet|vehicle/.test(s)) return byId('cars');
+  if (/screen|battery|charging|phone|mic|speaker|camera|water|software|device|data_recovery/.test(s))          return byId('phones');
+  if (/laptop/.test(s))                                                                                        return byId('laptops');
+  if (/cctv|tv|router|smart|home_automation|lock/.test(s))                                                     return byId('home');
+  if (/elder|medicine|grocery|hospital|companion|doctor|bill|document/.test(s))                                return byId('elders');
+  if (/event/.test(s))                                                                                         return byId('events');
+  if (/pet/.test(s))                                                                                           return byId('pets');
+  return null;
 }
 
 /* ─── Compact past-trip row (icon + details + Rebook) ─────────────────────── */
 function CompactRow({ order, nav }) {
-  const { Icon, bg, color } = serviceVisual(order.service);
+  const character = serviceVisual(order.service);
   const cancelled = order.status === 'cancelled' || order.status === 'failed';
   return (
     <div className="flex items-center gap-3 py-4 border-b border-slate-100 last:border-0">
-      <button onClick={() => nav(`/orders/${order._id}`)} className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
-        <Icon size={24} className={color} />
+      <button
+        onClick={() => nav(`/orders/${order._id}`)}
+        className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0"
+        style={{ backgroundColor: character?.tint || 'rgba(100, 116, 139, 0.1)' }}
+      >
+        {character ? (
+          <img src={character.thumb} alt="" width={40} height={40} loading="lazy" className="w-10 h-10 object-contain p-1" />
+        ) : (
+          <Wrench size={24} className="text-slate-600" />
+        )}
       </button>
       <button onClick={() => nav(`/orders/${order._id}`)} className="flex-1 min-w-0 text-left">
         <p className="font-bold text-[#0F172A] capitalize leading-tight truncate">{order.service?.replace(/_/g, ' ')}</p>
@@ -250,7 +260,7 @@ export default function OrdersListPage() {
         </PullToRefresh>
        </div>
 
-        <BottomNav active="bookings" />
+
       </div>
     </PageTransition>
   );

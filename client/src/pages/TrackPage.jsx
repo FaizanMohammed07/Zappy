@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ChevronRight, Loader2, Zap } from 'lucide-react';
 import { useListOrdersQuery } from '../services/api';
-import BottomNav from '../components/layout/BottomNav';
 
 const ACTIVE_STATUSES = new Set(['created', 'searching', 'assigned', 'on_the_way', 'arrived', 'in_progress']);
 
@@ -29,7 +28,7 @@ export default function TrackPage() {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center pb-24">
         <Loader2 size={24} className="text-zappy-600 animate-spin" />
-        <BottomNav active="track" />
+
       </div>
     );
   }
@@ -66,7 +65,7 @@ export default function TrackPage() {
         </div>
       </div>
 
-      <BottomNav active="track" />
+
     </div>
   );
 }

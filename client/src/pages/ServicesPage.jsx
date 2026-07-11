@@ -8,10 +8,10 @@ import {
   Camera, Heart, Dog, Star, ShieldCheck, ShieldAlert, Cpu,
   MonitorSmartphone, Laptop, Lock, ArrowUpRight
 } from 'lucide-react';
-import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import VoiceSearchButton from '../components/common/VoiceSearchButton';
 import { searchServices } from '../lib/serviceSearch';
+import { getCharacterByCatalogKey } from '../constants/categoryMap';
 import { SkeletonServiceCard } from '../components/common/Skeleton';
 import { staggerContainer, fadeInUp, easeSoft } from '../lib/animations';
 import toast from 'react-hot-toast';
@@ -99,14 +99,17 @@ const SERVICE_ICONS = {
   pet_training_assist:   { Icon: Star,          gradient: 'from-amber-500 to-orange-600',   bg: 'bg-amber-50',   text: 'text-amber-600' },
 };
 
+// 'All' stays a meta icon (not a service category), so it keeps a line icon.
+// Every other chip's icon comes from categoryMap — the single character source
+// of truth shared with the Home grid and sticky rail.
 const CATEGORIES = [
-  { key: 'all',          label: 'All',           Icon: Sparkles    },
-  { key: 'mobile',       label: 'Phone',         Icon: Smartphone  },
-  { key: 'smart_device', label: 'Smart Devices', Icon: Tv          },
-  { key: 'vehicle',      label: 'Vehicle',       Icon: Car         },
-  { key: 'helper',       label: 'Family',        Icon: Heart       },
-  { key: 'event',        label: 'Events',        Icon: Star        },
-  { key: 'pet',          label: 'Pets',          Icon: Dog         },
+  { key: 'all',          label: 'All'           },
+  { key: 'mobile',       label: 'Phone'         },
+  { key: 'smart_device', label: 'Smart Devices' },
+  { key: 'vehicle',      label: 'Vehicle'       },
+  { key: 'helper',       label: 'Family'        },
+  { key: 'event',        label: 'Events'        },
+  { key: 'pet',          label: 'Pets'          },
 ];
 
 // Smart Devices, Events, and Pets all share category='other' in the DB schema.
@@ -220,6 +223,7 @@ export default function ServicesPage() {
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3">
               {CATEGORIES.map((c) => {
                 const isActive = category === c.key;
+                const character = c.key === 'all' ? null : getCharacterByCatalogKey(c.key);
                 return (
                   <motion.button
                     key={c.key}
@@ -232,7 +236,23 @@ export default function ServicesPage() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.96 }}
                   >
-                    <c.Icon size={16} className={isActive ? 'text-white' : 'text-slate-400'} />
+                    {character ? (
+                      <span
+                        className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center p-1 overflow-hidden"
+                        style={{ backgroundColor: isActive ? '#FFFFFF' : character.tint }}
+                      >
+                        <img
+                          src={character.thumb}
+                          alt=""
+                          width={28}
+                          height={28}
+                          loading="lazy"
+                          className="w-full h-full object-contain"
+                        />
+                      </span>
+                    ) : (
+                      <Sparkles size={16} className={isActive ? 'text-white' : 'text-slate-400'} />
+                    )}
                     {c.label}
                   </motion.button>
                 );
@@ -391,7 +411,7 @@ export default function ServicesPage() {
             </motion.div>
           )}
         </div>
-        <BottomNav active="search" />
+
       </div>
     </PageTransition>
   );

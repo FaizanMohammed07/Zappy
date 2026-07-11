@@ -10,7 +10,6 @@ import {
   useGetMyDisputesQuery, useGetDisputeQuery,
   useOpenDisputeMutation, useAddDisputeMessageMutation,
 } from '../services/api';
-import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 
 const CATEGORIES = [
@@ -385,7 +384,7 @@ export default function DisputesPage() {
           )}
         </AnimatePresence>
 
-        <BottomNav active="profile" />
+
       </div>
     </PageTransition>
   );

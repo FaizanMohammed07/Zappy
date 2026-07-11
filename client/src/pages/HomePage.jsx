@@ -20,7 +20,6 @@ import { useGeolocation, loadGeoLocation } from '../hooks/useGeolocation';
 import { reverseGeocode } from '../utils/reverseGeocode';
 import { serviceLabel } from '../constants/services';
 import { ZappyLogo } from '../components/common/ZappyLogo';
-import BottomNav from '../components/layout/BottomNav';
 import Footer from '../components/layout/Footer';
 import PageTransition from '../components/common/PageTransition';
 import VoiceSearchButton from '../components/common/VoiceSearchButton';
@@ -30,7 +29,7 @@ import { ScanLine } from 'lucide-react';
 function LensButton({ onClick }) {
   return (
     <button type="button" onClick={onClick} aria-label="ZappyLens — scan to find a service"
-      className="relative shrink-0 w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition">
+      className="relative shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition">
       <ScanLine size={18} />
     </button>
   );
@@ -40,10 +39,12 @@ import { springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 import IntroSplash from '../components/common/IntroSplash';
 import HeroCarousel from '../components/home/HeroCarousel';
 import CharacterServiceGrid from '../components/home/CharacterServiceGrid';
+import StickyCategoryRail from '../components/home/StickyCategoryRail';
+import { useActiveSection } from '../hooks/useActiveSection';
 import { SERVICE_PRICE_FALLBACK } from '../constants/servicePriceFallback';
 import OffersSection from '../components/home/OffersSection';
-import { 
-  PromoBannerVehicle, 
+import {
+  PromoBannerVehicle,
   PromoBannerElectronics,
   PromoBannerFamily,
   PromoBannerEvents
@@ -118,115 +119,115 @@ function timeAgo(date) {
 
 /* ─── Most booked — Electronics Rescue ────────────────────────────────── */
 const MOST_BOOKED = [
-  { key: 'screen_replacement',  name: 'Screen Replacement', img: 'https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'battery_replacement', name: 'Battery Replacement',img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'laptop_slow',         name: 'Laptop Speed Fix',   img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'charging_issue',      name: 'Charging Port Fix',  img: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'data_recovery',       name: 'Data Recovery',      img: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'screen_replacement', name: 'Screen Replacement', img: 'https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'battery_replacement', name: 'Battery Replacement', img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'laptop_slow', name: 'Laptop Speed Fix', img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'charging_issue', name: 'Charging Port Fix', img: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'data_recovery', name: 'Data Recovery', img: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
 ];
 
 /* ─── Vehicle care highlights ──────────────────────────────────────────── */
 const VEHICLE_HIGHLIGHTS = [
-  { key: 'puncture',         name: 'Puncture Repair',  img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'car_wash',         name: 'Car Wash',         img: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'battery_jump_start',name: 'Jump Start',      img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'bike_service',     name: 'Bike Full Service',img: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'car_detailing',    name: 'Car Detailing',    img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
-  { key: 'car_towing',       name: 'Vehicle Towing',   img: 'https://images.unsplash.com/photo-1591543620767-582b2e76369e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'puncture', name: 'Puncture Repair', img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_wash', name: 'Car Wash', img: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'battery_jump_start', name: 'Jump Start', img: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'bike_service', name: 'Bike Full Service', img: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_detailing', name: 'Car Detailing', img: 'https://images.unsplash.com/photo-1507136566006-cfc505b114fc?auto=format&fit=crop&w=400&h=300&q=80', badge: 'Popular' },
+  { key: 'car_towing', name: 'Vehicle Towing', img: 'https://images.unsplash.com/photo-1591543620767-582b2e76369e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
 ];
 
 /* ─── Service tile data ────────────────────────────────────────────────── */
 // Electronics Rescue — Mobile
 const PHONE_TILES = [
-  { key: 'screen_replacement',  name: 'Screen Fix',    img: '/images/services/phone_screen.png',  eta: '25 mins' },
-  { key: 'battery_replacement', name: 'Battery',       img: '/images/services/phone_battery.png', eta: '30 mins' },
-  { key: 'charging_issue',      name: 'Charging',      img: '/images/services/phone_charging.png',eta: '20 mins' },
-  { key: 'camera_issue',        name: 'Camera',        img: '/images/services/phone_camera.png',  eta: null      },
-  { key: 'software_issue',      name: 'Software',      img: '/images/services/phone_software.png',eta: null      },
-  { key: 'water_damage',        name: 'Water Damage',  img: '/images/services/phone_water.png',   eta: null      },
-  { key: 'data_recovery',       name: 'Data Recovery', img: '/images/services/phone_data.png',    eta: null      },
+  { key: 'screen_replacement', name: 'Screen Fix', img: '/images/services/phone_screen.png', eta: '25 mins' },
+  { key: 'battery_replacement', name: 'Battery', img: '/images/services/phone_battery.png', eta: '30 mins' },
+  { key: 'charging_issue', name: 'Charging', img: '/images/services/phone_charging.png', eta: '20 mins' },
+  { key: 'camera_issue', name: 'Camera', img: '/images/services/phone_camera.png', eta: null },
+  { key: 'software_issue', name: 'Software', img: '/images/services/phone_software.png', eta: null },
+  { key: 'water_damage', name: 'Water Damage', img: '/images/services/phone_water.png', eta: null },
+  { key: 'data_recovery', name: 'Data Recovery', img: '/images/services/phone_data.png', eta: null },
 ];
 
 // Electronics Rescue — Laptop
 const LAPTOP_TILES = [
-  { key: 'laptop_slow',             name: 'Slow Laptop',    img: '/images/services/laptop_slow.png',     eta: '45 mins' },
-  { key: 'laptop_ssd_upgrade',      name: 'SSD Upgrade',    img: '/images/services/laptop_ssd.png',      eta: null      },
-  { key: 'laptop_screen_issue',     name: 'Screen Repair',  img: '/images/services/laptop_screen.png',   eta: null      },
-  { key: 'laptop_virus_removal',    name: 'Virus Removal',  img: '/images/services/laptop_virus.png',    eta: null      },
-  { key: 'laptop_data_recovery',    name: 'Data Recovery',  img: '/images/services/laptop_data.png',     eta: null      },
-  { key: 'laptop_charging_issue',   name: 'Charging Fix',   img: '/images/services/laptop_charging.png', eta: '40 mins' },
+  { key: 'laptop_slow', name: 'Slow Laptop', img: '/images/services/laptop_slow.png', eta: '45 mins' },
+  { key: 'laptop_ssd_upgrade', name: 'SSD Upgrade', img: '/images/services/laptop_ssd.png', eta: null },
+  { key: 'laptop_screen_issue', name: 'Screen Repair', img: '/images/services/laptop_screen.png', eta: null },
+  { key: 'laptop_virus_removal', name: 'Virus Removal', img: '/images/services/laptop_virus.png', eta: null },
+  { key: 'laptop_data_recovery', name: 'Data Recovery', img: '/images/services/laptop_data.png', eta: null },
+  { key: 'laptop_charging_issue', name: 'Charging Fix', img: '/images/services/laptop_charging.png', eta: '40 mins' },
 ];
 
 // Smart Devices
 const SMART_TILES = [
-  { key: 'smart_tv_install',    name: 'Smart TV',         img: '/images/smart_tv.png',       eta: '60 mins' },
-  { key: 'router_setup',        name: 'WiFi Setup',       img: '/images/wifi_setup.png',     eta: '30 mins' },
-  { key: 'cctv_install',        name: 'CCTV Install',     img: '/images/cctv_install.png',   eta: null      },
-  { key: 'smart_lock_install',  name: 'Smart Lock',       img: '/images/smart_lock.png',     eta: null      },
-  { key: 'home_automation_setup',name: 'Home Auto',       img: '/images/home_auto.png',      eta: null      },
+  { key: 'smart_tv_install', name: 'Smart TV', img: '/images/smart_tv.png', eta: '60 mins' },
+  { key: 'router_setup', name: 'WiFi Setup', img: '/images/wifi_setup.png', eta: '30 mins' },
+  { key: 'cctv_install', name: 'CCTV Install', img: '/images/cctv_install.png', eta: null },
+  { key: 'smart_lock_install', name: 'Smart Lock', img: '/images/smart_lock.png', eta: null },
+  { key: 'home_automation_setup', name: 'Home Auto', img: '/images/home_auto.png', eta: null },
 ];
 
 // Vehicle Care
 const VEHICLE_TILES = [
-  { key: 'puncture',           name: 'Puncture',      Icon: AlertTriangle, grad: 'from-slate-600 to-slate-800',  shadow: 'rgba(100,116,139,0.4)', eta: '18 mins' },
-  { key: 'battery_jump_start', name: 'Jump Start',    Icon: Zap,           grad: 'from-yellow-500 to-amber-600', shadow: 'rgba(245,158,11,0.4)',  eta: '15 mins' },
-  { key: 'bike_wash',          name: 'Bike Wash',     Icon: Bike,          grad: 'from-cyan-500 to-blue-600',    shadow: 'rgba(6,182,212,0.35)', eta: '30 mins' },
-  { key: 'car_wash',           name: 'Car Wash',      Icon: Car,           grad: 'from-sky-500 to-blue-700',     shadow: 'rgba(14,165,233,0.35)',eta: '35 mins' },
-  { key: 'car_breakdown',      name: 'Breakdown',     Icon: Hammer,        grad: 'from-red-500 to-rose-700',     shadow: 'rgba(239,68,68,0.35)', eta: '20 mins' },
-  { key: 'fuel_delivery',      name: 'Fuel Delivery', Icon: Fuel,          grad: 'from-orange-500 to-red-500',   shadow: 'rgba(249,115,22,0.4)', eta: '25 mins' },
+  { key: 'puncture', name: 'Puncture', Icon: AlertTriangle, grad: 'from-slate-600 to-slate-800', shadow: 'rgba(100,116,139,0.4)', eta: '18 mins' },
+  { key: 'battery_jump_start', name: 'Jump Start', Icon: Zap, grad: 'from-yellow-500 to-amber-600', shadow: 'rgba(245,158,11,0.4)', eta: '15 mins' },
+  { key: 'bike_wash', name: 'Bike Wash', Icon: Bike, grad: 'from-cyan-500 to-blue-600', shadow: 'rgba(6,182,212,0.35)', eta: '30 mins' },
+  { key: 'car_wash', name: 'Car Wash', Icon: Car, grad: 'from-sky-500 to-blue-700', shadow: 'rgba(14,165,233,0.35)', eta: '35 mins' },
+  { key: 'car_breakdown', name: 'Breakdown', Icon: Hammer, grad: 'from-red-500 to-rose-700', shadow: 'rgba(239,68,68,0.35)', eta: '20 mins' },
+  { key: 'fuel_delivery', name: 'Fuel Delivery', Icon: Fuel, grad: 'from-orange-500 to-red-500', shadow: 'rgba(249,115,22,0.4)', eta: '25 mins' },
 ];
 
 // Family & Elder Assist
 const FAMILY_TILES = [
-  { key: 'medicine_pickup',    name: 'Medicine',      img: '/images/medicine_delivery.png', eta: '40 mins' },
-  { key: 'hospital_companion', name: 'Hospital Help', img: '/images/hospital_companion.png', eta: null      },
-  { key: 'grocery_assistance', name: 'Grocery',       img: '/images/grocery_delivery.png',   eta: '45 mins' },
-  { key: 'elder_companion',    name: 'Elder Care',    img: '/images/elder_care.png',         eta: null      },
-  { key: 'home_visit_check',   name: 'Home Visit',    img: '/images/home_visit.png',         eta: null      },
+  { key: 'medicine_pickup', name: 'Medicine', img: '/images/medicine_delivery.png', eta: '40 mins' },
+  { key: 'hospital_companion', name: 'Hospital Help', img: '/images/hospital_companion.png', eta: null },
+  { key: 'grocery_assistance', name: 'Grocery', img: '/images/grocery_delivery.png', eta: '45 mins' },
+  { key: 'elder_companion', name: 'Elder Care', img: '/images/elder_care.png', eta: null },
+  { key: 'home_visit_check', name: 'Home Visit', img: '/images/home_visit.png', eta: null },
 ];
 
 // Tank & Water Cleaning
 const TANK_TILES = [
-  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'water_tank_cleaning', name: 'Water Tank', img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'overhead_tank_cleaning', name: 'Overhead Tank', img: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'underground_sump_cleaning', name: 'Underground Sump', img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'sintex_tank_cleaning', name: 'Sintex Tank', img: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
 ];
 
 // Event Commerce tiles — navigate to event commerce module
 const EVENT_TILES = [
-  { key: 'birthday',      name: 'Birthday',    img: '/images/event_birthday.png',  category: 'birthday'      },
-  { key: 'anniversary',   name: 'Anniversary', img: '/images/event_anniversary.png', category: 'anniversary'   },
-  { key: 'baby-shower',   name: 'Baby Shower', img: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=400&h=400&q=80',   category: 'baby-shower'   },
-  { key: 'romantic',      name: 'Romantic',    img: 'https://images.unsplash.com/photo-1494972308805-463bc619d34e?auto=format&fit=crop&w=400&h=400&q=80',      category: 'romantic'      },
-  { key: 'housewarming',  name: 'Housewarming',img: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&h=400&q=80',  category: 'housewarming'  },
+  { key: 'birthday', name: 'Birthday', img: '/images/event_birthday.png', category: 'birthday' },
+  { key: 'anniversary', name: 'Anniversary', img: '/images/event_anniversary.png', category: 'anniversary' },
+  { key: 'baby-shower', name: 'Baby Shower', img: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=400&h=400&q=80', category: 'baby-shower' },
+  { key: 'romantic', name: 'Romantic', img: 'https://images.unsplash.com/photo-1494972308805-463bc619d34e?auto=format&fit=crop&w=400&h=400&q=80', category: 'romantic' },
+  { key: 'housewarming', name: 'Housewarming', img: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&h=400&q=80', category: 'housewarming' },
 ];
 
 // Pet Assistance
 const PET_TILES = [
-  { key: 'pet_grooming',       name: 'Grooming',    img: 'https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=400&h=400&q=80',  eta: '60 mins' },
-  { key: 'pet_walking',        name: 'Walking',     img: 'https://images.unsplash.com/photo-1541599540903-216a46ca1dc0?auto=format&fit=crop&w=400&h=400&q=80', eta: '20 mins' },
-  { key: 'pet_sitting',        name: 'Pet Sitting', img: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=400&h=400&q=80',     eta: null      },
-  { key: 'pet_vet_assist',     name: 'Vet Help',    img: 'https://images.unsplash.com/photo-1576201836106-db1758fd1c97?auto=format&fit=crop&w=400&h=400&q=80',   eta: null      },
-  { key: 'pet_transport',      name: 'Transport',   img: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=400&h=400&q=80', eta: null      },
+  { key: 'pet_grooming', name: 'Grooming', img: 'https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=400&h=400&q=80', eta: '60 mins' },
+  { key: 'pet_walking', name: 'Walking', img: 'https://images.unsplash.com/photo-1541599540903-216a46ca1dc0?auto=format&fit=crop&w=400&h=400&q=80', eta: '20 mins' },
+  { key: 'pet_sitting', name: 'Pet Sitting', img: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=400&h=400&q=80', eta: null },
+  { key: 'pet_vet_assist', name: 'Vet Help', img: 'https://images.unsplash.com/photo-1576201836106-db1758fd1c97?auto=format&fit=crop&w=400&h=400&q=80', eta: null },
+  { key: 'pet_transport', name: 'Transport', img: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=400&h=400&q=80', eta: null },
 ];
 
 const HERO_POSTERS = [
-  { Icon: Smartphone, label: 'Phone Repair',  grad: 'from-indigo-500 via-violet-600 to-purple-700' },
-  { Icon: Car,        label: 'Vehicle Care',  grad: 'from-slate-600 via-slate-700 to-slate-900'    },
-  { Icon: Heart,      label: 'Family Assist', grad: 'from-rose-500 via-pink-500 to-fuchsia-600'    },
-  { Icon: Dog,        label: 'Pet Care',      grad: 'from-amber-400 via-orange-500 to-red-500'     },
+  { Icon: Smartphone, label: 'Phone Repair', grad: 'from-indigo-500 via-violet-600 to-purple-700' },
+  { Icon: Car, label: 'Vehicle Care', grad: 'from-slate-600 via-slate-700 to-slate-900' },
+  { Icon: Heart, label: 'Family Assist', grad: 'from-rose-500 via-pink-500 to-fuchsia-600' },
+  { Icon: Dog, label: 'Pet Care', grad: 'from-amber-400 via-orange-500 to-red-500' },
 ];
 
-const ACTIVE_STATUSES = ['created','searching','assigned','on_the_way','arrived','in_progress'];
+const ACTIVE_STATUSES = ['created', 'searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'];
 const STATUS_LABELS = {
   searching: 'Finding a worker', assigned: 'Worker assigned', on_the_way: 'On the way',
   arrived: 'Arrived', in_progress: 'In progress', created: 'Order placed',
 };
 const LEVEL_COLORS = {
-  Rookie: 'from-slate-400 to-slate-500',    Explorer: 'from-green-400 to-emerald-500',
-  Regular: 'from-blue-400 to-blue-600',     Pro: 'from-violet-400 to-purple-600',
-  Expert: 'from-amber-400 to-orange-500',   Elite: 'from-rose-400 to-red-500',
+  Rookie: 'from-slate-400 to-slate-500', Explorer: 'from-green-400 to-emerald-500',
+  Regular: 'from-blue-400 to-blue-600', Pro: 'from-violet-400 to-purple-600',
+  Expert: 'from-amber-400 to-orange-500', Elite: 'from-rose-400 to-red-500',
   Champion: 'from-pink-400 to-fuchsia-600', Legend: 'from-yellow-300 to-amber-500',
 };
 
@@ -253,7 +254,7 @@ function ServiceImageCard({ item, nav }) {
   // catalog hasn't loaded yet (or a request failed), fall back to a snapshot of
   // catalog minimums so the card shows a real "From ₹X" instead of "Get Quote".
   const { data: catalog } = useListServicesQuery();
-  const svc   = catalog?.byCode?.[item.key];
+  const svc = catalog?.byCode?.[item.key];
   const livePrice = svc?.priceRangeMinPaise != null ? Math.round(svc.priceRangeMinPaise / 100) : null;
   const price = livePrice ?? SERVICE_PRICE_FALLBACK[item.key] ?? null;
   const isServiceCode = /^[a-z][a-z0-9_]+$/.test(item.key || '');
@@ -366,7 +367,7 @@ function CompactImageTile({ svc, nav }) {
           </div>
         )}
         <div className="absolute bottom-2.5 left-2 right-2 z-10 text-center">
-           <span className="text-[11px] sm:text-sm font-bold text-white leading-tight drop-shadow-md">{name}</span>
+          <span className="text-[11px] sm:text-sm font-bold text-white leading-tight drop-shadow-md">{name}</span>
         </div>
       </div>
     </motion.button>
@@ -394,10 +395,15 @@ function SectionHeader({ title, badge, badgeColor = 'bg-slate-100 text-slate-800
 export default function HomePage() {
   const nav = useNavigate();
   const { profile } = useSelector(selectAuth);
-  const isAuthed     = useSelector(selectIsAuthed);
+  const isAuthed = useSelector(selectIsAuthed);
   const [lensOpen, setLensOpen] = useState(false);
 
-  const { data }          = useListOrdersQuery(1, { skip: !isAuthed });
+  const { activeSection, scrollToSection } = useActiveSection([
+    'shelf-home', 'shelf-phones', 'shelf-laptops', 'shelf-cars',
+    'shelf-elders', 'shelf-events', 'shelf-pets', 'shelf-more'
+  ]);
+
+  const { data } = useListOrdersQuery(1, { skip: !isAuthed });
   const { data: gamData } = useGetGamificationQuery(undefined, { skip: !isAuthed });
   const { data: recData } = useGetRecommendationsQuery(undefined, { skip: !isAuthed });
 
@@ -418,9 +424,9 @@ export default function HomePage() {
     }
   };
 
-  const activeOrder    = data?.orders?.find(o => ACTIVE_STATUSES.includes(o.status));
-  const firstName      = profile?.name?.split(' ')[0] || 'there';
-  const gam            = gamData?.gamification;
+  const activeOrder = data?.orders?.find(o => ACTIVE_STATUSES.includes(o.status));
+  const firstName = profile?.name?.split(' ')[0] || 'there';
+  const gam = gamData?.gamification;
   const recommendations = recData?.recommendations || [];
 
   // Quick rebook: last 3 distinct services from completed orders (with the date)
@@ -555,9 +561,9 @@ export default function HomePage() {
           <div className="max-w-7xl w-full mx-auto px-4 md:px-6 h-[60px] md:h-[84px] flex items-center gap-3 md:gap-8">
             {/* Logo */}
             <div className="flex items-center shrink-0 cursor-pointer" onClick={() => nav('/')}>
-              <img 
-                src="/branding/zappylogo.png" 
-                alt="Zappy" 
+              <img
+                src="/branding/zappylogo.png"
+                alt="Zappy"
                 className="h-[46px] md:h-[60px] object-contain drop-shadow-sm"
               />
             </div>
@@ -629,14 +635,16 @@ export default function HomePage() {
                   <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
                   <AnimatedSearchPlaceholder />
                 </button>
-                <motion.span
-                  className="text-xs font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0"
-                  animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
-                >
-                  50+ services
-                </motion.span>
-                <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
-                <LensButton onClick={() => setLensOpen(true)} />
+                <div className="flex items-center gap-2 shrink-0">
+                  <motion.span
+                    className="text-xs font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full shrink-0"
+                    animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
+                  >
+                    50+ services
+                  </motion.span>
+                  <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
+                  <LensButton onClick={() => setLensOpen(true)} />
+                </div>
               </div>
             </div>
 
@@ -675,20 +683,25 @@ export default function HomePage() {
               <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
               <AnimatedSearchPlaceholder />
             </button>
-            <motion.span
-              className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full shrink-0 leading-none"
-              animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
-            >
-              50+
-            </motion.span>
-            <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
-            <LensButton onClick={() => setLensOpen(true)} />
+            <div className="flex items-center gap-2 shrink-0">
+              <motion.span
+                className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full shrink-0 leading-none"
+                animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 2.5, repeat: Infinity }}
+              >
+                50+
+              </motion.span>
+              <VoiceSearchButton onResult={(text) => nav(`/services?q=${encodeURIComponent(text)}`)} />
+              <LensButton onClick={() => setLensOpen(true)} />
+            </div>
           </div>
         </div>
 
+        {/* Sticky Category Rail appears on scroll */}
+        <StickyCategoryRail activeSection={activeSection} onSelect={scrollToSection} />
+
         {/* ─── Hero section ─────────────────────────────────────────── */}
         <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-2 md:pt-5 pb-5">
-          <div className="mb-4 md:mb-5 flex items-end justify-between gap-3">
+          <div className="mb-4 md:mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3 items-start">
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
               <h1 className="text-[26px] md:text-[34px] font-extrabold text-slate-900 leading-[1.08] tracking-[-0.025em]">
                 {tHome('home.greeting', 'What can we fix')}{firstName !== 'there' ? <>, <span className="text-indigo-600">{firstName}</span></> : ''}?
@@ -769,7 +782,7 @@ export default function HomePage() {
           <AdBanner className="mt-4" />
 
           {/* ─── Electronics Rescue — Most Booked ────────────────────── */}
-          <div className="mt-7">
+          <div id="shelf-home" className="mt-7 scroll-mt-[130px] md:scroll-mt-[150px]">
             <SectionHeader title="Electronics Rescue" badge="Most Booked" badgeColor="bg-indigo-50 text-indigo-600 ring-indigo-100" onSeeAll={() => nav('/services')} />
             <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
               <div className="shrink-0 w-1 md:w-2" />
@@ -785,7 +798,7 @@ export default function HomePage() {
           <PromoBannerElectronics />
 
           {/* ─── Phone Repair ────────────────────────────────────── */}
-          <div className="mt-7">
+          <div id="shelf-phones" className="mt-7 scroll-mt-[130px] md:scroll-mt-[150px]">
             <div>
               <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
             </div>
@@ -799,7 +812,7 @@ export default function HomePage() {
           </div>
 
           {/* ─── Laptop Services ──────────────────────────────────────── */}
-          <div className="mt-7">
+          <div id="shelf-laptops" className="mt-7 scroll-mt-[130px] md:scroll-mt-[150px]">
             <div>
               <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
             </div>
@@ -829,7 +842,7 @@ export default function HomePage() {
           <PromoBannerVehicle />
 
           {/* ─── Vehicle Care ───────────────────────────── */}
-          <div className="mt-7">
+          <div id="shelf-cars" className="mt-7 scroll-mt-[130px] md:scroll-mt-[150px]">
             <div>
               <SectionHeader title="Vehicle Care" badge="On-Road Help" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
             </div>
@@ -845,7 +858,7 @@ export default function HomePage() {
           <PromoBannerFamily />
 
           {/* ─── Family & Elder Assist ────────────────────────────────── */}
-          <div className="mt-7">
+          <div id="shelf-elders" className="mt-7 scroll-mt-[130px] md:scroll-mt-[150px]">
             <div>
               <SectionHeader title="Family Assist" badge="Trusted Help" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
             </div>
@@ -875,14 +888,14 @@ export default function HomePage() {
           <PromoBannerEvents />
 
           {/* ─── Event Decorations ─────────────────────────────────── */}
-          <div className="mt-7">
+          <div id="shelf-events" className="mt-7 scroll-mt-[130px] md:scroll-mt-[150px]">
             <div>
               <SectionHeader title="Event Decorations" badge="🎉 Book a Theme" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/events')} />
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
               <div className="shrink-0 w-1 md:w-2" />
               {EVENT_TILES.map((item, i) => (
-                <ServiceImageCard key={i} item={{...item, key: `../events/browse?category=${item.category}`}} nav={nav} />
+                <ServiceImageCard key={i} item={{ ...item, key: `../events/browse?category=${item.category}` }} nav={nav} />
               ))}
               <div className="shrink-0 w-12 flex items-center justify-center">
                 <button onClick={() => nav('/events')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
@@ -893,14 +906,14 @@ export default function HomePage() {
           {/* ─── Pet Assistance ── hidden until feature launch ────────── */}
 
           {/* ─── Trust strip ──────────────────────────────────────────── */}
-          <div className="px-4 mt-7 mb-4">
+          <div id="shelf-more" className="px-4 mt-7 mb-4 scroll-mt-[130px] md:scroll-mt-[150px]">
             <div className="rounded-2xl p-4 ring-1 ring-slate-200/60" style={{ background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)' }}>
               <div className="flex items-center justify-around">
                 {[
-                  { Icon: ShieldCheck, label: 'Insured Work',  color: 'text-indigo-500', bg: 'bg-indigo-50' },
-                  { Icon: CheckCircle, label: 'Verified Pros', color: 'text-green-600',  bg: 'bg-green-50'  },
-                  { Icon: Lock,        label: 'Secure Pay',    color: 'text-blue-600',   bg: 'bg-blue-50'   },
-                  { Icon: TrendingUp,  label: '4.8 Rated',     color: 'text-amber-600',  bg: 'bg-amber-50'  },
+                  { Icon: ShieldCheck, label: 'Insured Work', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+                  { Icon: CheckCircle, label: 'Verified Pros', color: 'text-green-600', bg: 'bg-green-50' },
+                  { Icon: Lock, label: 'Secure Pay', color: 'text-blue-600', bg: 'bg-blue-50' },
+                  { Icon: TrendingUp, label: '4.8 Rated', color: 'text-amber-600', bg: 'bg-amber-50' },
                 ].map(({ Icon, label, color, bg }) => (
                   <div key={label} className="flex flex-col items-center gap-1.5">
                     <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center`}>
@@ -915,7 +928,7 @@ export default function HomePage() {
 
         </div>
         <Footer />
-        <BottomNav active="home" />
+
         <LensModal open={lensOpen} onClose={() => setLensOpen(false)} />
       </div>
 
