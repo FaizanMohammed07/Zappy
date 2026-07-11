@@ -900,6 +900,14 @@ export default function WorkerJobPage() {
               <div className="flex-1">
                 <p className="t-label mb-1">Customer Location</p>
                 <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">{order.pickupLocation.address}</p>
+                {(order.pickupLocation.notes || order.pickupLocation.landmark || order.pickupLocation.flatNumber) && (
+                  <div className="mt-2 flex items-start gap-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                    <MapPin size={13} strokeWidth={2.5} className="text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[12.5px] font-semibold text-amber-800 leading-snug">
+                      {[order.pickupLocation.flatNumber, order.pickupLocation.landmark, order.pickupLocation.notes].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             {pickup && (
