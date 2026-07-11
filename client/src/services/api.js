@@ -239,6 +239,11 @@ export const api = createApi({
     // Worker-choice: top-ranked available pros near pickup (optional picker at checkout).
     getNearbyPros: b.query({ query: (params) => ({ url: '/orders/nearby-pros', params }) }),
 
+    // --- Unified Search (Zepto-level: fuzzy + intent + rank + never-empty) ---
+    smartSearch: b.query({ query: (params) => ({ url: '/search', params }) }),
+    searchSuggest: b.query({ query: (params) => ({ url: '/search/suggest', params }) }),
+    searchTrending: b.query({ query: () => '/search/trending' }),
+
     // --- Orders ---
     createOrder: b.mutation({
       query: (body) => ({ url: '/orders', method: 'POST', body }),
@@ -785,6 +790,9 @@ export const api = createApi({
     adminWorkerOps: b.query({
       query: () => adminApiPath('/worker-ops'),
       providesTags: ['WorkerOps'],
+    }),
+    adminSearchAnalytics: b.query({
+      query: (days = 7) => ({ url: adminApiPath('/search-analytics'), params: { days } }),
     }),
     adminWorkerPenalties: b.query({
       query: (id) => adminApiPath(`/workers/${id}/penalties`),
@@ -1660,6 +1668,10 @@ export const {
   useLazyGetQuoteQuery,
   useGetNearbyProsQuery,
   useLazyGetNearbyProsQuery,
+  useLazySmartSearchQuery,
+  useSmartSearchQuery,
+  useLazySearchSuggestQuery,
+  useSearchTrendingQuery,
   useCreateOrderMutation,
   useGetOrderQuery,
   useListOrdersQuery,
@@ -1775,6 +1787,7 @@ export const {
   useAdminListRecentReferralsQuery,
   useAdminGetCancellationConfigQuery,
   useAdminWorkerOpsQuery,
+  useAdminSearchAnalyticsQuery,
   useAdminUpdateCancellationConfigMutation,
   useAdminWorkerPenaltiesQuery,
   useAdminKycDocUrlsQuery,

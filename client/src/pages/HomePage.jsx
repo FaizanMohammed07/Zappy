@@ -24,6 +24,7 @@ import BottomNav from '../components/layout/BottomNav';
 import Footer from '../components/layout/Footer';
 import PageTransition from '../components/common/PageTransition';
 import VoiceSearchButton from '../components/common/VoiceSearchButton';
+import SpotlightSearch from '../components/search/SpotlightSearch';
 import LensModal from '../components/lens/LensModal';
 import { ScanLine } from 'lucide-react';
 
@@ -393,6 +394,7 @@ function SectionHeader({ title, badge, badgeColor = 'bg-slate-100 text-slate-800
 /* ─── Main component ───────────────────────────────────────────────────── */
 export default function HomePage() {
   const nav = useNavigate();
+  const [spotOpen, setSpotOpen] = useState(false);
   const { profile } = useSelector(selectAuth);
   const isAuthed     = useSelector(selectIsAuthed);
   const [lensOpen, setLensOpen] = useState(false);
@@ -538,6 +540,7 @@ export default function HomePage() {
 
   return (
     <PageTransition>
+      <SpotlightSearch open={spotOpen} onClose={() => setSpotOpen(false)} />
       <SEO
         title="Zappy — Book Verified Professionals Instantly | Home Services India"
         description="India's fastest on-demand home services app. Puncture repair, phone repair, laptop repair, electrician, plumber, bike mechanic, car wash, pet grooming — verified pros arrive in 30 minutes. Book in 60 seconds."
@@ -625,7 +628,7 @@ export default function HomePage() {
             {/* ─── Desktop Search bar ───────────────────────────────────────────── */}
             <div className="hidden md:block flex-1 max-w-2xl mx-auto">
               <div className="w-full flex items-center gap-3 rounded-[24px] pl-6 pr-3 h-14 bg-slate-50 border border-slate-200/80 shadow-inner hover:bg-white hover:border-indigo-300/60 transition-colors">
-                <button onClick={() => nav('/services')} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
+                <button onClick={() => setSpotOpen(true)} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
                   <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
                   <AnimatedSearchPlaceholder />
                 </button>
@@ -671,7 +674,7 @@ export default function HomePage() {
         {/* ─── Mobile Search bar ───────────────────────────────────────────── */}
         <div className="md:hidden bg-white/80 backdrop-blur-md px-4 pt-3 pb-5 border-b border-slate-900/5">
           <div className="w-full flex items-center gap-2 rounded-[20px] pl-4 pr-2 h-14 bg-slate-50 border border-slate-200/80 shadow-inner">
-            <button onClick={() => nav('/services')} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
+            <button onClick={() => setSpotOpen(true)} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
               <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
               <AnimatedSearchPlaceholder />
             </button>

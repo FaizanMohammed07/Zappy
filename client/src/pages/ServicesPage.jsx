@@ -11,6 +11,7 @@ import {
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import VoiceSearchButton from '../components/common/VoiceSearchButton';
+import SpotlightSearch from '../components/search/SpotlightSearch';
 import { searchServices } from '../lib/serviceSearch';
 import { SkeletonServiceCard } from '../components/common/Skeleton';
 import { easeSoft } from '../lib/animations';
@@ -132,6 +133,7 @@ export default function ServicesPage() {
   // Seed the query from ?q= so voice search from the Home page lands here.
   const [query, setQuery] = useState(() => searchParams.get('q') || '');
   const [category, setCategory] = useState('all');
+  const [spotOpen, setSpotOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -173,8 +175,9 @@ export default function ServicesPage() {
 
   return (
     <PageTransition>
+      <SpotlightSearch open={spotOpen} onClose={() => setSpotOpen(false)} initialQuery={query} />
       <div className="min-h-screen bg-[#F8FAFC] pb-40 font-sans selection:bg-indigo-500/30">
-        
+
         {/* Immersive Header */}
         <header className="sticky top-0 z-30 pb-2 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
           <div className="page-container">
@@ -202,6 +205,7 @@ export default function ServicesPage() {
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onFocus={() => setSpotOpen(true)}
                   placeholder="What do you need help with?"
                   className="flex-1 bg-transparent outline-none text-sm sm:text-base font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-medium"
                 />
