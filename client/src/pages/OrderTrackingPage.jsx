@@ -11,6 +11,7 @@ import {
 import { useGetOrderQuery, useGetCancelPreviewQuery, useCancelOrderMutation, useRateOrderMutation, useGetPriceRevisionQuery, useGetPricingConfigQuery, useSendTipMutation } from '../services/api';
 import { API_BASE } from '../services/apiBase';
 import BoostOfferCard from '../components/tracking/BoostOfferCard';
+import WorkerProfileSheet from '../components/worker/WorkerProfileSheet';
 import { useOrderSocket, useSocketStatus } from '../hooks/useSocket';
 import { selectOrder, setActiveOrder, setWorkerLocation } from '../modules/order/orderSlice';
 import { selectAuth } from '../modules/auth/authSlice';
@@ -61,6 +62,7 @@ export default function OrderTrackingPage() {
   const [rateOrder] = useRateOrderMutation();
 
   const [showCancel, setShowCancel]           = useState(false);
+  const [showProfile, setShowProfile]         = useState(false); // pro trust profile sheet
   const [cancelReason, setCancelReason]       = useState('');
   const [showMatchSheet, setShowMatchSheet]   = useState(false);
   const [cashbackPop, setCashbackPop]         = useState(null); // { amountPaise }
@@ -476,9 +478,9 @@ export default function OrderTrackingPage() {
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-black text-base shrink-0 ring-2 ring-white/20">
                 {(order.workerName || 'W').slice(0, 2).toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowProfile(true)}>
                 <div className="flex items-center gap-2">
-                  <p className="font-bold text-white truncate">{order.workerName || 'Your Worker'}</p>
+                  <p className="font-bold text-white truncate underline decoration-white/20 underline-offset-2">{order.workerName || 'Your Worker'}</p>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-300 bg-green-500/20 px-2 py-0.5 rounded-full">
                     <ShieldCheck size={9} strokeWidth={2.5} /> Verified
                   </span>
@@ -878,6 +880,10 @@ export default function OrderTrackingPage() {
               lastTotal={order.pricing?.total}
             />
           </motion.div>
+        )}
+
+        {order.workerId && (
+          <WorkerProfileSheet workerId={order.workerId} open={showProfile} onClose={() => setShowProfile(false)} />
         )}
 
       </motion.div>

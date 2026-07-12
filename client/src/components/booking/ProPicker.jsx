@@ -1,5 +1,7 @@
-import { Star, CheckCircle2, Sparkles, Users } from 'lucide-react';
+import { useState } from 'react';
+import { Star, CheckCircle2, Sparkles, Users, Info } from 'lucide-react';
 import { useGetNearbyProsQuery } from '../../services/api';
+import WorkerProfileSheet from '../worker/WorkerProfileSheet';
 
 /**
  * Worker-choice: lets the customer optionally pick a specific pro before booking.
@@ -10,6 +12,7 @@ import { useGetNearbyProsQuery } from '../../services/api';
  * same worker the system would prioritise anyway.
  */
 export default function ProPicker({ service, lat, lng, value, onChange }) {
+  const [profileId, setProfileId] = useState(null);
   const skip = !service || lat == null || lng == null;
   const { data, isLoading, isError } = useGetNearbyProsQuery(
     { service, lat, lng },
@@ -60,14 +63,20 @@ export default function ProPicker({ service, lat, lng, value, onChange }) {
           const active = value === p.workerId;
           const initials = (p.name || 'P').trim().charAt(0).toUpperCase();
           return (
-            <button
+            <div
               key={p.workerId}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onChange(active ? null : p.workerId)}
-              className={`shrink-0 w-32 rounded-xl border p-3 text-left transition-colors ${
+              className={`relative shrink-0 w-32 rounded-xl border p-3 text-left transition-colors cursor-pointer ${
                 active ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-400' : 'border-slate-200 bg-white'
               }`}
             >
+              {/* Tap ⓘ to view the pro's trust profile + reviews */}
+              <button type="button" onClick={(e) => { e.stopPropagation(); setProfileId(p.workerId); }}
+                className="absolute top-1.5 right-1.5 text-slate-300 hover:text-indigo-500" aria-label="View profile">
+                <Info size={14} />
+              </button>
               <div className="flex items-center gap-1.5 mb-2">
                 {p.photo ? (
                   <img src={p.photo} alt="" className="w-9 h-9 rounded-full object-cover" />
@@ -87,10 +96,12 @@ export default function ProPicker({ service, lat, lng, value, onChange }) {
                 <span className="text-[11px] text-slate-400">· {p.completedJobs} jobs</span>
               </div>
               {active && <CheckCircle2 size={15} className="text-indigo-600 mt-2" />}
-            </button>
+            </div>
           );
         })}
       </div>
+
+      <WorkerProfileSheet workerId={profileId} open={!!profileId} onClose={() => setProfileId(null)} />
     </div>
   );
 }

@@ -175,6 +175,7 @@ const orderSchema = new mongoose.Schema(
 
     // Ratings (post-completion) — immutable once ratingSubmittedAt is set (#87/#88)
     userRating:         { type: Number, min: 1, max: 5 },
+    userReview:         { type: String, maxlength: 1000 }, // customer's review text (trust profile)
     workerRating:       { type: Number, min: 1, max: 5 },
     ratingSubmittedAt:  Date,   // set when user rates; prevents re-rating via direct DB access
 

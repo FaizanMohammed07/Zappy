@@ -1546,7 +1546,7 @@ async function rateOrder({ orderId, userId, rating, review }) {
 
   order.userRating = rating;
   order.ratingSubmittedAt = new Date(); // immutability timestamp (#88)
-  if (review) order.statusHistory.push({ status: 'completed', at: new Date(), meta: { review } });
+  if (review) order.userReview = review; // queryable for the pro's public trust profile
   await order.save();
 
   // Update worker rolling rating — true rolling average using (oldAvg*n + new)/(n+1)

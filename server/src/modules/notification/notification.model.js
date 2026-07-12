@@ -83,6 +83,7 @@ const TYPES = [
 
   // Platform-wide
   'promotional',
+  'service_due',   // retention: recurring service is due for a rebook
   'system_alert',
 ];
 

@@ -296,6 +296,32 @@ async function getPublicProfile(req, res, next) {
       .select('name rating completedJobs skills kyc.status penalties createdAt')
       .lean();
     if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+    // Trust signals: recent reviews + star breakdown + top services this pro does.
+    const Order = require('../order/order.model');
+    const rated = await Order.find({ workerId: worker._id, userRating: { $exists: true, $ne: null } })
+      .select('userRating userReview service ratingSubmittedAt completedAt')
+      .sort({ ratingSubmittedAt: -1 })
+      .limit(60)
+      .lean();
+
+    const breakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    const serviceCounts = {};
+    const reviews = [];
+    for (const o of rated) {
+      breakdown[o.userRating] = (breakdown[o.userRating] || 0) + 1;
+      if (o.service) serviceCounts[o.service] = (serviceCounts[o.service] || 0) + 1;
+      if (o.userReview && reviews.length < 12) {
+        reviews.push({
+          rating: o.userRating,
+          text: String(o.userReview).slice(0, 400),
+          service: o.service,
+          at: o.ratingSubmittedAt || o.completedAt,
+        });
+      }
+    }
+    const topServices = Object.entries(serviceCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([s]) => s);
+
     res.json({
       worker: {
         _id:           worker._id,
@@ -308,7 +334,11 @@ async function getPublicProfile(req, res, next) {
         acceptRate:    worker.penalties?.totalOffers > 0
           ? Math.round(((worker.penalties.totalOffers - (worker.penalties.totalRejects || 0)) / worker.penalties.totalOffers) * 100)
           : null,
+        ratingCount:   rated.length,
+        breakdown,
+        topServices,
       },
+      reviews,
     });
   } catch (err) { next(err); }
 }
