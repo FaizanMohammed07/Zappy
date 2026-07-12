@@ -181,11 +181,12 @@ async function search(req, res) {
 async function clientError(req, res) {
   res.status(204).end();
   try {
-    const { message, stack, path } = req.body || {};
+    const { message, stack, errorStack, path } = req.body || {};
     logger.warn({
       msg: typeof message === 'string' ? message.slice(0, 500) : null,
-      stack: typeof stack === 'string' ? stack.slice(0, 1000) : null,
-      path: typeof path === 'string' ? path.slice(0, 200) : null,
+      errorStack: typeof errorStack === 'string' ? errorStack.slice(0, 1500) : null,
+      componentStack: typeof stack === 'string' ? stack.slice(0, 1000) : null,
+      path: typeof path === 'string' ? path.slice(0, 220) : null,
       ua: req.headers['user-agent'],
     }, '[CLIENT-ERROR] React error boundary tripped');
   } catch { /* best-effort */ }

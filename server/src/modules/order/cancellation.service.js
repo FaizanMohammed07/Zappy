@@ -35,8 +35,9 @@ const DEFAULTS = {
   workerNoShowPenaltyPaise:   5000,
   lateWorkerCancelMultiplier: 2,
   workerRejectLimit:          5,
-  workerCancelLimit:          3,
-  workerCancelWindowSec:      86400,
+  workerCancelLimit:          3,   // legacy alias
+  maxDailyWorkerCancels:      3,   // admin-editable escalation threshold (Cancellation page)
+  workerCancelWindowSec:      86400, // 24h = "per day"
   rejectRatePenaltyWeight:    3.0,
   cancelRatePenaltyWeight:    5.0,
 };
@@ -182,16 +183,35 @@ async function previewCancelFee(order) {
 
 // ─── Worker cancellation penalty ─────────────────────────────────────────────
 
-async function calculateWorkerCancelPenalty(order) {
+// Reasons a worker can cancel with. Genuine reasons are penalty-free AND do NOT
+// count toward the escalation threshold; the rest are penalised and counted
+// (to catch cherry-picking).
+const WORKER_CANCEL_REASONS = [
+  { code: 'vehicle_breakdown',   label: 'Vehicle breakdown',         genuine: true  },
+  { code: 'personal_emergency',  label: 'Personal emergency',        genuine: true  },
+  { code: 'customer_unreachable', label: 'Customer not reachable',   genuine: true  },
+  { code: 'wrong_job_details',   label: 'Wrong / unsafe job details', genuine: true  },
+  { code: 'too_far',             label: 'Too far to reach',          genuine: false },
+  { code: 'changed_mind',        label: 'Can no longer take it',     genuine: false },
+  { code: 'other',               label: 'Other reason',              genuine: false },
+];
+const GENUINE_REASON_CODES = new Set(WORKER_CANCEL_REASONS.filter((r) => r.genuine).map((r) => r.code));
+
+async function calculateWorkerCancelPenalty(order, reasonCode) {
   const cfg = await getConfig();
   const isLate = ['on_the_way', 'arrived'].includes(order.status);
-  const penaltyPaise = isLate
-    ? Math.round(cfg.workerCancelPenaltyPaise * cfg.lateWorkerCancelMultiplier)
-    : cfg.workerCancelPenaltyPaise;
+  const isGenuine = GENUINE_REASON_CODES.has(reasonCode);
+  const penaltyPaise = isGenuine
+    ? 0
+    : (isLate
+      ? Math.round(cfg.workerCancelPenaltyPaise * cfg.lateWorkerCancelMultiplier)
+      : cfg.workerCancelPenaltyPaise);
   return {
     penaltyPaise,
-    reason: isLate ? 'worker_cancelled_late' : 'worker_cancelled_assigned',
+    reason: isGenuine ? 'worker_cancelled_genuine' : (isLate ? 'worker_cancelled_late' : 'worker_cancelled_assigned'),
     isLate,
+    isGenuine,
+    counts: !isGenuine, // whether this cancel counts toward the escalation limit
   };
 }
 
@@ -208,5 +228,6 @@ module.exports = {
   calculateWorkerCancelPenalty,
   calculateNoShowPenalty,
   previewCancelFee,
+  WORKER_CANCEL_REASONS,
   DEFAULTS,
 };

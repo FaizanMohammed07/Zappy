@@ -3,10 +3,30 @@ const Order = require('../order/order.model');
 const { redis } = require('../../config/redis');
 const invoiceService = require('./invoice.service');
 
+const CATALOG_CACHE_KEY = 'catalog:services:public';
+const CATALOG_CACHE_TTL = 120; // seconds — busts immediately on admin edit anyway
+
+async function bustCatalogCache() {
+  try { await redis.del(CATALOG_CACHE_KEY); } catch { /* non-blocking */ }
+}
+
 async function listServices(req, res, next) {
   try {
+    // Serve from Redis when warm — the public catalog is read on nearly every page
+    // load, so caching it turns a MongoDB round-trip into a single fast GET.
+    try {
+      const cached = await redis.get(CATALOG_CACHE_KEY);
+      if (cached) {
+        res.set('Cache-Control', 'public, max-age=60');
+        return res.type('application/json').send(cached);
+      }
+    } catch { /* redis down — fall through to DB */ }
+
     const services = await ServiceCatalog.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean();
-    res.json({ services });
+    const payload = JSON.stringify({ services });
+    redis.set(CATALOG_CACHE_KEY, payload, 'EX', CATALOG_CACHE_TTL).catch(() => {});
+    res.set('Cache-Control', 'public, max-age=60');
+    res.type('application/json').send(payload);
   } catch (err) { next(err); }
 }
 
@@ -108,6 +128,7 @@ async function adminUpdateService(req, res, next) {
       { new: true }
     ).lean();
     if (!svc) return res.status(404).json({ error: 'Service not found' });
+    await bustCatalogCache(); // public list must reflect the edit immediately
     res.json({ service: svc });
   } catch (err) { next(err); }
 }

@@ -77,61 +77,63 @@ export default function SOSButton({ orderId, lat, lng, service }) {
 
   return (
     <div className="space-y-3">
-      {/* Emergency services shortcut — always visible, no hold required (#90) */}
-      <a
-        href="tel:112"
-        className="w-full py-2.5 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm bg-slate-800 text-white ring-1 ring-white/10"
-      >
-        <Phone size={14} strokeWidth={2.5} />
-        Call 112 — Police / Ambulance
-      </a>
-
-      <div className="relative">
-        <motion.button
-          onPointerDown={startHold}
-          onPointerUp={cancelHold}
-          onPointerLeave={cancelHold}
-          whileTap={{ scale: 0.94 }}
-          className={`w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm transition-all select-none ${
-            triggered
-              ? 'bg-red-100 text-red-600 ring-1 ring-red-200'
-              : 'bg-red-600 text-white shadow-lg shadow-red-200'
-          }`}
-          style={{ WebkitUserSelect: 'none' }}
+      {/* Emergency & SOS Actions grouped side-by-side */}
+      <div className="flex items-stretch gap-2">
+        <a
+          href="tel:112"
+          className="flex-1 py-3 rounded-2xl flex items-center justify-center gap-1.5 font-bold text-[13px] bg-slate-800 text-white shadow-sm hover:bg-slate-700 active:bg-slate-900 transition-colors"
         >
-          {triggered ? <Phone size={15} /> : isPetJob ? <Heart size={15} /> : <ShieldAlert size={15} />}
-          {triggered
-            ? (isPetJob ? 'SOS Active — Vet contacts below' : 'SOS Sent — Support notified')
-            : lat == null
-              ? '⚠️ GPS not ready — Hold for SOS'
-              : isPetJob ? 'Animal emergency? Hold 3s for SOS' : 'Hold 3s for SOS'}
+          <Phone size={14} strokeWidth={2.5} />
+          Call 112
+        </a>
 
-          {/* Progress ring */}
+        <div className="relative flex-[1.5]">
+          <motion.button
+            onPointerDown={startHold}
+            onPointerUp={cancelHold}
+            onPointerLeave={cancelHold}
+            whileTap={{ scale: 0.96 }}
+            className={`w-full h-full rounded-2xl flex items-center justify-center gap-1.5 font-bold text-[13px] transition-all select-none ${
+              triggered
+                ? 'bg-red-50 text-red-600 ring-1 ring-red-200'
+                : 'bg-red-600 text-white shadow-md shadow-red-200/50 hover:bg-red-700'
+            }`}
+            style={{ WebkitUserSelect: 'none' }}
+          >
+            {triggered ? <Phone size={14} /> : isPetJob ? <Heart size={14} /> : <ShieldAlert size={14} />}
+            {triggered
+              ? 'SOS Active'
+              : lat == null
+                ? 'GPS off — Hold SOS'
+                : 'Hold 3s for SOS'}
+
+            {/* Progress ring */}
+            {holding && (
+              <svg width="18" height="18" viewBox="0 0 20 20" className="-rotate-90 absolute right-3">
+                <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2.5" />
+                <circle
+                  cx="10" cy="10" r="8" fill="none"
+                  stroke="white" strokeWidth="2.5"
+                  strokeDasharray={50.27}
+                  strokeDashoffset={50.27 * (1 - progress / 100)}
+                  strokeLinecap="round"
+                />
+              </svg>
+            )}
+          </motion.button>
+
           {holding && (
-            <svg width="20" height="20" viewBox="0 0 20 20" className="-rotate-90 absolute right-4">
-              <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2.5" />
-              <circle
-                cx="10" cy="10" r="8" fill="none"
-                stroke="white" strokeWidth="2.5"
-                strokeDasharray={50.27}
-                strokeDashoffset={50.27 * (1 - progress / 100)}
-                strokeLinecap="round"
-              />
-            </svg>
+            <AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/90 text-white text-[11px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shadow-xl"
+              >
+                Keep holding… {Math.round((HOLD_MS - (progress / 100 * HOLD_MS)) / 1000) + 1}s
+              </motion.div>
+            </AnimatePresence>
           )}
-        </motion.button>
-
-        {holding && (
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] font-bold px-3 py-1 rounded-full whitespace-nowrap"
-            >
-              Keep holding… {Math.round((HOLD_MS - (progress / 100 * HOLD_MS)) / 1000) + 1}s
-            </motion.div>
-          </AnimatePresence>
-        )}
+        </div>
       </div>
 
       {/* ── Pet emergency contacts — shown after SOS triggers on a pet job (#75) ── */}
@@ -143,20 +145,20 @@ export default function SOSButton({ orderId, lat, lng, service }) {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="rounded-2xl bg-rose-950/70 ring-1 ring-rose-800/50 p-4 space-y-3">
+            <div className="rounded-2xl bg-rose-50 ring-1 ring-rose-200 p-4 space-y-3 mt-1">
               <div className="flex items-center gap-2">
-                <Heart size={13} strokeWidth={2.5} className="text-rose-400 fill-rose-400" />
-                <p className="text-xs font-extrabold text-rose-300 uppercase tracking-widest">Pet Emergency Contacts</p>
+                <Heart size={13} strokeWidth={2.5} className="text-rose-600 fill-rose-600" />
+                <p className="text-xs font-extrabold text-rose-800 uppercase tracking-widest">Pet Emergency Contacts</p>
               </div>
               {PET_EMERGENCY_CONTACTS.map((c) => (
-                <div key={c.number} className="flex items-center justify-between gap-3">
+                <div key={c.number} className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-rose-100">
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate">{c.label}</p>
-                    <p className="text-[10px] text-rose-300/60">{c.hint}</p>
+                    <p className="text-xs font-bold text-slate-800 truncate">{c.label}</p>
+                    <p className="text-[10px] text-slate-500">{c.hint}</p>
                   </div>
                   <a
                     href={`tel:${c.number.replace(/[^0-9+]/g, '')}`}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-700 text-white text-xs font-bold"
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-100 text-rose-700 text-xs font-bold hover:bg-rose-200 transition-colors"
                   >
                     <Phone size={11} strokeWidth={2.5} />
                     {c.number}

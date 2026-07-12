@@ -30,6 +30,39 @@ const TAG_META = {
   other: { icon: MapPin,    bg: 'from-slate-400 to-slate-500',   ring: 'ring-slate-200'  },
 };
 
+// Quick note chips for precise pin placement (§7/§8). Tapping prefixes the note.
+const NOTE_CHIPS = [
+  { label: 'Gate', prefix: 'Near Gate ' },
+  { label: 'Flat / Door', prefix: 'Ring Flat ' },
+  { label: 'Basement', prefix: 'Basement ' },
+  { label: 'Landmark', prefix: 'Opposite ' },
+];
+
+// Haversine distance (km) between two lat/lng points.
+function haversineKm(aLat, aLng, bLat, bLng) {
+  const R = 6371, toR = Math.PI / 180;
+  const dLat = (bLat - aLat) * toR, dLng = (bLng - aLng) * toR;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * toR) * Math.cos(bLat * toR) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+// Real ETA/density from nearby workers: ~24 km/h city speed → 2.5 min/km + 3 min base.
+function deriveNearbyInfo(pin, workers) {
+  const count = workers.length;
+  if (count === 0) return { count: 0, density: 'none' };
+  const nearestKm = Math.min(...workers.map((w) => haversineKm(pin.lat, pin.lng, w.lat, w.lng)));
+  const etaMin = Math.max(3, Math.round(3 + nearestKm * 2.5));
+  const density = count >= 4 ? 'high' : count >= 2 ? 'medium' : 'low';
+  return { count, nearestKm: Math.round(nearestKm * 10) / 10, etaMin, density };
+}
+
+const DENSITY_META = {
+  high:   { dot: '#22c55e', label: 'High availability' },
+  medium: { dot: '#eab308', label: 'Medium availability' },
+  low:    { dot: '#f97316', label: 'Limited availability' },
+  none:   { dot: '#f59e0b', label: 'No workers here yet' },
+};
+
 function ensureLocPickStyles() {
   if (document.getElementById('zlp-styles')) return;
   const s = document.createElement('style');
@@ -315,6 +348,8 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
   const [results,     setResults]     = useState([]);
   const [searching,   setSearching]   = useState(false);
   const [nearbyCount, setNearbyCount] = useState(null);
+  const [nearbyInfo,  setNearbyInfo]  = useState(null); // { count, nearestKm, etaMin, density }
+  const [locNote,     setLocNote]     = useState('');   // precise-pin note (§8)
   const [mapReady,    setMapReady]    = useState(false);
 
   const mapRef        = useRef(null);
@@ -381,7 +416,8 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
           const prox = bias ? `&proximity=${bias.lng},${bias.lat}` : '';
           const r = await fetch(
             `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQ)}.json` +
-            `?access_token=${TOKEN}&country=IN&language=en&limit=6&types=address,place,neighborhood,locality,poi${prox}`,
+            `?access_token=${TOKEN}&country=IN&language=en&limit=8&autocomplete=true&fuzzyMatch=true` +
+            `&types=poi,address,place,neighborhood,locality,region,district${prox}`,
           );
           const d = await r.json();
           setResults(d.features || []);
@@ -389,8 +425,15 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
         finally { setSearching(false); }
       };
 
-      // ── Google Places Autocomplete (primary) ─────────────────────────────
+      // ── Google Places Autocomplete (primary, if billing is enabled) ──────
+      // Google gives the best Indian POI/landmark results, BUT if the GCP project
+      // has no billing the SDK can return REQUEST_DENIED *or hang without ever
+      // calling back*. A hard timeout guarantees we always fall back to Mapbox
+      // (which is proven working) — so search NEVER shows "not found".
       if (gmapsLoaded && window.google?.maps?.places) {
+        let settled = false;
+        const finish = (fn) => { if (!settled) { settled = true; fn(); } };
+        const guard = setTimeout(() => finish(mapboxFallback), 1200); // Google hung → Mapbox
         try {
           const svc = new window.google.maps.places.AutocompleteService();
           const bias = coords
@@ -402,23 +445,25 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
           svc.getPlacePredictions(
             { input: searchQ, componentRestrictions: { country: 'in' }, locationBias: bias },
             (predictions, status) => {
+              clearTimeout(guard);
               if (status === 'OK' && predictions?.length) {
-                setResults(predictions.map((p) => ({
-                  id          : p.place_id,
-                  _isGoogle   : true,
-                  _placeId    : p.place_id,
-                  text        : p.structured_formatting?.main_text || p.description,
-                  place_name  : p.description,
-                  secondaryText: p.structured_formatting?.secondary_text || '',
-                })));
-                setSearching(false);
+                finish(() => {
+                  setResults(predictions.map((p) => ({
+                    id          : p.place_id,
+                    _isGoogle   : true,
+                    _placeId    : p.place_id,
+                    text        : p.structured_formatting?.main_text || p.description,
+                    place_name  : p.description,
+                    secondaryText: p.structured_formatting?.secondary_text || '',
+                  })));
+                  setSearching(false);
+                });
               } else {
-                // Google failed (denied/quota/zero) → fall back instead of showing nothing.
-                mapboxFallback();
+                finish(mapboxFallback); // denied/quota/zero → Mapbox
               }
             },
           );
-        } catch { mapboxFallback(); }
+        } catch { clearTimeout(guard); finish(mapboxFallback); }
         return;
       }
 
@@ -574,6 +619,7 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
       const res = await fetchNearby({ lat: loc.lat, lng: loc.lng }).unwrap();
       const workers = res?.workers || [];
       setNearbyCount(workers.length);
+      setNearbyInfo(deriveNearbyInfo(loc, workers)); // real ETA + density (§10/§11)
 
       workers.forEach((w, i) => {
         const delay = `${(i * 0.22).toFixed(2)}s`;
@@ -620,8 +666,9 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
 
   function confirmLocation() {
     if (!coords || !address) return;
+    const notes = locNote.trim() || undefined;
     saveRecent({ address, lat: coords.lat, lng: coords.lng }).catch(() => {});
-    onConfirm({ address, lat: coords.lat, lng: coords.lng });
+    onConfirm({ address, lat: coords.lat, lng: coords.lng, notes });
   }
 
   function selectSaved(sa) {
@@ -1135,19 +1182,21 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
             {nearbyCount === 0 ? (
               <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg ring-1 ring-black/[0.06]">
                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">No workers nearby — try another area</span>
+                <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">No workers here yet — try a nearby area</span>
               </div>
             ) : (
               <div
-                className="flex items-center gap-2 rounded-full px-4 py-2 shadow-lg"
+                className="flex items-center gap-2.5 rounded-full pl-3 pr-4 py-2 shadow-lg"
                 style={{ background: 'linear-gradient(135deg, #0f172a, #1e3a5f)', boxShadow: '0 4px 20px rgba(15,23,42,0.35)' }}
               >
                 <span className="relative flex h-2.5 w-2.5 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: (DENSITY_META[nearbyInfo?.density] || DENSITY_META.high).dot }} />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ background: (DENSITY_META[nearbyInfo?.density] || DENSITY_META.high).dot }} />
                 </span>
                 <span className="text-[11px] font-extrabold text-white whitespace-nowrap">
-                  {nearbyCount} worker{nearbyCount !== 1 ? 's' : ''} nearby · ~5 min ETA
+                  Nearest pro ~{nearbyInfo?.etaMin ?? 5} min
+                  {nearbyInfo?.nearestKm != null && <span className="font-semibold text-white/60"> · {nearbyInfo.nearestKm} km</span>}
+                  <span className="font-semibold text-white/60"> · {(DENSITY_META[nearbyInfo?.density] || DENSITY_META.high).label}</span>
                 </span>
               </div>
             )}
@@ -1221,6 +1270,29 @@ export default function LocationPicker({ onConfirm, serviceLabel, service }) {
               </AnimatePresence>
             </div>
           </div>
+
+          {/* Precise-pin note (§7/§8) — helps the pro reach the exact door */}
+          {coords && !geocoding && (
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {NOTE_CHIPS.map((c) => (
+                  <button key={c.label} type="button"
+                    onClick={() => setLocNote((n) => (n.trim().startsWith(c.prefix.trim()) ? n : c.prefix))}
+                    className="px-2.5 py-1 rounded-full text-[10.5px] font-bold transition-colors"
+                    style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={locNote}
+                onChange={(e) => setLocNote(e.target.value.slice(0, 140))}
+                placeholder="Add a note for the pro — gate, floor, landmark…"
+                className="w-full h-9 rounded-xl px-3 text-[12.5px] outline-none text-white placeholder:text-white/30"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              />
+            </div>
+          )}
 
           {/* Confirm button */}
           <motion.button

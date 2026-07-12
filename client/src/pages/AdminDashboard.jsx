@@ -9,7 +9,7 @@ import {
   Megaphone, Ticket, Server, ToggleRight, Bell, Repeat2,
   HeadphonesIcon, Radio, Globe, Layers, Zap, Sparkles, TrendingUp,
   Shield, PartyPopper, ShieldAlert, Map as MapIcon,
-  AlertCircle, GraduationCap,
+  AlertCircle, GraduationCap, Search,
 } from 'lucide-react';
 import { logout } from '../modules/auth/authSlice';
 import { useLogoutMutation } from '../services/api';
@@ -49,6 +49,8 @@ import Fraud from './admin/Fraud';
 import Zones from './admin/Zones';
 import Content from './admin/Content';
 import RewardsConfig from './admin/RewardsConfig';
+import WorkerOps from './admin/WorkerOps';
+import SearchIntel from './admin/SearchIntel';
 import Intervention from './admin/Intervention';
 import Cities from './admin/Cities';
 import Appeals from './admin/Appeals';
@@ -63,6 +65,7 @@ const NAV_GROUPS = [
       { id: 'orders',    label: 'Orders',       icon: ShoppingBag },
       { id: 'users',     label: 'Users',        icon: Users },
       { id: 'workers',   label: 'Workers',      icon: Briefcase },
+      { id: 'workerops', label: 'Worker Ops',   icon: Briefcase },
       { id: 'kyc',       label: 'KYC Review',   icon: FileCheck },
     ],
   },
@@ -103,6 +106,7 @@ const NAV_GROUPS = [
     label: 'Intelligence',
     items: [
       { id: 'intelligence',   label: 'Intelligence & Expansion', icon: Sparkles },
+      { id: 'searchintel',    label: 'Search Intel',       icon: Search },
       { id: 'notifications',  label: 'Notifications',      icon: Bell },
       { id: 'alerts',         label: 'Alerts',             icon: Bell },
       { id: 'audit',          label: 'Audit Logs',         icon: FileText },
@@ -137,6 +141,8 @@ const SECTION_MAP = {
   events: Events,
   fraud: Fraud, zones: Zones, intervention: Intervention, cities: Cities,
   appeals: Appeals, training: Training, content: Content, rewardpoints: RewardsConfig,
+  workerops: WorkerOps,
+  searchintel: SearchIntel,
 };
 
 /* ─── Sidebar nav item ─────────────────────────────────────────────────── */

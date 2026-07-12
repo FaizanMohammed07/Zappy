@@ -27,8 +27,25 @@ async function authenticate(req, res, next) {
   }
   req.auth = auth;
 
-  // ── Ban check — Redis-cached 60s, DB fallback ──────────────────
   const { sub, role } = auth;
+
+  // ── Single-device enforcement (workers) ─────────────────────────
+  // A worker may only be signed in on ONE device. Login records the active
+  // session id (`wsid:<id>`) and stamps it into the access token. If this token's
+  // sid isn't the active one, the account was opened on another device → reject.
+  if (role === 'worker' && auth.sid) {
+    try {
+      const activeSid = await redis.get(`wsid:${sub}`);
+      if (activeSid && activeSid !== auth.sid) {
+        return res.status(401).json({ error: 'Signed in on another device', code: 'SESSION_REPLACED' });
+      }
+    } catch (err) {
+      // Redis hiccup — fail open (don't lock out a legit worker on infra blips).
+      logger.warn({ err: err.message, sub }, 'Single-device check failed — allowing through');
+    }
+  }
+
+  // ── Ban check — Redis-cached 60s, DB fallback ──────────────────
   if (role === 'worker' || role === 'user') {
     try {
       const cacheKey = `ban:${role}:${sub}`;

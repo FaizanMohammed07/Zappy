@@ -34,6 +34,7 @@ import { getSocket } from '../services/socket';
 import { API_BASE } from '../services/apiBase';
 import LiveTrackingMap from '../modules/tracking/LiveTrackingMap';
 import SOSButton from '../components/worker/SOSButton';
+import WorkerCancelSheet from '../components/worker/WorkerCancelSheet';
 import ServiceChecklistPanel from '../components/worker/ServiceChecklistPanel';
 import toast from 'react-hot-toast';
 
@@ -521,6 +522,7 @@ function PhoneHealthPanel({ orderId }) {
 export default function WorkerJobPage() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [cancelOpen, setCancelOpen] = useState(false);
   const { accessToken: token, profile } = useSelector(selectAuth);
   const { data, isLoading, isError, error, refetch } = useGetOrderQuery(id, { skip: !token || !id });
   const [startTrip,    { isLoading: starting }]        = useWorkerStartTripMutation();
@@ -898,6 +900,14 @@ export default function WorkerJobPage() {
               <div className="flex-1">
                 <p className="t-label mb-1">Customer Location</p>
                 <p className="text-sm font-semibold text-[#0F172A] leading-relaxed">{order.pickupLocation.address}</p>
+                {(order.pickupLocation.notes || order.pickupLocation.landmark || order.pickupLocation.flatNumber) && (
+                  <div className="mt-2 flex items-start gap-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                    <MapPin size={13} strokeWidth={2.5} className="text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[12.5px] font-semibold text-amber-800 leading-snug">
+                      {[order.pickupLocation.flatNumber, order.pickupLocation.landmark, order.pickupLocation.notes].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             {pickup && (
@@ -1235,18 +1245,10 @@ export default function WorkerJobPage() {
 
                 {/* Nearby order — service must start soon */}
                 {isNearby && (
-                  <motion.div
-                    className="rounded-2xl px-4 py-3 flex items-center gap-3"
-                    style={{ background: 'linear-gradient(135deg,#14532d,#15803d)', border: '1.5px solid rgba(34,197,94,0.4)' }}
-                    animate={{ boxShadow: ['0 0 0 0px rgba(34,197,94,0.3)','0 0 0 6px rgba(34,197,94,0)','0 0 0 0px rgba(34,197,94,0)'] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <span className="text-xl">📍</span>
-                    <div className="flex-1">
-                      <p className="text-sm font-black text-green-200">You're already nearby!</p>
-                      <p className="text-xs text-green-400 mt-0.5">Start trip now — customer is within 200 m</p>
-                    </div>
-                  </motion.div>
+                  <div className="flex items-center justify-center gap-1.5 mb-1 pt-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-xs font-extrabold text-emerald-600 uppercase tracking-wide">Customer is nearby (within 200m)</span>
+                  </div>
                 )}
 
                 {/* Idle alert — amber at 5 min, red at 10 min, pulsing at 12 min */}
@@ -1562,9 +1564,26 @@ export default function WorkerJobPage() {
               <SOSButton orderId={order._id} lat={myLocation?.lat} lng={myLocation?.lng} service={order?.service} />
             </div>
           )}
+
+          {/* Cancel is allowed only before service starts (not once in_progress). */}
+          {['assigned', 'on_the_way', 'arrived'].includes(status) && (
+            <div className="mt-2">
+              <button onClick={() => setCancelOpen(true)}
+                className="w-full h-11 rounded-2xl border border-rose-200 text-rose-600 font-bold text-sm active:bg-rose-50 transition-colors">
+                Cancel job
+              </button>
+            </div>
+          )}
         </div>
       </div>
       </div>
+
+      <WorkerCancelSheet
+        orderId={order._id}
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        onCancelled={() => { setCancelOpen(false); nav('/worker'); }}
+      />
     </div>
   );
 }

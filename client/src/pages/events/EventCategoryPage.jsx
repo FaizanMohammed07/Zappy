@@ -7,12 +7,12 @@ import toast from 'react-hot-toast';
 
 /* ── Category Styles Map ─────────────────────────────────────────────────── */
 const CATEGORY_MAP = {
-  'birthday': { img: '/images/events/event_birthday.png', gradient: 'from-pink-600/90 via-pink-500/50 to-transparent' },
-  'baby-shower': { img: '/images/events/event_baby.png', gradient: 'from-blue-600/90 via-blue-500/50 to-transparent' },
-  'anniversary': { img: '/images/events/event_anniversary.png', gradient: 'from-purple-600/90 via-purple-500/50 to-transparent' },
-  'housewarming': { img: '/images/events/event_housewarming.png', gradient: 'from-amber-600/90 via-amber-500/50 to-transparent' },
-  'romantic': { img: '/images/events/event_romantic.png', gradient: 'from-rose-600/90 via-rose-500/50 to-transparent' },
-  'default': { img: '/images/events/event_birthday.png', gradient: 'from-indigo-600/90 via-indigo-500/50 to-transparent' }
+  'birthday': { img: '/images/events/event_birthday.webp', gradient: 'from-pink-600/90 via-pink-500/50 to-transparent' },
+  'baby-shower': { img: '/images/events/event_baby.webp', gradient: 'from-blue-600/90 via-blue-500/50 to-transparent' },
+  'anniversary': { img: '/images/events/event_anniversary.webp', gradient: 'from-purple-600/90 via-purple-500/50 to-transparent' },
+  'housewarming': { img: '/images/events/event_housewarming.webp', gradient: 'from-amber-600/90 via-amber-500/50 to-transparent' },
+  'romantic': { img: '/images/events/event_romantic.webp', gradient: 'from-rose-600/90 via-rose-500/50 to-transparent' },
+  'default': { img: '/images/events/event_birthday.webp', gradient: 'from-indigo-600/90 via-indigo-500/50 to-transparent' }
 };
 
 function getCatStyles(name) {

@@ -149,6 +149,11 @@ const orderSchema = new mongoose.Schema(
       currentOfferWorkerIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
       offerExpiresAt:        { type: Date, default: null },
       attempts:              { type: Number, default: 0 },
+      // Customer explicitly picked this pro at checkout — dispatch offers them first.
+      customerPreferredWorkerId: { type: mongoose.Schema.Types.ObjectId, default: null },
+      // Platform-funded high-demand accept bonus that was in effect when the worker
+      // accepted. Credited to the worker on completion (never on accept — anti-farming).
+      urgencyBonusPaise:     { type: Number, default: 0 },
     },
 
     // Payment

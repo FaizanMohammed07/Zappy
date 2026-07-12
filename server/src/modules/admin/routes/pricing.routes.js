@@ -34,6 +34,15 @@ router.put(
     rejectRatePenaltyWeight:     Joi.number().min(0).max(20),
     cancelRatePenaltyWeight:     Joi.number().min(0).max(20),
     minWorkerRating:             Joi.number().min(1).max(5),
+    // Acceptance-first dispatch (never force a non-consenting worker)
+    forceAssignEnabled:     Joi.boolean(),
+    urgencyBonusEnabled:    Joi.boolean(),
+    urgencyBonusStartStep:  Joi.number().integer().min(0).max(10),
+    urgencyBonusStepPaise:  Joi.number().integer().min(0).max(10000),
+    urgencyBonusMaxPaise:   Joi.number().integer().min(0).max(20000),
+    bestFirstEnabled:       Joi.boolean(),
+    bestFirstWindowMs:      Joi.number().integer().min(0).max(30000),
+    bestFirstTopN:          Joi.number().integer().min(1).max(5),
     // Stale watchdog
     staleNudgeMinutes:      Joi.number().integer().min(1).max(30),
     staleRedispatchMinutes: Joi.number().integer().min(2).max(60),

@@ -11,42 +11,48 @@ import {
 import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import VoiceSearchButton from '../components/common/VoiceSearchButton';
+import SpotlightSearch from '../components/search/SpotlightSearch';
 import { searchServices } from '../lib/serviceSearch';
 import { SkeletonServiceCard } from '../components/common/Skeleton';
-import { staggerContainer, fadeInUp, easeSoft } from '../lib/animations';
+import { easeSoft } from '../lib/animations';
 import toast from 'react-hot-toast';
+
+// Lightweight grid entrance — a tiny, capped stagger so 80+ cards paint in ~1s
+// instead of trickling in over 5s. No per-card `layout` (that thrashes on filter).
+const gridContainer = { initial: {}, animate: { transition: { staggerChildren: 0.012 } } };
+const gridItem = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: easeSoft } } };
 
 const SERVICE_ICONS = {
   // ── Mobile ────────────────────────────────────────────────────────────────
-  screen_replacement:    { Icon: Smartphone,    gradient: 'from-indigo-500 to-violet-600',  bg: 'bg-indigo-50',  text: 'text-indigo-600', img: '/images/services/phone_screen.png' },
-  battery_replacement:   { Icon: Battery,       gradient: 'from-emerald-500 to-green-600',  bg: 'bg-emerald-50', text: 'text-emerald-600', img: '/images/services/phone_battery.png' },
-  charging_issue:        { Icon: Bolt,          gradient: 'from-yellow-400 to-orange-500',  bg: 'bg-yellow-50',  text: 'text-yellow-600', img: '/images/services/phone_charging.png' },
+  screen_replacement:    { Icon: Smartphone,    gradient: 'from-indigo-500 to-violet-600',  bg: 'bg-indigo-50',  text: 'text-indigo-600', img: '/images/services/phone_screen.webp' },
+  battery_replacement:   { Icon: Battery,       gradient: 'from-emerald-500 to-green-600',  bg: 'bg-emerald-50', text: 'text-emerald-600', img: '/images/services/phone_battery.webp' },
+  charging_issue:        { Icon: Bolt,          gradient: 'from-yellow-400 to-orange-500',  bg: 'bg-yellow-50',  text: 'text-yellow-600', img: '/images/services/phone_charging.webp' },
   speaker_mic_issue:     { Icon: Layers,        gradient: 'from-purple-500 to-violet-600',  bg: 'bg-violet-50',  text: 'text-violet-600' },
   microphone_issue:      { Icon: Layers,        gradient: 'from-violet-500 to-purple-600',  bg: 'bg-purple-50',  text: 'text-purple-600' },
-  software_issue:        { Icon: Wrench,        gradient: 'from-rose-400 to-red-500',       bg: 'bg-red-50',     text: 'text-red-600', img: '/images/services/phone_software.png' },
-  water_damage:          { Icon: Droplets,      gradient: 'from-blue-400 to-cyan-500',      bg: 'bg-sky-50',     text: 'text-sky-600', img: '/images/services/phone_water.png' },
-  camera_issue:          { Icon: Camera,        gradient: 'from-pink-500 to-rose-600',      bg: 'bg-pink-50',    text: 'text-pink-600', img: '/images/services/phone_camera.png' },
-  data_recovery:         { Icon: Layers,        gradient: 'from-teal-500 to-emerald-600',   bg: 'bg-teal-50',    text: 'text-teal-600', img: '/images/services/phone_data.png' },
+  software_issue:        { Icon: Wrench,        gradient: 'from-rose-400 to-red-500',       bg: 'bg-red-50',     text: 'text-red-600', img: '/images/services/phone_software.webp' },
+  water_damage:          { Icon: Droplets,      gradient: 'from-blue-400 to-cyan-500',      bg: 'bg-sky-50',     text: 'text-sky-600', img: '/images/services/phone_water.webp' },
+  camera_issue:          { Icon: Camera,        gradient: 'from-pink-500 to-rose-600',      bg: 'bg-pink-50',    text: 'text-pink-600', img: '/images/services/phone_camera.webp' },
+  data_recovery:         { Icon: Layers,        gradient: 'from-teal-500 to-emerald-600',   bg: 'bg-teal-50',    text: 'text-teal-600', img: '/images/services/phone_data.webp' },
   device_not_turning_on: { Icon: Smartphone,    gradient: 'from-slate-600 to-slate-800',    bg: 'bg-slate-50',   text: 'text-slate-600' },
   // ── Laptop ────────────────────────────────────────────────────────────────
-  laptop_slow:             { Icon: Laptop,      gradient: 'from-slate-600 to-slate-800',    bg: 'bg-slate-50',   text: 'text-slate-600', img: '/images/services/laptop_slow.png' },
-  laptop_ssd_upgrade:      { Icon: Cpu,         gradient: 'from-blue-600 to-indigo-700',    bg: 'bg-blue-50',    text: 'text-blue-600', img: '/images/services/laptop_ssd.png' },
+  laptop_slow:             { Icon: Laptop,      gradient: 'from-slate-600 to-slate-800',    bg: 'bg-slate-50',   text: 'text-slate-600', img: '/images/services/laptop_slow.webp' },
+  laptop_ssd_upgrade:      { Icon: Cpu,         gradient: 'from-blue-600 to-indigo-700',    bg: 'bg-blue-50',    text: 'text-blue-600', img: '/images/services/laptop_ssd.webp' },
   laptop_ram_upgrade:      { Icon: Cpu,         gradient: 'from-indigo-500 to-blue-600',    bg: 'bg-indigo-50',  text: 'text-indigo-600' },
   laptop_keyboard_issue:   { Icon: Laptop,      gradient: 'from-amber-500 to-orange-600',   bg: 'bg-amber-50',   text: 'text-amber-600' },
   laptop_motherboard_issue:{ Icon: Cpu,         gradient: 'from-red-600 to-rose-700',       bg: 'bg-red-50',     text: 'text-red-600' },
-  laptop_charging_issue:   { Icon: Bolt,        gradient: 'from-amber-400 to-orange-500',   bg: 'bg-orange-50',  text: 'text-orange-600', img: '/images/services/laptop_charging.png' },
-  laptop_screen_issue:     { Icon: MonitorSmartphone, gradient: 'from-violet-500 to-purple-700', bg: 'bg-violet-50', text: 'text-violet-600', img: '/images/services/laptop_screen.png' },
-  laptop_virus_removal:    { Icon: ShieldAlert, gradient: 'from-red-500 to-rose-700',       bg: 'bg-red-50',     text: 'text-red-600', img: '/images/services/laptop_virus.png' },
-  laptop_data_recovery:    { Icon: Layers,      gradient: 'from-emerald-500 to-teal-700',   bg: 'bg-emerald-50', text: 'text-emerald-600', img: '/images/services/laptop_data.png' },
+  laptop_charging_issue:   { Icon: Bolt,        gradient: 'from-amber-400 to-orange-500',   bg: 'bg-orange-50',  text: 'text-orange-600', img: '/images/services/laptop_charging.webp' },
+  laptop_screen_issue:     { Icon: MonitorSmartphone, gradient: 'from-violet-500 to-purple-700', bg: 'bg-violet-50', text: 'text-violet-600', img: '/images/services/laptop_screen.webp' },
+  laptop_virus_removal:    { Icon: ShieldAlert, gradient: 'from-red-500 to-rose-700',       bg: 'bg-red-50',     text: 'text-red-600', img: '/images/services/laptop_virus.webp' },
+  laptop_data_recovery:    { Icon: Layers,      gradient: 'from-emerald-500 to-teal-700',   bg: 'bg-emerald-50', text: 'text-emerald-600', img: '/images/services/laptop_data.webp' },
   // ── Smart Devices ─────────────────────────────────────────────────────────
-  smart_tv_install:      { Icon: Tv,            gradient: 'from-slate-700 to-slate-900',    bg: 'bg-slate-50',   text: 'text-slate-600', img: '/images/smart_tv.png' },
-  smart_tv_repair:       { Icon: Tv,            gradient: 'from-red-600 to-rose-700',       bg: 'bg-red-50',     text: 'text-red-600', img: '/images/smart_tv.png' },
-  router_setup:          { Icon: Wifi,          gradient: 'from-blue-500 to-cyan-600',      bg: 'bg-cyan-50',    text: 'text-cyan-600', img: '/images/wifi_setup.png' },
-  router_troubleshoot:   { Icon: Wifi,          gradient: 'from-sky-500 to-blue-600',       bg: 'bg-sky-50',     text: 'text-sky-600', img: '/images/wifi_setup.png' },
-  cctv_install:          { Icon: Camera,        gradient: 'from-stone-600 to-stone-800',    bg: 'bg-stone-50',   text: 'text-stone-600', img: '/images/cctv_install.png' },
-  cctv_repair:           { Icon: Camera,        gradient: 'from-amber-600 to-orange-700',   bg: 'bg-amber-50',   text: 'text-amber-600', img: '/images/cctv_install.png' },
-  smart_lock_install:    { Icon: Lock,          gradient: 'from-indigo-600 to-violet-700',  bg: 'bg-indigo-50',  text: 'text-indigo-600', img: '/images/smart_lock.png' },
-  home_automation_setup: { Icon: Zap,           gradient: 'from-amber-500 to-orange-600',   bg: 'bg-amber-50',   text: 'text-amber-600', img: '/images/home_auto.png' },
+  smart_tv_install:      { Icon: Tv,            gradient: 'from-slate-700 to-slate-900',    bg: 'bg-slate-50',   text: 'text-slate-600', img: '/images/smart_tv.webp' },
+  smart_tv_repair:       { Icon: Tv,            gradient: 'from-red-600 to-rose-700',       bg: 'bg-red-50',     text: 'text-red-600', img: '/images/smart_tv.webp' },
+  router_setup:          { Icon: Wifi,          gradient: 'from-blue-500 to-cyan-600',      bg: 'bg-cyan-50',    text: 'text-cyan-600', img: '/images/wifi_setup.webp' },
+  router_troubleshoot:   { Icon: Wifi,          gradient: 'from-sky-500 to-blue-600',       bg: 'bg-sky-50',     text: 'text-sky-600', img: '/images/wifi_setup.webp' },
+  cctv_install:          { Icon: Camera,        gradient: 'from-stone-600 to-stone-800',    bg: 'bg-stone-50',   text: 'text-stone-600', img: '/images/cctv_install.webp' },
+  cctv_repair:           { Icon: Camera,        gradient: 'from-amber-600 to-orange-700',   bg: 'bg-amber-50',   text: 'text-amber-600', img: '/images/cctv_install.webp' },
+  smart_lock_install:    { Icon: Lock,          gradient: 'from-indigo-600 to-violet-700',  bg: 'bg-indigo-50',  text: 'text-indigo-600', img: '/images/smart_lock.webp' },
+  home_automation_setup: { Icon: Zap,           gradient: 'from-amber-500 to-orange-600',   bg: 'bg-amber-50',   text: 'text-amber-600', img: '/images/home_auto.webp' },
   // ── Vehicle ───────────────────────────────────────────────────────────────
   puncture:              { Icon: Car,           gradient: 'from-slate-500 to-slate-700',    bg: 'bg-slate-50',   text: 'text-slate-600' },
   bike_chain_issue:      { Icon: Bike,          gradient: 'from-amber-500 to-orange-600',   bg: 'bg-amber-50',   text: 'text-amber-600' },
@@ -68,26 +74,26 @@ const SERVICE_ICONS = {
   auto_repair:           { Icon: Wrench,        gradient: 'from-amber-500 to-orange-600',   bg: 'bg-amber-50',   text: 'text-amber-600' },
   van_repair:            { Icon: Car,           gradient: 'from-stone-600 to-stone-800',    bg: 'bg-stone-50',   text: 'text-stone-600' },
   // ── Family & Elder ────────────────────────────────────────────────────────
-  medicine_pickup:       { Icon: Heart,         gradient: 'from-rose-500 to-pink-600',      bg: 'bg-rose-50',    text: 'text-rose-600', img: '/images/medicine_delivery.png' },
-  hospital_companion:    { Icon: ShieldCheck,   gradient: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50',    text: 'text-blue-600', img: '/images/hospital_companion.png' },
-  grocery_assistance:    { Icon: Users,         gradient: 'from-green-500 to-emerald-600',  bg: 'bg-green-50',   text: 'text-green-600', img: '/images/grocery_delivery.png' },
+  medicine_pickup:       { Icon: Heart,         gradient: 'from-rose-500 to-pink-600',      bg: 'bg-rose-50',    text: 'text-rose-600', img: '/images/medicine_delivery.webp' },
+  hospital_companion:    { Icon: ShieldCheck,   gradient: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50',    text: 'text-blue-600', img: '/images/hospital_companion.webp' },
+  grocery_assistance:    { Icon: Users,         gradient: 'from-green-500 to-emerald-600',  bg: 'bg-green-50',   text: 'text-green-600', img: '/images/grocery_delivery.webp' },
   bill_payment_assist:   { Icon: ShieldCheck,   gradient: 'from-teal-500 to-cyan-600',      bg: 'bg-teal-50',    text: 'text-teal-600' },
   document_submission:   { Icon: ShieldCheck,   gradient: 'from-violet-500 to-purple-600',  bg: 'bg-violet-50',  text: 'text-violet-600' },
-  home_visit_check:      { Icon: ShieldCheck,   gradient: 'from-indigo-500 to-blue-600',    bg: 'bg-indigo-50',  text: 'text-indigo-600', img: '/images/home_visit.png' },
-  elder_doctor_visit:    { Icon: Heart,         gradient: 'from-red-500 to-rose-600',       bg: 'bg-red-50',     text: 'text-red-600', img: '/images/elder_care.png' },
-  elder_companion:       { Icon: Users,         gradient: 'from-purple-500 to-violet-600',  bg: 'bg-purple-50',  text: 'text-purple-600', img: '/images/elder_care.png' },
-  elder_home_visit:      { Icon: ShieldCheck,   gradient: 'from-teal-500 to-emerald-600',   bg: 'bg-teal-50',    text: 'text-teal-600', img: '/images/home_visit.png' },
-  elder_transport:       { Icon: Car,           gradient: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50',    text: 'text-blue-600', img: '/images/hospital_companion.png' },
+  home_visit_check:      { Icon: ShieldCheck,   gradient: 'from-indigo-500 to-blue-600',    bg: 'bg-indigo-50',  text: 'text-indigo-600', img: '/images/home_visit.webp' },
+  elder_doctor_visit:    { Icon: Heart,         gradient: 'from-red-500 to-rose-600',       bg: 'bg-red-50',     text: 'text-red-600', img: '/images/elder_care.webp' },
+  elder_companion:       { Icon: Users,         gradient: 'from-purple-500 to-violet-600',  bg: 'bg-purple-50',  text: 'text-purple-600', img: '/images/elder_care.webp' },
+  elder_home_visit:      { Icon: ShieldCheck,   gradient: 'from-teal-500 to-emerald-600',   bg: 'bg-teal-50',    text: 'text-teal-600', img: '/images/home_visit.webp' },
+  elder_transport:       { Icon: Car,           gradient: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50',    text: 'text-blue-600', img: '/images/hospital_companion.webp' },
   // ── Event Crew ────────────────────────────────────────────────────────────
-  event_decorator:           { Icon: Sparkles,  gradient: 'from-violet-500 to-purple-600',  bg: 'bg-violet-50',  text: 'text-violet-600', img: '/images/events/event_romantic.png' },
-  event_setup_crew:          { Icon: Users,     gradient: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50',    text: 'text-blue-600', img: '/images/events/event_housewarming.png' },
+  event_decorator:           { Icon: Sparkles,  gradient: 'from-violet-500 to-purple-600',  bg: 'bg-violet-50',  text: 'text-violet-600', img: '/images/events/event_romantic.webp' },
+  event_setup_crew:          { Icon: Users,     gradient: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50',    text: 'text-blue-600', img: '/images/events/event_housewarming.webp' },
   event_cleaning_crew:       { Icon: Sparkles,  gradient: 'from-teal-500 to-cyan-600',      bg: 'bg-teal-50',    text: 'text-teal-600' },
   event_helper:              { Icon: Users,     gradient: 'from-green-500 to-emerald-600',  bg: 'bg-green-50',   text: 'text-green-600' },
   event_sound_crew:          { Icon: Layers,    gradient: 'from-slate-700 to-slate-900',    bg: 'bg-slate-50',   text: 'text-slate-600' },
   event_lighting_crew:       { Icon: Zap,      gradient: 'from-amber-400 to-orange-500',   bg: 'bg-amber-50',   text: 'text-amber-600' },
   event_security_crew:       { Icon: ShieldCheck, gradient: 'from-red-500 to-rose-600',    bg: 'bg-red-50',     text: 'text-red-600' },
-  event_birthday_setup:      { Icon: Star,     gradient: 'from-pink-500 to-fuchsia-600',   bg: 'bg-pink-50',    text: 'text-pink-600', img: '/images/events/event_birthday.png' },
-  event_wedding_setup:       { Icon: Star,     gradient: 'from-amber-400 to-orange-500',   bg: 'bg-amber-50',   text: 'text-amber-600', img: '/images/events/event_anniversary.png' },
+  event_birthday_setup:      { Icon: Star,     gradient: 'from-pink-500 to-fuchsia-600',   bg: 'bg-pink-50',    text: 'text-pink-600', img: '/images/events/event_birthday.webp' },
+  event_wedding_setup:       { Icon: Star,     gradient: 'from-amber-400 to-orange-500',   bg: 'bg-amber-50',   text: 'text-amber-600', img: '/images/events/event_anniversary.webp' },
   event_photography_assist:  { Icon: Camera,   gradient: 'from-indigo-500 to-violet-600',  bg: 'bg-indigo-50',  text: 'text-indigo-600' },
   event_catering_assist:     { Icon: Users,    gradient: 'from-orange-400 to-red-500',     bg: 'bg-orange-50',  text: 'text-orange-600' },
   // ── Pet ───────────────────────────────────────────────────────────────────
@@ -127,6 +133,7 @@ export default function ServicesPage() {
   // Seed the query from ?q= so voice search from the Home page lands here.
   const [query, setQuery] = useState(() => searchParams.get('q') || '');
   const [category, setCategory] = useState('all');
+  const [spotOpen, setSpotOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -168,8 +175,9 @@ export default function ServicesPage() {
 
   return (
     <PageTransition>
+      <SpotlightSearch open={spotOpen} onClose={() => setSpotOpen(false)} initialQuery={query} />
       <div className="min-h-screen bg-[#F8FAFC] pb-40 font-sans selection:bg-indigo-500/30">
-        
+
         {/* Immersive Header */}
         <header className="sticky top-0 z-30 pb-2 bg-white/70 backdrop-blur-2xl border-b border-slate-200/50" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
           <div className="page-container">
@@ -197,6 +205,7 @@ export default function ServicesPage() {
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onFocus={() => setSpotOpen(true)}
                   placeholder="What do you need help with?"
                   className="flex-1 bg-transparent outline-none text-sm sm:text-base font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-medium"
                 />
@@ -327,9 +336,8 @@ export default function ServicesPage() {
 
           {/* Grid */}
           {!loading && filtered.length > 0 && (
-            <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" variants={staggerContainer} initial="initial" animate="animate">
-              <AnimatePresence mode="popLayout">
-                {filtered.map((s) => {
+            <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" variants={gridContainer} initial="initial" animate="animate">
+              {filtered.map((s) => {
                   const svc = SERVICE_ICONS[s.code] || SERVICE_ICONS[s.category] || {
                     Icon: Wrench, gradient: 'from-slate-500 to-slate-600', bg: 'bg-slate-100', text: 'text-slate-700',
                   };
@@ -339,16 +347,15 @@ export default function ServicesPage() {
                   return (
                     <motion.button
                       key={s.code}
-                      layout
                       onClick={() => nav(`/book/${s.code}`)}
                       className="group relative bg-white rounded-[24px] text-left border border-slate-200/60 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] hover:-translate-y-1 hover:border-slate-300/80 overflow-hidden flex flex-col h-full"
-                      variants={fadeInUp}
+                      variants={gridItem}
                       whileTap={{ scale: 0.98 }}
                     >
                       {/* Image Thumbnail */}
                       <div className="relative w-full h-36 bg-slate-100 overflow-hidden shrink-0">
                         {svc.img ? (
-                          <img src={svc.img} alt={s.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                          <img src={svc.img} alt={s.name} loading="lazy" decoding="async" width="400" height="144" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         ) : (
                           <div className={`w-full h-full bg-gradient-to-br ${svc.gradient} opacity-20`} />
                         )}
@@ -387,7 +394,6 @@ export default function ServicesPage() {
                     </motion.button>
                   );
                 })}
-              </AnimatePresence>
             </motion.div>
           )}
         </div>

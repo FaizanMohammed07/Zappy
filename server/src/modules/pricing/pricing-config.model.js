@@ -74,6 +74,25 @@ const pricingConfigSchema = new mongoose.Schema(
     // ── Dispatch / worker behaviour ──────────────────────────────────────────
     // Force-assign bonus credited to workers who get auto-assigned (no voluntary accept)
     forceAssignBonusPaise: { type: Number, default: 1500 },        // ₹15
+
+    // ── Acceptance-first dispatch (never force a non-consenting worker) ───────
+    // When OFF (default) dispatch never force-assigns: if nobody voluntarily
+    // accepts, the order fails gracefully with a full refund instead of shoving
+    // the job onto a reluctant worker (who would likely cancel/ghost).
+    // Admin can flip this ON to keep force-assign as a last resort.
+    forceAssignEnabled:      { type: Boolean, default: false },
+    // Growing "high-demand" accept bonus — platform-funded incentive shown in the
+    // offer that grows as the search radius widens, so workers OPT IN voluntarily.
+    // Credited on COMPLETION (not accept) so it can't be farmed by accept-then-cancel.
+    urgencyBonusEnabled:     { type: Boolean, default: true },
+    urgencyBonusStartStep:   { type: Number,  default: 4 },        // kicks in once search expands past ~1km
+    urgencyBonusStepPaise:   { type: Number,  default: 500 },      // +₹5 per step beyond start
+    urgencyBonusMaxPaise:    { type: Number,  default: 3000 },     // cap ₹30
+    // Best-first: give the top-scored pro a short exclusive head-start before the
+    // broadcast, so the BEST worker wins — not merely the fastest to tap.
+    bestFirstEnabled:        { type: Boolean, default: true },
+    bestFirstWindowMs:       { type: Number,  default: 8000 },     // exclusive window per top pro
+    bestFirstTopN:           { type: Number,  default: 1 },        // how many top pros get the head-start
     // Dispatch reject-rate threshold — above this → worker auto-offline
     workerAutoOfflineRejectRate: { type: Number, default: 0.70 },   // 70%
     // Dispatch reject-rate early-warning threshold

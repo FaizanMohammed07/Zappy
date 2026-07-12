@@ -24,6 +24,7 @@ const TIER_MULTIPLIERS = { standard: 1.0, priority: 1.2, express: 1.4 };
 async function createOrder({ userId, service, subCategory, pickupLocation, dropLocation, description, images, scheduledAt, paymentMethod, priority, promoCode,
   deviceBrand, deviceModel, serviceMode, vehicleType, pricingModel, estimatedHours,
   teamSize, diagnosisAnswers, diagnosisUrgency, quotedTotalRupees, tier, tipAmount,
+  preferredWorkerId,
 }) {
   // Dispatch queue depth circuit breaker — shed load before the queue backs up
   // and adds latency to ALL in-flight orders. (#62/#63)
@@ -48,10 +49,16 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
   // pickup location, fail fast with a user-friendly message instead of creating
   // an order that will sit in 'searching' until the 5-minute dispatch window
   // exhausts and then silently fails. (#85)
-  // Geo-readiness check: only run when explicitly enabled via env var.
-  // Disabled by default so demos/staging work without live workers in the area.
-  // Set GEO_READINESS_CHECK=true in production .env once workers are onboarded.
-  if (!scheduledAt && process.env.GEO_READINESS_CHECK === 'true') {
+  // Geo-readiness fast-fail: if there are zero skilled workers near the pickup,
+  // reject in seconds with a clear message instead of letting the order sit in
+  // 'searching' for the full window and then silently failing.
+  // Default ON in production (once workers are onboarded); OFF in dev/staging so
+  // demos work without live workers. Explicit env override wins either way:
+  //   GEO_READINESS_CHECK=true|false
+  const geoCheckEnabled = process.env.GEO_READINESS_CHECK != null
+    ? process.env.GEO_READINESS_CHECK === 'true'
+    : process.env.NODE_ENV === 'production';
+  if (!scheduledAt && geoCheckEnabled) {
     try {
       const candidates = await geoService.findCandidates({
         lat: pickupLocation.lat,
@@ -302,6 +309,10 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
     ...(diagnosisAnswers && { diagnosisAnswers }),
     ...(diagnosisUrgency && diagnosisUrgency !== 'normal' && { diagnosisUrgency }),
     ...(pendingCancellationFeePaise > 0 && { pendingCancellationFeePaise }),
+    // Customer-picked pro (worker-choice) — dispatch offers them first.
+    ...(preferredWorkerId && /^[a-f0-9]{24}$/i.test(String(preferredWorkerId)) && {
+      dispatch: { customerPreferredWorkerId: preferredWorkerId },
+    }),
   });
 
   // Order persisted — release the per-user creation lock so the user can create another order
@@ -800,6 +811,23 @@ async function workerComplete({ orderId, workerId, completionPhotos = [] }) {
     description: `Commission @ ${(earnings.commissionRate * 100).toFixed(1)}% (${paymentMethod})`,
   }).catch((e) => { if (e.code !== 11000) throw e; });
 
+  // High-demand accept bonus — platform-funded incentive that grew as dispatch
+  // widened the search. Paid on COMPLETION (never on accept) so it can't be farmed
+  // by accept-then-cancel. Idempotent; applies to both cash and online orders.
+  const urgencyBonusPaise = order.dispatch?.urgencyBonusPaise || 0;
+  if (urgencyBonusPaise > 0) {
+    await walletService.apply({
+      kind: 'worker',
+      id: workerId,
+      type: 'credit',
+      amountPaise: urgencyBonusPaise,
+      reason: Transaction.REASONS.WORKER_EARNING,
+      idempotencyKey: `urgencybonus:${order._id}`,
+      refs: { orderId: order._id },
+      description: 'High-demand accept bonus',
+    }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Urgency bonus credit failed'));
+  }
+
   // Release the worker (denormalized counters)
   await Worker.updateOne(
     { _id: workerId },
@@ -1115,7 +1143,7 @@ async function workerCancel({ orderId, workerId, reason }) {
   }
 
   const cancellationService = require('./cancellation.service');
-  const { penaltyPaise, reason: penaltyReason, isLate } = await cancellationService.calculateWorkerCancelPenalty(order);
+  const { penaltyPaise, reason: penaltyReason, isLate, counts } = await cancellationService.calculateWorkerCancelPenalty(order, reason);
 
   const walletService = require('../wallet/wallet.service');
   const Transaction = require('../payment/transaction.model');
@@ -1212,7 +1240,70 @@ async function workerCancel({ orderId, workerId, reason }) {
     { jobId: `order_${orderId}_redispatch_${Date.now()}` }
   );
 
-  return { ok: true, penaltyPaise, penaltyReason };
+  // ── Escalation: too many PENALISED cancels within the window → auto-offline ──
+  // Genuine reasons (breakdown/emergency/…) are free and do NOT count here.
+  let escalated = false;
+  if (counts) {
+    try {
+      const cfg = await cancellationService.getConfig();
+      // Admin-editable threshold (the Cancellation page saves `maxDailyWorkerCancels`).
+      const limit = cfg.maxDailyWorkerCancels ?? cfg.workerCancelLimit ?? 3;
+      const key = `worker:cancelwin:${workerId}`;
+      const count = await redis.incr(key);
+      if (count === 1) await redis.expire(key, cfg.workerCancelWindowSec || 86400);
+      if (count >= limit) {
+        escalated = true;
+        await Worker.updateOne({ _id: workerId }, { $set: { isOnline: false, isAvailable: false } });
+        await geoService.markOffline(String(workerId)); // full pool removal
+        notificationService.notify({
+          recipient: { kind: 'worker', id: workerId },
+          type: 'account_warning',
+          title: '⚠️ Taken offline — too many cancellations',
+          body: `You cancelled ${count} jobs recently. To protect service quality you've been set offline. You can go back online later.`,
+          deepLink: '/worker',
+          data: { orderId: String(orderId), cancels: count, limit },
+        }).catch(() => {});
+        logger.warn({ workerId, count, limit }, '[WORKER-CANCEL] Escalation — worker auto-offlined for repeated cancels');
+      }
+    } catch (err) {
+      logger.warn({ err: err.message, workerId }, '[WORKER-CANCEL] Escalation check failed');
+    }
+  }
+
+  return { ok: true, penaltyPaise, penaltyReason, escalated };
+}
+
+/**
+ * Preview what a worker cancellation would cost/mean BEFORE they confirm:
+ * penalty for the chosen reason, whether it's late, and whether this cancel
+ * would trip the escalation threshold (auto-offline).
+ */
+async function workerCancelPreview({ orderId, workerId, reason }) {
+  const order = await orderRepo.findById(orderId);
+  if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
+  if (String(order.workerId) !== String(workerId)) {
+    throw Object.assign(new Error('Not your order'), { status: 403 });
+  }
+  const cancellable = ['assigned', 'on_the_way', 'arrived'].includes(order.status);
+
+  const cancellationService = require('./cancellation.service');
+  const { penaltyPaise, isLate, isGenuine, counts } = await cancellationService.calculateWorkerCancelPenalty(order, reason);
+  const cfg = await cancellationService.getConfig();
+  const limit = cfg.maxDailyWorkerCancels ?? cfg.workerCancelLimit ?? 3;
+  const cancelsInWindow = Number(await redis.get(`worker:cancelwin:${workerId}`)) || 0;
+
+  return {
+    cancellable,
+    status: order.status,
+    isLate,
+    isGenuine,
+    penaltyPaise,
+    penaltyRupees: Math.round(penaltyPaise / 100),
+    cancelsInWindow,
+    limit,
+    willEscalate: counts && (cancelsInWindow + 1) >= limit,
+    reasons: cancellationService.WORKER_CANCEL_REASONS,
+  };
 }
 
 /**
@@ -1570,6 +1661,7 @@ module.exports = {
   workerComplete,
   cancelByUser,
   workerCancel,
+  workerCancelPreview,
   workerNoResponseCancel,
   workerPartUnavailableCancel,
   rateOrder,

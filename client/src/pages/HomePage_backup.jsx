@@ -133,32 +133,32 @@ const VEHICLE_HIGHLIGHTS = [
 /* ─── Service tile data ────────────────────────────────────────────────── */
 // Electronics Rescue — Mobile
 const PHONE_TILES = [
-  { key: 'screen_replacement',  name: 'Screen Fix',    img: '/images/services/phone_screen.png',  eta: '25 mins' },
-  { key: 'battery_replacement', name: 'Battery',       img: '/images/services/phone_battery.png', eta: '30 mins' },
-  { key: 'charging_issue',      name: 'Charging',      img: '/images/services/phone_charging.png',eta: '20 mins' },
-  { key: 'camera_issue',        name: 'Camera',        img: '/images/services/phone_camera.png',  eta: null      },
-  { key: 'software_issue',      name: 'Software',      img: '/images/services/phone_software.png',eta: null      },
-  { key: 'water_damage',        name: 'Water Damage',  img: '/images/services/phone_water.png',   eta: null      },
-  { key: 'data_recovery',       name: 'Data Recovery', img: '/images/services/phone_data.png',    eta: null      },
+  { key: 'screen_replacement',  name: 'Screen Fix',    img: '/images/services/phone_screen.webp',  eta: '25 mins' },
+  { key: 'battery_replacement', name: 'Battery',       img: '/images/services/phone_battery.webp', eta: '30 mins' },
+  { key: 'charging_issue',      name: 'Charging',      img: '/images/services/phone_charging.webp',eta: '20 mins' },
+  { key: 'camera_issue',        name: 'Camera',        img: '/images/services/phone_camera.webp',  eta: null      },
+  { key: 'software_issue',      name: 'Software',      img: '/images/services/phone_software.webp',eta: null      },
+  { key: 'water_damage',        name: 'Water Damage',  img: '/images/services/phone_water.webp',   eta: null      },
+  { key: 'data_recovery',       name: 'Data Recovery', img: '/images/services/phone_data.webp',    eta: null      },
 ];
 
 // Electronics Rescue — Laptop
 const LAPTOP_TILES = [
-  { key: 'laptop_slow',             name: 'Slow Laptop',    img: '/images/services/laptop_slow.png',     eta: '45 mins' },
-  { key: 'laptop_ssd_upgrade',      name: 'SSD Upgrade',    img: '/images/services/laptop_ssd.png',      eta: null      },
-  { key: 'laptop_screen_issue',     name: 'Screen Repair',  img: '/images/services/laptop_screen.png',   eta: null      },
-  { key: 'laptop_virus_removal',    name: 'Virus Removal',  img: '/images/services/laptop_virus.png',    eta: null      },
-  { key: 'laptop_data_recovery',    name: 'Data Recovery',  img: '/images/services/laptop_data.png',     eta: null      },
-  { key: 'laptop_charging_issue',   name: 'Charging Fix',   img: '/images/services/laptop_charging.png', eta: '40 mins' },
+  { key: 'laptop_slow',             name: 'Slow Laptop',    img: '/images/services/laptop_slow.webp',     eta: '45 mins' },
+  { key: 'laptop_ssd_upgrade',      name: 'SSD Upgrade',    img: '/images/services/laptop_ssd.webp',      eta: null      },
+  { key: 'laptop_screen_issue',     name: 'Screen Repair',  img: '/images/services/laptop_screen.webp',   eta: null      },
+  { key: 'laptop_virus_removal',    name: 'Virus Removal',  img: '/images/services/laptop_virus.webp',    eta: null      },
+  { key: 'laptop_data_recovery',    name: 'Data Recovery',  img: '/images/services/laptop_data.webp',     eta: null      },
+  { key: 'laptop_charging_issue',   name: 'Charging Fix',   img: '/images/services/laptop_charging.webp', eta: '40 mins' },
 ];
 
 // Smart Devices
 const SMART_TILES = [
-  { key: 'smart_tv_install',    name: 'Smart TV',         img: '/images/smart_tv.png',       eta: '60 mins' },
-  { key: 'router_setup',        name: 'WiFi Setup',       img: '/images/wifi_setup.png',     eta: '30 mins' },
-  { key: 'cctv_install',        name: 'CCTV Install',     img: '/images/cctv_install.png',   eta: null      },
-  { key: 'smart_lock_install',  name: 'Smart Lock',       img: '/images/smart_lock.png',     eta: null      },
-  { key: 'home_automation_setup',name: 'Home Auto',       img: '/images/home_auto.png',      eta: null      },
+  { key: 'smart_tv_install',    name: 'Smart TV',         img: '/images/smart_tv.webp',       eta: '60 mins' },
+  { key: 'router_setup',        name: 'WiFi Setup',       img: '/images/wifi_setup.webp',     eta: '30 mins' },
+  { key: 'cctv_install',        name: 'CCTV Install',     img: '/images/cctv_install.webp',   eta: null      },
+  { key: 'smart_lock_install',  name: 'Smart Lock',       img: '/images/smart_lock.webp',     eta: null      },
+  { key: 'home_automation_setup',name: 'Home Auto',       img: '/images/home_auto.webp',      eta: null      },
 ];
 
 // Vehicle Care
@@ -173,17 +173,17 @@ const VEHICLE_TILES = [
 
 // Family & Elder Assist
 const FAMILY_TILES = [
-  { key: 'medicine_pickup',    name: 'Medicine',      img: '/images/medicine_delivery.png', eta: '40 mins' },
-  { key: 'hospital_companion', name: 'Hospital Help', img: '/images/hospital_companion.png', eta: null      },
-  { key: 'grocery_assistance', name: 'Grocery',       img: '/images/grocery_delivery.png',   eta: '45 mins' },
-  { key: 'elder_companion',    name: 'Elder Care',    img: '/images/elder_care.png',         eta: null      },
-  { key: 'home_visit_check',   name: 'Home Visit',    img: '/images/home_visit.png',         eta: null      },
+  { key: 'medicine_pickup',    name: 'Medicine',      img: '/images/medicine_delivery.webp', eta: '40 mins' },
+  { key: 'hospital_companion', name: 'Hospital Help', img: '/images/hospital_companion.webp', eta: null      },
+  { key: 'grocery_assistance', name: 'Grocery',       img: '/images/grocery_delivery.webp',   eta: '45 mins' },
+  { key: 'elder_companion',    name: 'Elder Care',    img: '/images/elder_care.webp',         eta: null      },
+  { key: 'home_visit_check',   name: 'Home Visit',    img: '/images/home_visit.webp',         eta: null      },
 ];
 
 // Event Commerce tiles — navigate to event commerce module
 const EVENT_TILES = [
-  { key: 'birthday',      name: 'Birthday',    img: '/images/event_birthday.png',  category: 'birthday'      },
-  { key: 'anniversary',   name: 'Anniversary', img: '/images/event_anniversary.png', category: 'anniversary'   },
+  { key: 'birthday',      name: 'Birthday',    img: '/images/event_birthday.webp',  category: 'birthday'      },
+  { key: 'anniversary',   name: 'Anniversary', img: '/images/event_anniversary.webp', category: 'anniversary'   },
   { key: 'baby-shower',   name: 'Baby Shower', img: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=400&h=400&q=80',   category: 'baby-shower'   },
   { key: 'romantic',      name: 'Romantic',    img: 'https://images.unsplash.com/photo-1494972308805-463bc619d34e?auto=format&fit=crop&w=400&h=400&q=80',      category: 'romantic'      },
   { key: 'housewarming',  name: 'Housewarming',img: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&h=400&q=80',  category: 'housewarming'  },

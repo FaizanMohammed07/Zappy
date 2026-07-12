@@ -112,6 +112,8 @@ const createOrderSchema = Joi.object({
   tier: Joi.string().valid('standard', 'priority', 'express').default('standard'),
   // Pre-acceptance tip/boost (₹, integer) — 100% credited to worker
   tipAmount: Joi.number().integer().min(0).max(500).default(0),
+  // Worker-choice: customer picked this pro at checkout — dispatch offers them first.
+  preferredWorkerId: Joi.string().pattern(/^[a-f0-9]{24}$/i).optional().allow('', null),
 });
 
 const quoteSchema = Joi.object({
@@ -133,6 +135,12 @@ const rateSchema = Joi.object({
 });
 
 router.get('/quote', authenticate, requireRole('user'), quoteLimiter, validate(quoteSchema, 'query'), ctrl.getQuote);
+// Worker-choice: top-ranked available pros near the pickup (optional picker at checkout).
+router.get('/nearby-pros', authenticate, requireRole('user'), quoteLimiter, validate(Joi.object({
+  service: Joi.string().valid(...ALL_SERVICES).required(),
+  lat: Joi.number().required(),
+  lng: Joi.number().required(),
+}), 'query'), ctrl.nearbyPros);
 router.post('/', authenticate, requireRole('user'), orderLimiter, validate(createOrderSchema), ctrl.createOrder);
 router.get('/mine', authenticate, requireRole('user'), ctrl.listMine);
 // One-click rebook — clones a past order and re-places it (fresh pricing/dispatch).
@@ -181,6 +189,7 @@ router.post(
 );
 router.post('/:id/start-service', authenticate, requireRole('worker'), validate(Joi.object({ otp: Joi.string().length(6).required() })), ctrl.startService);
 router.post('/:id/complete', authenticate, requireRole('worker'), validate(Joi.object({ completionPhotos: Joi.array().items(Joi.string()).max(5).default([]) })), ctrl.completeOrder);
+router.get('/:id/worker-cancel-preview', authenticate, requireRole('worker'), ctrl.workerCancelPreview);
 router.post('/:id/worker-cancel', authenticate, requireRole('worker'), validate(Joi.object({ reason: Joi.string().max(300).allow('', null) })), ctrl.workerCancelOrder);
 
 // Worker reports customer didn't respond — penalty-free cancel with arrival fee charged to customer. (#73)

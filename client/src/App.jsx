@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { useSelector } from 'react-redux';
-import { selectAuth } from './modules/auth/authSlice';
+import { useSelector, useDispatch } from 'react-redux';
+import toast from 'react-hot-toast';
+import { selectAuth, logout } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
 import { useFCM } from './hooks/useFCM.jsx';
 import useTelemetry from './hooks/useTelemetry';
@@ -11,6 +12,7 @@ import { adminPath } from './config/admin';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
 import ConnectionBanner from './components/common/ConnectionBanner';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import RouteProgress from './components/common/RouteProgress';
 
 // ── Route-level code splitting ─────────────────────────────────────────────
@@ -85,7 +87,19 @@ export default function App() {
   useFCM();
   useTelemetry();
   const { accessToken: token, role } = useSelector(selectAuth);
+  const dispatch = useDispatch();
   const location = useLocation();
+
+  // Single-device: the socket got a `session:replaced` (this account logged in on
+  // another device) — sign out immediately with a clear message.
+  useEffect(() => {
+    const onReplaced = () => {
+      dispatch(logout());
+      toast.error('You were signed out — your account was opened on another device.', { id: 'session-replaced', duration: 5000 });
+    };
+    window.addEventListener('zappy:session-replaced', onReplaced);
+    return () => window.removeEventListener('zappy:session-replaced', onReplaced);
+  }, [dispatch]);
 
   // Warm the main tab chunks once the browser is idle after first paint, so
   // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).
@@ -103,6 +117,9 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
+      {/* Route-level boundary — a crash in one page shows the recovery screen but
+          auto-resets when the user navigates elsewhere (keyed by path). */}
+      <ErrorBoundary key={location.pathname}>
       <AnimatePresence mode="wait" initial={false}>
       <Routes location={location} key={location.pathname}>
         {/* Public */}
@@ -184,6 +201,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </AnimatePresence>
+      </ErrorBoundary>
     </Suspense>
     </>
   );

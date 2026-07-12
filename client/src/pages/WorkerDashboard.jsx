@@ -295,9 +295,12 @@ export default function WorkerDashboard() {
   const handleOffer = useCallback((offer) => {
     // Map boostAmountPaise → boostedBy (rupees) so the boost badge renders immediately
     // even if the customer boosted before dispatch started broadcasting.
-    const enriched = offer.boostAmountPaise > 0
-      ? { ...offer, boostedBy: Math.round(offer.boostAmountPaise / 100) }
-      : offer;
+    const enriched = {
+      ...offer,
+      ...(offer.boostAmountPaise > 0 && { boostedBy: Math.round(offer.boostAmountPaise / 100) }),
+      // High-demand accept bonus (platform-funded, paid on completion) — grows as search widens.
+      ...(offer.urgencyBonusPaise > 0 && { urgencyBonusBy: Math.round(offer.urgencyBonusPaise / 100) }),
+    };
     dispatch(setOffer(enriched));
     // Stronger vibration pattern for boosted offers (distinct from standard)
     const isBoosted = (offer.boostAmountPaise ?? 0) > 0;
@@ -1960,6 +1963,18 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
               <Zap size={24} strokeWidth={2.5} className={urgent ? 'text-red-400' : isExpress ? 'text-indigo-300' : isPriority ? 'text-amber-300' : 'text-blue-600'} />
             )}
           </div>
+
+          {/* High-demand accept bonus — platform-funded, paid on completion, grows as search widens */}
+          {offer.urgencyBonusBy > 0 && (
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="flex items-center justify-center gap-1.5 mb-4 bg-emerald-500/15 text-emerald-600 text-[11px] font-black px-3 py-1.5 rounded-full self-center"
+            >
+              <Sparkles size={12} strokeWidth={2.5} />
+              +₹{offer.urgencyBonusBy} HIGH-DEMAND BONUS · paid on completion
+            </motion.div>
+          )}
 
           {/* Rating + Verified */}
           <div className="flex items-center gap-3 mb-5">

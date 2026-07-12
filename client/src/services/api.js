@@ -1,7 +1,17 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { Mutex } from 'async-mutex';
+import toast from 'react-hot-toast';
 import { setAuth, logout } from '../modules/auth/authSlice';
 import { adminApiPath } from '../config/admin';
+
+// Debounced "signed out on another device" notice — a burst of in-flight requests
+// all 401 at once, but the user should see the message only once.
+let _sessionReplacedAt = 0;
+function sessionReplacedToast() {
+  if (Date.now() - _sessionReplacedAt < 4000) return;
+  _sessionReplacedAt = Date.now();
+  toast.error('You were signed out — your account was opened on another device.', { id: 'session-replaced', duration: 5000 });
+}
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: `${import.meta.env.VITE_API_URL || ''}/api`,
@@ -43,6 +53,16 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
   let result = await rawBaseQuery(args, api, extraOptions);
 
   if (result.error?.status !== 401) return result;
+
+  // Single-device: this worker's session was replaced by a login on another
+  // device. Refreshing would fail anyway (family revoked) — log out immediately
+  // with a clear message instead of a silent failure.
+  if (result.error?.data?.code === 'SESSION_REPLACED') {
+    api.dispatch(logout());
+    try { sessionReplacedToast(); } catch { /* noop */ }
+    return result;
+  }
+
   // Never try to refresh if this IS the refresh call
   if (typeof args !== 'string' && args.url === '/auth/refresh') return result;
 
@@ -95,7 +115,7 @@ export const api = createApi({
   // Keep fetched data cached for 5 min after a component unmounts, so jumping
   // back to a tab shows data instantly (no skeleton) instead of refetching.
   keepUnusedDataFor: 300,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content', 'Rewards'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content', 'Rewards', 'WorkerOps'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -216,6 +236,14 @@ export const api = createApi({
     // --- Pricing quote ---
     getQuote: b.query({ query: (params) => ({ url: '/orders/quote', params }) }),
 
+    // Worker-choice: top-ranked available pros near pickup (optional picker at checkout).
+    getNearbyPros: b.query({ query: (params) => ({ url: '/orders/nearby-pros', params }) }),
+
+    // --- Unified Search (Zepto-level: fuzzy + intent + rank + never-empty) ---
+    smartSearch: b.query({ query: (params) => ({ url: '/search', params }) }),
+    searchSuggest: b.query({ query: (params) => ({ url: '/search/suggest', params }) }),
+    searchTrending: b.query({ query: () => '/search/trending' }),
+
     // --- Orders ---
     createOrder: b.mutation({
       query: (body) => ({ url: '/orders', method: 'POST', body }),
@@ -238,6 +266,13 @@ export const api = createApi({
     }),
     cancelOrder: b.mutation({
       query: ({ id, reason }) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: { reason } }),
+      // Optimistic: flip status to cancelled immediately, roll back on failure.
+      async onQueryStarted({ id }, { dispatch, queryFulfilled }) {
+        const patch = dispatch(api.util.updateQueryData('getOrder', id, (draft) => {
+          if (draft?.order) draft.order.status = 'cancelled';
+        }));
+        try { await queryFulfilled; } catch { patch.undo(); }
+      },
       invalidatesTags: (r, e, a) => ['Order', { type: 'Order', id: a.id }],
     }),
     workerReportNoResponse: b.mutation({
@@ -254,6 +289,13 @@ export const api = createApi({
         method: 'POST',
         body: { rating, review },
       }),
+      // Optimistic: reflect the rating instantly so the UI switches to "rated".
+      async onQueryStarted({ id, rating, review }, { dispatch, queryFulfilled }) {
+        const patch = dispatch(api.util.updateQueryData('getOrder', id, (draft) => {
+          if (draft?.order) { draft.order.rating = rating; if (review != null) draft.order.review = review; }
+        }));
+        try { await queryFulfilled; } catch { patch.undo(); }
+      },
       invalidatesTags: (r, e, a) => [{ type: 'Order', id: a.id }],
     }),
     getOrderInvoiceUrl: b.query({
@@ -324,6 +366,15 @@ export const api = createApi({
     getWorkerOrders: b.query({
       query: (page = 1) => `/workers/orders?page=${page}`,
       providesTags: ['Order'],
+    }),
+    // Worker cancels an accepted job (before service starts). Preview shows the
+    // penalty/consequences for the chosen reason before they confirm.
+    getWorkerCancelPreview: b.query({
+      query: ({ id, reason }) => ({ url: `/orders/${id}/worker-cancel-preview`, params: reason ? { reason } : {} }),
+    }),
+    workerCancel: b.mutation({
+      query: ({ id, reason }) => ({ url: `/orders/${id}/worker-cancel`, method: 'POST', body: { reason } }),
+      invalidatesTags: (r, e, a) => ['Order', 'Me', { type: 'Order', id: a.id }],
     }),
     getNearbyWorkers: b.query({
       query: ({ lat, lng }) => `/workers/nearby?lat=${lat}&lng=${lng}`,
@@ -734,7 +785,14 @@ export const api = createApi({
     }),
     adminUpdateCancellationConfig: b.mutation({
       query: (body) => ({ url: adminApiPath('/cancellation-config'), method: 'PATCH', body }),
-      invalidatesTags: ['CancellationConfig'],
+      invalidatesTags: ['CancellationConfig', 'WorkerOps'],
+    }),
+    adminWorkerOps: b.query({
+      query: () => adminApiPath('/worker-ops'),
+      providesTags: ['WorkerOps'],
+    }),
+    adminSearchAnalytics: b.query({
+      query: (days = 7) => ({ url: adminApiPath('/search-analytics'), params: { days } }),
     }),
     adminWorkerPenalties: b.query({
       query: (id) => adminApiPath(`/workers/${id}/penalties`),
@@ -1608,6 +1666,12 @@ export const {
   useUpdateMeMutation,
   useGetQuoteQuery,
   useLazyGetQuoteQuery,
+  useGetNearbyProsQuery,
+  useLazyGetNearbyProsQuery,
+  useLazySmartSearchQuery,
+  useSmartSearchQuery,
+  useLazySearchSuggestQuery,
+  useSearchTrendingQuery,
   useCreateOrderMutation,
   useGetOrderQuery,
   useListOrdersQuery,
@@ -1628,6 +1692,8 @@ export const {
   useWorkerArriveMutation,
   useWorkerStartServiceMutation,
   useWorkerCompleteMutation,
+  useLazyGetWorkerCancelPreviewQuery,
+  useWorkerCancelMutation,
   useGetKycStatusQuery,
   useSubmitKycMutation,
   usePresignUploadMutation,
@@ -1720,6 +1786,8 @@ export const {
   useAdminGetReferralStatsQuery,
   useAdminListRecentReferralsQuery,
   useAdminGetCancellationConfigQuery,
+  useAdminWorkerOpsQuery,
+  useAdminSearchAnalyticsQuery,
   useAdminUpdateCancellationConfigMutation,
   useAdminWorkerPenaltiesQuery,
   useAdminKycDocUrlsQuery,

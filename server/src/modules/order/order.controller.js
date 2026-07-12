@@ -228,6 +228,52 @@ async function startService(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Worker-choice: return the top-ranked available pros near the pickup so the
+// customer can (optionally) pick one before booking. Ranking reuses the exact
+// dispatch scoring (distance + rating + reliability), so "recommended" here means
+// the same worker dispatch would have prioritised anyway.
+async function nearbyPros(req, res, next) {
+  try {
+    const geoService = require('../worker/geo.service');
+    const Worker = require('../worker/worker.model');
+    const service = String(req.query.service || '');
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    if (!service || Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.status(400).json({ error: 'service, lat and lng are required' });
+    }
+
+    const rankedIds = await geoService.findCandidates({
+      lat, lng, skill: service, radiusKm: 8,
+    });
+    const topIds = rankedIds.slice(0, 8);
+    if (topIds.length === 0) return res.json({ pros: [] });
+
+    const workers = await Worker.find({ _id: { $in: topIds } })
+      .select('name rating completedJobs profilePhoto avatarUrl')
+      .lean();
+    const byId = new Map(workers.map((w) => [String(w._id), w]));
+
+    // Preserve dispatch rank order; #1 is the recommended match.
+    const pros = topIds
+      .map((id, i) => {
+        const w = byId.get(String(id));
+        if (!w) return null;
+        return {
+          workerId:      String(id),
+          name:          w.name || 'Pro',
+          rating:        Number((w.rating ?? 5).toFixed(1)),
+          completedJobs: w.completedJobs || 0,
+          photo:         w.profilePhoto || w.avatarUrl || null,
+          recommended:   i === 0,
+        };
+      })
+      .filter(Boolean);
+
+    res.json({ pros });
+  } catch (err) { next(err); }
+}
+
 async function completeOrder(req, res, next) {
   try {
     const order = await orderService.workerComplete({
@@ -242,6 +288,13 @@ async function completeOrder(req, res, next) {
 async function workerCancelOrder(req, res, next) {
   try {
     const result = await orderService.workerCancel({ orderId: req.params.id, workerId: req.auth.sub, reason: req.body.reason });
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
+async function workerCancelPreview(req, res, next) {
+  try {
+    const result = await orderService.workerCancelPreview({ orderId: req.params.id, workerId: req.auth.sub, reason: req.query.reason });
     res.json(result);
   } catch (err) { next(err); }
 }
@@ -447,4 +500,4 @@ async function rescheduleOrder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getQuote, createOrder, rebookOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };
+module.exports = { getQuote, nearbyPros, createOrder, rebookOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerCancelPreview, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };

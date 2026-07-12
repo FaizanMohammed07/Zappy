@@ -24,6 +24,7 @@ import BottomNav from '../components/layout/BottomNav';
 import Footer from '../components/layout/Footer';
 import PageTransition from '../components/common/PageTransition';
 import VoiceSearchButton from '../components/common/VoiceSearchButton';
+import SpotlightSearch from '../components/search/SpotlightSearch';
 import LensModal from '../components/lens/LensModal';
 import { ScanLine } from 'lucide-react';
 
@@ -138,32 +139,32 @@ const VEHICLE_HIGHLIGHTS = [
 /* ─── Service tile data ────────────────────────────────────────────────── */
 // Electronics Rescue — Mobile
 const PHONE_TILES = [
-  { key: 'screen_replacement',  name: 'Screen Fix',    img: '/images/services/phone_screen.png',  eta: '25 mins' },
-  { key: 'battery_replacement', name: 'Battery',       img: '/images/services/phone_battery.png', eta: '30 mins' },
-  { key: 'charging_issue',      name: 'Charging',      img: '/images/services/phone_charging.png',eta: '20 mins' },
-  { key: 'camera_issue',        name: 'Camera',        img: '/images/services/phone_camera.png',  eta: null      },
-  { key: 'software_issue',      name: 'Software',      img: '/images/services/phone_software.png',eta: null      },
-  { key: 'water_damage',        name: 'Water Damage',  img: '/images/services/phone_water.png',   eta: null      },
-  { key: 'data_recovery',       name: 'Data Recovery', img: '/images/services/phone_data.png',    eta: null      },
+  { key: 'screen_replacement',  name: 'Screen Fix',    img: '/images/services/phone_screen.webp',  eta: '25 mins' },
+  { key: 'battery_replacement', name: 'Battery',       img: '/images/services/phone_battery.webp', eta: '30 mins' },
+  { key: 'charging_issue',      name: 'Charging',      img: '/images/services/phone_charging.webp',eta: '20 mins' },
+  { key: 'camera_issue',        name: 'Camera',        img: '/images/services/phone_camera.webp',  eta: null      },
+  { key: 'software_issue',      name: 'Software',      img: '/images/services/phone_software.webp',eta: null      },
+  { key: 'water_damage',        name: 'Water Damage',  img: '/images/services/phone_water.webp',   eta: null      },
+  { key: 'data_recovery',       name: 'Data Recovery', img: '/images/services/phone_data.webp',    eta: null      },
 ];
 
 // Electronics Rescue — Laptop
 const LAPTOP_TILES = [
-  { key: 'laptop_slow',             name: 'Slow Laptop',    img: '/images/services/laptop_slow.png',     eta: '45 mins' },
-  { key: 'laptop_ssd_upgrade',      name: 'SSD Upgrade',    img: '/images/services/laptop_ssd.png',      eta: null      },
-  { key: 'laptop_screen_issue',     name: 'Screen Repair',  img: '/images/services/laptop_screen.png',   eta: null      },
-  { key: 'laptop_virus_removal',    name: 'Virus Removal',  img: '/images/services/laptop_virus.png',    eta: null      },
-  { key: 'laptop_data_recovery',    name: 'Data Recovery',  img: '/images/services/laptop_data.png',     eta: null      },
-  { key: 'laptop_charging_issue',   name: 'Charging Fix',   img: '/images/services/laptop_charging.png', eta: '40 mins' },
+  { key: 'laptop_slow',             name: 'Slow Laptop',    img: '/images/services/laptop_slow.webp',     eta: '45 mins' },
+  { key: 'laptop_ssd_upgrade',      name: 'SSD Upgrade',    img: '/images/services/laptop_ssd.webp',      eta: null      },
+  { key: 'laptop_screen_issue',     name: 'Screen Repair',  img: '/images/services/laptop_screen.webp',   eta: null      },
+  { key: 'laptop_virus_removal',    name: 'Virus Removal',  img: '/images/services/laptop_virus.webp',    eta: null      },
+  { key: 'laptop_data_recovery',    name: 'Data Recovery',  img: '/images/services/laptop_data.webp',     eta: null      },
+  { key: 'laptop_charging_issue',   name: 'Charging Fix',   img: '/images/services/laptop_charging.webp', eta: '40 mins' },
 ];
 
 // Smart Devices
 const SMART_TILES = [
-  { key: 'smart_tv_install',    name: 'Smart TV',         img: '/images/smart_tv.png',       eta: '60 mins' },
-  { key: 'router_setup',        name: 'WiFi Setup',       img: '/images/wifi_setup.png',     eta: '30 mins' },
-  { key: 'cctv_install',        name: 'CCTV Install',     img: '/images/cctv_install.png',   eta: null      },
-  { key: 'smart_lock_install',  name: 'Smart Lock',       img: '/images/smart_lock.png',     eta: null      },
-  { key: 'home_automation_setup',name: 'Home Auto',       img: '/images/home_auto.png',      eta: null      },
+  { key: 'smart_tv_install',    name: 'Smart TV',         img: '/images/smart_tv.webp',       eta: '60 mins' },
+  { key: 'router_setup',        name: 'WiFi Setup',       img: '/images/wifi_setup.webp',     eta: '30 mins' },
+  { key: 'cctv_install',        name: 'CCTV Install',     img: '/images/cctv_install.webp',   eta: null      },
+  { key: 'smart_lock_install',  name: 'Smart Lock',       img: '/images/smart_lock.webp',     eta: null      },
+  { key: 'home_automation_setup',name: 'Home Auto',       img: '/images/home_auto.webp',      eta: null      },
 ];
 
 // Vehicle Care
@@ -178,25 +179,25 @@ const VEHICLE_TILES = [
 
 // Family & Elder Assist
 const FAMILY_TILES = [
-  { key: 'medicine_pickup',    name: 'Medicine',      img: '/images/medicine_delivery.png', eta: '40 mins' },
-  { key: 'hospital_companion', name: 'Hospital Help', img: '/images/hospital_companion.png', eta: null      },
-  { key: 'grocery_assistance', name: 'Grocery',       img: '/images/grocery_delivery.png',   eta: '45 mins' },
-  { key: 'elder_companion',    name: 'Elder Care',    img: '/images/elder_care.png',         eta: null      },
-  { key: 'home_visit_check',   name: 'Home Visit',    img: '/images/home_visit.png',         eta: null      },
+  { key: 'medicine_pickup',    name: 'Medicine',      img: '/images/medicine_delivery.webp', eta: '40 mins' },
+  { key: 'hospital_companion', name: 'Hospital Help', img: '/images/hospital_companion.webp', eta: null      },
+  { key: 'grocery_assistance', name: 'Grocery',       img: '/images/grocery_delivery.webp',   eta: '45 mins' },
+  { key: 'elder_companion',    name: 'Elder Care',    img: '/images/elder_care.webp',         eta: null      },
+  { key: 'home_visit_check',   name: 'Home Visit',    img: '/images/home_visit.webp',         eta: null      },
 ];
 
 // Tank & Water Cleaning
 const TANK_TILES = [
-  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
-  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&h=300&q=80', badge: 'New' },
+  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: '/images/water_tank_cleaning.png', badge: 'New' },
+  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: '/images/overhead_tank_cleaning.png', badge: 'New' },
+  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: '/images/underground_sump_cleaning.png', badge: 'New' },
+  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: '/images/sintex_tank_cleaning.png', badge: 'New' },
 ];
 
 // Event Commerce tiles — navigate to event commerce module
 const EVENT_TILES = [
-  { key: 'birthday',      name: 'Birthday',    img: '/images/event_birthday.png',  category: 'birthday'      },
-  { key: 'anniversary',   name: 'Anniversary', img: '/images/event_anniversary.png', category: 'anniversary'   },
+  { key: 'birthday',      name: 'Birthday',    img: '/images/event_birthday.webp',  category: 'birthday'      },
+  { key: 'anniversary',   name: 'Anniversary', img: '/images/event_anniversary.webp', category: 'anniversary'   },
   { key: 'baby-shower',   name: 'Baby Shower', img: 'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=400&h=400&q=80',   category: 'baby-shower'   },
   { key: 'romantic',      name: 'Romantic',    img: 'https://images.unsplash.com/photo-1494972308805-463bc619d34e?auto=format&fit=crop&w=400&h=400&q=80',      category: 'romantic'      },
   { key: 'housewarming',  name: 'Housewarming',img: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&h=400&q=80',  category: 'housewarming'  },
@@ -393,6 +394,7 @@ function SectionHeader({ title, badge, badgeColor = 'bg-slate-100 text-slate-800
 /* ─── Main component ───────────────────────────────────────────────────── */
 export default function HomePage() {
   const nav = useNavigate();
+  const [spotOpen, setSpotOpen] = useState(false);
   const { profile } = useSelector(selectAuth);
   const isAuthed     = useSelector(selectIsAuthed);
   const [lensOpen, setLensOpen] = useState(false);
@@ -538,6 +540,7 @@ export default function HomePage() {
 
   return (
     <PageTransition>
+      <SpotlightSearch open={spotOpen} onClose={() => setSpotOpen(false)} />
       <SEO
         title="Zappy — Book Verified Professionals Instantly | Home Services India"
         description="India's fastest on-demand home services app. Puncture repair, phone repair, laptop repair, electrician, plumber, bike mechanic, car wash, pet grooming — verified pros arrive in 30 minutes. Book in 60 seconds."
@@ -625,7 +628,7 @@ export default function HomePage() {
             {/* ─── Desktop Search bar ───────────────────────────────────────────── */}
             <div className="hidden md:block flex-1 max-w-2xl mx-auto">
               <div className="w-full flex items-center gap-3 rounded-[24px] pl-6 pr-3 h-14 bg-slate-50 border border-slate-200/80 shadow-inner hover:bg-white hover:border-indigo-300/60 transition-colors">
-                <button onClick={() => nav('/services')} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
+                <button onClick={() => setSpotOpen(true)} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
                   <Search size={18} strokeWidth={2} className="text-slate-400 shrink-0" />
                   <AnimatedSearchPlaceholder />
                 </button>
@@ -658,11 +661,14 @@ export default function HomePage() {
               {/* Avatar */}
               <motion.button
                 onClick={() => nav('/profile')}
-                className="hidden md:flex w-11 h-11 md:w-[52px] md:h-[52px] rounded-full items-center justify-center shrink-0 text-white text-sm font-black shadow-glow-blue border border-white/20 hover:scale-105 transition-transform"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)' }}
+                className="hidden md:flex w-11 h-11 md:w-[52px] md:h-[52px] rounded-full items-center justify-center shrink-0 hover:scale-105 transition-transform overflow-hidden bg-slate-100 ring-2 ring-indigo-500/20 shadow-md"
                 whileTap={{ scale: 0.88 }}
               >
-                {firstName[0]?.toUpperCase() || <User size={16} />}
+                <img 
+                  src={profile?.avatar || '/images/zappy_tower_avatar.png'} 
+                  alt={firstName || 'User'} 
+                  className="w-full h-full object-cover"
+                />
               </motion.button>
             </div>
           </div>
@@ -671,7 +677,7 @@ export default function HomePage() {
         {/* ─── Mobile Search bar ───────────────────────────────────────────── */}
         <div className="md:hidden bg-white/80 backdrop-blur-md px-4 pt-3 pb-5 border-b border-slate-900/5">
           <div className="w-full flex items-center gap-2 rounded-[20px] pl-4 pr-2 h-14 bg-slate-50 border border-slate-200/80 shadow-inner">
-            <button onClick={() => nav('/services')} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
+            <button onClick={() => setSpotOpen(true)} className="flex items-center gap-3 flex-1 text-left h-full min-w-0">
               <Search size={18} strokeWidth={2.5} className="text-slate-400 shrink-0" />
               <AnimatedSearchPlaceholder />
             </button>

@@ -29,6 +29,7 @@ const appealRoutes = require('../modules/worker/appeal.routes');
 const trainingRoutes = require('../modules/worker/training.routes');
 const mapsRoutes = require('../modules/maps/maps.routes');
 const telemetryRoutes = require('../modules/telemetry/telemetry.routes');
+const searchRoutes = require('../modules/search/search.routes');
 const lensRoutes = require('../modules/lens/lens.routes');
 const contentRoutes = require('../modules/content/content.routes');
 const rewardsRoutes = require('../modules/rewards/rewards.routes');
@@ -93,6 +94,7 @@ function mountRoutes(app) {
 
   // Public analytics ingest (visitor/page/search telemetry) — unauth, rate-limited
   app.use('/api/telemetry', telemetryRoutes);
+  app.use('/api/search', searchRoutes);
 
   // ZappyLens — visual service search (auth, rate-limited)
   app.use('/api/lens', lensRoutes);
