@@ -1,64 +1,52 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
-export function useActiveSection(sectionIds, offset = 140) {
+/**
+ * Tracks which section is currently near the TOP of the viewport — the same way
+ * Swiggy decides which "What's on your mind" item to tick.
+ *
+ * A single IntersectionObserver with `rootMargin: -20% 0 -70% 0` narrows the
+ * detection band to a thin strip 20–30% down from the top. The topmost section
+ * (in DOM order) intersecting that band is the active one. `sectionIds` must be
+ * a stable reference (module-scoped array) so the observer isn't torn down and
+ * rebuilt on every render.
+ */
+export function useActiveSection(sectionIds) {
   const [activeSection, setActiveSection] = useState(null);
 
   useEffect(() => {
-    // Collect elements
     const elements = sectionIds
-      .map(id => document.getElementById(id))
+      .map((id) => document.getElementById(id))
       .filter(Boolean);
-
     if (elements.length === 0) return;
 
-    // We'll track the intersection ratio of all elements
-    const visibleElements = new Map();
+    const visible = new Set();
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            visibleElements.set(entry.target.id, entry.intersectionRatio);
-          } else {
-            visibleElements.delete(entry.target.id);
-          }
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
         });
 
-        // Find the element with the highest intersection ratio
-        let maxRatio = 0;
-        let mostVisible = null;
-
-        visibleElements.forEach((ratio, id) => {
-          if (ratio > maxRatio) {
-            maxRatio = ratio;
-            mostVisible = id;
-          }
-        });
-
-        if (mostVisible) {
-          setActiveSection(mostVisible);
-        }
+        // Topmost section (DOM order) inside the band wins. Only update when we
+        // have a match so we never flicker back to null between sections.
+        const topmost = sectionIds.find((id) => visible.has(id));
+        if (topmost) setActiveSection(topmost);
       },
-      {
-        root: null,
-        // Root margin to trigger slightly before/after the middle of the screen
-        rootMargin: `-${offset}px 0px -20% 0px`,
-        threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-      }
+      { rootMargin: '-20% 0px -70% 0px', threshold: 0 },
     );
 
-    elements.forEach(el => observer.observe(el));
-
+    elements.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [sectionIds, offset]);
+  }, [sectionIds]);
 
-  // Provide a function to programmatically scroll to a section
+  // Programmatic jump. Each shelf carries scroll-margin-top so it lands below
+  // the header + rail rather than beneath them. Mark active immediately so the
+  // rail ticks without waiting for the scroll to settle.
   const scrollToSection = (id) => {
     const el = document.getElementById(id);
     if (!el) return;
-
-    // We add scroll-margin-top to the elements in CSS to account for sticky header + rail
-    el.scrollIntoView({ behavior: 'smooth' });
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setActiveSection(id);
   };
 

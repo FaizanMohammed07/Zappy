@@ -44,7 +44,11 @@
 
   html, body, #root {
     height: 100%;
-    overflow-x: hidden;
+    /* `clip` (not `hidden`) clips horizontal overflow WITHOUT forcing overflow-y
+       to compute to `auto`. `hidden` here turned the scroll root into its own
+       scroll container, which silently breaks `position: sticky` on every
+       descendant (the sticky category rail never pinned). See StickyCategoryRail. */
+    overflow-x: clip;
     width: 100%;
   }
 

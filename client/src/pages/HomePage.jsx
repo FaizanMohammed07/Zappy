@@ -391,6 +391,14 @@ function SectionHeader({ title, badge, badgeColor = 'bg-slate-100 text-slate-800
   );
 }
 
+/* Shelf section ids observed for the sticky-rail active state. Module-scoped so
+   the reference is stable across renders (a fresh array would re-run the
+   IntersectionObserver effect every render). */
+const SHELF_IDS = [
+  'shelf-home', 'shelf-phones', 'shelf-laptops', 'shelf-cars',
+  'shelf-elders', 'shelf-events', 'shelf-pets', 'shelf-more',
+];
+
 /* ─── Main component ───────────────────────────────────────────────────── */
 export default function HomePage() {
   const nav = useNavigate();
@@ -398,10 +406,7 @@ export default function HomePage() {
   const isAuthed = useSelector(selectIsAuthed);
   const [lensOpen, setLensOpen] = useState(false);
 
-  const { activeSection, scrollToSection } = useActiveSection([
-    'shelf-home', 'shelf-phones', 'shelf-laptops', 'shelf-cars',
-    'shelf-elders', 'shelf-events', 'shelf-pets', 'shelf-more'
-  ]);
+  const { activeSection, scrollToSection } = useActiveSection(SHELF_IDS);
 
   const { data } = useListOrdersQuery(1, { skip: !isAuthed });
   const { data: gamData } = useGetGamificationQuery(undefined, { skip: !isAuthed });
@@ -552,7 +557,7 @@ export default function HomePage() {
         jsonLd={HOME_SCHEMA}
       />
       <IntroSplash />
-      <div className="min-h-screen bg-white bg-noise overflow-x-hidden w-full">
+      <div className="min-h-screen bg-white bg-noise [overflow-x:clip] w-full">
 
         {/* ─── Premium Navbar ───────────────────────────────────────── */}
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-900/5" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
@@ -696,11 +701,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Sticky Category Rail appears on scroll */}
-        <StickyCategoryRail activeSection={activeSection} onSelect={scrollToSection} />
-
         {/* ─── Hero section ─────────────────────────────────────────── */}
-        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-2 md:pt-5 pb-5">
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-2 md:pt-5">
           <div className="mb-4 md:mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3 items-start">
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
               <h1 className="text-[26px] md:text-[34px] font-extrabold text-slate-900 leading-[1.08] tracking-[-0.025em]">
@@ -724,7 +726,15 @@ export default function HomePage() {
           >
             <CharacterServiceGrid />
           </motion.div>
+        </div>
 
+        {/* Sticky Category Rail — full-bleed, owns a 1px sentinel placed right
+            after the grid. Pins under the header once the grid scrolls past
+            (Swiggy "What's on your mind" behaviour). */}
+        <StickyCategoryRail activeSection={activeSection} onSelect={scrollToSection} />
+
+        {/* Promotional carousel now scrolls beneath the pinned rail */}
+        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-3 pb-5">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
