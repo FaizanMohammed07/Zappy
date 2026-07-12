@@ -82,6 +82,7 @@ export default function CharacterServiceGrid() {
             {svc.img.includes('.mp4') ? (
               <motion.video
                 src={svc.img}
+                poster={svc.thumb}
                 autoPlay
                 loop
                 muted
