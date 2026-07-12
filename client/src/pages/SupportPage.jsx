@@ -10,7 +10,6 @@ import {
   useGetMyTicketsQuery, useGetTicketQuery,
   useCreateTicketMutation, useAddTicketMessageMutation,
 } from '../services/api';
-import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 
 const CATEGORIES = [
@@ -426,7 +425,7 @@ export default function SupportPage() {
           )}
         </AnimatePresence>
 
-        <BottomNav active="profile" />
+
       </div>
     </PageTransition>
   );

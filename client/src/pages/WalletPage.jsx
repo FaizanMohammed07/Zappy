@@ -14,7 +14,6 @@ import {
 } from '../services/api';
 import { selectAuth } from '../modules/auth/authSlice';
 import { openCheckout } from '../services/cashfree';
-import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import { staggerContainer, fadeInUp, scaleIn } from '../lib/animations';
 import toast from 'react-hot-toast';
@@ -259,7 +258,7 @@ export default function WalletPage() {
           </div>
         </div>
       </div>
-      <BottomNav active="wallet" />
+
     </PageTransition>
   );
 }

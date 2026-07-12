@@ -14,7 +14,6 @@ import {
   useGetMeQuery, useGetAddressesQuery, useAddAddressMutation,
   useDeleteAddressMutation, useEditAddressMutation, useSetDefaultAddressMutation,
 } from '../services/api';
-import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 import { SkeletonProfileHeader, SkeletonList, SkeletonCard } from '../components/common/Skeleton';
 import { staggerContainer, fadeInUp } from '../lib/animations';
@@ -465,7 +464,7 @@ export default function ProfilePage() {
           </motion.div>
         )}
 
-        <BottomNav active="profile" />
+
       </div>
     </PageTransition>
   );

@@ -12,7 +12,6 @@ import {
   useDeletePaymentMethodMutation,
   useSetDefaultPaymentMethodMutation,
 } from '../services/api';
-import BottomNav from '../components/layout/BottomNav';
 import PageTransition from '../components/common/PageTransition';
 
 const NETWORK_COLORS = {
@@ -424,7 +423,7 @@ export default function PaymentMethodsPage() {
           )}
         </AnimatePresence>
 
-        <BottomNav active="profile" />
+
       </div>
     </PageTransition>
   );

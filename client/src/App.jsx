@@ -1,9 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { useSelector, useDispatch } from 'react-redux';
-import toast from 'react-hot-toast';
-import { selectAuth, logout } from './modules/auth/authSlice';
+import { useSelector } from 'react-redux';
+import { selectAuth } from './modules/auth/authSlice';
 import { useDisconnectOnLogout } from './hooks/useSocket';
 import { useFCM } from './hooks/useFCM.jsx';
 import useTelemetry from './hooks/useTelemetry';
@@ -12,8 +11,8 @@ import { adminPath } from './config/admin';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
 import ConnectionBanner from './components/common/ConnectionBanner';
-import ErrorBoundary from './components/common/ErrorBoundary';
 import RouteProgress from './components/common/RouteProgress';
+import MainLayout from './components/layout/MainLayout';
 
 // ── Route-level code splitting ─────────────────────────────────────────────
 // Each page is a separate chunk. Browsers only download the chunk for the
@@ -87,19 +86,7 @@ export default function App() {
   useFCM();
   useTelemetry();
   const { accessToken: token, role } = useSelector(selectAuth);
-  const dispatch = useDispatch();
   const location = useLocation();
-
-  // Single-device: the socket got a `session:replaced` (this account logged in on
-  // another device) — sign out immediately with a clear message.
-  useEffect(() => {
-    const onReplaced = () => {
-      dispatch(logout());
-      toast.error('You were signed out — your account was opened on another device.', { id: 'session-replaced', duration: 5000 });
-    };
-    window.addEventListener('zappy:session-replaced', onReplaced);
-    return () => window.removeEventListener('zappy:session-replaced', onReplaced);
-  }, [dispatch]);
 
   // Warm the main tab chunks once the browser is idle after first paint, so
   // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).
@@ -117,11 +104,7 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
-      {/* Route-level boundary — a crash in one page shows the recovery screen but
-          auto-resets when the user navigates elsewhere (keyed by path). */}
-      <ErrorBoundary key={location.pathname}>
-      <AnimatePresence mode="wait" initial={false}>
-      <Routes location={location} key={location.pathname}>
+      <Routes location={location}>
         {/* Public */}
         {/* Public help content — FAQs + policy pages (admin-managed) */}
         <Route path="/faq" element={<FaqPage />} />
@@ -138,20 +121,25 @@ export default function App() {
         />
 
         {/* User app */}
-        <Route path="/"       element={<HomeOrRedirect role={role} token={token} />} />
-        <Route path="/home"   element={<HomeOrRedirect role={role} token={token} />} />
-        <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
+        <Route element={<MainLayout />}>
+          <Route path="/"       element={<HomeOrRedirect role={role} token={token} />} />
+          <Route path="/home"   element={<HomeOrRedirect role={role} token={token} />} />
+          <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
+          <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
+          <Route path="/track"  element={<RequireAuth role="user"><TrackPage /></RequireAuth>} />
+          <Route path="/profile" element={<RequireAuth role="user"><ProfilePage /></RequireAuth>} />
+          <Route path="/disputes" element={<RequireAuth role="user"><DisputesPage /></RequireAuth>} />
+          <Route path="/support" element={<RequireAuth role="user"><SupportPage /></RequireAuth>} />
+          <Route path="/payments" element={<RequireAuth role="user"><PaymentMethodsPage /></RequireAuth>} />
+          <Route path="/wallet" element={<RequireAuth><WalletPage /></RequireAuth>} />
+        </Route>
+
+        {/* Routes outside MainLayout (no bottom nav) */}
         <Route path="/book/:service" element={<RequireAuth role="user"><BookingPage /></RequireAuth>} />
-        <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
         <Route path="/orders/:id" element={<RequireAuth role="user"><OrderTrackingPage /></RequireAuth>} />
         <Route path="/orders/:id/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />
-        <Route path="/track"  element={<RequireAuth role="user"><TrackPage /></RequireAuth>} />
-        <Route path="/profile" element={<RequireAuth role="user"><ProfilePage /></RequireAuth>} />
         <Route path="/notifications" element={<RequireAuth role="user"><NotificationsPage /></RequireAuth>} />
         <Route path="/referral" element={<RequireAuth role="user"><ReferralPage /></RequireAuth>} />
-        <Route path="/disputes" element={<RequireAuth role="user"><DisputesPage /></RequireAuth>} />
-        <Route path="/support" element={<RequireAuth role="user"><SupportPage /></RequireAuth>} />
-        <Route path="/payments" element={<RequireAuth role="user"><PaymentMethodsPage /></RequireAuth>} />
         <Route path="/spending" element={<RequireAuth role="user"><SpendingPage /></RequireAuth>} />
         <Route path="/notification-prefs" element={<RequireAuth role="user"><NotificationPrefsPage /></RequireAuth>} />
         <Route path="/promos" element={<RequireAuth role="user"><PromosHubPage /></RequireAuth>} />
@@ -160,9 +148,8 @@ export default function App() {
         <Route path="/account-security" element={<RequireAuth role="user"><AccountSecurityPage /></RequireAuth>} />
         <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
 
-        {/* Plans + Wallet — available to both users and workers */}
+        {/* Plans — available to both users and workers */}
         <Route path="/plans"  element={<RequireAuth><PlansPage /></RequireAuth>} />
-        <Route path="/wallet" element={<RequireAuth><WalletPage /></RequireAuth>} />
 
         {/* Worker app */}
         <Route path="/worker" element={<RequireAuth role="worker"><WorkerDashboard /></RequireAuth>} />
@@ -200,8 +187,6 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      </AnimatePresence>
-      </ErrorBoundary>
     </Suspense>
     </>
   );

@@ -78,15 +78,15 @@ axiosClient.interceptors.response.use(
           { refreshToken },
           { headers: { 'X-Client-Type': 'mobile' } },
         );
-        
+
         await SecureStore.setItemAsync('accessToken', data.accessToken);
         await SecureStore.setItemAsync('refreshToken', data.refreshToken);
-        
+
         axiosClient.defaults.headers.common.Authorization = `Bearer ${data.accessToken}`;
         originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
-        
+
         processQueue(null, data.accessToken);
-        
+
         return axiosClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
