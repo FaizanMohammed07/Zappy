@@ -8,9 +8,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:4000',
+      '/api': 'http://127.0.0.1:4005',
       '/socket.io': {
-        target: 'http://localhost:4000',
+        target: 'http://127.0.0.1:4005',
         ws: true,
         configure: (proxy) => {
           proxy.on('error', (err) => {
@@ -45,15 +45,15 @@ export default defineConfig({
         // A code change no longer busts the cached mapbox or firebase chunk. (#70)
         manualChunks: {
           // Map + location (largest single dep, ~330KB gzipped)
-          'vendor-map':      ['mapbox-gl'],
+          'vendor-map': ['mapbox-gl'],
           // Firebase (push notifications + FCM, ~180KB gzipped)
           'vendor-firebase': ['firebase/app', 'firebase/messaging'],
           // Animation engine
-          'vendor-motion':   ['framer-motion'],
+          'vendor-motion': ['framer-motion'],
           // React core — almost never changes
-          'vendor-react':    ['react', 'react-dom', 'react-router-dom'],
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           // State management
-          'vendor-redux':    ['@reduxjs/toolkit', 'react-redux'],
+          'vendor-redux': ['@reduxjs/toolkit', 'react-redux'],
         },
       },
     },

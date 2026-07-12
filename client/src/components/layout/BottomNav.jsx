@@ -71,12 +71,9 @@ export default function BottomNav({ active }) {
   const right = SIDE_TABS.filter((t) => t.side === 'right');
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[100] pb-6 px-4 pointer-events-none">
-      <motion.nav
-        className="mx-auto max-w-[420px] bg-white/95 backdrop-blur-xl border border-slate-200 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.25)] rounded-3xl h-16 flex items-center pointer-events-auto relative"
-        initial={{ y: 50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+    <div className="fixed bottom-0 left-0 right-0 z-[100] pointer-events-none">
+      <nav
+        className="w-full bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-2px_12px_rgba(20,21,42,0.06)] h-[calc(64px+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] flex items-center pointer-events-auto relative"
       >
         <div className="flex flex-1">
           {left.map((t) => (
@@ -116,7 +113,7 @@ export default function BottomNav({ active }) {
           </motion.div>
           <span className={`text-[10px] font-bold mt-1 ${isBook ? 'text-zappy-700' : 'text-zappy-600'}`}>{tr('nav.book', 'Book Now')}</span>
         </button>
-      </motion.nav>
+      </nav>
     </div>
   );
 }

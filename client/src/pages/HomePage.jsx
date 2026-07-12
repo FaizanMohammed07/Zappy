@@ -20,9 +20,7 @@ import { useGeolocation, loadGeoLocation } from '../hooks/useGeolocation';
 import { reverseGeocode } from '../utils/reverseGeocode';
 import { serviceLabel } from '../constants/services';
 import { ZappyLogo } from '../components/common/ZappyLogo';
-import BottomNav from '../components/layout/BottomNav';
 import Footer from '../components/layout/Footer';
-import PageTransition from '../components/common/PageTransition';
 import VoiceSearchButton from '../components/common/VoiceSearchButton';
 import SpotlightSearch from '../components/search/SpotlightSearch';
 import LensModal from '../components/lens/LensModal';
@@ -163,7 +161,7 @@ const SMART_TILES = [
   { key: 'smart_tv_install',    name: 'Smart TV',         img: '/images/smart_tv.webp',       eta: '60 mins' },
   { key: 'router_setup',        name: 'WiFi Setup',       img: '/images/wifi_setup.webp',     eta: '30 mins' },
   { key: 'cctv_install',        name: 'CCTV Install',     img: '/images/cctv_install.webp',   eta: null      },
-  { key: 'smart_lock_install',  name: 'Smart Lock',       img: '/images/smart_lock.webp',     eta: null      },
+  { key: 'smart_lock_install',  name: 'Smart Lock',       img: '/images/smart_lock.webp',       eta: null      },
   { key: 'home_automation_setup',name: 'Home Auto',       img: '/images/home_auto.webp',      eta: null      },
 ];
 
@@ -539,7 +537,7 @@ export default function HomePage() {
   }
 
   return (
-    <PageTransition>
+    <>
       <SpotlightSearch open={spotOpen} onClose={() => setSpotOpen(false)} />
       <SEO
         title="Zappy — Book Verified Professionals Instantly | Home Services India"
@@ -921,7 +919,6 @@ export default function HomePage() {
 
         </div>
         <Footer />
-        <BottomNav active="home" />
         <LensModal open={lensOpen} onClose={() => setLensOpen(false)} />
       </div>
 
@@ -1005,6 +1002,6 @@ export default function HomePage() {
           </>
         )}
       </AnimatePresence>
-    </PageTransition>
+    </>
   );
 }
