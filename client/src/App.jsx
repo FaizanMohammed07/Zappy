@@ -13,6 +13,7 @@ import NotificationBanner from './components/common/NotificationBanner';
 import ConnectionBanner from './components/common/ConnectionBanner';
 import RouteProgress from './components/common/RouteProgress';
 import MainLayout from './components/layout/MainLayout';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // ── Route-level code splitting ─────────────────────────────────────────────
 // Each page is a separate chunk. Browsers only download the chunk for the
@@ -104,7 +105,10 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
-      <Routes location={location}>
+      {/* Route-level boundary — a crash in one page shows the recovery screen but
+          auto-resets when the user navigates elsewhere (keyed by path). */}
+      <ErrorBoundary key={location.pathname}>
+      <Routes location={location} key={location.pathname}>
         {/* Public */}
         {/* Public help content — FAQs + policy pages (admin-managed) */}
         <Route path="/faq" element={<FaqPage />} />
@@ -187,6 +191,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </Suspense>
     </>
   );
