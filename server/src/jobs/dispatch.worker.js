@@ -226,6 +226,8 @@ async function processDispatchJob(job) {
   const bestFirstMs    = cfg.bestFirstWindowMs ?? 8000;
   let   bestFirstDone  = false;         // head-start only runs once (first productive step)
   let   activeUrgencyBonusPaise = 0;    // bonus in effect at the moment of accept
+  // Tracks the customer's boost so a mid-search raise can re-open the job (see loop).
+  let   lastBoostPaise = order.pricing?.tipPaise || 0;
 
   /* Growing "high-demand" accept bonus — the wider we search, the higher the
    * voluntary-accept incentive. Platform-funded, shown in the offer, credited on
@@ -272,10 +274,27 @@ async function processDispatchJob(job) {
     );
 
     try {
-      const fresh = await Order.findById(orderId).select('status').lean();
+      // Re-read pricing too, not just status. The customer can BOOST the offer
+      // mid-search; the in-memory `order` doc was loaded once at job start, so
+      // without this every later batch of workers was still shown the OLD price.
+      const fresh = await Order.findById(orderId).select('status pricing').lean();
       if (!fresh || fresh.status !== 'searching') {
         logger.info({ orderId, status: fresh?.status }, '[DISPATCH] Order no longer searching, stopping');
         return { ok: false, reason: 'status_changed' };
+      }
+      if (fresh.pricing) order.pricing = fresh.pricing; // keep the offer payload current
+
+      // Customer raised the price → give EVERYONE a fresh look, including workers
+      // who already passed at the lower price. Re-opening the job is the entire
+      // point of a boost; otherwise the money buys nothing.
+      const freshBoostPaise = fresh.pricing?.tipPaise || 0;
+      if (freshBoostPaise > lastBoostPaise) {
+        logger.info(
+          { orderId, fromPaise: lastBoostPaise, toPaise: freshBoostPaise, reOffering: alreadyNotified.size },
+          '[DISPATCH] 💰 Offer boosted mid-search — re-opening to workers who already passed',
+        );
+        lastBoostPaise = freshBoostPaise;
+        alreadyNotified.clear();
       }
 
       const elapsedMs = Date.now() - jobStartMs;

@@ -19,56 +19,71 @@ const TIP_PRESETS_PAISE = [2000, 5000, 10000, 20000]; // ₹20, ₹50, ₹100, �
  * to all workers who received the offer so they see the higher amount.
  */
 async function liveBoost({ order, orderId, userId, amountPaise }) {
-  const rupees = Math.round(amountPaise / 100);
+  const addedRupees = Math.round(amountPaise / 100);
 
-  // Persist boost on order so dispatch reads it when broadcasting
-  await Order.findByIdAndUpdate(orderId, {
-    $set: { 'pricing.tipPaise': amountPaise, 'pricing.boostedTotal': (order.pricing?.total || 0) + rupees },
-  });
+  // The client sends the INCREMENT (+₹10, then +₹25) and tracks the running total
+  // locally. A `$set` here overwrote the previous boost, so a second boost REPLACED
+  // the first — the customer saw ₹35 but the order only carried ₹25, and the worker
+  // was shown (and paid) less than the customer actually pledged. `$inc` accumulates.
+  //
+  // We also clear attemptedWorkerIds: raising the price is pointless if the workers
+  // who already passed at the lower price can never be offered it again. A boost now
+  // genuinely re-opens the job to everyone.
+  const updated = await Order.findByIdAndUpdate(
+    orderId,
+    {
+      $inc: { 'pricing.tipPaise': amountPaise },
+      $set: { 'dispatch.attemptedWorkerIds': [] },
+    },
+    { new: true },
+  ).select('pricing dispatch.currentOfferWorkerIds').lean();
 
-  // Re-broadcast updated price to all workers who saw this offer
+  const totalTipPaise = updated?.pricing?.tipPaise ?? amountPaise;
+  const totalBoostRs  = Math.round(totalTipPaise / 100);          // cumulative boost
+  const baseTotal     = updated?.pricing?.total ?? order.pricing?.total ?? 0;
+  const newTotal      = baseTotal + totalBoostRs;                  // what the worker sees
+
+  await Order.updateOne({ _id: orderId }, { $set: { 'pricing.boostedTotal': newTotal } });
+
+  // Customer-side event (order room).
   await redis.publish('order:event', JSON.stringify({
     orderId: String(orderId),
     event:   'order.boost',
-    payload: { amountPaise, rupees, newTotal: (order.pricing?.total || 0) + rupees },
+    payload: { amountPaise: totalTipPaise, rupees: totalBoostRs, addedRupees, newTotal },
   }));
 
-  // Fetch workers who are currently holding this offer and push the boost to each.
-  // Workers join worker:<id> room (not order room) until accepted, so we must fan-out per-worker.
+  // Workers sit in worker:<id> rooms (not the order room) until they accept, so the
+  // boost must be fanned out per-worker to everyone currently holding the offer.
   try {
-    const fresh = await Order.findById(orderId).select('dispatch.currentOfferWorkerIds').lean();
-    const workerIds = fresh?.dispatch?.currentOfferWorkerIds ?? [];
-    const boostPayload = JSON.stringify({
-      orderId: String(orderId),
-      amountPaise,
-      rupees,
-      newTotal: (order.pricing?.total || 0) + rupees,
-    });
-    // Publish one message per worker — socket bridge delivers to worker:<id> room
+    const workerIds = updated?.dispatch?.currentOfferWorkerIds ?? [];
     await Promise.all(
       workerIds.map((wid) =>
         redis.publish('order:boost', JSON.stringify({
-          orderId:    String(orderId),
-          workerId:   String(wid),   // ← targeted delivery
-          amountPaise,
-          rupees,
-          newTotal:   (order.pricing?.total || 0) + rupees,
+          orderId:  String(orderId),
+          workerId: String(wid),            // targeted delivery
+          amountPaise: totalTipPaise,
+          rupees:   totalBoostRs,           // cumulative — the badge shows total boost
+          newTotal,
         }))
       )
     );
     if (!workerIds.length) {
-      // Fallback: broadcast to order room (covers re-dispatch window)
+      // No one is holding the offer right now (between radius steps). Broadcast to the
+      // order room as a fallback; the dispatch loop also re-reads the price each step,
+      // so the next batch of workers is offered the boosted price.
       await redis.publish('order:boost', JSON.stringify({
-        orderId: String(orderId), amountPaise, rupees,
-        newTotal: (order.pricing?.total || 0) + rupees,
+        orderId: String(orderId),
+        amountPaise: totalTipPaise,
+        rupees: totalBoostRs,
+        newTotal,
       }));
     }
   } catch (err) {
     logger.warn({ err: err.message, orderId }, '[Tip] Boost fan-out to workers failed');
   }
 
-  logger.info({ orderId, amountPaise, rupees }, '[Tip] Live boost applied during search');
-  return { boosted: true, rupees, newTotal: (order.pricing?.total || 0) + rupees };
+  logger.info({ orderId, addedRupees, totalBoostRs, newTotal }, '[Tip] Live boost applied during search');
+  return { boosted: true, rupees: totalBoostRs, addedRupees, newTotal };
 }
 
 async function sendTip({ orderId, userId, amountPaise, voiceNoteUrl, message }) {
