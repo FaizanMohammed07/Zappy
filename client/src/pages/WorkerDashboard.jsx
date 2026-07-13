@@ -33,6 +33,7 @@ import WorkerOnboarding from './WorkerOnboarding';
 import ShiftSlotsWidget from '../components/worker/ShiftSlotsWidget';
 import WellnessWidget from '../components/worker/WellnessWidget';
 import EarnedWageWidget from '../components/worker/EarnedWageWidget';
+import ReadyModeCard from '../components/worker/ReadyModeCard';
 import toast from 'react-hot-toast';
 
 /* ─── Constants (mirror backend incentive.service.js) ─────────── */
@@ -1007,6 +1008,13 @@ export default function WorkerDashboard() {
             })}
           </div>
         </motion.div>
+
+        {/* ── ZeroWait: Ready Mode (pre-accept next job) ──────────────── */}
+        {isOnline && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <ReadyModeCard />
+          </motion.div>
+        )}
 
         {/* ── Earned Wage Access ───────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.155 }}>

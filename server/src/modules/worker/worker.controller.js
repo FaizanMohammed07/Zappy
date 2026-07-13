@@ -100,6 +100,11 @@ async function getDemandZones(req, res, next) {
     const { redis } = require('../../config/redis');
     const logger = require('../../utils/logger');
 
+    // Positioning-bonus config (read once, not per zone).
+    const _zoneCfg = await require('../pricing/pricing.service')
+      .getActiveConfig()
+      .catch(() => ({}));
+
     const zones = await Promise.all(
       DEMAND_ZONE_SEEDS.map(async (zone) => {
         const bucket = `${zone.lat.toFixed(2)}:${zone.lng.toFixed(2)}`;
@@ -131,7 +136,22 @@ async function getDemandZones(req, res, next) {
           ? (demand > 0 ? '<2' : '10+')
           : Math.max(1, Math.round(distKm / 20 * 60));
 
-        return { name: zone.name, distKm: parseFloat(distKm.toFixed(1)), level, demand, supply, waitMin };
+        // ZeroWait L3: under-supplied cells pay a positioning bonus. Show it, so a
+        // worker can see there is real money in moving there — that's what keeps
+        // the Ready Pool dense where demand actually lands.
+        const gap = demand - supply;
+        const isHot = _zoneCfg.positioningEnabled !== false
+          && gap >= (_zoneCfg.positioningMinGap ?? 2);
+        const bonusPaise = isHot ? (_zoneCfg.positioningBonusPaise ?? 3000) : 0;
+
+        return {
+          name: zone.name,
+          distKm: parseFloat(distKm.toFixed(1)),
+          level, demand, supply, waitMin,
+          gap,
+          hot: isHot,
+          bonusPaise,
+        };
       })
     );
 
@@ -703,6 +723,125 @@ async function getJobEarnings(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/* ─── ZeroWait: Ready Mode (pre-accept) ───────────────────────────────────────
+ * The worker pre-commits to auto-accept the next matching job (their skill, their
+ * radius, time-boxed) in exchange for a bonus. This is what lets dispatch skip the
+ * offer→accept round-trip entirely. Strictly opt-in and strictly gated: only
+ * high-trust workers, because they're accepting on the customer's behalf. */
+
+const READY_BAN_PREFIX = 'worker:ready:ban:';
+
+/** Why this worker may not enter Ready Mode (null = eligible). */
+async function readyIneligibleReason(worker, cfg) {
+  const { redis } = require('../../config/redis');
+
+  const banned = await redis.get(`${READY_BAN_PREFIX}${String(worker._id)}`).catch(() => null);
+  if (banned) return 'Ready Mode is temporarily locked after a cancelled auto-accepted job.';
+
+  if (worker.isBlocked) return 'Account is blocked.';
+  if (worker.kyc?.status !== 'approved') return 'Complete KYC verification first.';
+  if (!worker.isOnline) return 'Go online first.';
+  if (!worker.isAvailable) return 'Finish your current job first.';
+
+  const minRating = cfg.readyMinRating ?? 4.0;
+  if ((worker.rating ?? 5) < minRating) return `Ready Mode needs a ${minRating.toFixed(1)}★ rating or higher.`;
+
+  const minJobs = cfg.readyMinCompletedJobs ?? 5;
+  if ((worker.completedJobs || 0) < minJobs) return `Complete ${minJobs} jobs to unlock Ready Mode.`;
+
+  const totalOffers = worker.penalties?.totalOffers || 0;
+  if (totalOffers > 0) {
+    const acceptRate = (totalOffers - (worker.penalties?.totalRejects || 0)) / totalOffers;
+    const minAccept = cfg.readyMinAcceptRate ?? 0.6;
+    if (acceptRate < minAccept) return `Ready Mode needs a ${Math.round(minAccept * 100)}% acceptance rate.`;
+  }
+
+  // Never let a worker over their dues limit take auto-assigned work.
+  try {
+    const dues = await require('./worker-dues.service').getDuesStatus(worker._id);
+    if (dues.status === 'blocked') return 'Clear your wallet dues to use Ready Mode.';
+  } catch { /* fail open */ }
+
+  return null;
+}
+
+async function setReadyMode(req, res, next) {
+  try {
+    const geoService = require('./geo.service');
+    const pricingService = require('../pricing/pricing.service');
+    const cfg = await pricingService.getActiveConfig();
+
+    if (cfg.readyPoolEnabled === false) {
+      return res.status(409).json({ error: 'Ready Mode is currently disabled.', code: 'READY_DISABLED' });
+    }
+
+    const { enabled } = req.body;
+    const workerId = req.auth.sub;
+
+    if (!enabled) {
+      await geoService.exitReady(workerId);
+      return res.json({ ready: false });
+    }
+
+    const worker = await Worker.findById(workerId)
+      .select('skills rating completedJobs penalties kyc isOnline isAvailable isBlocked')
+      .lean();
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+    const reason = await readyIneligibleReason(worker, cfg);
+    if (reason) return res.status(403).json({ error: reason, code: 'READY_INELIGIBLE' });
+
+    if (!worker.skills?.length) {
+      return res.status(409).json({ error: 'Add at least one skill first.', code: 'NO_SKILLS' });
+    }
+
+    // Clamp to admin-configured bounds — a worker can pick a tighter radius/window, never a looser one.
+    const maxMin    = cfg.readyMaxMinutes ?? 20;
+    const defRadius = cfg.readyDefaultRadiusKm ?? 5;
+    const minutes   = Math.min(Number(req.body.minutes) || maxMin, maxMin);
+    const radiusKm  = Math.min(Number(req.body.radiusKm) || defRadius, defRadius);
+
+    const state = await geoService.enterReady(workerId, worker.skills, radiusKm, minutes);
+    res.json({
+      ready: true,
+      ...state,
+      bonusPaise: cfg.readyBonusPaise ?? 2000,
+      skills: worker.skills,
+    });
+  } catch (err) { next(err); }
+}
+
+async function getReadyMode(req, res, next) {
+  try {
+    const geoService = require('./geo.service');
+    const pricingService = require('../pricing/pricing.service');
+    const [meta, cfg] = await Promise.all([
+      geoService.getReadyMeta(req.auth.sub),
+      pricingService.getActiveConfig(),
+    ]);
+
+    // Surface WHY it's unavailable so the app can show a real reason, not a dead toggle.
+    let ineligibleReason = null;
+    if (!meta) {
+      const worker = await Worker.findById(req.auth.sub)
+        .select('skills rating completedJobs penalties kyc isOnline isAvailable isBlocked')
+        .lean();
+      if (worker) ineligibleReason = await readyIneligibleReason(worker, cfg);
+    }
+
+    res.json({
+      ready: !!meta,
+      radiusKm: meta?.radiusKm ?? (cfg.readyDefaultRadiusKm ?? 5),
+      until: meta?.until ?? null,
+      enabledOnPlatform: cfg.readyPoolEnabled !== false,
+      maxMinutes: cfg.readyMaxMinutes ?? 20,
+      maxRadiusKm: cfg.readyDefaultRadiusKm ?? 5,
+      bonusPaise: cfg.readyBonusPaise ?? 2000,
+      ineligibleReason,
+    });
+  } catch (err) { next(err); }
+}
+
 async function updateSkills(req, res, next) {
   try {
     const workerId = req.auth.sub;
@@ -793,6 +932,8 @@ module.exports = {
   getZoneBenchmark,
   getJobEarnings,
   updateSkills,
+  setReadyMode,
+  getReadyMode,
   getGoals,
   setGoal,
 };

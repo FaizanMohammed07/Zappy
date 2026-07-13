@@ -828,6 +828,22 @@ async function workerComplete({ orderId, workerId, completionPhotos = [] }) {
     }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Urgency bonus credit failed'));
   }
 
+  // ZeroWait Ready bonus — paid for pre-accepting (instant match). Also on
+  // COMPLETION only, so Ready Mode can't be farmed by auto-accept-then-cancel.
+  const readyBonusPaise = order.dispatch?.readyBonusPaise || 0;
+  if (readyBonusPaise > 0) {
+    await walletService.apply({
+      kind: 'worker',
+      id: workerId,
+      type: 'credit',
+      amountPaise: readyBonusPaise,
+      reason: Transaction.REASONS.WORKER_EARNING,
+      idempotencyKey: `readybonus:${order._id}`,
+      refs: { orderId: order._id },
+      description: 'Ready Mode instant-accept bonus',
+    }).catch((err) => logger.warn({ err: err.message, orderId: order._id }, 'Ready bonus credit failed'));
+  }
+
   // Release the worker (denormalized counters)
   await Worker.updateOne(
     { _id: workerId },
@@ -1267,6 +1283,33 @@ async function workerCancel({ orderId, workerId, reason }) {
       }
     } catch (err) {
       logger.warn({ err: err.message, workerId }, '[WORKER-CANCEL] Escalation check failed');
+    }
+  }
+
+  // ── ZeroWait anti-abuse ──────────────────────────────────────────────────
+  // Ghosting a job you PRE-ACCEPTED is the one thing that can break instant match:
+  // the customer was promised a pro with no accept step. So cancelling an
+  // instant-matched job costs Ready Mode for a cooling-off period (on top of the
+  // normal penalty). Genuine reasons still pay no cash penalty, but Ready Mode is
+  // a trust privilege — it is suspended either way.
+  if (order.dispatch?.instantMatch) {
+    try {
+      const pricingService = require('../pricing/pricing.service');
+      const pcfg = await pricingService.getActiveConfig();
+      const banHours = pcfg.readyCancelBanHours ?? 24;
+      await geoService.exitReady(String(workerId)).catch(() => {});
+      await redis.set(`worker:ready:ban:${workerId}`, '1', 'EX', banHours * 3600);
+      notificationService.notify({
+        recipient: { kind: 'worker', id: workerId },
+        type: 'account_warning',
+        title: 'Ready Mode paused',
+        body: `You cancelled a job you had pre-accepted. Ready Mode is paused for ${banHours}h — customers are promised an instant match on those jobs.`,
+        deepLink: '/worker',
+        data: { orderId: String(orderId), banHours },
+      }).catch(() => {});
+      logger.warn({ workerId, orderId: String(orderId), banHours }, '[ZEROWAIT] Ready Mode banned — cancelled a pre-accepted job');
+    } catch (err) {
+      logger.warn({ err: err.message, workerId }, '[ZEROWAIT] Ready ban failed');
     }
   }
 

@@ -115,7 +115,7 @@ export const api = createApi({
   // Keep fetched data cached for 5 min after a component unmounts, so jumping
   // back to a tab shows data instantly (no skeleton) instead of refetching.
   keepUnusedDataFor: 300,
-  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content', 'Rewards', 'WorkerOps'],
+  tagTypes: ['Me', 'Order', 'Worker', 'Earnings', 'AdminMetrics', 'Kyc', 'Plan', 'Subscription', 'Wallet', 'Notification', 'AdminUsers', 'Disputes', 'Payouts', 'Incentives', 'CancellationConfig', 'PricingCfg', 'AuditLogs', 'Addresses', 'Ad', 'Promo', 'Gamification', 'Recommendations', 'FeatureFlags', 'SupportTickets', 'Referral', 'ShieldFund', 'EventTheme', 'EventBooking', 'EventPartner', 'EventConfig', 'EventCategory', 'PartnerNotification', 'Fraud', 'Zone', 'City', 'PaymentMethods', 'UserDisputes', 'UserTickets', 'AdminAppeals', 'AdminTraining', 'WorkerGoals', 'Plans', 'Content', 'Rewards', 'WorkerOps', 'ReadyMode'],
   endpoints: (b) => ({
     // --- Auth ---
     requestOtp: b.mutation({
@@ -238,6 +238,16 @@ export const api = createApi({
 
     // Worker-choice: top-ranked available pros near pickup (optional picker at checkout).
     getNearbyPros: b.query({ query: (params) => ({ url: '/orders/nearby-pros', params }) }),
+
+    // --- ZeroWait Instant Match ---
+    // Warm dispatch: is a pre-accepted pro standing by? (checkout, before payment)
+    getWarmDispatch: b.query({ query: (params) => ({ url: '/orders/warm', params }) }),
+    // Worker Ready Mode (pre-accept next matching job)
+    getReadyMode: b.query({ query: () => '/workers/ready', providesTags: ['ReadyMode'] }),
+    setReadyMode: b.mutation({
+      query: (body) => ({ url: '/workers/ready', method: 'POST', body }),
+      invalidatesTags: ['ReadyMode'],
+    }),
 
     // --- Unified Search (Zepto-level: fuzzy + intent + rank + never-empty) ---
     smartSearch: b.query({ query: (params) => ({ url: '/search', params }) }),
@@ -1668,6 +1678,10 @@ export const {
   useLazyGetQuoteQuery,
   useGetNearbyProsQuery,
   useLazyGetNearbyProsQuery,
+  useGetWarmDispatchQuery,
+  useLazyGetWarmDispatchQuery,
+  useGetReadyModeQuery,
+  useSetReadyModeMutation,
   useLazySmartSearchQuery,
   useSmartSearchQuery,
   useLazySearchSuggestQuery,

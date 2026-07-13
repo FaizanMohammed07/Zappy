@@ -136,6 +136,24 @@ function toView(doc) {
     bestFirstEnabled:             doc.bestFirstEnabled             ?? true,
     bestFirstWindowMs:            doc.bestFirstWindowMs            ?? 8000,
     bestFirstTopN:                doc.bestFirstTopN                ?? 1,
+    // ZeroWait Instant Match
+    tierBonusMultiplierExpress:   doc.tierBonusMultiplierExpress   ?? 2.0,
+    tierBonusMultiplierPriority:  doc.tierBonusMultiplierPriority  ?? 1.5,
+    expressBonusFromStep0:        doc.expressBonusFromStep0        ?? true,
+    readyPoolEnabled:             doc.readyPoolEnabled             ?? true,
+    readyMaxMinutes:              doc.readyMaxMinutes              ?? 20,
+    readyDefaultRadiusKm:         doc.readyDefaultRadiusKm         ?? 5,
+    readyBonusPaise:              doc.readyBonusPaise              ?? 2000,
+    readyMinRating:               doc.readyMinRating               ?? 4.0,
+    readyMinAcceptRate:           doc.readyMinAcceptRate           ?? 0.6,
+    readyMinCompletedJobs:        doc.readyMinCompletedJobs        ?? 5,
+    readyCancelBanHours:          doc.readyCancelBanHours          ?? 24,
+    readyTiersOnly:               doc.readyTiersOnly               ?? [],
+    warmDispatchEnabled:          doc.warmDispatchEnabled          ?? true,
+    warmTtlSec:                   doc.warmTtlSec                   ?? 90,
+    positioningEnabled:           doc.positioningEnabled           ?? true,
+    positioningBonusPaise:        doc.positioningBonusPaise        ?? 3000,
+    positioningMinGap:            doc.positioningMinGap            ?? 2,
     workerAutoOfflineRejectRate:  doc.workerAutoOfflineRejectRate  ?? 0.70,
     workerRejectWarnRate:         doc.workerRejectWarnRate         ?? 0.50,
     rejectRatePenaltyWeight:      doc.rejectRatePenaltyWeight      ?? 3.0,
@@ -428,6 +446,42 @@ async function recordDemand(lat, lng, service) {
 async function recordSupply(workerId, lat, lng) {
   const key = `supply:${geoBucket(lat, lng)}`;
   await redis.multi().sadd(key, String(workerId)).expire(key, 120).exec();
+}
+
+/**
+ * ZeroWait L3 — Predictive positioning.
+ *
+ * Live demand vs supply for this ~1km cell. When demand outstrips supply, jobs
+ * here pay an extra bonus. That does two things at once:
+ *   1. workers already in the cell are paid more to take the job, and
+ *   2. idle workers elsewhere can SEE the hot cell (worker app) and move to it.
+ * It's the supply-side flywheel that keeps the Ready Pool dense exactly where
+ * orders actually land — instead of hoping supply happens to be nearby.
+ *
+ * Returns extra bonus in paise (0 when the cell is adequately supplied).
+ */
+async function zoneGapBonusPaise(lat, lng, cfg) {
+  try {
+    if (!cfg || cfg.positioningEnabled === false) return 0;
+    const bucket = geoBucket(lat, lng);
+    const [demand, supply] = await Promise.all([
+      redis.get(`demand:${bucket}`).then((v) => Number(v) || 0).catch(() => 0),
+      redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0).catch(() => 0),
+    ]);
+    const gap = demand - supply;
+    if (gap < (cfg.positioningMinGap ?? 2)) return 0;
+    return cfg.positioningBonusPaise ?? 3000;
+  } catch { return 0; }
+}
+
+/** Live demand/supply/gap for a cell — powers the worker "hot zones" map. */
+async function zoneGap(lat, lng) {
+  const bucket = geoBucket(lat, lng);
+  const [demand, supply] = await Promise.all([
+    redis.get(`demand:${bucket}`).then((v) => Number(v) || 0).catch(() => 0),
+    redis.scard(`supply:${bucket}`).then((v) => Number(v) || 0).catch(() => 0),
+  ]);
+  return { bucket, demand, supply, gap: demand - supply };
 }
 
 // --- Vertical-specific pricing ---
@@ -1090,6 +1144,8 @@ module.exports = {
   computeSurgeBreakdown,
   recordDemand,
   recordSupply,
+  zoneGapBonusPaise,
+  zoneGap,
   getActiveConfig,
   updateActiveConfig,
   bustCache,

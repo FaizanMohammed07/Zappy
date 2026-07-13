@@ -154,6 +154,11 @@ const orderSchema = new mongoose.Schema(
       // Platform-funded high-demand accept bonus that was in effect when the worker
       // accepted. Credited to the worker on completion (never on accept — anti-farming).
       urgencyBonusPaise:     { type: Number, default: 0 },
+      // ZeroWait: matched instantly from the Ready Pool (worker had pre-accepted),
+      // so there was no offer/accept round-trip. Bonus paid on completion.
+      instantMatch:          { type: Boolean, default: false },
+      readyBonusPaise:       { type: Number, default: 0 },
+      matchLatencyMs:        { type: Number, default: null }, // time from dispatch start -> assigned
     },
 
     // Payment

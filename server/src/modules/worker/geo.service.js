@@ -9,6 +9,20 @@ const SKILLS_SET_PREFIX = 'workers:skill:';    // set: skill -> workerIds
 const ALIVE_ZSET_KEY    = 'workers:alive';     // sorted set: workerId -> last_seen_timestamp
 const AVAIL_SINCE_ZSET  = 'workers:available_since'; // zset: workerId -> ts became available (idle fairness)
 
+/* ── ZeroWait Ready Pool ──────────────────────────────────────────────────────
+ * Workers who opt in to auto-accept the next matching job. Dispatch can lock one
+ * of these atomically with NO offer/accept round-trip — that round-trip is the
+ * floor on match speed for every competitor, so removing it is the whole edge.
+ *
+ *   workers:ready:<skill>  SET   -> workerIds who will auto-accept that skill
+ *   worker:ready:<id>      STRING(JSON) with TTL -> { radiusKm, until }
+ *
+ * The per-worker key carries the TTL, so Ready Mode self-expires; the sets are
+ * cleaned lazily on read (a member with no live meta key is ignored + removed).
+ * That keeps expiry correct without a sweeper. */
+const READY_SET_PREFIX  = 'workers:ready:';
+const READY_META_PREFIX = 'worker:ready:';
+
 const STALE_THRESHOLD_MS = 8 * 60 * 1000; // 8 min without ping = stale
 
 /* ── Geo-write buffer ─────────────────────────────────────────────────────────
@@ -88,6 +102,9 @@ async function markOffline(workerId) {
   pipe.zrem(ALIVE_ZSET_KEY, String(workerId));
   pipe.zrem(AVAIL_SINCE_ZSET, String(workerId));
   for (const skill of skills) pipe.srem(`${SKILLS_SET_PREFIX}${skill}`, String(workerId));
+  // An offline worker must never auto-accept — always leave the Ready Pool.
+  pipe.del(`${READY_META_PREFIX}${String(workerId)}`);
+  for (const skill of skills) pipe.srem(`${READY_SET_PREFIX}${skill}`, String(workerId));
   await pipe.exec();
 }
 
@@ -164,6 +181,148 @@ async function setAvailability(workerId, isAvailable) {
       }
     } catch { /* best-effort */ }
   }
+}
+
+/* ─── ZeroWait: Ready Pool ────────────────────────────────────────────────── */
+
+/** Opt a worker into Ready Mode (auto-accept) for their skills, time-boxed. */
+async function enterReady(workerId, skills = [], radiusKm = 5, minutes = 20) {
+  const id  = String(workerId);
+  const ttl = Math.max(60, Math.round(minutes * 60));
+  const meta = JSON.stringify({ radiusKm, until: Date.now() + ttl * 1000, skills });
+
+  const pipe = redis.multi();
+  pipe.set(`${READY_META_PREFIX}${id}`, meta, 'EX', ttl); // TTL drives auto-expiry
+  for (const s of skills) pipe.sadd(`${READY_SET_PREFIX}${s}`, id);
+  await pipe.exec();
+  return { radiusKm, minutes, expiresAt: Date.now() + ttl * 1000 };
+}
+
+/** Remove a worker from Ready Mode (manual exit, offline, assigned, or banned). */
+async function exitReady(workerId, skills = null) {
+  const id = String(workerId);
+  let list = skills;
+  if (!list) {
+    // Prefer the skills captured at opt-in; fall back to Mongo.
+    try {
+      const raw = await redis.get(`${READY_META_PREFIX}${id}`);
+      list = raw ? (JSON.parse(raw).skills || []) : null;
+    } catch { list = null; }
+    if (!list) {
+      const w = await Worker.findById(id).select('skills').lean().catch(() => null);
+      list = w?.skills || [];
+    }
+  }
+  const pipe = redis.multi();
+  pipe.del(`${READY_META_PREFIX}${id}`);
+  for (const s of list) pipe.srem(`${READY_SET_PREFIX}${s}`, id);
+  await pipe.exec();
+}
+
+/** Current Ready Mode state for a worker (null when not ready / expired). */
+async function getReadyMeta(workerId) {
+  try {
+    const raw = await redis.get(`${READY_META_PREFIX}${String(workerId)}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+/**
+ * Find workers who have PRE-ACCEPTED this kind of job and are in range.
+ * These can be locked instantly — no offer, no accept round-trip.
+ *
+ * Honours each worker's OWN ready radius (they chose how far they'll travel),
+ * applies the same quality gates as normal dispatch plus a higher trust bar,
+ * and ranks nearest-first with a longest-idle tiebreak (fairness).
+ */
+async function findReadyCandidates({ lng, lat, skill, radiusKm = 12, minRating = 4.0, excludeIds = [] } = {}) {
+  const excludeSet = new Set(excludeIds.map(String));
+  const freshnessThreshold = Date.now() - STALE_THRESHOLD_MS;
+
+  let geoResult;
+  try {
+    geoResult = await redis.geosearch(
+      ONLINE_GEO_KEY, 'FROMLONLAT', lng, lat, 'BYRADIUS', radiusKm, 'km', 'ASC', 'COUNT', 100, 'WITHDIST',
+    );
+  } catch {
+    geoResult = await redis.georadius(
+      ONLINE_GEO_KEY, lng, lat, radiusKm, 'km', 'ASC', 'COUNT', '100', 'WITHDIST',
+    );
+  }
+
+  const nearby = geoResult
+    .map((r) => ({ id: String(r[0]), dist: parseFloat(r[1]) }))
+    .filter((e) => !excludeSet.has(e.id));
+  if (!nearby.length) return [];
+
+  const ids = nearby.map((e) => e.id);
+
+  // Ready-set membership + live meta (lazy expiry) + availability + heartbeat.
+  const pipe = redis.multi();
+  ids.forEach((id) => pipe.sismember(`${READY_SET_PREFIX}${skill}`, id));
+  ids.forEach((id) => pipe.get(`${READY_META_PREFIX}${id}`));
+  ids.forEach((id) => pipe.hget(AVAIL_HASH_KEY, id));
+  ids.forEach((id) => pipe.zscore(ALIVE_ZSET_KEY, id));
+  ids.forEach((id) => pipe.zscore(AVAIL_SINCE_ZSET, id));
+  const res = await pipe.exec();
+  const val = (i) => res[i]?.[1];
+  const n = ids.length;
+
+  const staleMembers = [];
+  const eligible = [];
+  for (let i = 0; i < n; i++) {
+    const id      = ids[i];
+    const inSet   = val(i) === 1;
+    const metaRaw = val(n + i);
+    const avail   = val(2 * n + i);
+    const alive   = val(3 * n + i);
+    const since   = Number(val(4 * n + i)) || 0;
+
+    if (!inSet) continue;
+    if (!metaRaw) { staleMembers.push(id); continue; } // meta expired → drop from set
+    if (avail !== '1') continue;
+    if (alive && Number(alive) < freshnessThreshold) continue;
+
+    let meta;
+    try { meta = JSON.parse(metaRaw); } catch { continue; }
+    const dist = nearby[i].dist;
+    // The worker chose how far they're willing to auto-accept — respect it.
+    if (dist > (Number(meta.radiusKm) || 5)) continue;
+
+    eligible.push({ id, dist, since });
+  }
+
+  // Lazily clean expired members so the set doesn't grow stale.
+  if (staleMembers.length) {
+    redis.srem(`${READY_SET_PREFIX}${skill}`, ...staleMembers).catch(() => {});
+  }
+  if (!eligible.length) return [];
+
+  // Quality gates — Ready Mode carries a HIGHER trust bar than normal dispatch,
+  // because the worker is auto-accepting on the customer's behalf.
+  const workers = await Worker.find({
+    _id: { $in: eligible.map((e) => e.id) },
+    isBlocked: false,
+    'kyc.status': 'approved',
+    rating: { $gte: minRating },
+    skills: skill,
+  }).select('_id').lean();
+  const okIds = new Set(workers.map((w) => String(w._id)));
+
+  let ranked = eligible
+    .filter((e) => okIds.has(e.id))
+    // Nearest first; longest-idle wins ties (fairness — same idle clock dispatch uses).
+    .sort((a, b) => (a.dist - b.dist) || (a.since - b.since))
+    .map((e) => e.id);
+
+  // Never hand a job to a worker who is over their dues limit.
+  try {
+    const duesService = require('./worker-dues.service');
+    const working = await duesService.filterWorkingWorkers(ranked);
+    ranked = ranked.filter((id) => working.has(String(id)));
+  } catch { /* fail open */ }
+
+  return ranked;
 }
 
 /**
@@ -441,6 +600,11 @@ module.exports = {
   markOnline,
   markOffline,
   syncSkills,
+  // ZeroWait Ready Pool
+  enterReady,
+  exitReady,
+  getReadyMeta,
+  findReadyCandidates,
   updateLocation,
   setAvailability,
   findCandidates,

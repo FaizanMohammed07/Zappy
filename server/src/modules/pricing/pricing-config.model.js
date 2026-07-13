@@ -93,6 +93,39 @@ const pricingConfigSchema = new mongoose.Schema(
     bestFirstEnabled:        { type: Boolean, default: true },
     bestFirstWindowMs:       { type: Number,  default: 8000 },     // exclusive window per top pro
     bestFirstTopN:           { type: Number,  default: 1 },        // how many top pros get the head-start
+
+    // ── ZeroWait Instant Match ───────────────────────────────────────────────
+    // L0 — tier-scaled accept bonus. Express/Priority customers pay more, so the
+    // worker's incentive scales too — otherwise a paid tier looks identical to a
+    // worker and nothing makes them prefer it.
+    tierBonusMultiplierExpress:  { type: Number, default: 2.0 },
+    tierBonusMultiplierPriority: { type: Number, default: 1.5 },
+    // Express should dangle a bonus from the very first step (no slow ramp).
+    expressBonusFromStep0:       { type: Boolean, default: true },
+
+    // L1 — Ready Pool (pre-accept). Idle, high-trust workers opt in to auto-accept
+    // the next matching job, so dispatch can lock a worker with NO offer/accept
+    // round-trip — sub-second matching.
+    readyPoolEnabled:       { type: Boolean, default: true },
+    readyMaxMinutes:        { type: Number,  default: 20 },    // Ready Mode auto-expires
+    readyDefaultRadiusKm:   { type: Number,  default: 5 },
+    readyBonusPaise:        { type: Number,  default: 2000 },  // ₹20, paid on COMPLETION
+    readyMinRating:         { type: Number,  default: 4.0 },   // trust gate
+    readyMinAcceptRate:     { type: Number,  default: 0.6 },
+    readyMinCompletedJobs:  { type: Number,  default: 5 },
+    readyCancelBanHours:    { type: Number,  default: 24 },    // ghost after auto-accept → banned
+    readyTiersOnly:         { type: [String], default: [] },   // [] = all tiers
+
+    // L2 — Warm Dispatch: pre-compute ranked candidates while the customer is still
+    // on checkout, so assignment on confirm is instant. No worker is notified.
+    warmDispatchEnabled:    { type: Boolean, default: true },
+    warmTtlSec:             { type: Number,  default: 90 },
+
+    // L3 — Predictive positioning: pay idle workers to move into predicted-demand
+    // zones BEFORE orders land, so the Ready Pool is dense where demand appears.
+    positioningEnabled:     { type: Boolean, default: true },
+    positioningBonusPaise:  { type: Number,  default: 3000 },  // ₹30 to relocate
+    positioningMinGap:      { type: Number,  default: 2 },     // demand−supply to call a zone "hot"
     // Dispatch reject-rate threshold — above this → worker auto-offline
     workerAutoOfflineRejectRate: { type: Number, default: 0.70 },   // 70%
     // Dispatch reject-rate early-warning threshold

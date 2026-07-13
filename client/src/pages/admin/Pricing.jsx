@@ -61,6 +61,21 @@ export default function Pricing() {
     bestFirstWindowSec: 8,
     bestFirstTopN: 1,
   });
+  const [zw, setZw] = useState({
+    readyPoolEnabled: true,
+    readyMaxMinutes: 20,
+    readyDefaultRadiusKm: 5,
+    readyBonusRs: 20,
+    readyMinRating: 4.0,
+    readyMinCompletedJobs: 5,
+    readyCancelBanHours: 24,
+    tierBonusMultiplierExpress: 2.0,
+    tierBonusMultiplierPriority: 1.5,
+    warmDispatchEnabled: true,
+    positioningEnabled: true,
+    positioningBonusRs: 30,
+    positioningMinGap: 2,
+  });
   const [stale, setStale] = useState({
     staleNudgeMinutes: 5,
     staleRedispatchMinutes: 10,
@@ -146,6 +161,21 @@ export default function Pricing() {
       bestFirstEnabled:      p.bestFirstEnabled       ?? true,
       bestFirstWindowSec:    (p.bestFirstWindowMs     ?? 8000) / 1000,
       bestFirstTopN:         p.bestFirstTopN          ?? 1,
+    });
+    setZw({
+      readyPoolEnabled:            p.readyPoolEnabled            ?? true,
+      readyMaxMinutes:             p.readyMaxMinutes             ?? 20,
+      readyDefaultRadiusKm:        p.readyDefaultRadiusKm        ?? 5,
+      readyBonusRs:                (p.readyBonusPaise            ?? 2000) / 100,
+      readyMinRating:              p.readyMinRating              ?? 4.0,
+      readyMinCompletedJobs:       p.readyMinCompletedJobs       ?? 5,
+      readyCancelBanHours:         p.readyCancelBanHours         ?? 24,
+      tierBonusMultiplierExpress:  p.tierBonusMultiplierExpress  ?? 2.0,
+      tierBonusMultiplierPriority: p.tierBonusMultiplierPriority ?? 1.5,
+      warmDispatchEnabled:         p.warmDispatchEnabled         ?? true,
+      positioningEnabled:          p.positioningEnabled          ?? true,
+      positioningBonusRs:          (p.positioningBonusPaise      ?? 3000) / 100,
+      positioningMinGap:           p.positioningMinGap           ?? 2,
     });
     setStale({
       staleNudgeMinutes:       p.staleNudgeMinutes       ?? 5,
@@ -243,6 +273,7 @@ export default function Pricing() {
 
   const df = (key) => ({ type: 'number', value: dispatch[key] ?? '', onChange: (e) => setDispatch(p => ({ ...p, [key]: Number(e.target.value) })) });
   const af = (key) => ({ type: 'number', value: accept[key] ?? '', onChange: (e) => setAccept(p => ({ ...p, [key]: Number(e.target.value) })) });
+  const zf = (key) => ({ type: 'number', value: zw[key] ?? '', onChange: (e) => setZw(p => ({ ...p, [key]: Number(e.target.value) })) });
   const sf = (key) => ({ type: 'number', value: stale[key] ?? '', onChange: (e) => setStale(p => ({ ...p, [key]: Number(e.target.value) })) });
 
   const isRainActive = autoPricing.rainActiveUntil && new Date(autoPricing.rainActiveUntil) > new Date();
@@ -471,6 +502,80 @@ export default function Pricing() {
             bestFirstEnabled:      accept.bestFirstEnabled,
             bestFirstWindowMs:     Math.round(accept.bestFirstWindowSec * 1000),
             bestFirstTopN:         accept.bestFirstTopN,
+          })} />
+        </div>
+      </Card>
+
+      {/* ── ZeroWait Instant Match ── */}
+      <Card className="p-6">
+        <h3 className="text-sm font-bold text-slate-700 mb-1">⚡ ZeroWait — Instant Match</h3>
+        <p className="text-xs text-slate-400 mb-4">
+          Every competitor waits for a worker to tap “Accept”. Ready Mode lets trusted workers
+          <b> pre-accept</b> the next matching job, so dispatch locks them with no offer round-trip —
+          sub-second matching. Warm Dispatch pre-checks the pool at checkout; positioning pays workers
+          to serve under-supplied zones.
+        </p>
+
+        <div className="space-y-3 mb-4">
+          <FormRow label="Ready Pool (pre-accept)" hint="Trusted workers auto-accept the next matching job — instant assignment, no tap">
+            <Toggle value={zw.readyPoolEnabled} onChange={(v) => setZw(p => ({ ...p, readyPoolEnabled: v }))} />
+          </FormRow>
+          <FormRow label="Warm Dispatch" hint="Pre-check the Ready Pool at checkout so we can promise an instant match before payment">
+            <Toggle value={zw.warmDispatchEnabled} onChange={(v) => setZw(p => ({ ...p, warmDispatchEnabled: v }))} />
+          </FormRow>
+          <FormRow label="Predictive positioning" hint="Pay a bonus on jobs in under-supplied zones so workers move toward demand">
+            <Toggle value={zw.positioningEnabled} onChange={(v) => setZw(p => ({ ...p, positioningEnabled: v }))} />
+          </FormRow>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <FormRow label="Ready bonus (₹)" hint="Paid on completion for a pre-accepted job">
+            <Input {...zf('readyBonusRs')} step="5" min="0" />
+          </FormRow>
+          <FormRow label="Ready window (min)" hint="Ready Mode auto-expires after this">
+            <Input {...zf('readyMaxMinutes')} step="5" min="5" max="120" />
+          </FormRow>
+          <FormRow label="Ready radius (km)" hint="Max distance a worker can auto-accept">
+            <Input {...zf('readyDefaultRadiusKm')} step="1" min="1" max="25" />
+          </FormRow>
+          <FormRow label="Ready min rating" hint="Trust gate — they accept on the customer's behalf">
+            <Input {...zf('readyMinRating')} step="0.1" min="1" max="5" />
+          </FormRow>
+          <FormRow label="Ready min jobs" hint="Completed jobs needed to unlock Ready Mode">
+            <Input {...zf('readyMinCompletedJobs')} step="1" min="0" />
+          </FormRow>
+          <FormRow label="Ready ban (hours)" hint="Cancelling a pre-accepted job suspends Ready Mode this long">
+            <Input {...zf('readyCancelBanHours')} step="1" min="0" />
+          </FormRow>
+          <FormRow label="Express bonus ×" hint="Worker bonus multiplier on Express jobs (customer pays 1.4×)">
+            <Input {...zf('tierBonusMultiplierExpress')} step="0.1" min="1" max="5" />
+          </FormRow>
+          <FormRow label="Priority bonus ×" hint="Worker bonus multiplier on Priority jobs">
+            <Input {...zf('tierBonusMultiplierPriority')} step="0.1" min="1" max="5" />
+          </FormRow>
+          <FormRow label="Positioning bonus (₹)" hint="Extra on jobs in under-supplied zones">
+            <Input {...zf('positioningBonusRs')} step="5" min="0" />
+          </FormRow>
+          <FormRow label="Hot-zone gap" hint="demand − supply needed to call a zone under-supplied">
+            <Input {...zf('positioningMinGap')} step="1" min="1" />
+          </FormRow>
+        </div>
+
+        <div className="mt-5">
+          <SaveBtn loading={saving} onClick={() => saveSection({
+            readyPoolEnabled:            zw.readyPoolEnabled,
+            readyMaxMinutes:             zw.readyMaxMinutes,
+            readyDefaultRadiusKm:        zw.readyDefaultRadiusKm,
+            readyBonusPaise:             Math.round(zw.readyBonusRs * 100),
+            readyMinRating:              zw.readyMinRating,
+            readyMinCompletedJobs:       zw.readyMinCompletedJobs,
+            readyCancelBanHours:         zw.readyCancelBanHours,
+            tierBonusMultiplierExpress:  zw.tierBonusMultiplierExpress,
+            tierBonusMultiplierPriority: zw.tierBonusMultiplierPriority,
+            warmDispatchEnabled:         zw.warmDispatchEnabled,
+            positioningEnabled:          zw.positioningEnabled,
+            positioningBonusPaise:       Math.round(zw.positioningBonusRs * 100),
+            positioningMinGap:           zw.positioningMinGap,
           })} />
         </div>
       </Card>

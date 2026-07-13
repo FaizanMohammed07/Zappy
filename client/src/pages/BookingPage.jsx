@@ -17,6 +17,7 @@ import BookingMapView from '../components/booking/BookingMapView';
 import SurgeInfoCard from '../components/booking/SurgeInfoCard';
 import DiagnosisFlow from '../components/booking/DiagnosisFlow';
 import ProPicker from '../components/booking/ProPicker';
+import InstantMatchBadge from '../components/booking/InstantMatchBadge';
 import {
   useLazyGetQuoteQuery, useCreateOrderMutation,
   usePresignUploadMutation, useLazyGetNearbyWorkersQuery,
@@ -1063,6 +1064,13 @@ export default function BookingPage() {
             </div>
           )}
         </motion.div>
+
+        {/* ZeroWait: is a pre-accepted pro standing by? (checked before payment) */}
+        {bookMode === 'now' && location && (
+          <motion.div variants={fadeInUp}>
+            <InstantMatchBadge service={service} lat={location.lat} lng={location.lng} />
+          </motion.div>
+        )}
 
         {/* Worker-choice: optionally pick a specific pro (immediate bookings only) */}
         {bookMode === 'now' && location && (

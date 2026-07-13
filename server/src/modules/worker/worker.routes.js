@@ -143,6 +143,21 @@ router.patch(
   ctrl.updateSkills
 );
 
+/* ── ZeroWait: Ready Mode (pre-accept next matching job) ── */
+router.get('/ready', authenticate, requireRole('worker'), ctrl.getReadyMode);
+router.post(
+  '/ready',
+  authenticate,
+  requireRole('worker'),
+  workerOnlineLimiter,
+  validate(Joi.object({
+    enabled:  Joi.boolean().required(),
+    radiusKm: Joi.number().min(1).max(25).optional(),
+    minutes:  Joi.number().integer().min(5).max(120).optional(),
+  })),
+  ctrl.setReadyMode
+);
+
 /* ── Earnings goals ── */
 router.get('/goals', authenticate, requireRole('worker'), ctrl.getGoals);
 router.post(

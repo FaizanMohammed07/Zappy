@@ -274,6 +274,68 @@ async function nearbyPros(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * ZeroWait L2 — Warm Dispatch (speculative pre-search).
+ *
+ * Called while the customer is still on checkout (service + location are known,
+ * but they haven't paid). We pre-compute the ranked candidate list and check the
+ * Ready Pool, then cache it. Two wins:
+ *   1. We can honestly tell the customer "a pro will accept instantly" BEFORE they
+ *      pay — a real conversion signal, and a promise we can actually keep.
+ *   2. Dispatch reuses the warm list on confirm instead of recomputing.
+ * No worker is notified here — this is pure pre-computation, so nothing is wasted
+ * if the customer never confirms.
+ */
+async function warmDispatch(req, res, next) {
+  try {
+    const { redis } = require('../../config/redis');
+    const geoService = require('../worker/geo.service');
+    const pricingService = require('../pricing/pricing.service');
+
+    const service = String(req.query.service || '');
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    if (!service || Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.status(400).json({ error: 'service, lat and lng are required' });
+    }
+
+    const cfg = await pricingService.getActiveConfig();
+    if (cfg.warmDispatchEnabled === false) return res.json({ warm: false, instantAvailable: false });
+
+    const [ready, nearby] = await Promise.all([
+      cfg.readyPoolEnabled === false
+        ? Promise.resolve([])
+        : geoService.findReadyCandidates({
+            lng, lat, skill: service,
+            radiusKm: 12,
+            minRating: cfg.readyMinRating ?? 4.0,
+          }),
+      geoService.findCandidates({ lng, lat, skill: service, radiusKm: 8 }),
+    ]);
+
+    const instantAvailable = ready.length > 0;
+    const payload = {
+      warm: true,
+      instantAvailable,
+      readyCount: ready.length,
+      nearbyCount: nearby.length,
+      // Instant match assigns in <1s; otherwise fall back to a normal ETA estimate.
+      etaMinutes: instantAvailable ? 0 : null,
+      candidates: [...new Set([...ready, ...nearby])].slice(0, 20).map(String),
+    };
+
+    // Cache so dispatch can reuse it on confirm instead of recomputing.
+    const ttl = cfg.warmTtlSec ?? 90;
+    redis.set(
+      `warm:${req.auth.sub}:${service}`,
+      JSON.stringify({ ...payload, lat, lng, at: Date.now() }),
+      'EX', ttl,
+    ).catch(() => {});
+
+    res.json(payload);
+  } catch (err) { next(err); }
+}
+
 async function completeOrder(req, res, next) {
   try {
     const order = await orderService.workerComplete({
@@ -500,4 +562,4 @@ async function rescheduleOrder(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getQuote, nearbyPros, createOrder, rebookOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerCancelPreview, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };
+module.exports = { getQuote, nearbyPros, warmDispatch, createOrder, rebookOrder, listMine, getOne, getCancelPreview, cancelOrder, rateOrder, workerRateUser, getTimeline, acceptOffer, rejectOffer, startTrip, arrive, startService, completeOrder, workerCancelOrder, workerCancelPreview, workerReportNoResponse, workerReportPartUnavailable, reportWorker, getInvoice, updatePickupLocation, rescheduleOrder };

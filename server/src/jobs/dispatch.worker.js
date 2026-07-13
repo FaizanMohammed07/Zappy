@@ -87,6 +87,19 @@ async function processDispatchJob(job) {
 
   const [lng, lat] = order.pickupLocation.coordinates;
 
+  /* ── ZeroWait: INSTANT MATCH (Ready Pool) ─────────────────────────────────
+   * Every competitor pays an offer→accept round-trip: publish the job, then wait
+   * for a human to tap Accept. That round-trip is the floor on match speed.
+   *
+   * Workers in Ready Mode have ALREADY pre-accepted this kind of job (their skill,
+   * their radius, time-boxed). So we can lock one atomically — no offer, no tap,
+   * no wait. Sub-second assignment. If the pool is empty we fall straight through
+   * to the normal acceptance-first dispatch below, so this is purely additive.  */
+  {
+    const instant = await tryInstantMatch(order, cfg, lng, lat, jobStartMs);
+    if (instant.ok) return instant;
+  }
+
   /* ── Per-zone concurrency throttle (#64) ─────────────────────────────────
    * When 100+ orders land in the same geo-bucket (warehouse, event, dense zone),
    * all their dispatches hit the same ~50 workers simultaneously. Workers get
@@ -214,13 +227,40 @@ async function processDispatchJob(job) {
   let   bestFirstDone  = false;         // head-start only runs once (first productive step)
   let   activeUrgencyBonusPaise = 0;    // bonus in effect at the moment of accept
 
-  // Growing "high-demand" accept bonus — the wider we search, the higher the
-  // voluntary-accept incentive. Platform-funded, shown in the offer, credited on
-  // completion (anti-farming). This is what replaces coercive force-assign.
-  const urgencyBonusForStep = (stepIdx) =>
-    (urgencyOn && stepIdx >= urgencyStart)
-      ? Math.min((stepIdx - urgencyStart + 1) * urgencyStep, urgencyMax)
+  /* Growing "high-demand" accept bonus — the wider we search, the higher the
+   * voluntary-accept incentive. Platform-funded, shown in the offer, credited on
+   * completion (anti-farming). This is what replaces coercive force-assign.
+   *
+   * TIER-SCALED (L0): an Express customer pays +40%, so the worker's incentive
+   * scales too — otherwise a paid tier looks IDENTICAL to a worker and nothing
+   * makes them prefer it. Express also starts its bonus at step 0 (no slow ramp),
+   * so the fastest tier is also the most attractive job on the board. */
+  const tierBonusMult = orderTier === 'express'
+    ? (cfg.tierBonusMultiplierExpress ?? 2.0)
+    : orderTier === 'priority'
+      ? (cfg.tierBonusMultiplierPriority ?? 1.5)
+      : 1.0;
+  const effUrgencyStart = (orderTier === 'express' && cfg.expressBonusFromStep0 !== false)
+    ? 0
+    : urgencyStart;
+
+  /* L3 — Predictive positioning: if this cell is under-supplied (demand > supply),
+   * every offer here carries an extra bonus. Workers already nearby earn more for
+   * taking it, and idle workers elsewhere can see the hot cell in their app and
+   * move toward it. Supply follows demand instead of us hoping it's already there. */
+  const zoneBonusPaise = await pricingService
+    .zoneGapBonusPaise(lat, lng, cfg)
+    .catch(() => 0);
+  if (zoneBonusPaise > 0) {
+    logger.info({ orderId, zoneBonusPaise }, '[ZEROWAIT] Under-supplied zone — positioning bonus applied');
+  }
+
+  const urgencyBonusForStep = (stepIdx) => {
+    const base = (urgencyOn && stepIdx >= effUrgencyStart)
+      ? Math.round(Math.min((stepIdx - effUrgencyStart + 1) * urgencyStep, urgencyMax) * tierBonusMult)
       : 0;
+    return base + zoneBonusPaise;
+  };
 
   /* ── Walk radius steps (voluntary accept window) ── */
   for (let stepIdx = 0; stepIdx < radiusSteps.length; stepIdx++) {
@@ -545,6 +585,116 @@ async function processDispatchJob(job) {
 }
 
 /* ─── Preferred worker: check if user's last worker is online + skilled ── */
+
+/* ─── ZeroWait: instant match from the Ready Pool ─────────────────────────────
+ * Returns { ok: true, ... } when a pre-accepted worker was locked, else { ok:false }
+ * so the caller falls through to normal dispatch. Never throws. */
+async function tryInstantMatch(order, cfg, lng, lat, jobStartMs) {
+  const orderId = String(order._id);
+  try {
+    if (cfg.readyPoolEnabled === false) return { ok: false, reason: 'ready_pool_disabled' };
+
+    // Optionally restrict instant match to paid tiers (admin: readyTiersOnly).
+    const tier = order.tier || 'standard';
+    const tiersOnly = Array.isArray(cfg.readyTiersOnly) ? cfg.readyTiersOnly : [];
+    if (tiersOnly.length && !tiersOnly.includes(tier)) {
+      return { ok: false, reason: 'tier_not_eligible' };
+    }
+
+    const candidates = await geoService.findReadyCandidates({
+      lng, lat,
+      skill:     order.service,
+      radiusKm:  config.dispatch.radiusSteps.at(-1),   // outer bound; each worker's own radius still applies
+      minRating: cfg.readyMinRating ?? 4.0,
+      excludeIds: (order.dispatch?.attemptedWorkerIds || []).map(String),
+    });
+
+    if (!candidates.length) return { ok: false, reason: 'no_ready_workers' };
+
+    for (const workerId of candidates.slice(0, 5)) {
+      // Same atomic, transactional lock normal dispatch uses — re-verifies skill,
+      // availability and KYC inside the transaction, so no double-booking.
+      const locked = await lockOrderToWorker(order._id, workerId, order.service);
+      if (!locked) continue;
+
+      const readyBonus = cfg.readyBonusPaise ?? 2000;
+      const latencyMs  = Date.now() - jobStartMs;
+      await Order.updateOne({ _id: order._id }, {
+        $set: {
+          'dispatch.instantMatch':    true,
+          'dispatch.readyBonusPaise': readyBonus,
+          'dispatch.matchLatencyMs':  latencyMs,
+        },
+      }).catch(() => {});
+
+      logger.info({ orderId, workerId, latencyMs }, '[ZEROWAIT] ⚡ Instant match — worker had pre-accepted');
+      await onInstantAssigned(order, workerId, readyBonus, latencyMs);
+      recordOutcomes(workerId, 'accept', [], []);
+      return { ok: true, workerId, instant: true, latencyMs };
+    }
+    return { ok: false, reason: 'no_lockable_ready_workers' };
+  } catch (err) {
+    logger.warn({ err: err.message, orderId }, '[ZEROWAIT] Instant match failed — falling back to normal dispatch');
+    return { ok: false, reason: 'error' };
+  }
+}
+
+/** Post-assignment for an instant match (worker pre-accepted — no offer was sent). */
+async function onInstantAssigned(order, workerId, readyBonusPaise, latencyMs) {
+  const orderId = String(order._id);
+
+  // The worker is now busy — they must leave the Ready Pool immediately so the
+  // next order can't also auto-assign to them.
+  geoService.exitReady(workerId).catch(() => {});
+
+  await emitToOrderRoom(order._id, 'order.assigned', { workerId, orderId, instant: true });
+
+  geoService.getWorkerPosition(workerId).then((pos) => {
+    if (pos) emitToOrderRoom(order._id, 'worker.location', { ...pos, at: Date.now(), hdg: null, spd: null });
+  }).catch(() => {});
+
+  // Drives the worker client's 'job.assigned' handler → popup + alert sound.
+  redis.publish('worker:assigned', JSON.stringify({
+    workerId,
+    orderId,
+    service:       order.service,
+    pickupAddress: order.pickupLocation.address,
+    price:         order.pricing.total,
+    instantMatch:  true,
+  })).catch(() => {});
+
+  try {
+    const notificationService = require('../modules/notification/notification.service');
+    const worker = await WorkerModel.findById(workerId).select('name rating').lean();
+    const bonusRs = Math.round((readyBonusPaise || 0) / 100);
+    await Promise.all([
+      notificationService.notify({
+        recipient: { kind: 'user', id: order.userId },
+        type:  'worker_assigned',
+        title: '⚡ Pro assigned instantly',
+        body:  worker
+          ? `${worker.name} (${(worker.rating || 5).toFixed(1)}★) accepted before you finished checkout.`
+          : 'A pro has been assigned instantly.',
+        deepLink: `/orders/${orderId}`,
+        data: { orderId, workerId, instant: 'true' },
+      }),
+      notificationService.notify({
+        recipient: { kind: 'worker', id: workerId },
+        type:  'job_assigned',
+        title: `⚡ Ready Mode job${bonusRs ? ` + ₹${bonusRs} bonus` : ''}`,
+        body:  `${order.service.replace(/_/g, ' ')} — ₹${order.pricing.total}. You pre-accepted this, so it's yours.${bonusRs ? ` ₹${bonusRs} Ready bonus is paid on completion.` : ''} Please start your trip.`,
+        deepLink: `/worker/jobs/${orderId}`,
+        data: { orderId, instantMatch: 'true', readyBonusPaise: String(readyBonusPaise || 0) },
+      }),
+    ]);
+  } catch (err) {
+    logger.warn({ err: err.message, orderId }, '[ZEROWAIT] Instant-match notifications failed');
+  }
+
+  enqueueTeamSlots(order, workerId).catch((err) =>
+    logger.warn({ err: err.message, orderId }, '[ZEROWAIT] Team slot enqueue failed'),
+  );
+}
 
 /* ─── Persist the accept bonus in effect, so completion can credit it ── */
 async function persistUrgencyBonus(orderId, bonusPaise) {

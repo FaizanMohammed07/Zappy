@@ -141,6 +141,14 @@ router.get('/nearby-pros', authenticate, requireRole('user'), quoteLimiter, vali
   lat: Joi.number().required(),
   lng: Joi.number().required(),
 }), 'query'), ctrl.nearbyPros);
+
+// ZeroWait L2 — Warm Dispatch: pre-check the Ready Pool at checkout so we can
+// promise an instant match BEFORE the customer pays. Notifies no workers.
+router.get('/warm', authenticate, requireRole('user'), quoteLimiter, validate(Joi.object({
+  service: Joi.string().valid(...ALL_SERVICES).required(),
+  lat: Joi.number().required(),
+  lng: Joi.number().required(),
+}), 'query'), ctrl.warmDispatch);
 router.post('/', authenticate, requireRole('user'), orderLimiter, validate(createOrderSchema), ctrl.createOrder);
 router.get('/mine', authenticate, requireRole('user'), ctrl.listMine);
 // One-click rebook — clones a past order and re-places it (fresh pricing/dispatch).
