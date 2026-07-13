@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const OFFERS = [
   {
@@ -32,6 +33,7 @@ const OFFERS = [
 
 export default function OffersSection() {
   const nav = useNavigate();
+  const isMobile = useIsMobile();
 
   return (
     <div className="mt-8 mb-6 w-full">
@@ -39,14 +41,37 @@ export default function OffersSection() {
         <div>
           <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none uppercase">Special Offers</h3>
         </div>
-        <button 
+        <button
           onClick={() => nav('/offers')}
           className="flex items-center gap-1 text-[13px] font-bold text-slate-500 hover:text-black transition-colors"
         >
           See all <ArrowRight size={14} strokeWidth={2.5} />
         </button>
       </div>
-      
+
+      {isMobile ? (
+        /* ── Mobile: light coupon cards ── */
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-4 snap-x snap-mandatory px-4">
+          {OFFERS.map((offer) => (
+            <motion.div
+              key={offer.id}
+              className="shrink-0 w-[270px] flex rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden snap-center cursor-pointer"
+              whileTap={{ scale: 0.98 }}
+              onClick={() => nav('/offers')}
+            >
+              <div className="flex-1 p-4 min-w-0">
+                <span className="inline-block text-[9px] font-black tracking-widest text-zappy-600 uppercase">{offer.tag}</span>
+                <h4 className="text-[17px] font-black text-slate-900 leading-tight tracking-tight mt-1">{offer.title}</h4>
+                <p className="text-[11px] text-slate-500 font-medium leading-snug mt-1 pr-1">{offer.desc}</p>
+              </div>
+              <div className="w-[88px] shrink-0 relative flex flex-col items-center justify-center px-2 bg-zappy-50/60 border-l-2 border-dashed border-slate-200">
+                <span className="text-[8px] font-bold tracking-widest text-slate-400 uppercase mb-1.5 text-center">Use code</span>
+                <span className="text-[11px] font-black tracking-wide text-zappy-700 bg-white border border-zappy-100 rounded-lg px-2 py-1.5 shadow-sm text-center leading-none">{offer.code}</span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      ) : (
       <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6 -mx-4 md:-mx-6 snap-x snap-mandatory px-4 md:px-6">
         {OFFERS.map((offer) => (
           <motion.div
@@ -90,6 +115,7 @@ export default function OffersSection() {
           </motion.div>
         ))}
       </div>
+      )}
     </div>
   );
 }

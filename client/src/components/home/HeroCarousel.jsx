@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, ChevronRight } from 'lucide-react';
+import { Zap, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const SLIDES = [
   {
@@ -37,6 +38,7 @@ const SLIDES = [
 export default function HeroCarousel() {
   const [current, setCurrent] = useState(0);
   const nav = useNavigate();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -45,8 +47,92 @@ export default function HeroCarousel() {
     return () => clearInterval(timer);
   }, []);
 
+  const slide = SLIDES[current];
+
+  /* ── Mobile: light rounded card (matches the promo card language) ── */
+  if (isMobile) {
+    return (
+      <div
+        className="relative w-full rounded-[20px] overflow-hidden cursor-pointer group bg-zappy-50 border border-zappy-100"
+        onClick={() => nav('/services')}
+      >
+        <div className="flex items-stretch min-h-[200px]">
+          <div className="relative z-10 flex flex-col justify-center gap-2 p-5 w-[62%]">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={`tag-${slide.tag}`}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="inline-block w-max px-2.5 py-1 rounded-full bg-white/80 text-zappy-700 text-[10px] font-black uppercase tracking-widest shadow-sm"
+              >
+                {slide.tag}
+              </motion.span>
+            </AnimatePresence>
+            <AnimatePresence mode="wait">
+              <motion.h3
+                key={`title-${slide.title}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="text-[19px] font-black text-slate-900 tracking-tight leading-[1.1]"
+              >
+                {slide.title}
+              </motion.h3>
+            </AnimatePresence>
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={`sub-${slide.subtitle}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-[13px] text-slate-500 font-medium leading-snug line-clamp-2"
+              >
+                {slide.subtitle}
+              </motion.p>
+            </AnimatePresence>
+            <button
+              type="button"
+              className="mt-1.5 inline-flex items-center gap-1.5 w-max bg-zappy-600 text-white px-4 py-2.5 rounded-full font-bold text-[13px] shadow-md group-hover:bg-zappy-700 transition-colors"
+            >
+              Book Now <ArrowRight size={15} strokeWidth={2.75} />
+            </button>
+          </div>
+        </div>
+
+        {/* Image bleeding to the right edge, fading into the blue */}
+        <div className="absolute right-0 top-0 bottom-0 w-[46%] pointer-events-none">
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={slide.image}
+              src={slide.image}
+              alt={slide.title}
+              className="w-full h-full object-cover"
+              initial={{ opacity: 0, scale: 1.04 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            />
+          </AnimatePresence>
+          <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-zappy-50 to-transparent" />
+        </div>
+
+        {/* Indicators */}
+        <div className="absolute bottom-3 right-4 z-10 flex gap-1.5">
+          {SLIDES.map((_, idx) => (
+            <div
+              key={idx}
+              className={`h-1 rounded-full transition-all duration-300 ${idx === current ? 'w-4 bg-zappy-600' : 'w-1.5 bg-zappy-300'}`}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Desktop: original full-bleed carousel ── */
   return (
-    <div 
+    <div
       className="relative w-full h-[360px] md:h-[420px] rounded-2xl overflow-hidden shadow-soft-lg cursor-pointer group"
       onClick={() => nav('/services')}
     >
@@ -80,7 +166,7 @@ export default function HeroCarousel() {
           </motion.div>
         </AnimatePresence>
         <AnimatePresence mode="wait">
-          <motion.h3 
+          <motion.h3
             key={`title-${current}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -91,7 +177,7 @@ export default function HeroCarousel() {
           </motion.h3>
         </AnimatePresence>
         <AnimatePresence mode="wait">
-          <motion.p 
+          <motion.p
             key={`sub-${current}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -112,9 +198,9 @@ export default function HeroCarousel() {
       {/* Indicators */}
       <div className="absolute top-4 right-4 flex gap-1.5 z-10">
         {SLIDES.map((_, idx) => (
-          <div 
-            key={idx} 
-            className={`h-1 rounded-full transition-all duration-300 ${idx === current ? 'w-4 bg-white' : 'w-1.5 bg-white/40'}`} 
+          <div
+            key={idx}
+            className={`h-1 rounded-full transition-all duration-300 ${idx === current ? 'w-4 bg-white' : 'w-1.5 bg-white/40'}`}
           />
         ))}
       </div>

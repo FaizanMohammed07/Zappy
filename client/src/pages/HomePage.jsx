@@ -11,11 +11,12 @@ import {
   CheckCircle, Lock, TrendingUp, MapPin, Loader2,
   Laptop, Tv, Wifi, Camera, Heart, PartyPopper, Dog,
   ShieldAlert, Cpu, MonitorSmartphone, Repeat2,
+  Tag, Headphones, ArrowRight, ThumbsUp,
 } from 'lucide-react';
 import { selectAuth, selectIsAuthed } from '../modules/auth/authSlice';
 import toast from 'react-hot-toast';
 import { useT } from '../i18n/I18nProvider';
-import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery, useListServicesQuery, useRebookOrderMutation } from '../services/api';
+import { useListOrdersQuery, useGetGamificationQuery, useGetRecommendationsQuery, useListServicesQuery, useRebookOrderMutation, useListNotificationsQuery } from '../services/api';
 import { useGeolocation, loadGeoLocation } from '../hooks/useGeolocation';
 import { reverseGeocode } from '../utils/reverseGeocode';
 import { serviceLabel } from '../constants/services';
@@ -48,6 +49,7 @@ import {
   PromoBannerEvents
 } from '../components/home/PromoBanners';
 import SEO, { HOME_SCHEMA, BASE_URL } from '../components/SEO';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const SEARCH_PLACEHOLDERS = [
   "Search 'Puncture Repair'...",
@@ -246,6 +248,94 @@ function LiveBadge() {
   );
 }
 
+/* ─── Notification bell with live unread count ─────────────────────────── */
+// Reuses the same real notifications source the BottomNav/WorkerDashboard use.
+// No hardcoded count — the badge reflects genuine unread notifications.
+function NotifBell({ nav, isAuthed }) {
+  const { data } = useListNotificationsQuery(
+    { page: 1, unreadOnly: true },
+    { skip: !isAuthed, pollingInterval: 60000 },
+  );
+  const count = data?.unread ?? data?.notifications?.length ?? 0;
+  return (
+    <motion.button
+      onClick={() => nav('/notifications')}
+      className="relative w-11 h-11 md:w-[52px] md:h-[52px] rounded-full bg-white border border-slate-900/5 shadow-soft flex items-center justify-center shrink-0 hover:shadow-soft-lg hover:-translate-y-0.5 transition-all"
+      whileTap={{ scale: 0.88 }}
+      aria-label={count > 0 ? `${count} unread notifications` : 'Notifications'}
+    >
+      <Bell size={18} strokeWidth={1.75} className="text-slate-600" />
+      {count > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none ring-2 ring-white">
+          {count > 9 ? '9+' : count}
+        </span>
+      )}
+    </motion.button>
+  );
+}
+
+/* ─── Hero trust bar (live, overlapping the banner's bottom edge) ──────── */
+// Static brand promises (copy, not data). Rebuilt as a crisp live card so it
+// no longer relies on the screenshot's baked-in white box.
+const TRUST_BADGES = [
+  { Icon: ShieldCheck, l1: 'Verified',     l2: 'Professionals' },
+  { Icon: Tag,         l1: 'Upfront',      l2: 'Pricing' },
+  { Icon: Clock,       l1: 'On-time',      l2: 'Service' },
+  { Icon: ThumbsUp,    l1: 'Satisfaction', l2: 'Guaranteed' },
+];
+
+function HeroTrustBar() {
+  return (
+    <div className="relative z-10 -mt-2.5 md:-mt-6 mx-2.5 md:mx-6">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_14px_36px_-14px_rgba(15,23,42,0.24)] px-1.5 py-3 md:px-4 md:py-3.5">
+        <div className="grid grid-cols-4 divide-x divide-slate-200/60">
+          {TRUST_BADGES.map(({ Icon, l1, l2 }) => (
+            <div
+              key={l1}
+              className="flex items-center justify-center gap-1.5 md:gap-2.5 px-1 md:px-2"
+            >
+              <Icon size={16} strokeWidth={2} className="text-zappy-600 shrink-0" />
+              <span className="text-[10px] md:text-[12.5px] font-semibold text-slate-700 leading-[1.18]">
+                {l1}<br />{l2}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Offer / trust cards (section 7) ──────────────────────────────────── */
+// Static brand copy — Zappy has no offers API, so these are local constants
+// (the ZAPPY20 code matches the one already surfaced in OffersSection).
+const TRUST_OFFERS = [
+  { Icon: Tag,        title: 'FLAT 20% OFF', line1: 'On first service', line2: 'Use: ZAPPY20' },
+  { Icon: Wallet,     title: 'SAFE & SECURE', line1: '100% secure', line2: 'payments' },
+  { Icon: Headphones, title: '24/7 SUPPORT',  line1: 'We are always', line2: 'here to help' },
+];
+
+function TrustOfferCards() {
+  return (
+    <div className="mt-4 grid grid-cols-3 gap-2 md:gap-3">
+      {TRUST_OFFERS.map(({ Icon, title, line1, line2 }) => (
+        <div
+          key={title}
+          className="flex items-center gap-2 md:gap-2.5 rounded-[12px] bg-slate-50 border border-slate-200/70 px-2 py-2 md:px-3 md:py-2.5"
+        >
+          <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-zappy-50 flex items-center justify-center shrink-0">
+            <Icon size={14} strokeWidth={2} className="text-zappy-600" />
+          </div>
+          <div className="min-w-0 leading-tight">
+            <p className="text-[9px] md:text-[11px] font-bold text-zappy-600 uppercase tracking-wide leading-[1.15]">{title}</p>
+            <p className="text-[8.5px] md:text-[10px] text-slate-500 font-medium leading-[1.2]">{line1} {line2}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─── UC-style image service card ──────────────────────────────────────── */
 function ServiceImageCard({ item, nav }) {
   // Live price from the admin Service Catalog — single source of truth. When the
@@ -396,6 +486,8 @@ export default function HomePage() {
   const { profile } = useSelector(selectAuth);
   const isAuthed     = useSelector(selectIsAuthed);
   const [lensOpen, setLensOpen] = useState(false);
+  // Redesigned Home renders on mobile only; desktop keeps the original layout.
+  const isMobile = useIsMobile();
 
   const { data }          = useListOrdersQuery(1, { skip: !isAuthed });
   const { data: gamData } = useGetGamificationQuery(undefined, { skip: !isAuthed });
@@ -556,9 +648,9 @@ export default function HomePage() {
           <div className="max-w-7xl w-full mx-auto px-4 md:px-6 h-[60px] md:h-[84px] flex items-center gap-3 md:gap-8">
             {/* Logo */}
             <div className="flex items-center shrink-0 cursor-pointer" onClick={() => nav('/')}>
-              <img 
-                src="/branding/zappylogo.png" 
-                alt="Zappy" 
+              <img
+                src="/branding/zappylogo.png"
+                alt="Zappy"
                 className="h-[46px] md:h-[60px] object-contain drop-shadow-sm"
               />
             </div>
@@ -643,18 +735,8 @@ export default function HomePage() {
 
             {/* Action Icons */}
             <div className="flex items-center gap-3 shrink-0">
-              {/* Bell */}
-              <motion.button
-                onClick={() => nav('/notifications')}
-                className="relative w-11 h-11 md:w-[52px] md:h-[52px] rounded-full bg-white border border-slate-900/5 shadow-soft flex items-center justify-center shrink-0 hover:shadow-soft-lg hover:-translate-y-0.5 transition-all"
-                whileTap={{ scale: 0.88 }}
-              >
-                <Bell size={18} strokeWidth={1.75} className="text-slate-600" />
-                <motion.span
-                  className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white"
-                  animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 2, repeat: Infinity }}
-                />
-              </motion.button>
+              {/* Bell — real unread count */}
+              <NotifBell nav={nav} isAuthed={isAuthed} />
 
               {/* Avatar */}
               <motion.button
@@ -690,40 +772,85 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ─── Hero section ─────────────────────────────────────────── */}
-        <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-2 md:pt-5 pb-5">
-          <div className="mb-4 md:mb-5 flex items-end justify-between gap-3">
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-              <h1 className="text-[26px] md:text-[34px] font-extrabold text-slate-900 leading-[1.08] tracking-[-0.025em]">
-                {tHome('home.greeting', 'What can we fix')}{firstName !== 'there' ? <>, <span className="text-indigo-600">{firstName}</span></> : ''}?
-              </h1>
-              <p className="mt-1 text-[14px] md:text-[15px] text-slate-500 font-medium">
-                {tHome('home.tagline', 'Trusted pros, at your door in minutes.')}
-              </p>
+        {isMobile ? (
+          /* ═══ Mobile hero — banner + live trust bar + card grid + promo + offers ═══ */
+          <div className="max-w-7xl w-full mx-auto px-4 pt-3 pb-2">
+            {/* Hero banner — cropped to the dark artwork only (headline, avatars,
+                "48+ Happy Customers" are baked into the PNG). The trust bar below
+                is a live HTML card that overlaps the banner's bottom edge. */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+            >
+              <div className="rounded-[20px] overflow-hidden shadow-soft">
+                <img
+                  src="/banner1_hero.png"
+                  alt="Zappy — Your needs. Our experts. On demand. Trusted professionals at your doorstep in minutes."
+                  className="w-full h-auto block"
+                  loading="eager"
+                />
+              </div>
+              <HeroTrustBar />
             </motion.div>
-            <div className="shrink-0 pb-1">
-              <LiveBadge />
-            </div>
+
+            {/* Popular Services */}
+            <motion.div
+              className="mt-6"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-[20px] font-bold text-slate-900 tracking-tight">Popular Services</h2>
+                <button
+                  onClick={() => nav('/services')}
+                  className="flex items-center gap-1 text-[14px] font-semibold text-zappy-600 hover:text-zappy-700 transition-colors"
+                >
+                  View all <ArrowRight size={15} strokeWidth={2.5} />
+                </button>
+              </div>
+              <CharacterServiceGrid />
+            </motion.div>
+
+            {/* Premium Vehicle Care promo */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <PromoBannerVehicle />
+            </motion.div>
+
+            {/* Offer / trust cards */}
+            <TrustOfferCards />
           </div>
+        ) : (
+          /* ═══ Desktop hero — original greeting + floating grid + carousel ═══ */
+          <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-2 md:pt-5 pb-5">
+            <div className="mb-4 md:mb-5 flex items-end justify-between gap-3">
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                <h1 className="text-[26px] md:text-[34px] font-extrabold text-slate-900 leading-[1.08] tracking-[-0.025em]">
+                  {tHome('home.greeting', 'What can we fix')}{firstName !== 'there' ? <>, <span className="text-indigo-600">{firstName}</span></> : ''}?
+                </h1>
+                <p className="mt-1 text-[14px] md:text-[15px] text-slate-500 font-medium">
+                  {tHome('home.tagline', 'Trusted pros, at your door in minutes.')}
+                </p>
+              </motion.div>
+              <div className="shrink-0 pb-1">
+                <LiveBadge />
+              </div>
+            </div>
 
-          {/* Character service grid — illustrated category tiles */}
-          <motion.div
-            className="mb-6"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.12 }}
-          >
-            <CharacterServiceGrid />
-          </motion.div>
+            <motion.div className="mb-6" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
+              <CharacterServiceGrid />
+            </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-          >
-            <HeroCarousel />
-          </motion.div>
-        </div>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+              <HeroCarousel />
+            </motion.div>
+          </div>
+        )}
 
         {/* ─── Book Again (card style) ──────────────────────────────── */}
         {quickRebooks.length > 0 && (
@@ -765,6 +892,13 @@ export default function HomePage() {
 
 
         <div className="max-w-7xl w-full mx-auto px-4 md:px-6">
+
+          {/* ─── Featured carousel (mobile only — desktop shows it in the hero) ─ */}
+          {isMobile && (
+            <div className="mt-7">
+              <HeroCarousel />
+            </div>
+          )}
 
           {/* ─── Offers ──────────────────────────────────────────────── */}
           <OffersSection />
@@ -830,7 +964,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          <PromoBannerVehicle />
+          {/* Vehicle promo (desktop only — mobile shows it in the hero) */}
+          {!isMobile && <PromoBannerVehicle />}
 
           {/* ─── Vehicle Care ───────────────────────────── */}
           <div className="mt-7">
