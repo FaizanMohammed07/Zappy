@@ -408,6 +408,11 @@ async function updateProfile(req, res, next) {
     if (skills) update.skills = skills;
     if (bio !== undefined) update.bio = bio;
 
+    // Capture the previous skills so removed ones can be pruned from Redis.
+    const before = skills
+      ? await require('./worker.model').findById(workerId).select('skills').lean()
+      : null;
+
     const worker = await require('./worker.model').findByIdAndUpdate(
       workerId,
       { $set: update },
@@ -416,11 +421,11 @@ async function updateProfile(req, res, next) {
 
     if (!worker) return res.status(404).json({ error: 'Worker not found' });
 
-    // If skills changed, refresh the Redis skill sets so dispatch picks up new skills immediately
+    // Resync the Redis skill sets. (markOnline alone only ADDS — it never removed
+    // skills the worker dropped, so they kept getting offers for them.)
     if (skills) {
       const geoService = require('./geo.service');
-      const full = await require('./worker.model').findById(workerId).lean();
-      if (full?.isOnline) await geoService.markOnline(full).catch(() => {});
+      await geoService.syncSkills(workerId, before?.skills || [], skills).catch(() => {});
     }
 
     res.json({ worker });
@@ -430,6 +435,7 @@ async function updateProfile(req, res, next) {
 async function completeOnboarding(req, res, next) {
   try {
     const { name, skills, emergencyContact } = req.body;
+    const before = await Worker.findById(req.auth.sub).select('skills').lean();
     const worker = await Worker.findByIdAndUpdate(
       req.auth.sub,
       {
@@ -442,6 +448,11 @@ async function completeOnboarding(req, res, next) {
       },
       { new: true }
     );
+    // Keep the Redis skill sets in step (no-op if they're offline, which is usual here).
+    if (Array.isArray(skills)) {
+      const geoService = require('./geo.service');
+      await geoService.syncSkills(req.auth.sub, before?.skills || [], skills).catch(() => {});
+    }
     res.json({ worker });
   } catch (err) { next(err); }
 }
@@ -694,11 +705,26 @@ async function getJobEarnings(req, res, next) {
 
 async function updateSkills(req, res, next) {
   try {
+    const workerId = req.auth.sub;
     const { skills, skillPrimary } = req.body;
+
+    // Read the current skills BEFORE the write so we can diff the Redis sets.
+    const before = await Worker.findById(workerId).select('skills').lean();
+    const oldSkills = before?.skills || [];
+
     const update = {};
     if (Array.isArray(skills)) update.skills = skills;
     if (skillPrimary !== undefined) update.skillPrimary = skillPrimary ?? null;
-    await Worker.updateOne({ _id: req.auth.sub }, { $set: update });
+    await Worker.updateOne({ _id: workerId }, { $set: update });
+
+    // Dispatch matches on the Redis skill sets, not Mongo. Without this resync an
+    // online worker who adds a skill would never be offered those jobs (and a
+    // removed skill would keep producing offers) until they toggled offline/online.
+    if (Array.isArray(skills)) {
+      const geoService = require('./geo.service');
+      await geoService.syncSkills(workerId, oldSkills, skills).catch(() => {});
+    }
+
     res.json({ ok: true });
   } catch (err) { next(err); }
 }

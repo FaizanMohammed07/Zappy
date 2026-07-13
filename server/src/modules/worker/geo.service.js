@@ -91,6 +91,47 @@ async function markOffline(workerId) {
   await pipe.exec();
 }
 
+/**
+ * Re-sync the per-skill Redis sets after a worker edits their skills.
+ *
+ * Dispatch matches on the Redis sets (`workers:skill:<code>`), NOT on Mongo. Without
+ * this, an ONLINE worker who adds a skill is never offered those jobs until they
+ * toggle offline→online, and a worker who REMOVES a skill keeps receiving offers
+ * for it. Both are silent failures.
+ */
+async function syncSkills(workerId, oldSkills = [], newSkills = []) {
+  const id = String(workerId);
+  // Workers only live in the skill sets while online (markOnline adds, markOffline removes).
+  const online = await redis.zscore(ALIVE_ZSET_KEY, id).catch(() => null);
+
+  const pipe = redis.multi();
+  // Drop skills they no longer have — must stop receiving those offers immediately.
+  for (const s of oldSkills) {
+    if (!newSkills.includes(s)) pipe.srem(`${SKILLS_SET_PREFIX}${s}`, id);
+  }
+  // Only (re)add while actually online — an offline worker belongs in no skill set.
+  if (online) {
+    for (const s of newSkills) pipe.sadd(`${SKILLS_SET_PREFIX}${s}`, id);
+  }
+  await pipe.exec();
+
+  // Announce newly-added skills so in-flight dispatches can offer this worker at once.
+  if (online) {
+    const avail = await redis.hget(AVAIL_HASH_KEY, id).catch(() => null);
+    if (avail === '1') {
+      const pos = await getWorkerPosition(workerId).catch(() => null);
+      if (pos) {
+        for (const s of newSkills) {
+          if (oldSkills.includes(s)) continue;
+          redis.publish(`worker:came_online:${s}`, JSON.stringify({
+            workerId: id, lat: pos.lat, lng: pos.lng,
+          })).catch(() => {});
+        }
+      }
+    }
+  }
+}
+
 async function updateLocation(workerId, lng, lat) {
   // Coalesce into the per-node buffer; flushed in batches every ~1.5s.
   _geoBuffer.set(String(workerId), { lng, lat });
@@ -399,6 +440,7 @@ async function getWorkerPosition(workerId) {
 module.exports = {
   markOnline,
   markOffline,
+  syncSkills,
   updateLocation,
   setAvailability,
   findCandidates,
