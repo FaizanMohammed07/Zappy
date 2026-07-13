@@ -186,10 +186,10 @@ const FAMILY_TILES = [
 
 // Tank & Water Cleaning
 const TANK_TILES = [
-  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: '/images/water_tank_cleaning.png', badge: 'New' },
-  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: '/images/overhead_tank_cleaning.png', badge: 'New' },
-  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: '/images/underground_sump_cleaning.png', badge: 'New' },
-  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: '/images/sintex_tank_cleaning.png', badge: 'New' },
+  { key: 'water_tank_cleaning',      name: 'Water Tank',      img: '/images/water_tank_cleaning.webp', badge: 'New' },
+  { key: 'overhead_tank_cleaning',   name: 'Overhead Tank',   img: '/images/overhead_tank_cleaning.webp', badge: 'New' },
+  { key: 'underground_sump_cleaning',name: 'Underground Sump',img: '/images/underground_sump_cleaning.webp', badge: 'New' },
+  { key: 'sintex_tank_cleaning',     name: 'Sintex Tank',     img: '/images/sintex_tank_cleaning.webp', badge: 'New' },
 ];
 
 // Event Commerce tiles — navigate to event commerce module
@@ -663,7 +663,7 @@ export default function HomePage() {
                 whileTap={{ scale: 0.88 }}
               >
                 <img 
-                  src={profile?.avatar || '/images/zappy_tower_avatar.png'} 
+                  src={profile?.avatar || '/images/zappy_tower_avatar.webp'} 
                   alt={firstName || 'User'} 
                   className="w-full h-full object-cover"
                 />

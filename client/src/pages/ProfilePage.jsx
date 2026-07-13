@@ -176,7 +176,7 @@ export default function ProfilePage() {
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                   <img 
-                    src={user?.avatar || '/images/zappy_tower_avatar.png'} 
+                    src={user?.avatar || '/images/zappy_tower_avatar.webp'} 
                     alt={user?.name || 'User'} 
                     className="w-full h-full object-cover"
                   />
