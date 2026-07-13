@@ -121,6 +121,9 @@ export const api = createApi({
     requestOtp: b.mutation({
       query: (body) => ({ url: '/auth/otp/request', method: 'POST', body }),
     }),
+    resendOtp: b.mutation({
+      query: (body) => ({ url: '/auth/otp/resend', method: 'POST', body }),
+    }),
     loginUser: b.mutation({
       query: (body) => ({ url: '/auth/user/login', method: 'POST', body }),
     }),
@@ -1666,6 +1669,7 @@ export const api = createApi({
 
 export const {
   useRequestOtpMutation,
+  useResendOtpMutation,
   useLoginUserMutation,
   useLoginWorkerMutation,
   useLoginAdminMutation,

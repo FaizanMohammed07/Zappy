@@ -225,8 +225,16 @@ async function requestOtp(phone, role) {
     isNewUser = !u;
   }
 
-  // devOtp is only returned in non-production so the dev UI can auto-fill
-  return { otp: devOtp, isNewUser };
+  // devOtp is only returned in non-production so the dev UI can auto-fill.
+  // cooldown/resend metadata lets the client render an accurate resend countdown
+  // from the first send, instead of hardcoding numbers that drift from the server.
+  return {
+    otp: devOtp,
+    isNewUser,
+    cooldownSec:  Math.ceil(OTP_COOLDOWN_MS / 1000),
+    resendsLeft:  OTP_MAX_RESENDS,
+    expiresInSec: OTP_TTL_SEC,
+  };
 }
 
 async function resendOtp(phone) {
@@ -291,7 +299,14 @@ async function resendOtp(phone) {
     .exec();
 
   await trackOtpEvent('resent');
-  return { otp: devOtp }; // null in production — dev auto-fill only
+  // Hand the client everything it needs to render an accurate countdown + limit,
+  // instead of the UI guessing (and drifting out of sync with the server).
+  return {
+    otp: devOtp,                                   // null in production — dev auto-fill only
+    cooldownSec:  Math.ceil(OTP_COOLDOWN_MS / 1000),
+    resendsLeft:  Math.max(0, OTP_MAX_RESENDS - (resendCount + 1)),
+    expiresInSec: OTP_TTL_SEC,
+  };
 }
 
 async function verifyOtp(phone, otp) {

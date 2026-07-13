@@ -37,16 +37,29 @@ function withMobileRt(req, body, refreshToken) {
 async function requestOtp(req, res, next) {
   try {
     const { phone, role } = req.body;
-    const { otp, isNewUser } = await authService.requestOtp(phone, role);
-    res.json({ ok: true, isNewUser, ...(config.env !== 'production' && otp ? { otp } : {}) });
+    const { otp, isNewUser, cooldownSec, resendsLeft, expiresInSec } = await authService.requestOtp(phone, role);
+    res.json({
+      ok: true,
+      isNewUser,
+      cooldownSec,
+      resendsLeft,
+      expiresInSec,
+      ...(config.env !== 'production' && otp ? { otp } : {}),
+    });
   } catch (err) { next(err); }
 }
 
 async function resendOtp(req, res, next) {
   try {
     const { phone } = req.body;
-    const { otp } = await authService.resendOtp(phone);
-    res.json({ ok: true, ...(config.env !== 'production' && otp ? { otp } : {}) });
+    const { otp, cooldownSec, resendsLeft, expiresInSec } = await authService.resendOtp(phone);
+    res.json({
+      ok: true,
+      cooldownSec,
+      resendsLeft,
+      expiresInSec,
+      ...(config.env !== 'production' && otp ? { otp } : {}),
+    });
   } catch (err) { next(err); }
 }
 

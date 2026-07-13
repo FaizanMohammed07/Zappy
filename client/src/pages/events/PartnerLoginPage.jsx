@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, ArrowRight, ChevronLeft, Loader2, PartyPopper, Sparkles } from 'lucide-react';
 import { useRequestOtpMutation, useLoginEventPartnerMutation, useGooglePartnerLoginMutation } from '../../services/api';
+import ResendOtp from '../../components/auth/ResendOtp';
 import { setAuth } from '../../modules/auth/authSlice';
 import { signInWithGoogle } from '../../lib/firebase';
 import toast from 'react-hot-toast';
@@ -27,6 +28,7 @@ export default function PartnerLoginPage() {
   const [step, setStep] = useState('phone');
   const [phone, setPhone] = useState('');
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
+  const [otpMeta, setOtpMeta] = useState({ cooldownSec: 30, resendsLeft: 3 });
   const [isNew, setIsNew] = useState(false);
   const [regForm, setRegForm] = useState({ businessName: '', ownerName: '', cities: '' });
   const [googleIdToken, setGoogleIdToken] = useState(null);
@@ -78,12 +80,25 @@ export default function PartnerLoginPage() {
     try {
       const res = await requestOtp({ phone, role: 'event_partner' }).unwrap();
       setIsNew(!!res.isNewUser);
+      // Server-owned resend rules (cooldown / remaining resends).
+      setOtpMeta({ cooldownSec: res.cooldownSec ?? 30, resendsLeft: res.resendsLeft ?? 3 });
       setStep('otp');
       toast.success('OTP sent');
       setTimeout(() => otpRefs.current[0]?.focus(), 200);
     } catch (err) {
       toast.error(err?.data?.error || 'Failed to send OTP');
     }
+  }
+
+  // A resend issues a NEW code — clear the old digits so a stale one can't be submitted.
+  function handleResent() {
+    setDigits(Array(6).fill(''));
+    setTimeout(() => otpRefs.current[0]?.focus(), 80);
+  }
+
+  function startOver() {
+    setDigits(Array(6).fill(''));
+    setStep('phone');
   }
 
   async function handleVerify() {
@@ -213,6 +228,16 @@ export default function PartnerLoginPage() {
                     onKeyDown={e => handleKey(i, e)} />
                 ))}
               </div>
+              {/* Resend OTP — cooldown, remaining resends, dead-end states */}
+              <ResendOtp
+                phone={phone}
+                tone="dark"
+                cooldownSec={otpMeta.cooldownSec}
+                resendsLeft={otpMeta.resendsLeft}
+                onResent={handleResent}
+                onStartOver={startOver}
+              />
+
               <button onClick={handleVerify} disabled={otp.length < 6 || logging}
                 className="w-full py-3.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-40 transition-all">
                 {logging ? <Loader2 size={16} className="animate-spin" /> : <><Sparkles size={14} /><span>{isNew ? 'Continue' : 'Enter Dashboard'}</span></>}

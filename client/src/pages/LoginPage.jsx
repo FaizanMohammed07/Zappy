@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Phone, ArrowRight, ChevronLeft, CheckCircle2, Loader2, Zap, Shield, Star } from 'lucide-react';
 import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation, useUpdateMeMutation } from '../services/api';
+import ResendOtp from '../components/auth/ResendOtp';
 import { setAuth, updateProfile } from '../modules/auth/authSlice';
 import { ZappyLogo } from '../components/common/ZappyLogo';
 import toast from 'react-hot-toast';
@@ -60,6 +61,7 @@ export default function LoginPage({ role = 'user' }) {
   const [email, setEmail]       = useState('');
   const [skills, setSkills]     = useState([]);
   const [step, setStep]         = useState('phone');
+  const [otpMeta, setOtpMeta]   = useState({ cooldownSec: 30, resendsLeft: 3 });
   const [isNewUser, setIsNewUser] = useState(true);
   const [pendingProfile, setPendingProfile] = useState(null);
   const pendingOtp = useRef(null);
@@ -132,10 +134,31 @@ export default function LoginPage({ role = 'user' }) {
       const r = await requestOtp({ phone, role }).unwrap();
       pendingOtp.current = r.otp || null;
       setIsNewUser(r.isNewUser ?? true);
+      // Server-owned resend rules — never hardcode these client-side.
+      setOtpMeta({ cooldownSec: r.cooldownSec ?? 30, resendsLeft: r.resendsLeft ?? 3 });
       setStep('otp');
     } catch (err) {
       toast.error(err.data?.error || 'Failed to send OTP');
     }
+  }
+
+  // A resend issues a NEW code — clear the old digits so a stale one can't be submitted,
+  // and auto-fill the fresh code in dev (prod never returns it).
+  function handleResent(data) {
+    setOtpDigits(Array(OTP_LEN).fill(''));
+    if (data?.otp) {
+      const code = String(data.otp).slice(0, OTP_LEN);
+      setOtpDigits(code.split('').concat(Array(Math.max(0, OTP_LEN - code.length)).fill('')));
+      setTimeout(() => otpRefs.current[OTP_LEN - 1]?.focus(), 80);
+    } else {
+      setTimeout(() => otpRefs.current[0]?.focus(), 80);
+    }
+  }
+
+  function startOver() {
+    setOtpDigits(Array(OTP_LEN).fill(''));
+    pendingOtp.current = null;
+    setStep('phone');
   }
 
   async function verify() {
@@ -386,6 +409,17 @@ export default function LoginPage({ role = 'user' }) {
                       />
                     ))}
                   </div>
+                </motion.div>
+
+                {/* Resend OTP — cooldown, remaining resends and all dead-end states */}
+                <motion.div variants={fadeInUp}>
+                  <ResendOtp
+                    phone={phone}
+                    cooldownSec={otpMeta.cooldownSec}
+                    resendsLeft={otpMeta.resendsLeft}
+                    onResent={handleResent}
+                    onStartOver={startOver}
+                  />
                 </motion.div>
 
                 {/* Name (new user) */}
