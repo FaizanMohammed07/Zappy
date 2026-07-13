@@ -785,7 +785,7 @@ export default function HomePage() {
             >
               <div className="rounded-[20px] overflow-hidden shadow-soft">
                 <img
-                  src="/banner1_hero.png"
+                  src="/banner1_hero.webp"
                   alt="Zappy — Your needs. Our experts. On demand. Trusted professionals at your doorstep in minutes."
                   className="w-full h-auto block"
                   loading="eager"
