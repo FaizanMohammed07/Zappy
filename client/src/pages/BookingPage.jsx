@@ -646,33 +646,31 @@ export default function BookingPage() {
           keywords={svcMeta.keywords}
           jsonLd={buildServiceJsonLd(service)}
         />
-        {/* Premium header with gradient */}
-        <header className="shrink-0 relative overflow-hidden" style={{ background: `linear-gradient(135deg, #0F172A 0%, #1e293b 100%)` }}>
-          <div className="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
+        {/* Premium header — dark navy, rounded bottom so content sits in a card */}
+        <header className="shrink-0 relative overflow-hidden rounded-b-[24px]" style={{ background: 'linear-gradient(135deg, #0B1120 0%, #0E1526 100%)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+          <div className="max-w-md mx-auto px-4 h-[88px] flex items-center gap-3">
             <motion.button
               onClick={() => nav(-1)}
-              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 backdrop-blur-sm"
+              className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0 backdrop-blur-sm"
               whileTap={{ scale: 0.92 }}
             >
-              <ArrowLeft size={18} strokeWidth={2.5} className="text-white" />
+              <ArrowLeft size={19} strokeWidth={2.5} className="text-white" />
             </motion.button>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Where do you need help?</p>
-              <p className="font-bold text-white capitalize leading-tight flex items-center gap-2">
-                <span className={`inline-flex w-5 h-5 rounded-lg bg-gradient-to-br ${meta.gradient} items-center justify-center`}>
-                  <ServiceIcon size={11} strokeWidth={2.5} className="text-white" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Where do you need help?</p>
+              <p className="text-[17px] font-extrabold text-white capitalize leading-tight flex items-center gap-2 mt-0.5">
+                <span className="inline-flex w-6 h-6 rounded-lg items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>
+                  <ServiceIcon size={13} strokeWidth={2.5} className="text-white" />
                 </span>
                 {meta.label}
               </p>
             </div>
-            {/* Step indicator */}
+            {/* 2-segment step progress — step 1 active */}
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-6 h-1.5 rounded-full bg-white" />
-              <div className="w-6 h-1.5 rounded-full bg-white/30" />
+              <div className="w-7 h-1.5 rounded-full" style={{ background: '#2F6BFF' }} />
+              <div className="w-5 h-1.5 rounded-full bg-white/20" />
             </div>
           </div>
-          {/* Subtle gradient line */}
-          <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
         </header>
         <div className="flex-1 min-h-0">
           <LocationPicker onConfirm={onLocationConfirmed} onCancel={() => nav(-1)} serviceLabel={meta.label} service={service} />
