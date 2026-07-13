@@ -268,11 +268,17 @@ async function reassignOrder(req, res, next) {
           reason: 'admin_reassigned',
         });
       }
-      // New worker: fresh offer/assignment
-      io.to(`worker:${worker._id}`).emit('offer.new', {
-        orderId: String(order._id),
-        service: order.service,
-        pickupLocation: order.pickupLocation,
+      // New worker: direct assignment (no accept needed). MUST be 'job.assigned' —
+      // that is the only event the worker client listens for on a direct assign
+      // (see useWorkerOfferSocket). Emitting 'offer.new' went nowhere, so the
+      // worker got no popup and no alert sound on an admin reassign.
+      io.to(`worker:${worker._id}`).emit('job.assigned', {
+        workerId:      String(worker._id),
+        orderId:       String(order._id),
+        service:       order.service,
+        pickupAddress: order.pickupLocation?.address || '',
+        price:         order.pricing?.total ?? null,
+        adminAssigned: true,
       });
       // User: new worker info
       io.to(`order:${order._id}`).emit('order.assigned', {

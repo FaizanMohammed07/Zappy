@@ -139,9 +139,33 @@ function getLast7Days(breakdown = []) {
   });
 }
 
+/* ─── Offer alert sound ──────────────────────────────────────────────────────
+ * Browsers create an AudioContext in the `suspended` state unless it is started
+ * by a user gesture. An offer arrives over a socket (no gesture), so building a
+ * fresh context per alert produced a SILENT beep every time. We keep ONE context
+ * and unlock/resume it on the worker's first tap, then resume before each play. */
+let _audioCtx = null;
+function getAudioCtx() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!_audioCtx) _audioCtx = new AC();
+  return _audioCtx;
+}
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    const ctx = getAudioCtx();
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  };
+  window.addEventListener('pointerdown', unlockAudio);
+  window.addEventListener('keydown', unlockAudio);
+}
+
 function playOfferAlert() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    // Resume if the browser suspended it (backgrounded tab / not yet unlocked).
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     [[0, 880], [0.2, 1100], [0.4, 880]].forEach(([delay, freq]) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();

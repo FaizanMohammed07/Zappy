@@ -26,7 +26,8 @@ const auctionSchema = new mongoose.Schema({
   basePrice:  Number,
 }, { timestamps: true });
 
-auctionSchema.index({ orderId: 1 });
+// `orderId` already has a unique index from `unique: true` on the field above —
+// re-declaring it here created a duplicate {orderId:1} index (Mongoose warning).
 auctionSchema.index({ status: 1, expiresAt: 1 });
 
 module.exports = mongoose.model('JobAuction', auctionSchema);

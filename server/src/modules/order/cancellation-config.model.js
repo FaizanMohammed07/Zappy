@@ -28,7 +28,9 @@ const cancellationConfigSchema = new mongoose.Schema(
     rejectRatePenaltyWeight: { type: Number, default: 3.0 },
     cancelRatePenaltyWeight: { type: Number, default: 5.0 },
 
-    isActive: { type: Boolean, default: false, index: true },
+    // Index defined explicitly below as a partial-unique index (one active row) —
+    // no field-level `index: true` here to avoid a duplicate {isActive:1} index.
+    isActive: { type: Boolean, default: false },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     notes: String,
   },

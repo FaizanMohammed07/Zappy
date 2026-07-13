@@ -93,6 +93,55 @@ services:
       redis:
         condition: service_healthy
 
+  retention-worker:
+    build: ./server
+    restart: unless-stopped
+    env_file: ./server/.env
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/hyperlocal
+      - REDIS_URL=redis://redis:6379
+    command: ["node", "src/jobs/retention.worker.js"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # DLQ + payments workers = the auto-refund pipeline. When dispatch exhausts all
+  # retries the order is enqueued to the DLQ; dlq-worker alerts support + enqueues
+  # a refund, which payments-worker executes. Without these, a paid customer with
+  # no available worker never gets refunded.
+  dlq-worker:
+    build: ./server
+    restart: unless-stopped
+    env_file: ./server/.env
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/hyperlocal
+      - REDIS_URL=redis://redis:6379
+    command: ["node", "src/jobs/dlq.worker.js"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  payments-worker:
+    build: ./server
+    restart: unless-stopped
+    env_file: ./server/.env
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/hyperlocal
+      - REDIS_URL=redis://redis:6379
+    command: ["node", "src/jobs/payments.worker.js"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   client:
     build:
       context: ./client

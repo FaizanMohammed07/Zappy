@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, lazy, Suspense } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,46 +15,46 @@ import { logout } from '../modules/auth/authSlice';
 import { useLogoutMutation } from '../services/api';
 import { adminPath } from '../config/admin';
 
-import Overview from './admin/Overview';
-import Orders from './admin/Orders';
-import AdminUsers from './admin/Users';
-import Workers from './admin/Workers';
-import Pricing from './admin/Pricing';
-import AdminWallet from './admin/Wallet';
-import Disputes from './admin/Disputes';
-import Payouts from './admin/Payouts';
-import Analytics from './admin/Analytics';
-import Incentives from './admin/Incentives';
-import Cancellation from './admin/Cancellation';
-import Audit from './admin/Audit';
-import AdminKycReview from './AdminKycReview';
-import AdminPlans from './admin/Plans';
-import Ads from './admin/Ads';
-import Promos from './admin/Promos';
-import SystemHealth from './admin/SystemHealth';
-import Heatmap from './admin/Heatmap';
-import FeatureFlags from './admin/FeatureFlags';
-import Alerts from './admin/Alerts';
-import Retention from './admin/Retention';
-import Support from './admin/Support';
-import LiveOps from './admin/LiveOps';
-import Services from './admin/Services';
-import Rewards from './admin/Rewards';
-import BusinessIntelligence from './admin/BusinessIntelligence';
-import Intelligence from './admin/Intelligence';
-import NotificationsAdmin from './admin/Notifications';
-import ShieldFund from './admin/ShieldFund';
-import Events from './admin/Events';
-import Fraud from './admin/Fraud';
-import Zones from './admin/Zones';
-import Content from './admin/Content';
-import RewardsConfig from './admin/RewardsConfig';
-import WorkerOps from './admin/WorkerOps';
-import SearchIntel from './admin/SearchIntel';
-import Intervention from './admin/Intervention';
-import Cities from './admin/Cities';
-import Appeals from './admin/Appeals';
-import Training from './admin/Training';
+const Overview = lazy(() => import('./admin/Overview'));
+const Orders = lazy(() => import('./admin/Orders'));
+const AdminUsers = lazy(() => import('./admin/Users'));
+const Workers = lazy(() => import('./admin/Workers'));
+const Pricing = lazy(() => import('./admin/Pricing'));
+const AdminWallet = lazy(() => import('./admin/Wallet'));
+const Disputes = lazy(() => import('./admin/Disputes'));
+const Payouts = lazy(() => import('./admin/Payouts'));
+const Analytics = lazy(() => import('./admin/Analytics'));
+const Incentives = lazy(() => import('./admin/Incentives'));
+const Cancellation = lazy(() => import('./admin/Cancellation'));
+const Audit = lazy(() => import('./admin/Audit'));
+const AdminKycReview = lazy(() => import('./AdminKycReview'));
+const AdminPlans = lazy(() => import('./admin/Plans'));
+const Ads = lazy(() => import('./admin/Ads'));
+const Promos = lazy(() => import('./admin/Promos'));
+const SystemHealth = lazy(() => import('./admin/SystemHealth'));
+const Heatmap = lazy(() => import('./admin/Heatmap'));
+const FeatureFlags = lazy(() => import('./admin/FeatureFlags'));
+const Alerts = lazy(() => import('./admin/Alerts'));
+const Retention = lazy(() => import('./admin/Retention'));
+const Support = lazy(() => import('./admin/Support'));
+const LiveOps = lazy(() => import('./admin/LiveOps'));
+const Services = lazy(() => import('./admin/Services'));
+const Rewards = lazy(() => import('./admin/Rewards'));
+const BusinessIntelligence = lazy(() => import('./admin/BusinessIntelligence'));
+const Intelligence = lazy(() => import('./admin/Intelligence'));
+const NotificationsAdmin = lazy(() => import('./admin/Notifications'));
+const ShieldFund = lazy(() => import('./admin/ShieldFund'));
+const Events = lazy(() => import('./admin/Events'));
+const Fraud = lazy(() => import('./admin/Fraud'));
+const Zones = lazy(() => import('./admin/Zones'));
+const Content = lazy(() => import('./admin/Content'));
+const RewardsConfig = lazy(() => import('./admin/RewardsConfig'));
+const WorkerOps = lazy(() => import('./admin/WorkerOps'));
+const SearchIntel = lazy(() => import('./admin/SearchIntel'));
+const Intervention = lazy(() => import('./admin/Intervention'));
+const Cities = lazy(() => import('./admin/Cities'));
+const Appeals = lazy(() => import('./admin/Appeals'));
+const Training = lazy(() => import('./admin/Training'));
 
 /* ─── Navigation groups ────────────────────────────────────────────────── */
 const NAV_GROUPS = [
@@ -327,7 +327,9 @@ export default function AdminDashboard() {
               transition={{ duration: 0.18 }}
               className="h-full"
             >
-              <Section />
+              <Suspense fallback={<div className="flex items-center justify-center py-24 text-slate-400 text-sm">Loading…</div>}>
+                <Section />
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </main>
