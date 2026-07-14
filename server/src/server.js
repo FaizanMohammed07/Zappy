@@ -111,15 +111,24 @@ async function start() {
   const server = http.createServer(app);
   initSockets(server);
 
-  /* ── Start all workers in-process ──────────────────────────────
-     No separate terminals needed. All three BullMQ workers run
-     alongside Express in the same Node.js process.
-     In production you can split them out into separate containers,
-     but for dev/single-node this is simpler. */
-  startDispatchWorker();
-  startNotificationsWorker();
-  startStaleOrderWorker();
-  startShieldPayoutWorker();
+  /* ── Workers ───────────────────────────────────────────────────
+     By default the API also runs the dispatch/notifications/stale/shield workers
+     IN-PROCESS, so a single `npm start` works for dev and single-node prod.
+
+     When you run dedicated worker processes (pm2 ecosystem / docker-compose), set
+     RUN_INLINE_WORKERS=false on the API. Otherwise the stale-order sweep would run
+     in BOTH the API and the standalone worker — double nudges, double re-dispatch,
+     duplicate notifications. */
+  const runInlineWorkers = process.env.RUN_INLINE_WORKERS !== 'false';
+  if (runInlineWorkers) {
+    startDispatchWorker();
+    startNotificationsWorker();
+    startStaleOrderWorker();
+    startShieldPayoutWorker();
+    logger.info('[BOOT] Inline workers started (dispatch, notifications, stale, shield). Set RUN_INLINE_WORKERS=false when using dedicated worker processes.');
+  } else {
+    logger.info('[BOOT] RUN_INLINE_WORKERS=false — API only. Dispatch/notifications/stale/shield must run as dedicated processes.');
+  }
   startWorkerHeartbeatSweep();
 
   // Expire pending_payment event bookings older than 30 minutes every 5 min
