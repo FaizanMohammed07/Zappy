@@ -32,6 +32,10 @@ const common = {
   autorestart: true,
   max_restarts: 20,
   restart_delay: 3000,
+  // NEVER cluster mode. Socket.io rooms and the in-memory geo write-buffer are
+  // per-process; cluster would fan connections across workers that can't see each
+  // other's rooms/buffers. `instances` is deliberately omitted for the same reason.
+  exec_mode: 'fork',
   env: { NODE_ENV: 'production' },
   time: true,                       // timestamp every log line
 };
@@ -42,7 +46,6 @@ module.exports = {
       ...common,
       name: 'zappy-api',
       script: 'src/server.js',
-      instances: 1,                 // socket.io + in-memory geo buffer: keep single-instance
       max_memory_restart: '600M',
       // Workers run as dedicated processes below — the API must NOT also run them,
       // or the stale sweep would execute twice (duplicate nudges/notifications).
