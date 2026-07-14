@@ -81,6 +81,17 @@ const pricingConfigSchema = new mongoose.Schema(
     // the job onto a reluctant worker (who would likely cancel/ghost).
     // Admin can flip this ON to keep force-assign as a last resort.
     forceAssignEnabled:      { type: Boolean, default: false },
+
+    // ── Geo-readiness gate ───────────────────────────────────────────────────
+    // Rejects an order outright when no skilled worker is within radius, instead of
+    // letting it sit in 'searching' and fail later. Admin-controlled (not env-only)
+    // so it can be killed INSTANTLY if it starts rejecting real bookings — on a thin
+    // day-1 supply this gate is the fastest way to lose a paying customer, and an
+    // SSH + .env edit + restart is not an acceptable response time.
+    // null = defer to env / NODE_ENV default.
+    geoReadinessEnabled:     { type: Boolean, default: null },
+    geoReadinessKm:          { type: Number,  default: 25 },
+
     // Growing "high-demand" accept bonus — platform-funded incentive shown in the
     // offer that grows as the search radius widens, so workers OPT IN voluntarily.
     // Credited on COMPLETION (not accept) so it can't be farmed by accept-then-cancel.

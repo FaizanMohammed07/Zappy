@@ -53,6 +53,8 @@ export default function Pricing() {
   });
   const [accept, setAccept] = useState({
     forceAssignEnabled: false,
+    geoReadinessEnabled: true,
+    geoReadinessKm: 25,
     urgencyBonusEnabled: true,
     urgencyBonusStartStep: 4,
     urgencyBonusStepRs: 5,
@@ -154,6 +156,9 @@ export default function Pricing() {
     });
     setAccept({
       forceAssignEnabled:    p.forceAssignEnabled    ?? false,
+      // null on the server = "defer to env"; surface that as ON (prod default).
+      geoReadinessEnabled:   p.geoReadinessEnabled   ?? true,
+      geoReadinessKm:        p.geoReadinessKm        ?? 25,
       urgencyBonusEnabled:   p.urgencyBonusEnabled   ?? true,
       urgencyBonusStartStep: p.urgencyBonusStartStep ?? 4,
       urgencyBonusStepRs:    (p.urgencyBonusStepPaise ?? 500) / 100,
@@ -474,6 +479,18 @@ export default function Pricing() {
           <FormRow label="Force-Assign (last resort)" hint="OFF = never force a non-consenting worker; a failed match refunds the customer instead">
             <Toggle value={accept.forceAssignEnabled} onChange={(v) => setAccept(p => ({ ...p, forceAssignEnabled: v }))} />
           </FormRow>
+          <FormRow
+            label="Supply Guard (reject if no worker in range)"
+            hint="ON = reject the booking instantly when no skilled worker is within the radius below. Turn OFF if thin supply starts rejecting real customers."
+          >
+            <Toggle value={!!accept.geoReadinessEnabled} onChange={(v) => setAccept(p => ({ ...p, geoReadinessEnabled: v }))} />
+          </FormRow>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4 mb-4">
+          <FormRow label="Supply Guard radius (km)" hint="How far to look for a skilled worker before rejecting the booking">
+            <Input {...af('geoReadinessKm')} step="1" min="1" max="100" />
+          </FormRow>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <FormRow label="Bonus Starts At Step" hint="Search step where the bonus kicks in (higher = later / wider)">
@@ -495,6 +512,8 @@ export default function Pricing() {
         <div className="mt-5">
           <SaveBtn loading={saving} onClick={() => saveSection({
             forceAssignEnabled:    accept.forceAssignEnabled,
+            geoReadinessEnabled:   accept.geoReadinessEnabled,
+            geoReadinessKm:        accept.geoReadinessKm,
             urgencyBonusEnabled:   accept.urgencyBonusEnabled,
             urgencyBonusStartStep: accept.urgencyBonusStartStep,
             urgencyBonusStepPaise: Math.round(accept.urgencyBonusStepRs * 100),
