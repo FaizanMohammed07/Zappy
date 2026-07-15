@@ -264,6 +264,18 @@ async function processDispatchJob(job) {
     return base + zoneBonusPaise;
   };
 
+  /* A boost must RE-OPEN the search, not just tweak a popup that happens to be
+   * on screen. Customers boost precisely when they've been waiting — by which
+   * point the radius walk is usually finished and dispatch is idling in the
+   * min-search hold, so the money bought nothing. Wrapping the walk + hold in a
+   * round loop lets a boost restart the search at the new price: everyone is
+   * re-offered and gets a fresh popup + alert. Capped so it can't spin. */
+  const MAX_BOOST_ROUNDS = 3;
+  let boostRounds = 0;
+
+  boostRound:                                     // eslint-disable-line no-labels
+  for (;;) {
+
   /* ── Walk radius steps (voluntary accept window) ── */
   for (let stepIdx = 0; stepIdx < radiusSteps.length; stepIdx++) {
     const radiusKm = radiusSteps[stepIdx];
@@ -280,6 +292,7 @@ async function processDispatchJob(job) {
       const fresh = await Order.findById(orderId).select('status pricing').lean();
       if (!fresh || fresh.status !== 'searching') {
         logger.info({ orderId, status: fresh?.status }, '[DISPATCH] Order no longer searching, stopping');
+        releaseCameOnlineSub(); // don't leak the Redis subscriber on an aborted dispatch
         return { ok: false, reason: 'status_changed' };
       }
       if (fresh.pricing) order.pricing = fresh.pricing; // keep the offer payload current
@@ -521,9 +534,7 @@ async function processDispatchJob(job) {
     }
   }
 
-  releaseCameOnlineSub();
-
-  /* ── Guarantee minimum 5-minute search window before force-assign ── */
+  /* ── Guarantee minimum search window before giving up ── */
   const elapsedMs = Date.now() - jobStartMs;
   const remainingMs = minSearchMs - elapsedMs;
   if (remainingMs > 0) {
@@ -536,16 +547,44 @@ async function processDispatchJob(job) {
       radiusKm: config.dispatch.radiusSteps.at(-1),
     });
 
-    // Check for cancellation every 10s during the hold
+    // Poll every 10s for cancellation AND for a boost. A boost here is the common
+    // case (the customer has been waiting), and previously it was ignored entirely.
     const holdStart = Date.now();
+    let restart = false;
     while (Date.now() - holdStart < remainingMs) {
       await sleep(Math.min(10_000, remainingMs - (Date.now() - holdStart)));
-      const check = await Order.findById(orderId).select('status').lean();
+      const check = await Order.findById(orderId).select('status pricing').lean();
       if (!check || check.status !== 'searching') {
+        releaseCameOnlineSub();
         return { ok: false, reason: 'status_changed_during_hold' };
       }
+
+      const boostNow = check.pricing?.tipPaise || 0;
+      if (boostNow > lastBoostPaise && boostRounds < MAX_BOOST_ROUNDS) {
+        lastBoostPaise = boostNow;
+        boostRounds += 1;
+        order.pricing = check.pricing;      // broadcast the NEW price
+        alreadyNotified.clear();            // everyone gets another look
+        bestFirstDone = true;               // skip the head-start — reach everyone fast
+        await Order.updateOne(
+          { _id: order._id },
+          { $set: { 'dispatch.attemptedWorkerIds': [] } },
+        ).catch(() => {});
+        logger.info(
+          { orderId, boostPaise: boostNow, round: boostRounds },
+          '[DISPATCH] 💰 Boosted during hold — re-opening the search at the new price',
+        );
+        restart = true;
+        break;
+      }
     }
+    if (restart) continue boostRound;       // eslint-disable-line no-labels
   }
+
+  break; // hold finished with no boost → stop searching
+  } // end boostRound
+
+  releaseCameOnlineSub();
 
   /* ── All voluntary steps exhausted ──────────────────────────────────────────
    * ACCEPTANCE-FIRST: by default we NEVER force a non-consenting worker (that

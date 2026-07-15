@@ -129,6 +129,9 @@ function toView(doc) {
     forceAssignBonusPaise:        doc.forceAssignBonusPaise        ?? 1500,
     // Acceptance-first dispatch
     forceAssignEnabled:           doc.forceAssignEnabled           ?? false,
+    // Geo-readiness gate (null = defer to env/NODE_ENV)
+    geoReadinessEnabled:          doc.geoReadinessEnabled          ?? null,
+    geoReadinessKm:               doc.geoReadinessKm               ?? 25,
     urgencyBonusEnabled:          doc.urgencyBonusEnabled          ?? true,
     urgencyBonusStartStep:        doc.urgencyBonusStartStep        ?? 4,
     urgencyBonusStepPaise:        doc.urgencyBonusStepPaise        ?? 500,

@@ -52,19 +52,26 @@ async function createOrder({ userId, service, subCategory, pickupLocation, dropL
   // Geo-readiness fast-fail: if there are zero skilled workers near the pickup,
   // reject in seconds with a clear message instead of letting the order sit in
   // 'searching' for the full window and then silently failing.
-  // Default ON in production (once workers are onboarded); OFF in dev/staging so
-  // demos work without live workers. Explicit env override wins either way:
-  //   GEO_READINESS_CHECK=true|false
-  const geoCheckEnabled = process.env.GEO_READINESS_CHECK != null
-    ? process.env.GEO_READINESS_CHECK === 'true'
-    : process.env.NODE_ENV === 'production';
+  //
+  // Precedence: ADMIN config (Pricing → Supply Guard) → env override → NODE_ENV.
+  // Admin wins so this can be killed instantly from the dashboard if it starts
+  // rejecting real bookings — on thin day-1 supply that is the fastest way to lose
+  // a paying customer, and SSH + .env + restart is not an acceptable response time.
+  const _geoCfg = await pricingService.getActiveConfig().catch(() => ({}));
+  const geoCheckEnabled = _geoCfg.geoReadinessEnabled != null
+    ? _geoCfg.geoReadinessEnabled
+    : (process.env.GEO_READINESS_CHECK != null
+      ? process.env.GEO_READINESS_CHECK === 'true'
+      : process.env.NODE_ENV === 'production');
+  const geoReadinessKm = _geoCfg.geoReadinessKm ?? appConfig.dispatch.geoReadinessKm;
+
   if (!scheduledAt && geoCheckEnabled) {
     try {
       const candidates = await geoService.findCandidates({
         lat: pickupLocation.lat,
         lng: pickupLocation.lng,
         skill: service,
-        radiusKm: appConfig.dispatch.geoReadinessKm,
+        radiusKm: geoReadinessKm,
       });
       if (candidates.length === 0) {
         throw Object.assign(

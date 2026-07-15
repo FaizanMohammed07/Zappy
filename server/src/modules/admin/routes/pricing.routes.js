@@ -36,6 +36,9 @@ router.put(
     minWorkerRating:             Joi.number().min(1).max(5),
     // Acceptance-first dispatch (never force a non-consenting worker)
     forceAssignEnabled:     Joi.boolean(),
+    // Geo-readiness gate (null = defer to env/NODE_ENV)
+    geoReadinessEnabled:    Joi.boolean().allow(null),
+    geoReadinessKm:         Joi.number().min(1).max(100),
     urgencyBonusEnabled:    Joi.boolean(),
     urgencyBonusStartStep:  Joi.number().integer().min(0).max(10),
     urgencyBonusStepPaise:  Joi.number().integer().min(0).max(10000),
