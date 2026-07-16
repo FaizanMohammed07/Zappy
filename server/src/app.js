@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const { corsOrigin } = require("./config/origins");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
@@ -60,20 +61,11 @@ function buildApp() {
     referrerPolicy:  { policy: 'strict-origin-when-cross-origin' },
     hsts:            { maxAge: 31536000, includeSubDomains: true, preload: true },
   }));
-  // ── CORS — hardcoded allowed origins ──────────────────────────────────
+  // ── CORS ──────────────────────────────────────────────────────────────
+  // Origins live in config/origins.js so Express and socket.io can never drift
+  // apart again (they did: the subdomains were allowed here but not on sockets).
   // Production: only our domains. Dev: allow everything for localhost.
-  const PRODUCTION_ORIGINS = [
-    'https://www.zappyone.com',
-    'https://zappyone.com',
-    'https://rakshak.zappyone.com',
-    'https://events.zappyone.com',
-  ];
-  // Optionally add a custom CLIENT_URL from env (e.g. staging domain)
-  if (process.env.CLIENT_URL && !PRODUCTION_ORIGINS.includes(process.env.CLIENT_URL)) {
-    PRODUCTION_ORIGINS.push(process.env.CLIENT_URL);
-  }
-  const allowedOrigin = process.env.NODE_ENV === 'production' ? PRODUCTION_ORIGINS : true;
-  app.use(cors({ origin: allowedOrigin, credentials: true }));
+  app.use(cors({ origin: corsOrigin(), credentials: true }));
 
   // CRITICAL ORDERING:
   // The Razorpay webhook needs the raw request body for HMAC verification.

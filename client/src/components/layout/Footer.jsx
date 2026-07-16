@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Send, Heart, ShieldCheck, MapPin, Star, Phone, Zap } from 'lucide-react';
 import { ZappyLogo } from '../common/ZappyLogo';
+import { WORKER_URL, EVENTS_URL } from '../../config/hosts';
 
 const SERVICES = [
   { label: 'Puncture Repair Near Me',       href: '/book/puncture' },
@@ -42,12 +43,17 @@ const COMPANY = [
   { label: 'Warranty',        href: '/policy/warranty-guidelines' },
 ];
 
+// The consumer site never exposes a worker/partner LOGIN — each audience has its
+// own front door (rakshak. / events.), the way Zomato and Zepto keep the eater app
+// free of rider/restaurant sign-in. These are marketing links to those apps, not
+// login routes: `/worker/login` on zappyone.com would authenticate a worker on the
+// consumer origin, which the host router then bounces back out of anyway.
 const PARTNERS = [
-  { label: 'Join as a Worker',        href: '/worker/login' },
-  { label: 'Event Partner Login',     href: '/partner/login' },
-  { label: 'Advertise with Zappy',    href: '#' },
-  { label: 'Partner Guidelines',      href: '#' },
-  { label: 'Earn ₹500–₹2000/day',    href: '/worker/login' },
+  { label: 'Join as a Worker',     href: WORKER_URL,  external: true },
+  { label: 'Earn ₹500–₹2000/day', href: WORKER_URL,  external: true },
+  { label: 'Event Partner Portal', href: EVENTS_URL,  external: true },
+  { label: 'Advertise with Zappy', href: '#' },
+  { label: 'Partner Guidelines',   href: '#' },
 ];
 
 export default function Footer() {
@@ -82,9 +88,13 @@ export default function Footer() {
           <div>
             <p className="text-white font-bold mb-5 text-sm uppercase tracking-widest">Partners</p>
             <ul className="space-y-3">
-              {PARTNERS.map(({ label, href }) => (
+              {PARTNERS.map(({ label, href, external }) => (
                 <li key={label}>
-                  <a href={href} className="text-sm text-slate-400 hover:text-indigo-400 transition-colors">{label}</a>
+                  <a
+                    href={href}
+                    {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                    className="text-sm text-slate-400 hover:text-indigo-400 transition-colors"
+                  >{label}</a>
                 </li>
               ))}
             </ul>

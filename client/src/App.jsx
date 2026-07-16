@@ -8,6 +8,7 @@ import { useFCM } from './hooks/useFCM.jsx';
 import useTelemetry from './hooks/useTelemetry';
 import { prefetchMainTabs, onIdle } from './lib/routePrefetch';
 import { adminPath } from './config/admin';
+import { getSubdomainRedirect, isExternalRedirect } from './config/hosts';
 import { RequireAuth } from './components/common/RequireAuth';
 import NotificationBanner from './components/common/NotificationBanner';
 import ConnectionBanner from './components/common/ConnectionBanner';
@@ -82,30 +83,6 @@ function PageLoader() {
   );
 }
 
-function getSubdomainRedirect(hostname, pathname, token, role) {
-  const host = (hostname || '').toLowerCase();
-  const isWorkerHost = host === 'rakshak.zappyone.com' || host.startsWith('rakshak.');
-  const isEventHost = host === 'events.zappyone.com' || host.startsWith('events.');
-
-  if (isWorkerHost) {
-    if (!token) return pathname === '/worker/login' ? null : '/worker/login';
-    if (role === 'worker') return pathname.startsWith('/worker') ? null : '/worker';
-    if (role === 'event_partner') return '/partner';
-    if (role === 'admin') return adminPath('/dashboard');
-    return '/';
-  }
-
-  if (isEventHost) {
-    if (!token) return pathname === '/partner/login' ? null : '/partner/login';
-    if (role === 'event_partner') return pathname.startsWith('/partner') ? null : '/partner';
-    if (role === 'worker') return '/worker';
-    if (role === 'admin') return adminPath('/dashboard');
-    return '/';
-  }
-
-  return null;
-}
-
 export default function App() {
   useDisconnectOnLogout();
   useFCM();
@@ -118,6 +95,14 @@ export default function App() {
     token,
     role,
   );
+
+  // A cross-host move (e.g. a worker landing on events.zappyone.com) can't be done
+  // by the router — it needs a real navigation.
+  useEffect(() => {
+    if (subdomainRedirect && isExternalRedirect(subdomainRedirect)) {
+      window.location.replace(subdomainRedirect);
+    }
+  }, [subdomainRedirect]);
 
   // Warm the main tab chunks once the browser is idle after first paint, so
   // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).
@@ -133,9 +118,16 @@ export default function App() {
       <RouteProgress />
       <ConnectionBanner />
       <Suspense fallback={<PageLoader />}>
-      {subdomainRedirect && location.pathname !== subdomainRedirect ? (
-        <Navigate to={subdomainRedirect} replace />
-      ) : null}
+      {/* Wrong host for this visitor → redirect INSTEAD of rendering. Rendering
+          <Navigate> next to <Routes> mounted the wrong page for a frame first,
+          firing its data fetches (and its RequireAuth bounce) before moving on.
+          An external target shows the loader while the full page load runs. */}
+      {subdomainRedirect ? (
+        isExternalRedirect(subdomainRedirect)
+          ? <PageLoader />
+          : <Navigate to={subdomainRedirect} replace />
+      ) : (
+      <>
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
       {/* Route-level boundary — a crash in one page shows the recovery screen but
@@ -225,6 +217,8 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </ErrorBoundary>
+      </>
+      )}
     </Suspense>
     </>
   );
