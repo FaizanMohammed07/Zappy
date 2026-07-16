@@ -65,6 +65,8 @@ function buildApp() {
   const PRODUCTION_ORIGINS = [
     'https://www.zappyone.com',
     'https://zappyone.com',
+    'https://rakshak.zappyone.com',
+    'https://events.zappyone.com',
   ];
   // Optionally add a custom CLIENT_URL from env (e.g. staging domain)
   if (process.env.CLIENT_URL && !PRODUCTION_ORIGINS.includes(process.env.CLIENT_URL)) {

@@ -82,16 +82,42 @@ function PageLoader() {
   );
 }
 
+function getSubdomainRedirect(hostname, pathname, token, role) {
+  const host = (hostname || '').toLowerCase();
+  const isWorkerHost = host === 'rakshak.zappyone.com' || host.startsWith('rakshak.');
+  const isEventHost = host === 'events.zappyone.com' || host.startsWith('events.');
+
+  if (isWorkerHost) {
+    if (!token) return pathname === '/worker/login' ? null : '/worker/login';
+    if (role === 'worker') return pathname.startsWith('/worker') ? null : '/worker';
+    if (role === 'event_partner') return '/partner';
+    if (role === 'admin') return adminPath('/dashboard');
+    return '/';
+  }
+
+  if (isEventHost) {
+    if (!token) return pathname === '/partner/login' ? null : '/partner/login';
+    if (role === 'event_partner') return pathname.startsWith('/partner') ? null : '/partner';
+    if (role === 'worker') return '/worker';
+    if (role === 'admin') return adminPath('/dashboard');
+    return '/';
+  }
+
+  return null;
+}
+
 export default function App() {
   useDisconnectOnLogout();
   useFCM();
   useTelemetry();
   const { accessToken: token, role } = useSelector(selectAuth);
   const location = useLocation();
-
-  const hostname = window.location.hostname;
-  const isRakshak = hostname.includes('rakshak') || hostname.includes('partner');
-  const isEvent = hostname.includes('events') || hostname.includes('eventcommerce');
+  const subdomainRedirect = getSubdomainRedirect(
+    typeof window !== 'undefined' ? window.location.hostname : '',
+    location.pathname,
+    token,
+    role,
+  );
 
   // Warm the main tab chunks once the browser is idle after first paint, so
   // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).
@@ -107,101 +133,96 @@ export default function App() {
       <RouteProgress />
       <ConnectionBanner />
       <Suspense fallback={<PageLoader />}>
+      {subdomainRedirect && location.pathname !== subdomainRedirect ? (
+        <Navigate to={subdomainRedirect} replace />
+      ) : null}
       {/* Show notification permission banner for logged-in users with non-admin roles */}
       {token && role !== 'admin' && <NotificationBanner />}
       {/* Route-level boundary — a crash in one page shows the recovery screen but
           auto-resets when the user navigates elsewhere (keyed by path). */}
       <ErrorBoundary key={location.pathname}>
       <Routes location={location} key={location.pathname}>
-        
-        {/* RAKSHAK (WORKER APP) ROUTES */}
-        {isRakshak && (
-          <>
-            <Route path="/" element={token ? <Navigate to="/worker" replace /> : <LoginPage role="worker" />} />
-            <Route path="/login" element={token ? <Navigate to="/worker" replace /> : <LoginPage role="worker" />} />
-            <Route path="/worker" element={<RequireAuth role="worker"><WorkerDashboard /></RequireAuth>} />
-            <Route path="/worker/jobs/:id" element={<RequireAuth role="worker"><WorkerJobPage /></RequireAuth>} />
-            <Route path="/worker/kyc" element={<RequireAuth role="worker"><WorkerKycPage /></RequireAuth>} />
-            <Route path="/worker/profile" element={<RequireAuth role="worker"><WorkerEditProfilePage /></RequireAuth>} />
-            <Route path="/worker/notifications" element={<RequireAuth role="worker"><WorkerNotificationsPage /></RequireAuth>} />
-            <Route path="/worker/bank" element={<RequireAuth role="worker"><WorkerBankPage /></RequireAuth>} />
-            <Route path="/worker/withdraw" element={<RequireAuth role="worker"><WorkerWithdrawPage /></RequireAuth>} />
-            <Route path="/worker/appeals" element={<RequireAuth role="worker"><WorkerAppealsPage /></RequireAuth>} />
-            <Route path="/worker/earnings" element={<RequireAuth role="worker"><WorkerEarningsPage /></RequireAuth>} />
-            <Route path="/worker/skills" element={<RequireAuth role="worker"><WorkerSkillsPage /></RequireAuth>} />
-            <Route path="/worker/training" element={<RequireAuth role="worker"><WorkerTrainingPage /></RequireAuth>} />
-            <Route path="/worker/goals" element={<RequireAuth role="worker"><WorkerGoalsPage /></RequireAuth>} />
-            <Route path="/plans"  element={<RequireAuth><PlansPage /></RequireAuth>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        )}
+        {/* Public */}
+        {/* Public help content — FAQs + policy pages (admin-managed) */}
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/policy/:slug" element={<PolicyPage />} />
 
-        {/* EVENT COMMERCE APP ROUTES */}
-        {isEvent && (
-          <>
-            <Route path="/" element={<RequireAuth role="user"><EventsHomePage /></RequireAuth>} />
-            <Route path="/partner/login" element={token ? <RedirectByRole role={role} /> : <PartnerLoginPage />} />
-            <Route path="/partner" element={<RequireAuth role="event_partner"><PartnerDashboard /></RequireAuth>} />
-            <Route path="/partner/advertise" element={<RequireAuth role="event_partner"><AdvertiserDashboard /></RequireAuth>} />
-            <Route path="/events" element={<RequireAuth role="user"><EventsHomePage /></RequireAuth>} />
-            <Route path="/events/browse" element={<RequireAuth role="user"><EventCategoryPage /></RequireAuth>} />
-            <Route path="/events/themes/:id" element={<RequireAuth role="user"><EventThemePage /></RequireAuth>} />
-            <Route path="/events/book/:id" element={<RequireAuth role="user"><EventBookingPage /></RequireAuth>} />
-            <Route path="/events/bookings" element={<RequireAuth role="user"><EventBookingListPage /></RequireAuth>} />
-            <Route path="/events/bookings/:id" element={<RequireAuth role="user"><EventBookingDetailPage /></RequireAuth>} />
-            <Route path="/events/saved" element={<RequireAuth role="user"><EventSavedThemesPage /></RequireAuth>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        )}
+        <Route path="/login" element={token ? <RedirectByRole role={role} /> : <LoginPage role="user" />} />
+        <Route
+          path="/worker/login"
+          element={token ? <RedirectByRole role={role} /> : <LoginPage role="worker" />}
+        />
+        <Route
+          path={adminPath('/login')}
+          element={token ? <RedirectByRole role={role} /> : <AdminLoginPage />}
+        />
 
-        {/* USER / ADMIN APP ROUTES (Default) */}
-        {!isRakshak && !isEvent && (
-          <>
-            {/* Public */}
-            <Route path="/faq" element={<FaqPage />} />
-            <Route path="/policy/:slug" element={<PolicyPage />} />
-            <Route path="/login" element={token ? <RedirectByRole role={role} /> : <LoginPage role="user" />} />
-            <Route path={adminPath('/login')} element={token ? <RedirectByRole role={role} /> : <AdminLoginPage />} />
+        {/* User app */}
+        <Route element={<MainLayout />}>
+          <Route path="/"       element={<HomeOrRedirect role={role} token={token} />} />
+          <Route path="/home"   element={<HomeOrRedirect role={role} token={token} />} />
+          <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
+          <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
+          <Route path="/track"  element={<RequireAuth role="user"><TrackPage /></RequireAuth>} />
+          <Route path="/profile" element={<RequireAuth role="user"><ProfilePage /></RequireAuth>} />
+          <Route path="/disputes" element={<RequireAuth role="user"><DisputesPage /></RequireAuth>} />
+          <Route path="/support" element={<RequireAuth role="user"><SupportPage /></RequireAuth>} />
+          <Route path="/payments" element={<RequireAuth role="user"><PaymentMethodsPage /></RequireAuth>} />
+          <Route path="/wallet" element={<RequireAuth><WalletPage /></RequireAuth>} />
+        </Route>
 
-            {/* User app (with BottomNav layout) */}
-            <Route element={<MainLayout />}>
-              <Route path="/" element={<HomeOrRedirect role={role} token={token} />} />
-              <Route path="/home" element={<HomeOrRedirect role={role} token={token} />} />
-              <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
-              <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
-              <Route path="/track" element={<RequireAuth role="user"><TrackPage /></RequireAuth>} />
-              <Route path="/profile" element={<RequireAuth role="user"><ProfilePage /></RequireAuth>} />
-              <Route path="/disputes" element={<RequireAuth role="user"><DisputesPage /></RequireAuth>} />
-              <Route path="/support" element={<RequireAuth role="user"><SupportPage /></RequireAuth>} />
-              <Route path="/payments" element={<RequireAuth role="user"><PaymentMethodsPage /></RequireAuth>} />
-              <Route path="/wallet" element={<RequireAuth><WalletPage /></RequireAuth>} />
-            </Route>
+        {/* Routes outside MainLayout (no bottom nav) */}
+        <Route path="/book/:service" element={<RequireAuth role="user"><BookingPage /></RequireAuth>} />
+        <Route path="/orders/:id" element={<RequireAuth role="user"><OrderTrackingPage /></RequireAuth>} />
+        <Route path="/orders/:id/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />
+        <Route path="/notifications" element={<RequireAuth role="user"><NotificationsPage /></RequireAuth>} />
+        <Route path="/referral" element={<RequireAuth role="user"><ReferralPage /></RequireAuth>} />
+        <Route path="/spending" element={<RequireAuth role="user"><SpendingPage /></RequireAuth>} />
+        <Route path="/notification-prefs" element={<RequireAuth role="user"><NotificationPrefsPage /></RequireAuth>} />
+        <Route path="/promos" element={<RequireAuth role="user"><PromosHubPage /></RequireAuth>} />
+        <Route path="/scheduled" element={<RequireAuth role="user"><ScheduledBookingsPage /></RequireAuth>} />
+        <Route path="/rewards" element={<RequireAuth role="user"><RewardsPage /></RequireAuth>} />
+        <Route path="/account-security" element={<RequireAuth role="user"><AccountSecurityPage /></RequireAuth>} />
+        <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
 
-            {/* User app routes outside MainLayout (no bottom nav) */}
-            <Route path="/book/:service" element={<RequireAuth role="user"><BookingPage /></RequireAuth>} />
-            <Route path="/orders/:id" element={<RequireAuth role="user"><OrderTrackingPage /></RequireAuth>} />
-            <Route path="/orders/:id/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />
-            <Route path="/notifications" element={<RequireAuth role="user"><NotificationsPage /></RequireAuth>} />
-            <Route path="/referral" element={<RequireAuth role="user"><ReferralPage /></RequireAuth>} />
-            <Route path="/spending" element={<RequireAuth role="user"><SpendingPage /></RequireAuth>} />
-            <Route path="/notification-prefs" element={<RequireAuth role="user"><NotificationPrefsPage /></RequireAuth>} />
-            <Route path="/promos" element={<RequireAuth role="user"><PromosHubPage /></RequireAuth>} />
-            <Route path="/scheduled" element={<RequireAuth role="user"><ScheduledBookingsPage /></RequireAuth>} />
-            <Route path="/rewards" element={<RequireAuth role="user"><RewardsPage /></RequireAuth>} />
-            <Route path="/account-security" element={<RequireAuth role="user"><AccountSecurityPage /></RequireAuth>} />
-            <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
-            
-            <Route path="/plans" element={<RequireAuth><PlansPage /></RequireAuth>} />
+        {/* Plans — available to both users and workers */}
+        <Route path="/plans"  element={<RequireAuth><PlansPage /></RequireAuth>} />
 
-            {/* Admin */}
-            <Route
-              path={adminPath('/dashboard')}
-              element={<RequireAuth role="admin"><AdminDashboard /></RequireAuth>}
-            />
+        {/* Worker app */}
+        <Route path="/worker" element={<RequireAuth role="worker"><WorkerDashboard /></RequireAuth>} />
+        <Route path="/worker/jobs/:id" element={<RequireAuth role="worker"><WorkerJobPage /></RequireAuth>} />
+        <Route path="/worker/kyc" element={<RequireAuth role="worker"><WorkerKycPage /></RequireAuth>} />
+        <Route path="/worker/profile" element={<RequireAuth role="worker"><WorkerEditProfilePage /></RequireAuth>} />
+        <Route path="/worker/notifications" element={<RequireAuth role="worker"><WorkerNotificationsPage /></RequireAuth>} />
+        <Route path="/worker/bank" element={<RequireAuth role="worker"><WorkerBankPage /></RequireAuth>} />
+        <Route path="/worker/withdraw" element={<RequireAuth role="worker"><WorkerWithdrawPage /></RequireAuth>} />
+        <Route path="/worker/appeals" element={<RequireAuth role="worker"><WorkerAppealsPage /></RequireAuth>} />
+        <Route path="/worker/earnings" element={<RequireAuth role="worker"><WorkerEarningsPage /></RequireAuth>} />
+        <Route path="/worker/skills" element={<RequireAuth role="worker"><WorkerSkillsPage /></RequireAuth>} />
+        <Route path="/worker/training" element={<RequireAuth role="worker"><WorkerTrainingPage /></RequireAuth>} />
+        <Route path="/worker/goals" element={<RequireAuth role="worker"><WorkerGoalsPage /></RequireAuth>} />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        )}
+        {/* Event Partner */}
+        <Route path="/partner/login" element={token ? <RedirectByRole role={role} /> : <PartnerLoginPage />} />
+        <Route path="/partner" element={<RequireAuth role="event_partner"><PartnerDashboard /></RequireAuth>} />
+        <Route path="/partner/advertise" element={<RequireAuth role="event_partner"><AdvertiserDashboard /></RequireAuth>} />
+
+        {/* Event Commerce */}
+        <Route path="/events"                    element={<RequireAuth role="user"><EventsHomePage /></RequireAuth>} />
+        <Route path="/events/browse"             element={<RequireAuth role="user"><EventCategoryPage /></RequireAuth>} />
+        <Route path="/events/themes/:id"         element={<RequireAuth role="user"><EventThemePage /></RequireAuth>} />
+        <Route path="/events/book/:id"           element={<RequireAuth role="user"><EventBookingPage /></RequireAuth>} />
+        <Route path="/events/bookings"           element={<RequireAuth role="user"><EventBookingListPage /></RequireAuth>} />
+        <Route path="/events/bookings/:id"       element={<RequireAuth role="user"><EventBookingDetailPage /></RequireAuth>} />
+        <Route path="/events/saved"              element={<RequireAuth role="user"><EventSavedThemesPage /></RequireAuth>} />
+
+        {/* Admin */}
+        <Route
+          path={adminPath('/dashboard')}
+          element={<RequireAuth role="admin"><AdminDashboard /></RequireAuth>}
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </ErrorBoundary>
     </Suspense>
