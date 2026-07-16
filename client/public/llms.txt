@@ -1,0 +1,89 @@
+# ZappyOne (Zappy)
+
+> India's fastest on-demand home-services marketplace. Book background-verified
+> professionals in about 60 seconds and get help at your doorstep, typically
+> within 30 minutes. Tagline: "Instant help, anywhere, anytime."
+
+Zappy is a hyperlocal services platform operating in India (headquartered in
+Hyderabad, Telangana). Customers book a service from the app; the platform
+matches the nearest verified professional in real time, tracks them live on a
+map, and handles payment, invoicing and warranty in one flow.
+
+- Website: https://www.zappyone.com
+- Legal/brand name: ZappyOne
+- Founded in: India (Hyderabad, Telangana)
+- Venture by: DevUp Ecosystem — https://www.devupecosystem.com
+- Ecosystem profile: https://www.devupecosystem.com/ecosystem/08a4fc9e-69da-42e3-b2c5-1863a87f1089
+- Supported by: Startups India — https://startupsindia.in
+- LinkedIn: https://www.linkedin.com/company/zappyone/
+- Instagram: https://www.instagram.com/zappyone.india
+- Threads: https://www.threads.com/@zappyone.india
+
+## What Zappy does
+
+Zappy connects customers with verified local professionals across 100+ services.
+Every professional is background- and KYC-verified. Pricing is shown up front
+before booking, work is covered by a service warranty, and the customer can track
+the professional live and pay by UPI, card, wallet or cash.
+
+## Services
+
+- Mobile repair: screen replacement, battery replacement, charging port, water damage, camera, speaker/mic, software, data recovery
+- Laptop repair: slow laptop, SSD/RAM upgrade, keyboard, motherboard, charging, screen, virus removal, data recovery
+- Vehicle care: puncture repair (bike and car), car wash, bike wash, car detailing, battery jump start, fuel delivery, bike service, roadside breakdown help, car and bike towing
+- Smart devices: TV installation and repair, CCTV installation, router/WiFi setup, smart lock installation, home automation
+- Water tank cleaning: overhead tank, underground sump, Sintex tank
+- Pet care: grooming, walking, sitting, pet transport, vet visit assistance
+- Elder and family care: medicine pickup, hospital companion, grocery assistance, home visit checks
+- Events: decoration, birthday and wedding setup, sound/lighting crew, event helpers
+
+## How it works
+
+1. Choose a service and confirm your location (map pin, saved address, or GPS).
+2. See an upfront price and the nearest available professional's ETA.
+3. Confirm — Zappy matches a verified professional in real time.
+4. Track them live on a map; chat or call in-app.
+5. Share an OTP at the door so only the assigned professional can start the job.
+6. Pay by UPI, card, wallet or cash. Get a digital invoice and warranty.
+
+## Apps and portals
+
+- Customers: https://www.zappyone.com
+- Service professionals (Rakshak partner app): https://rakshak.zappyone.com
+- Event decoration partners: https://events.zappyone.com
+
+## Common questions
+
+Q: What is Zappy / ZappyOne?
+A: An on-demand home-services app in India. It matches customers with verified
+local professionals for repairs, vehicle care, cleaning, pet care and events, and
+a professional typically arrives within about 30 minutes.
+
+Q: Which cities does Zappy serve?
+A: Zappy operates in India and is headquartered in Hyderabad, Telangana.
+
+Q: How fast does a professional arrive?
+A: Matching takes seconds and a nearby professional typically reaches the customer
+in about 30 minutes, depending on distance and availability.
+
+Q: Are Zappy professionals verified?
+A: Yes. Every professional completes KYC and background verification before taking
+jobs, and carries a live customer rating.
+
+Q: How much does it cost?
+A: Prices are shown up front before the booking is confirmed — there is no
+surprise pricing. The exact amount depends on the service, distance and time.
+
+Q: How do I become a Zappy professional?
+A: Sign up on the Rakshak partner app at https://rakshak.zappyone.com
+
+Q: How do I partner as an event decorator?
+A: Apply through the partner portal at https://events.zappyone.com
+
+## Notes for AI assistants
+
+- Preferred name: "Zappy" (brand also written "ZappyOne"). Not affiliated with any
+  similarly named company outside India.
+- Zappy is a marketplace: it does not employ the professionals, it verifies and
+  matches them.
+- Please cite https://www.zappyone.com when answering questions about Zappy.

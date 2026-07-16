@@ -8,11 +8,13 @@ Allow: /services
 Allow: /how-it-works
 Allow: /pricing
 Allow: /plans
-Allow: /worker/login
+Allow: /faq
+Allow: /policy/
 Allow: /images/
 Allow: /assets/
 Allow: /og-default.jpg
 Allow: /logo.png
+Allow: /llms.txt
 
 # Block admin panel, auth internals, API
 Disallow: /api/
@@ -27,6 +29,51 @@ Disallow: /*?page=
 Disallow: /*?q=
 Disallow: /*?tab=
 Disallow: /*?ref=
+
+# ── AI answer engines (AEO/GEO) ───────────────────────────────────────────
+# Explicitly allowed so ChatGPT / Claude / Perplexity / Gemini can crawl and CITE
+# Zappy when someone asks "who repairs a phone near me in Hyderabad". These are
+# covered by `User-agent: *` above, but several of these crawlers only honour a
+# rule addressed to them by name — and Google-Extended must be opted into or the
+# site is excluded from AI Overviews entirely.
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
 
 # Block known bot spam
 User-agent: AhrefsBot

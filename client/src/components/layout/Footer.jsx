@@ -33,6 +33,15 @@ const CITIES = [
   'Bhopal', 'Patna', 'Chandigarh', 'Surat', 'Vadodara',
 ];
 
+// Keep in sync with the Organization `sameAs` array in index.html — Google uses
+// the overlap between the two to associate the brand with these profiles.
+const SOCIALS = [
+  { label: 'LinkedIn',   href: 'https://www.linkedin.com/company/zappyone/' },
+  { label: 'Instagram',  href: 'https://www.instagram.com/zappyone.india' },
+  { label: 'Threads',    href: 'https://www.threads.com/@zappyone.india' },
+  { label: 'Play Store', href: 'https://play.google.com/store/apps/details?id=co.in.zappy' },
+];
+
 const COMPANY = [
   { label: 'About Us',        href: '#' },
   { label: 'Careers',         href: '#' },
@@ -195,17 +204,46 @@ export default function Footer() {
             © {new Date().getFullYear()} Zappy Technologies. All rights reserved.
           </p>
 
+          {/* Real profiles only. These double as SEO signals: they must match the
+              Organization `sameAs` in index.html for Google to link the brand to
+              its socials. The old Twitter/Facebook handles were unverified and the
+              Instagram one was wrong (the real account is @zappyone.india). */}
           <div className="flex items-center gap-5">
-            <a href="https://twitter.com/zappyone" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors text-xs font-bold">Twitter</a>
-            <a href="https://www.instagram.com/zappyone" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors text-xs font-bold">Instagram</a>
-            <a href="https://www.facebook.com/zappyone" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors text-xs font-bold">Facebook</a>
-            <a href="https://play.google.com/store/apps/details?id=co.in.zappy" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors text-xs font-bold">Play Store</a>
+            {SOCIALS.map(({ label, href }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-slate-500 hover:text-white transition-colors text-xs font-bold"
+              >{label}</a>
+            ))}
           </div>
 
           <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
             <ShieldCheck size={13} className="text-emerald-500" />
             <span>100% Secure · Verified Professionals · Live Tracking</span>
           </div>
+        </div>
+
+        {/* Backing — real credibility signal for visitors, and the outbound links
+            corroborate the `parentOrganization` / `funder` claims in the schema. */}
+        <div className="border-t border-slate-800 mt-6 pt-6 flex flex-col sm:flex-row items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500">
+          <span>A venture by</span>
+          <a
+            href="https://www.devupecosystem.com/ecosystem/08a4fc9e-69da-42e3-b2c5-1863a87f1089"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-bold text-slate-300 hover:text-white transition-colors"
+          >DevUp Ecosystem</a>
+          <span className="hidden sm:inline text-slate-700">·</span>
+          <span>Supported by</span>
+          <a
+            href="https://startupsindia.in"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-bold text-slate-300 hover:text-white transition-colors"
+          >Startups India</a>
         </div>
       </div>
     </footer>

@@ -1,0 +1,19 @@
+{
+  "name": "Zappy — Instant Home Services",
+  "short_name": "Zappy",
+  "description": "Book verified professionals in 60 seconds — phone & laptop repair, puncture repair, car wash, electrician, plumber, pet grooming and 100+ services across India.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#2563EB",
+  "lang": "en-IN",
+  "categories": ["lifestyle", "productivity", "shopping"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
