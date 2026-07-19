@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import BottomNav from './BottomNav';
+import InstallPrompt from '../pwa/InstallPrompt';
 
 export default function MainLayout() {
   const location = useLocation();
@@ -16,6 +17,7 @@ export default function MainLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
+      <InstallPrompt />
       <BottomNav />
     </div>
   );
