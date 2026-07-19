@@ -5,7 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin, Navigation, Home, Briefcase, Clock, Search,
-  ChevronRight, ChevronLeft, ChevronDown, Loader2, X, Map, Crosshair,
+  ChevronRight, ChevronDown, Loader2, X, Map, Crosshair,
   Star, Sparkles, CheckCircle, Pencil, Lock, ArrowRight,
   DoorOpen, Building2, ArrowDownToLine, Landmark,
 } from 'lucide-react';
@@ -866,42 +866,6 @@ export default function LocationPicker({ onConfirm, onCancel, serviceLabel, serv
             )}
           </AnimatePresence>
         </div>
-
-        {/* Use my current location card */}
-        <motion.button
-          onClick={_goToMyLocation}
-          whileTap={{ scale: 0.985 }}
-          className="w-full flex items-center gap-3.5 bg-white rounded-2xl p-3 ring-1 ring-slate-100 text-left"
-          style={{ boxShadow: '0 4px 18px rgba(15,23,42,0.06)' }}
-        >
-          <div className="relative shrink-0">
-            <div className="w-12 h-12 rounded-2xl bg-[#2563EB] flex items-center justify-center shadow-sm">
-              {geoState === 'loading'
-                ? <Loader2 size={19} strokeWidth={2.4} className="text-white animate-spin" />
-                : <Navigation size={19} strokeWidth={2.4} className="text-white" />}
-            </div>
-            {gpsReady && (
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#22C55E] rounded-full border-2 border-white" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[15px] font-bold text-slate-900">Use my current location</p>
-            {geoState === 'loading' ? (
-              <p className="text-[12px] font-semibold text-[#2563EB] mt-0.5 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" /> GPS acquiring signal…
-              </p>
-            ) : geoState === 'error' ? (
-              <p className="text-[12px] font-medium text-red-500 mt-0.5">{geoError}</p>
-            ) : gpsReady ? (
-              <p className="text-[12px] font-semibold text-[#16A34A] mt-0.5">
-                GPS locked • ±{acc != null ? Math.round(acc) : '<50'}m accurate
-              </p>
-            ) : (
-              <p className="text-[12px] font-medium text-slate-400 mt-0.5">Fastest &amp; most accurate</p>
-            )}
-          </div>
-          <ChevronRight size={20} strokeWidth={2.2} className="text-slate-300 shrink-0" />
-        </motion.button>
       </div>
 
       {/* ── Map zone ─────────────────────────────────────────────────── */}
@@ -931,20 +895,50 @@ export default function LocationPicker({ onConfirm, onCancel, serviceLabel, serv
           )}
         </AnimatePresence>
 
-        {/* Back pill (top-left) */}
-        <motion.button onClick={() => onCancel?.()} whileTap={{ scale: 0.93 }}
-          className="absolute top-3 left-3 z-20 flex items-center gap-1 rounded-full bg-white pl-2.5 pr-3.5 py-2 ring-1 ring-black/5"
-          style={{ boxShadow: '0 4px 16px rgba(15,23,42,0.14)' }} aria-label="Back">
-          <ChevronLeft size={16} strokeWidth={2.6} className="text-slate-700" />
-          <span className="text-[12.5px] font-bold text-slate-700">Back</span>
+        {/* Use my current location — floats over the top of the map so the
+            map fills the space up to the search bar instead of being squeezed. */}
+        <motion.button
+          onClick={_goToMyLocation}
+          whileTap={{ scale: 0.985 }}
+          className="absolute top-3 left-3 right-3 z-20 flex items-center gap-3.5 bg-white rounded-2xl p-3 ring-1 ring-black/5 text-left"
+          style={{ boxShadow: '0 6px 22px rgba(15,23,42,0.14)' }}
+        >
+          <div className="relative shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-[#2563EB] flex items-center justify-center shadow-sm">
+              {geoState === 'loading'
+                ? <Loader2 size={18} strokeWidth={2.4} className="text-white animate-spin" />
+                : <Navigation size={18} strokeWidth={2.4} className="text-white" />}
+            </div>
+            {gpsReady && (
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#22C55E] rounded-full border-2 border-white" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[14.5px] font-bold text-slate-900">Use my current location</p>
+            {geoState === 'loading' ? (
+              <p className="text-[12px] font-semibold text-[#2563EB] mt-0.5 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" /> GPS acquiring signal…
+              </p>
+            ) : geoState === 'error' ? (
+              <p className="text-[12px] font-medium text-red-500 mt-0.5">{geoError}</p>
+            ) : gpsReady ? (
+              <p className="text-[12px] font-semibold text-[#16A34A] mt-0.5">
+                GPS locked • ±{acc != null ? Math.round(acc) : '<50'}m accurate
+              </p>
+            ) : (
+              <p className="text-[12px] font-medium text-slate-400 mt-0.5">Fastest &amp; most accurate</p>
+            )}
+          </div>
+          <ChevronRight size={20} strokeWidth={2.2} className="text-slate-300 shrink-0" />
         </motion.button>
 
-        {/* Coverage pill (top-right) */}
+        {/* Coverage pill — floats just above the sheet (bottom-left), mirroring
+            the recenter button, so it never collides with the location card. */}
         <AnimatePresence>
           {nearbyCount !== null && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="absolute top-3 right-3 z-20 flex items-center gap-2 rounded-2xl bg-white px-3 py-2 ring-1 ring-black/5 max-w-[64%]"
-              style={{ boxShadow: '0 4px 16px rgba(15,23,42,0.14)' }}>
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              className="absolute left-3 z-20 flex items-center gap-2 rounded-2xl bg-white px-3 py-2 ring-1 ring-black/5 max-w-[62%]"
+              style={{ bottom: sheetH + 12, boxShadow: '0 4px 16px rgba(15,23,42,0.14)' }}>
               <span className="relative flex h-2.5 w-2.5 shrink-0 mt-0.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
                   style={{ background: nearbyCount === 0 ? '#F59E0B' : density.dot }} />
