@@ -9,10 +9,10 @@ import { API_BASE } from '../services/apiBase';
 import toast from 'react-hot-toast';
 
 const CANNED = [
-  { code: 'im_here',  text: "I'm here, please come up" },
+  { code: 'im_here', text: "I'm here, please come up" },
   { code: 'share_loc', text: 'Share your location' },
-  { code: 'running',  text: 'Running a few minutes late' },
-  { code: 'thanks',   text: 'Thank you!' },
+  { code: 'running', text: 'Running a few minutes late' },
+  { code: 'thanks', text: 'Thank you!' },
 ];
 
 export default function ChatPage() {
@@ -146,8 +146,6 @@ export default function ChatPage() {
                 </div>
               </div>
             );
-          })}
-
           })}
         </div>
       </div>

@@ -266,6 +266,12 @@ export const api = createApi({
       query: (id) => `/orders/${id}`,
       providesTags: (r, e, id) => [{ type: 'Order', id }],
     }),
+    // Real per-status timestamps from statusHistory — powers the tracking
+    // timeline + live activity feed with grounded times (never fabricated).
+    getOrderTimeline: b.query({
+      query: (id) => `/orders/${id}/timeline`,
+      providesTags: (r, e, id) => [{ type: 'Order', id }],
+    }),
     listOrders: b.query({
       query: (page = 1) => `/orders/mine?page=${page}`,
       providesTags: ['Order'],
@@ -1692,6 +1698,7 @@ export const {
   useSearchTrendingQuery,
   useCreateOrderMutation,
   useGetOrderQuery,
+  useGetOrderTimelineQuery,
   useListOrdersQuery,
   useGetCancelPreviewQuery,
   useCancelOrderMutation,
