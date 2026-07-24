@@ -13,7 +13,7 @@ import {
   ShieldCheck, TrendingDown, Siren, ArrowUpRight,
   ArrowDownRight, Minus, Smartphone, Battery, Layers,
   Home, Bike, Fuel, Pencil, Bell, Building2, ArrowRightLeft,
-  GraduationCap, Scale, Wallet
+  GraduationCap, Scale, Wallet, FileText, Menu, Calendar, HelpCircle
 } from 'lucide-react';
 import {
   useGetWorkerMeQuery, useGoOnlineMutation, useGoOfflineMutation,
@@ -39,46 +39,46 @@ import toast from 'react-hot-toast';
 /* ─── Constants (mirror backend incentive.service.js) ─────────── */
 
 const MILESTONES = [
-  { jobs: 10,  bonusRs: 200  },
-  { jobs: 25,  bonusRs: 500  },
-  { jobs: 50,  bonusRs: 1000 },
+  { jobs: 10, bonusRs: 200 },
+  { jobs: 25, bonusRs: 500 },
+  { jobs: 50, bonusRs: 1000 },
   { jobs: 100, bonusRs: 2500 },
   { jobs: 200, bonusRs: 5000 },
 ];
 
 const BADGES = [
-  { id: 'first',   label: 'Starter',     Icon: Zap,     threshold: 1   },
-  { id: 'five',    label: '5 Jobs',       Icon: Star,    threshold: 5   },
-  { id: 'twenty',  label: '25 Jobs',      Icon: Flame,   threshold: 25  },
-  { id: 'fifty',   label: 'Elite',        Icon: Gem,     threshold: 50  },
-  { id: 'century', label: 'Legend',       Icon: Trophy,  threshold: 100 },
+  { id: 'first', label: 'Starter', Icon: Zap, threshold: 1 },
+  { id: 'five', label: '5 Jobs', Icon: Star, threshold: 5 },
+  { id: 'twenty', label: '25 Jobs', Icon: Flame, threshold: 25 },
+  { id: 'fifty', label: 'Elite', Icon: Gem, threshold: 50 },
+  { id: 'century', label: 'Legend', Icon: Trophy, threshold: 100 },
 ];
 
 const SERVICE_ICON_MAP = {
   // Original
-  electrical:            { Icon: Bolt,          bg: 'bg-amber-100',   color: 'text-amber-600'  },
-  plumbing:              { Icon: Droplets,       bg: 'bg-blue-100',    color: 'text-blue-600'   },
-  ac_repair:             { Icon: Wind,           bg: 'bg-cyan-100',    color: 'text-cyan-600'   },
-  carpenter:             { Icon: Hammer,         bg: 'bg-orange-100',  color: 'text-orange-600' },
-  helper:                { Icon: Users,          bg: 'bg-green-100',   color: 'text-green-600'  },
-  puncture:              { Icon: Car,            bg: 'bg-slate-100',   color: 'text-slate-500'  },
-  cleaning:              { Icon: Sparkles,       bg: 'bg-purple-100',  color: 'text-purple-600' },
-  painting:              { Icon: Paintbrush2,    bg: 'bg-pink-100',    color: 'text-pink-600'   },
+  electrical: { Icon: Bolt, bg: 'bg-amber-100', color: 'text-amber-600' },
+  plumbing: { Icon: Droplets, bg: 'bg-blue-100', color: 'text-blue-600' },
+  ac_repair: { Icon: Wind, bg: 'bg-cyan-100', color: 'text-cyan-600' },
+  carpenter: { Icon: Hammer, bg: 'bg-orange-100', color: 'text-orange-600' },
+  helper: { Icon: Users, bg: 'bg-green-100', color: 'text-green-600' },
+  puncture: { Icon: Car, bg: 'bg-slate-100', color: 'text-slate-500' },
+  cleaning: { Icon: Sparkles, bg: 'bg-purple-100', color: 'text-purple-600' },
+  painting: { Icon: Paintbrush2, bg: 'bg-pink-100', color: 'text-pink-600' },
   // Mobile phone
-  screen_replacement:    { Icon: Smartphone,     bg: 'bg-indigo-100',  color: 'text-indigo-600' },
-  battery_replacement:   { Icon: Battery,        bg: 'bg-emerald-100', color: 'text-emerald-600'},
-  charging_issue:        { Icon: Bolt,           bg: 'bg-yellow-100',  color: 'text-yellow-600' },
-  speaker_mic_issue:     { Icon: Layers,         bg: 'bg-violet-100',  color: 'text-violet-600' },
-  software_issue:        { Icon: Wrench,         bg: 'bg-red-100',     color: 'text-red-600'    },
-  water_damage_check:    { Icon: Droplets,       bg: 'bg-sky-100',     color: 'text-sky-600'    },
+  screen_replacement: { Icon: Smartphone, bg: 'bg-indigo-100', color: 'text-indigo-600' },
+  battery_replacement: { Icon: Battery, bg: 'bg-emerald-100', color: 'text-emerald-600' },
+  charging_issue: { Icon: Bolt, bg: 'bg-yellow-100', color: 'text-yellow-600' },
+  speaker_mic_issue: { Icon: Layers, bg: 'bg-violet-100', color: 'text-violet-600' },
+  software_issue: { Icon: Wrench, bg: 'bg-red-100', color: 'text-red-600' },
+  water_damage_check: { Icon: Droplets, bg: 'bg-sky-100', color: 'text-sky-600' },
   // Construction
-  mason:                 { Icon: Home,           bg: 'bg-stone-100',   color: 'text-stone-600'  },
+  mason: { Icon: Home, bg: 'bg-stone-100', color: 'text-stone-600' },
   // Car + Bike
-  battery_jump_start:    { Icon: Zap,            bg: 'bg-yellow-100',  color: 'text-yellow-600' },
-  fuel_delivery:         { Icon: Fuel,           bg: 'bg-orange-100',  color: 'text-orange-600' },
-  bike_wash:             { Icon: Bike,           bg: 'bg-cyan-100',    color: 'text-cyan-600'   },
-  car_wash:              { Icon: Car,            bg: 'bg-blue-100',    color: 'text-blue-600'   },
-  minor_roadside_repair: { Icon: AlertTriangle,  bg: 'bg-red-100',     color: 'text-red-600'    },
+  battery_jump_start: { Icon: Zap, bg: 'bg-yellow-100', color: 'text-yellow-600' },
+  fuel_delivery: { Icon: Fuel, bg: 'bg-orange-100', color: 'text-orange-600' },
+  bike_wash: { Icon: Bike, bg: 'bg-cyan-100', color: 'text-cyan-600' },
+  car_wash: { Icon: Car, bg: 'bg-blue-100', color: 'text-blue-600' },
+  minor_roadside_repair: { Icon: AlertTriangle, bg: 'bg-red-100', color: 'text-red-600' },
 };
 
 /* ─── Notification bell with live unread count ───────────────── */
@@ -155,7 +155,7 @@ function getAudioCtx() {
 if (typeof window !== 'undefined') {
   const unlockAudio = () => {
     const ctx = getAudioCtx();
-    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => { });
   };
   window.addEventListener('pointerdown', unlockAudio);
   window.addEventListener('keydown', unlockAudio);
@@ -166,7 +166,7 @@ function playOfferAlert() {
     const ctx = getAudioCtx();
     if (!ctx) return;
     // Resume if the browser suspended it (backgrounded tab / not yet unlocked).
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    if (ctx.state === 'suspended') ctx.resume().catch(() => { });
     [[0, 880], [0.2, 1100], [0.4, 880]].forEach(([delay, freq]) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -179,7 +179,7 @@ function playOfferAlert() {
       osc.start(ctx.currentTime + delay);
       osc.stop(ctx.currentTime + delay + 0.18);
     });
-  } catch {}
+  } catch { }
 }
 
 function computeTrustScore(acceptRate, rating, completedJobs) {
@@ -193,18 +193,18 @@ function computeTrustScore(acceptRate, rating, completedJobs) {
 /* ─── Main ───────────────────────────────────────────────────── */
 
 export default function WorkerDashboard() {
-  const nav      = useNavigate();
+  const nav = useNavigate();
   const dispatch = useDispatch();
-  const worker   = useSelector(selectWorker);
+  const worker = useSelector(selectWorker);
   const { accessToken: token } = useSelector(selectAuth);
 
   // 60s poll — profile/availability rarely changes mid-session; socket events drive
   // job-offer state changes, so there's no user-visible lag from a slower REST poll.
   const { data: meData, refetch: refetchMe } = useGetWorkerMeQuery(undefined, { pollingInterval: 60000, skip: !token });
-  const { data: todayData }   = useGetEarningsQuery('today',  { skip: !token });
-  const { data: weekData }    = useGetEarningsQuery('week',   { skip: !token });
-  const { data: kycData }     = useGetKycStatusQuery(undefined, { skip: !token });
-  const { data: jobsData }    = useGetWorkerOrdersQuery(1,    { skip: !token });
+  const { data: todayData } = useGetEarningsQuery('today', { skip: !token });
+  const { data: weekData } = useGetEarningsQuery('week', { skip: !token });
+  const { data: kycData } = useGetKycStatusQuery(undefined, { skip: !token });
+  const { data: jobsData } = useGetWorkerOrdersQuery(1, { skip: !token });
 
   // Profile avatar — fetched from server proxy (permanent, no URL expiry)
   const [avatarUrl, setAvatarUrl] = useState(null);
@@ -214,66 +214,66 @@ export default function WorkerDashboard() {
     fetch(`${baseUrl}/api/workers/me/avatar`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.blob() : null)
       .then(blob => blob && setAvatarUrl(URL.createObjectURL(blob)))
-      .catch(() => {});
+      .catch(() => { });
   }, [token, meData?.worker?.profilePhotoKey]);
 
-  const [goOnline]  = useGoOnlineMutation();
+  const [goOnline] = useGoOnlineMutation();
   const [goOffline] = useGoOfflineMutation();
   const [acceptOffer, { isLoading: accepting }] = useWorkerAcceptMutation();
   const [rejectOffer] = useWorkerRejectMutation();
-  const [callLogout]     = useLogoutMutation();
-  const [revokeAll]      = useRevokeAllSessionsMutation();
+  const [callLogout] = useLogoutMutation();
+  const [revokeAll] = useRevokeAllSessionsMutation();
 
   const { getCurrent, watch } = useGeolocation();
-  const watchRef   = useRef(null);
+  const watchRef = useRef(null);
   const [myLat, setMyLat] = useState(null);
   const [myLng, setMyLng] = useState(null);
-  const [gpsOn,        setGpsOn]        = useState(false);
-  const [areaName,     setAreaName]     = useState(null);
-  const [toggling,     setToggling]     = useState(false);
-  const [onlineTimer,  setOnlineTimer]  = useState(0); // seconds online this session
+  const [gpsOn, setGpsOn] = useState(false);
+  const [areaName, setAreaName] = useState(null);
+  const [toggling, setToggling] = useState(false);
+  const [onlineTimer, setOnlineTimer] = useState(0); // seconds online this session
   const onlineStart = useRef(null);
 
-  const me          = meData?.worker;
-  const isOnline    = me?.isOnline ?? false;
-  const isBusy      = isOnline && !!me?.currentOrderId;
+  const me = meData?.worker;
+  const isOnline = me?.isOnline ?? false;
+  const isBusy = isOnline && !!me?.currentOrderId;
   const kycApproved = kycData?.kyc?.status === 'approved';
-  const kycStatus   = kycData?.kyc?.status;
+  const kycStatus = kycData?.kyc?.status;
   const canGoOnline = kycApproved;
 
   const completedJobs = me?.completedJobs ?? 0;
-  const rating        = me?.rating ?? null; // null until first real rating
-  const penalties     = me?.penalties ?? {};
-  const totalOffers   = penalties.totalOffers ?? 0;
-  const totalRejects  = penalties.totalRejects ?? 0;
-  const totalCancels  = penalties.totalCancels ?? 0;
+  const rating = me?.rating ?? null; // null until first real rating
+  const penalties = me?.penalties ?? {};
+  const totalOffers = penalties.totalOffers ?? 0;
+  const totalRejects = penalties.totalRejects ?? 0;
+  const totalCancels = penalties.totalCancels ?? 0;
 
-  const hasOfferData  = totalOffers > 0;
-  const hasJobData    = completedJobs > 0;
+  const hasOfferData = totalOffers > 0;
+  const hasJobData = completedJobs > 0;
   const hasRatingData = hasJobData && rating !== null;
 
-  const acceptRate  = hasOfferData ? Math.round(((totalOffers - totalRejects) / totalOffers) * 100) : null;
-  const cancelRate  = hasJobData   ? Math.round((totalCancels / completedJobs) * 100)               : null;
-  const trustScore  = (hasOfferData || hasJobData)
+  const acceptRate = hasOfferData ? Math.round(((totalOffers - totalRejects) / totalOffers) * 100) : null;
+  const cancelRate = hasJobData ? Math.round((totalCancels / completedJobs) * 100) : null;
+  const trustScore = (hasOfferData || hasJobData)
     ? computeTrustScore(acceptRate ?? 100, rating ?? 5, completedJobs)
     : null;
 
-  const chart7d  = getLast7Days(weekData?.dailyBreakdown);
+  const chart7d = getLast7Days(weekData?.dailyBreakdown);
   const chartMax = Math.max(...chart7d.map((d) => d.earningsPaise), 1);
   const hasChartData = chart7d.some((d) => d.earningsPaise > 0);
 
-  const nextMilestone  = MILESTONES.find((m) => m.jobs > completedJobs) ?? null;
-  const prevMilestone  = [...MILESTONES].reverse().find((m) => m.jobs <= completedJobs);
-  const msProgress     = nextMilestone
+  const nextMilestone = MILESTONES.find((m) => m.jobs > completedJobs) ?? null;
+  const prevMilestone = [...MILESTONES].reverse().find((m) => m.jobs <= completedJobs);
+  const msProgress = nextMilestone
     ? Math.round(((completedJobs - (prevMilestone?.jobs ?? 0)) /
-        (nextMilestone.jobs - (prevMilestone?.jobs ?? 0))) * 100)
+      (nextMilestone.jobs - (prevMilestone?.jobs ?? 0))) * 100)
     : 100;
 
-  const todayRs      = todayData?.earningsRupees ?? 0;
-  const todayJobs    = todayData?.jobs ?? 0;
-  const weekRs       = weekData?.earningsRupees ?? 0;
-  const weekAvgRs    = weekData?.avgEarningPerJobRupees ?? 0;
-  const totalWallet  = Math.round((me?.wallet?.totalEarnings ?? 0) / 100);
+  const todayRs = todayData?.earningsRupees ?? 0;
+  const todayJobs = todayData?.jobs ?? 0;
+  const weekRs = weekData?.earningsRupees ?? 0;
+  const weekAvgRs = weekData?.avgEarningPerJobRupees ?? 0;
+  const totalWallet = Math.round((me?.wallet?.totalEarnings ?? 0) / 100);
 
   // session online timer
   useEffect(() => {
@@ -313,7 +313,7 @@ export default function WorkerDashboard() {
     navigator.permissions?.query({ name: 'geolocation' }).then((r) => {
       setGpsOn(r.state === 'granted');
       r.onchange = () => setGpsOn(r.state === 'granted');
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   // offer socket + alert
@@ -330,7 +330,7 @@ export default function WorkerDashboard() {
     // Stronger vibration pattern for boosted offers (distinct from standard)
     const isBoosted = (offer.boostAmountPaise ?? 0) > 0;
     playOfferAlert();
-    try { navigator.vibrate?.(isBoosted ? [100, 50, 150, 50, 250, 50, 150] : [200, 100, 200]); } catch {}
+    try { navigator.vibrate?.(isBoosted ? [100, 50, 150, 50, 250, 50, 150] : [200, 100, 200]); } catch { }
   }, [dispatch]);
 
   // offer taken by another worker — dismiss popup immediately
@@ -345,7 +345,7 @@ export default function WorkerDashboard() {
     dispatch(clearOffer());
     refetchMe();
     playOfferAlert();
-    try { navigator.vibrate?.([300, 100, 300, 100, 300]); } catch {}
+    try { navigator.vibrate?.([300, 100, 300, 100, 300]); } catch { }
     toast.success(`Job assigned to you! ₹${data.price ?? ''}`, { duration: 6000 });
     setTimeout(() => nav(`/worker/jobs/${data.orderId}`), 1500);
   }, [dispatch, nav, refetchMe]);
@@ -355,7 +355,7 @@ export default function WorkerDashboard() {
     if (worker.currentOffer && String(worker.currentOffer._id) === String(data?.orderId)) {
       dispatch(setOffer({ ...worker.currentOffer, price: data.newTotal, boostedBy: data.rupees }));
       playOfferAlert();
-      try { navigator.vibrate?.([60, 40, 100, 40, 150]); } catch {}
+      try { navigator.vibrate?.([60, 40, 100, 40, 150]); } catch { }
     }
   }, [dispatch, worker.currentOffer]);
 
@@ -370,7 +370,7 @@ export default function WorkerDashboard() {
   // Continuous location broadcast — socket (fast) + REST fallback (reliable)
   // Client-side gates: 4s time throttle + 10m distance threshold.
   // Server enforces its own 1s throttle and 5m threshold as a second layer.
-  const lastRestRef   = useRef(0);
+  const lastRestRef = useRef(0);
   const lastSentPosRef = useRef(null); // { lat, lng } of last actually-sent position
   useEffect(() => {
     if (!isOnline || !token) { watchRef.current?.(); watchRef.current = null; return; }
@@ -427,7 +427,7 @@ export default function WorkerDashboard() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify(locBody),
-          }).catch(() => {});
+          }).catch(() => { });
         }
       },
       () => setGpsOn(false),
@@ -465,7 +465,7 @@ export default function WorkerDashboard() {
         // Reverse geocode in background — non-blocking
         reverseGeocode(pos.lat, pos.lng).then(({ primary, secondary }) => {
           setAreaName(secondary ? `${primary}, ${secondary.split(',')[0]}` : primary);
-        }).catch(() => {});
+        }).catch(() => { });
       }
       refetchMe();
     } catch (err) {
@@ -497,659 +497,753 @@ export default function WorkerDashboard() {
   const fmtTimer = onlineTimer > 0
     ? `${Math.floor(onlineTimer / 3600)}h ${Math.floor((onlineTimer % 3600) / 60)}m online`
     : null;
+  // Desktop Tabs State
+  const [activeJobTab, setActiveJobTab] = useState('New');
+
+  const pendingCount = jobsData?.orders?.filter(o => o.status === 'pending').length || 0;
+  const acceptedCount = jobsData?.orders?.filter(o => o.status === 'accepted').length || 0;
+  const ongoingCount = jobsData?.orders?.filter(o => ['in_progress', 'arrived', 'started'].includes(o.status)).length || 0;
+  const completedCount = jobsData?.orders?.filter(o => o.status === 'completed').length || 0;
+  const cancelledCount = jobsData?.orders?.filter(o => o.status === 'cancelled').length || 0;
+
+  const getTabOrders = () => {
+    if (!jobsData?.orders) return [];
+    switch (activeJobTab) {
+      case 'New': return jobsData.orders.filter(o => o.status === 'pending');
+      case 'Accepted': return jobsData.orders.filter(o => o.status === 'accepted');
+      case 'Ongoing': return jobsData.orders.filter(o => ['in_progress', 'arrived', 'started'].includes(o.status));
+      case 'Completed': return jobsData.orders.filter(o => o.status === 'completed');
+      case 'Cancelled': return jobsData.orders.filter(o => o.status === 'cancelled');
+      default: return [];
+    }
+  };
+
+  const desktopTabOrders = getTabOrders();
 
   return (
-    <div className="min-h-screen bg-slate-100">
-
-      {/* ── Cinematic Header ──────────────────────────────────── */}
-      <div className="relative overflow-hidden pb-10" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e3a5f 100%)' }}>
-        {/* Animated orbs */}
-        <motion.div
-          className="absolute -top-20 -right-20 w-72 h-72 rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.4), transparent)' }}
-          animate={{ scale: [1, 1.25, 1], opacity: [0.3, 0.5, 0.3] }}
-          transition={{ duration: 6, repeat: Infinity }}
-        />
-        <motion.div
-          className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(circle, rgba(234,179,8,0.25), transparent)' }}
-          animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
-          transition={{ duration: 8, repeat: Infinity, delay: 2 }}
-        />
-        {/* Grid overlay */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
-        }} />
-
-        <div className="relative z-10 max-w-lg mx-auto px-5 pt-6 pb-8">
-          {/* ── Top bar ─────────────────────────────────────── */}
-          <div className="flex items-center justify-between mb-7">
-            <ZappyLogo size={26} />
-            <div className="flex items-center gap-2">
-              {/* Notification bell */}
-              <NotifBell token={token} onTap={() => nav('/worker/notifications')} />
-              <div className="flex items-center gap-1.5">
-                <motion.button
-                  onClick={async () => { try { await callLogout().unwrap(); } catch {} dispatch(logout()); nav('/worker/login'); }}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-white/50 px-3.5 py-2 rounded-full transition-colors hover:text-white/80"
-                  style={{ border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
-                  whileTap={{ scale: 0.93 }}
-                >
-                  <LogOut size={12} strokeWidth={2.5} />
-                  Logout
-                </motion.button>
-                <motion.button
-                  onClick={async () => {
-                    if (!window.confirm('Sign out from ALL devices? You will need to log in again.')) return;
-                    try { await revokeAll().unwrap(); } catch {}
-                    dispatch(logout());
-                    nav('/worker/login');
-                  }}
-                  className="flex items-center gap-1 text-[10px] font-bold text-red-400/70 px-2.5 py-2 rounded-full hover:text-red-400"
-                  style={{ border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.06)' }}
-                  whileTap={{ scale: 0.93 }}
-                  title="Sign out from all devices"
-                >
-                  <LogOut size={11} strokeWidth={2.5} />
-                  All devices
-                </motion.button>
-              </div>
+    <>
+      {/* ── Mobile & Tablet View (Unmodified) ────────────────── */}
+      <div className="lg:hidden">
+        {/* Top Navbar */}
+        <header className="bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 sticky top-0 z-20">
+          <button className="p-2 -ml-2 text-slate-700">
+            <Menu size={24} />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <Zap className="text-blue-600 fill-blue-600" size={24} />
+            <div>
+              <h1 className="text-lg font-black text-blue-600 leading-none">Zappyone</h1>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Worker</p>
             </div>
           </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Bell size={22} className="text-slate-600" onClick={() => nav('/worker/notifications')} />
+              <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full" />
+            </div>
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border border-slate-200">
+              <span className="text-blue-700 font-bold text-sm">{initials}</span>
+            </div>
+          </div>
+        </header>
 
-          {/* ── Profile row ─────────────────────────────────── */}
-          <div className="flex items-center gap-4 mb-7">
-            {/* Avatar */}
-            <motion.div
-              className="w-16 h-16 rounded-2xl shrink-0 relative overflow-hidden"
-              style={{
-                border: '2px solid rgba(255,255,255,0.2)',
-                boxShadow: '0 8px 32px rgba(99,102,241,0.25)',
-              }}
-              animate={{ boxShadow: ['0 0 0 0px rgba(99,102,241,0.35)', '0 0 0 10px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)'] }}
-              transition={{ duration: 3.5, repeat: Infinity, delay: 1 }}
-            >
-              {avatarUrl ? (
-                <img src={avatarUrl} alt={me?.name} className="w-full h-full object-cover rounded-2xl" />
-              ) : (
-                <div
-                  className="w-full h-full flex items-center justify-center text-white font-black text-2xl"
-                  style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.5), rgba(139,92,246,0.4))', backdropFilter: 'blur(12px)' }}
-                >
-                  {initials}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, staggerChildren: 0.1 }} className="pb-24">
+          
+          {/* Welcome Card */}
+          <div className="m-4 p-5 rounded-2xl bg-[#F8FAFC] border border-slate-200/60 shadow-sm flex flex-col gap-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                  Hello, {me?.name?.split(' ')[0]} <span className="text-lg">👋</span>
+                </h2>
+                <p className="text-xs font-medium text-slate-500 mt-1">Go online to get more jobs</p>
+                <div className="flex items-center gap-1 mt-2 text-slate-600 cursor-pointer">
+                  <MapPin size={14} />
+                  <span className="text-xs font-bold">{areaName || 'Fetching Location...'}</span>
+                  <ChevronDown size={14} className="ml-0.5 text-slate-400" />
                 </div>
-              )}
-              {/* Online dot */}
-              {isOnline && (
-                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#0f172a]" />
-              )}
-            </motion.div>
-
-            {/* Name + meta */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <p className="text-white/45 text-[11px] font-semibold tracking-wide">{getGreeting()}</p>
+              </div>
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+                <span className="text-xs font-bold text-slate-600">{isOnline ? 'Online' : 'Offline'}</span>
                 <button
-                  onClick={() => nav('/worker/profile')}
-                  className="p-1 rounded-full hover:bg-white/10 transition-colors"
-                  title="Edit profile"
+                  onClick={toggleOnline}
+                  disabled={toggling || !canGoOnline}
+                  className={`relative w-9 h-5 rounded-full transition-colors duration-300 ${isOnline ? 'bg-blue-600' : 'bg-slate-300'}`}
                 >
-                  <Pencil size={11} className="text-white/40" />
+                  <span className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full transition-transform ${isOnline ? 'translate-x-4' : 'translate-x-0'}`} />
                 </button>
               </div>
-              <p className="text-white font-black text-2xl leading-tight truncate">{me?.name ?? '…'}</p>
-              <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
-                <span className="flex items-center gap-1 text-amber-300 text-xs font-bold">
-                  <Star size={10} className="fill-amber-300 stroke-amber-300" />
-                  {hasRatingData ? rating.toFixed(1) : 'New'}
-                </span>
-                <span className="w-px h-3 bg-white/15" />
-                <span className="text-white/45 text-xs font-semibold">{completedJobs} jobs</span>
-                {me?.skills?.length > 0 && (
-                  <>
-                    <span className="w-px h-3 bg-white/15" />
-                    <span className="text-white/45 text-xs font-semibold capitalize">
-                      {me.skills.slice(0, 3).map(s => s.replace(/_/g, ' ')).join(' · ')}
-                      {me.skills.length > 3 && <span className="text-white/25"> +{me.skills.length - 3}</span>}
-                    </span>
-                  </>
-                )}
-              </div>
             </div>
-
-            {/* Verified badge */}
-            {kycApproved && (
-              <motion.div
-                className="flex items-center gap-1.5 px-3 py-2 rounded-full shrink-0"
-                style={{
-                  background: 'rgba(34,197,94,0.12)',
-                  border: '1px solid rgba(34,197,94,0.3)',
-                  backdropFilter: 'blur(8px)',
-                }}
-                animate={{ boxShadow: ['0 0 0 0px rgba(34,197,94,0.25)', '0 0 0 6px rgba(34,197,94,0)', '0 0 0 0px rgba(34,197,94,0)'] }}
-                transition={{ duration: 3, repeat: Infinity }}
-              >
-                <BadgeCheck size={13} strokeWidth={2.5} className="text-green-400" />
-                <span className="text-[10px] font-extrabold text-green-400 tracking-wide">Verified</span>
-              </motion.div>
-            )}
+            <button 
+              onClick={toggleOnline} 
+              disabled={toggling || !canGoOnline}
+              className={`w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 text-white shadow-md transition-colors ${isOnline ? 'bg-red-500 shadow-red-200 active:bg-red-600' : 'bg-blue-600 shadow-blue-200 active:bg-blue-700'}`}
+            >
+              {toggling ? <Loader2 size={18} className="animate-spin" /> : <Wifi size={18} />}
+              {isOnline ? 'Go Offline' : 'Go Online'}
+            </button>
           </div>
 
-          {/* ── Earnings strip ─────────────────────────────── */}
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.11)',
-              backdropFilter: 'blur(16px)',
-            }}
-          >
-            <div className="grid grid-cols-3">
+          {/* 4 Stat Cards Horizontal Scroll */}
+          <div className="flex overflow-x-auto gap-4 px-4 pb-2 snap-x hide-scrollbar">
+            <motion.div whileTap={{ scale: 0.96 }} className="snap-start shrink-0 w-[140px] bg-white rounded-2xl p-4 border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-between relative overflow-hidden">
+              <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center mb-4">
+                <Wallet size={20} className="text-green-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-500">Wallet Balance</p>
+                <p className="text-2xl font-black text-slate-800 leading-none mt-1">₹{totalWallet}</p>
+                <button onClick={() => nav('/wallet')} className="text-[10px] font-bold text-blue-600 mt-2 flex items-center gap-0.5 hover:underline">
+                  View balance <ChevronRight size={12} />
+                </button>
+              </div>
+            </motion.div>
+
+            <motion.div whileTap={{ scale: 0.96 }} className="snap-start shrink-0 w-[140px] bg-white rounded-2xl p-4 border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-between relative overflow-hidden">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-4">
+                <BadgeIndianRupee size={20} className="text-blue-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-500">Today's Earnings</p>
+                <p className="text-2xl font-black text-slate-800 leading-none mt-1">₹{todayRs}</p>
+                <p className="text-[10px] font-bold text-blue-600 mt-2 flex items-center gap-0.5 hover:underline">
+                  View details <ChevronRight size={12} />
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div whileTap={{ scale: 0.96 }} className="snap-start shrink-0 w-[140px] bg-white rounded-2xl p-4 border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-between relative overflow-hidden">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center mb-4">
+                <Briefcase size={20} className="text-orange-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-500">Today's Jobs</p>
+                <p className="text-2xl font-black text-slate-800 leading-none mt-1">{todayJobs}</p>
+                <p className="text-[10px] font-bold text-blue-600 mt-2 flex items-center gap-0.5 hover:underline">
+                  View all <ChevronRight size={12} />
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div whileTap={{ scale: 0.96 }} className="snap-start shrink-0 w-[140px] bg-white rounded-2xl p-4 border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col justify-between relative overflow-hidden">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center mb-4">
+                <Star size={20} className="text-purple-500 fill-purple-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-500">Your Rating</p>
+                <p className="text-2xl font-black text-slate-800 leading-none mt-1">{hasRatingData ? rating.toFixed(1) : '0.0'}</p>
+                <p className="text-[10px] font-bold text-blue-600 mt-2 flex items-center gap-0.5 hover:underline">
+                  Reviews <ChevronRight size={12} />
+                </p>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Job Requests */}
+          <div className="mt-6 px-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-black text-slate-800">Job Requests</h3>
+              <button className="text-xs font-bold text-blue-600 hover:underline">View all</button>
+            </div>
+            
+            <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
               {[
-                { label: 'TODAY', value: todayRs, sub: `${todayJobs} job${todayJobs !== 1 ? 's' : ''}`, highlight: true },
-                { label: 'THIS WEEK', value: weekRs, sub: `avg ₹${weekAvgRs}` },
-                { label: 'ALL TIME', value: totalWallet, sub: 'total earned' },
-              ].map(({ label, value, sub, highlight }, i) => (
-                <div
-                  key={label}
-                  className={`px-4 py-4 ${i === 1 ? 'border-x border-white/10' : ''}`}
+                { label: 'New', count: pendingCount },
+                { label: 'Accepted', count: acceptedCount },
+                { label: 'Ongoing', count: ongoingCount },
+                { label: 'Completed', count: completedCount },
+              ].map(tab => (
+                <button
+                  key={tab.label}
+                  onClick={() => setActiveJobTab(tab.label)}
+                  className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeJobTab === tab.label ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}
                 >
-                  <p className="text-white/35 text-[9px] font-black uppercase tracking-[0.15em] mb-2">{label}</p>
-                  <motion.p
-                    className={`font-black text-2xl leading-none tabular-nums ${
-                      highlight && (isOnline || isBusy) ? 'text-green-300' : 'text-white'
-                    }`}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.08 + 0.15, type: 'spring', stiffness: 300 }}
-                  >
-                    ₹{value}
-                  </motion.p>
-                  <p className="text-white/35 text-[10px] mt-1.5 font-medium">{sub}</p>
-                </div>
+                  {tab.label} ({tab.count})
+                </button>
               ))}
             </div>
+
+            <div className="mt-4 bg-white rounded-2xl border border-slate-200 p-8 shadow-sm flex flex-col items-center text-center">
+               {desktopTabOrders.length === 0 ? (
+                 <>
+                   <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
+                     <FileText size={32} className="text-blue-500" />
+                   </div>
+                   <h4 className="text-sm font-bold text-slate-800 mb-1">No {activeJobTab.toLowerCase()} job requests</h4>
+                   <p className="text-xs text-slate-500 mb-6">Go online to receive new job requests</p>
+                   <button onClick={toggleOnline} disabled={toggling || !canGoOnline} className="bg-blue-600 active:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition-colors w-full justify-center">
+                     <Wifi size={16} /> {isOnline ? 'Go Offline' : 'Go Online'}
+                   </button>
+                 </>
+               ) : (
+                 <div className="w-full space-y-3">
+                   {desktopTabOrders.map(order => (
+                     <div key={order._id} className="p-3 border border-slate-200 rounded-xl cursor-pointer text-left" onClick={() => nav(`/worker/jobs/${order._id}`)}>
+                       <div className="flex justify-between items-start">
+                         <div>
+                           <p className="font-bold text-sm text-slate-800">{order.serviceName || 'Job Service'}</p>
+                           <p className="text-xs text-slate-500 mt-1">{order.status}</p>
+                         </div>
+                         <p className="font-black text-blue-600 text-sm">₹{order.price}</p>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               )}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* ── Scrollable content ───────────────────────────────── */}
-      <div className="max-w-lg mx-auto px-4 mt-4 space-y-3.5 pb-40">
-
-        {!kycApproved && (
-          <motion.button
-            onClick={() => nav('/worker/kyc')}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`w-full rounded-2xl p-4 text-left ring-1 ${
-              kycStatus === 'rejected' ? 'bg-red-50 ring-red-200' : 'bg-amber-50 ring-amber-200'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                kycStatus === 'rejected' ? 'bg-red-100' : 'bg-amber-100'
-              }`}>
-                <AlertTriangle size={16} strokeWidth={2} className={kycStatus === 'rejected' ? 'text-red-600' : 'text-amber-600'} />
+          {/* Today's Schedule */}
+          <div className="mt-6 px-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-black text-slate-800">Today's Schedule</h3>
+              <button className="text-xs font-bold text-blue-600 hover:underline">View calendar</button>
+            </div>
+            <div className="bg-[#F8FAFC] border border-slate-200/60 rounded-2xl p-4 flex items-center gap-4">
+              <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
+                <Calendar size={24} className="text-blue-500" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-xs font-bold ${kycStatus === 'rejected' ? 'text-red-700' : 'text-amber-800'}`}>
-                  {kycStatus === 'pending_review' ? 'KYC Under Review — 24h processing'
-                   : kycStatus === 'rejected' ? 'KYC Rejected — Tap to resubmit'
-                   : 'KYC Required to start accepting jobs'}
-                </p>
-              </div>
-              <ChevronRight size={14} className="text-slate-400 shrink-0" />
-            </div>
-          </motion.button>
-        )}
-
-        {/* ── Active Job Banner ────────────────────────────────── */}
-        {me?.currentOrderId && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={() => nav(`/worker/jobs/${me.currentOrderId}`)}
-            className="w-full flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 text-left shadow-lg"
-          >
-            <span className="relative flex h-3 w-3 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Active Job</p>
-              <p className="text-sm font-bold text-white">Continue working</p>
-            </div>
-            <ArrowRight size={18} className="text-white/80 shrink-0" />
-          </motion.button>
-        )}
-
-        {/* ── Online Toggle ────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="rounded-2xl overflow-hidden"
-          style={{
-            background: isBusy
-              ? 'linear-gradient(135deg, #fffbeb, #fef3c7)'
-              : isOnline
-                ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
-                : 'white',
-            border: isOnline ? '1px solid rgba(34,197,94,0.25)' : isBusy ? '1px solid rgba(245,158,11,0.25)' : '1px solid rgba(0,0,0,0.06)',
-            boxShadow: isOnline ? '0 4px 24px rgba(34,197,94,0.12)' : '0 2px 12px rgba(0,0,0,0.05)',
-          }}
-        >
-          {/* Animated green bar on top when online */}
-          {isOnline && (
-            <div className="h-0.5 w-full overflow-hidden">
-              <motion.div
-                className="h-full bg-green-500"
-                animate={{ x: ['-100%', '100%'] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                style={{ width: '60%' }}
-              />
-            </div>
-          )}
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <motion.div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
-                  isBusy ? 'bg-amber-100' : isOnline ? 'bg-green-100' : 'bg-slate-100'
-                }`}
-                animate={isOnline && !isBusy ? {
-                  boxShadow: ['0 0 0 0px rgba(34,197,94,0.4)', '0 0 0 10px rgba(34,197,94,0)', '0 0 0 0px rgba(34,197,94,0)']
-                } : {}}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                {isBusy
-                  ? <Briefcase size={20} strokeWidth={1.75} className="text-amber-600" />
-                  : isOnline
-                    ? <Navigation size={20} strokeWidth={1.75} className="text-green-600" />
-                    : <WifiOff size={20} strokeWidth={1.75} className="text-slate-400" />}
-              </motion.div>
               <div>
-                <p className={`font-black text-base ${isOnline ? 'text-green-800' : isBusy ? 'text-amber-800' : 'text-slate-800'}`}>
-                  {isBusy ? 'On a job' : isOnline ? 'Online · Accepting jobs' : 'Offline'}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <motion.div
-                    className={`w-1.5 h-1.5 rounded-full ${gpsOn ? 'bg-green-500' : 'bg-red-400'}`}
-                    animate={gpsOn ? { opacity: [1, 0.4, 1] } : {}}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  />
-                  <p className="text-[11px] text-slate-500 font-medium truncate max-w-[180px]">
-                    {gpsOn
-                      ? areaName
-                        ? <><span className="text-green-600 font-semibold">{areaName}</span></>
-                        : 'GPS active'
-                      : 'GPS off'}
-                    {fmtTimer && <span className="text-green-600 font-bold"> · {fmtTimer}</span>}
-                  </p>
-                </div>
+                <h4 className="text-sm font-bold text-slate-800">No jobs scheduled for today</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Jobs will appear here once scheduled</p>
               </div>
             </div>
+          </div>
 
-            {!isBusy && (
-              <motion.button
-                onClick={toggleOnline}
-                disabled={toggling || !canGoOnline}
-                className={`relative w-16 h-8 rounded-full transition-colors duration-300 shrink-0 disabled:opacity-50 ${
-                  isOnline ? 'bg-green-500' : 'bg-slate-200'
-                }`}
-                style={{ boxShadow: isOnline ? '0 4px 16px rgba(34,197,94,0.4)' : 'none' }}
-                whileTap={{ scale: 0.93 }}
-              >
-                {toggling
-                  ? <Loader2 size={14} className="absolute inset-0 m-auto animate-spin text-white" />
-                  : (
-                    <motion.span
-                      className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-md"
-                      animate={{ left: isOnline ? 'calc(100% - 28px)' : '4px' }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                    />
-                  )
-                }
-              </motion.button>
+          {/* Earnings Overview */}
+          <div className="mt-8 px-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-black text-slate-800">Earnings Overview</h3>
+              <button className="text-xs font-bold text-blue-600 hover:underline" onClick={() => nav('/wallet')}>View details</button>
+            </div>
+            
+            <p className="text-xs font-medium text-slate-500">This Week</p>
+            <div className="flex items-end gap-3 mt-1 mb-6">
+              <p className="text-3xl font-black text-slate-800 leading-none">₹{weekRs}</p>
+              <p className="text-xs font-bold text-green-500 flex items-center mb-0.5">
+                <ArrowUpRight size={14} /> 0% <span className="text-slate-400 font-normal ml-1">from last week</span>
+              </p>
+            </div>
+
+            {hasChartData ? (
+              <div className="relative h-28 w-full flex items-end justify-between">
+                <div className="absolute top-0 bottom-6 left-6 right-0 border-b border-slate-100" />
+                <div className="absolute top-1/2 bottom-6 left-6 right-0 border-b border-slate-50" />
+                
+                <div className="flex flex-col justify-between h-[calc(100%-24px)] text-[9px] font-bold text-slate-400 pb-1 absolute left-0 top-0">
+                  <span>₹{chartMaxRs}</span>
+                  <span>₹{Math.round(chartMaxRs/2)}</span>
+                  <span>₹0</span>
+                </div>
+
+                <div className="flex-1 flex justify-between items-end ml-8 relative z-10">
+                  {chart7d.map((d, i) => {
+                    const isToday = i === chart7d.length - 1;
+                    const h = Math.max(Math.round((d.earningsPaise / chartMax) * 100), 5);
+                    const dayLabel = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][new Date(d.date + 'T00:00').getDay() - 1] || 'Sun';
+                    return (
+                      <div key={d.date} className="flex flex-col items-center gap-2">
+                        <div className="relative flex justify-center w-full" style={{ height: 80 }}>
+                           <div className="absolute bottom-0 w-2.5 rounded-full" style={{ height: `${h}%`, background: isToday ? '#2563eb' : '#e2e8f0' }} />
+                           <div className="absolute top-0 w-3 h-3 bg-white border-[3px] rounded-full transform translate-y-1/2 z-20" style={{ borderColor: isToday ? '#2563eb' : '#cbd5e1', bottom: `calc(${h}% - 6px)`, top: 'auto' }} />
+                        </div>
+                        <span className={`text-[9px] font-bold ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>{dayLabel}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Horizontal connection line for nodes */}
+                <div className="absolute left-10 right-2 border-b-2 border-slate-200 z-0 top-[calc(100%-35px)]" />
+              </div>
+            ) : (
+              <div className="h-24 flex items-center justify-center text-sm font-bold text-slate-300">
+                No earnings data to display
+              </div>
             )}
           </div>
-        </motion.div>
 
-        {/* ── Earnings Chart ───────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 }}
-          className="bg-white rounded-2xl overflow-hidden"
-          style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.04)' }}
-        >
-          <div className="flex items-center justify-between px-4 pt-4 pb-3">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">7-Day Earnings</p>
-              {hasChartData && (
-                <motion.p
-                  className="text-xl font-black text-slate-900 mt-0.5"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  ₹{weekRs}
-                </motion.p>
-              )}
+          {/* Quick Actions */}
+          <div className="mt-8 px-4">
+            <h3 className="text-base font-black text-slate-800 mb-4">Quick Actions</h3>
+            <div className="flex justify-between px-2">
+              <div className="flex flex-col items-center gap-2 cursor-pointer" onClick={() => nav('/worker/jobs')}>
+                <div className="w-12 h-12 bg-white border border-slate-200 shadow-sm rounded-2xl flex items-center justify-center">
+                  <Briefcase size={20} className="text-blue-500" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-600">My Jobs</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer">
+                <div className="w-12 h-12 bg-white border border-slate-200 shadow-sm rounded-2xl flex items-center justify-center">
+                  <Calendar size={20} className="text-orange-500" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-600">Bookings</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer" onClick={() => nav('/wallet')}>
+                <div className="w-12 h-12 bg-white border border-slate-200 shadow-sm rounded-2xl flex items-center justify-center">
+                  <BadgeIndianRupee size={20} className="text-green-500" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-600">Earnings</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer">
+                <div className="w-12 h-12 bg-white border border-slate-200 shadow-sm rounded-2xl flex items-center justify-center">
+                  <FileText size={20} className="text-purple-500" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-600">Documents</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer">
+                <div className="w-12 h-12 bg-white border border-slate-200 shadow-sm rounded-2xl flex items-center justify-center">
+                  <HelpCircle size={20} className="text-blue-500" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-600">Support</span>
+              </div>
             </div>
-            <motion.button
-              onClick={() => nav('/wallet')}
-              className="flex items-center gap-1 text-xs font-bold text-indigo-600 px-3 py-1.5 rounded-xl bg-indigo-50"
-              whileTap={{ scale: 0.94 }}
-            >
-              Full history <ChevronRight size={10} strokeWidth={3} />
-            </motion.button>
           </div>
 
-          {hasChartData ? (
-            <div className="px-4 pb-5">
-              {/* Bars — fixed 104px zone, labels float above via absolute */}
-              <div className="flex items-end gap-2" style={{ height: 104 }}>
-                {chart7d.map((d, i) => {
-                  const barH = Math.max(Math.round((d.earningsPaise / chartMax) * 88), 4);
-                  const isToday = i === chart7d.length - 1;
-                  const rs = Math.round(d.earningsPaise / 100);
-                  return (
-                    <div key={d.date} className="flex-1 relative flex items-end">
-                      {isToday && rs > 0 && (
-                        <motion.p
-                          className="absolute -top-5 left-0 right-0 text-center text-[9px] font-black text-indigo-600"
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.6 }}
-                        >
-                          ₹{rs}
-                        </motion.p>
-                      )}
-                      <motion.div
-                        className="w-full rounded-lg"
-                        initial={{ height: 0 }}
-                        animate={{ height: barH }}
-                        transition={{ duration: 0.5, delay: i * 0.06, ease: [0.34, 1.56, 0.64, 1] }}
-                        style={{
-                          background: isToday
-                            ? 'linear-gradient(180deg, #818cf8 0%, #4f46e5 100%)'
-                            : 'linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%)',
-                          boxShadow: isToday ? '0 4px 14px rgba(99,102,241,0.4)' : 'none',
-                        }}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Day labels — own row, never overlaps bars */}
-              <div className="flex gap-2 mt-2.5">
-                {chart7d.map((d, i) => {
-                  const isToday = i === chart7d.length - 1;
-                  const DAY = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-                  const dayLabel = DAY[new Date(d.date + 'T00:00').getDay()];
-                  return (
-                    <span
-                      key={d.date}
-                      className={`flex-1 text-center text-[9px] font-bold ${
-                        isToday ? 'text-indigo-500' : 'text-slate-300'
-                      }`}
-                    >
-                      {isToday ? 'Today' : dayLabel}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <BarChart2 size={32} strokeWidth={1} className="text-slate-100" />
-              <p className="text-sm font-bold text-slate-300">No earnings yet this week</p>
-              <p className="text-xs text-slate-300">Go online to start earning</p>
-            </div>
-          )}
         </motion.div>
 
-        {/* ── Trust Score + Next Milestone row ────────────────── */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Trust Score */}
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.11 }}
-            className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center gap-2"
-          >
-            <TrustScoreRing score={trustScore} />
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Trust Score</p>
-            <p className="text-[10px] text-slate-400 text-center leading-tight">
-              {trustScore === null
-                ? 'Complete jobs to earn score'
-                : trustScore >= 80 ? 'Excellent — top partner'
-                : trustScore >= 60 ? 'Good standing'
-                : 'Needs improvement'}
-            </p>
-          </motion.div>
-
-          {/* Milestone */}
-          {nextMilestone ? (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.13 }}
-              className="bg-amber-50 rounded-2xl p-4 shadow-sm ring-1 ring-amber-100 flex flex-col justify-between"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                  <Trophy size={14} strokeWidth={2} className="text-amber-600" />
-                </div>
-                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide leading-tight">
-                  Next Bonus
-                </p>
-              </div>
-              <div>
-                <p className="text-xl font-extrabold text-amber-700 leading-none">₹{nextMilestone.bonusRs}</p>
-                <p className="text-[10px] text-amber-600 mt-0.5">
-                  {nextMilestone.jobs - completedJobs} more jobs
-                </p>
-              </div>
-              <div className="mt-2.5 w-full h-1.5 bg-amber-200 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-amber-500 rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${msProgress}%` }}
-                  transition={{ duration: 0.9, ease: 'easeOut', delay: 0.4 }}
-                />
-              </div>
-              <p className="text-[9px] text-amber-500 mt-1">{completedJobs}/{nextMilestone.jobs} jobs</p>
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.13 }}
-              className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-4 shadow-sm ring-1 ring-purple-100 flex flex-col items-center justify-center gap-2"
-            >
-              <Trophy size={24} strokeWidth={1.5} className="text-purple-500" />
-              <p className="text-xs font-bold text-purple-700 text-center">All Milestones Reached</p>
-            </motion.div>
-          )}
+        {/* Bottom Navigation */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 pb-safe pt-2 px-6 flex justify-between items-center z-50">
+          <div className="flex flex-col items-center gap-1 cursor-pointer">
+            <Home size={22} className="text-blue-600" />
+            <span className="text-[10px] font-bold text-blue-600">Home</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => nav('/worker/jobs')}>
+            <Briefcase size={22} className="text-slate-400" />
+            <span className="text-[10px] font-bold text-slate-500">My Jobs</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => nav('/wallet')}>
+            <BadgeIndianRupee size={22} className="text-slate-400" />
+            <span className="text-[10px] font-bold text-slate-500">Earnings</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => nav('/wallet')}>
+            <Wallet size={22} className="text-slate-400" />
+            <span className="text-[10px] font-bold text-slate-500">Wallet</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => nav('/worker/profile')}>
+            <Users size={22} className="text-slate-400" />
+            <span className="text-[10px] font-bold text-slate-500">Profile</span>
+          </div>
         </div>
-
-        {/* ── Badges ───────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="bg-white rounded-2xl p-4 shadow-sm"
-        >
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Achievements</p>
-          <div className="grid grid-cols-5 gap-2">
-            {BADGES.map(({ id, label, Icon, threshold }) => {
-              const earned = completedJobs >= threshold;
-              return (
-                <div key={id} className="flex flex-col items-center gap-1.5">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
-                    earned
-                      ? 'bg-gradient-to-br from-amber-100 to-orange-100 ring-1 ring-amber-200 shadow-sm'
-                      : 'bg-slate-100'
-                  }`}>
-                    <Icon
-                      size={20}
-                      strokeWidth={earned ? 2 : 1.5}
-                      className={earned ? 'text-amber-600' : 'text-slate-300'}
-                    />
-                  </div>
-                  <p className={`text-[9px] font-bold text-center leading-tight ${
-                    earned ? 'text-amber-700' : 'text-slate-300'
-                  }`}>{label}</p>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-
-        {/* ── ZeroWait: Ready Mode (pre-accept next job) ──────────────── */}
-        {isOnline && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-            <ReadyModeCard />
-          </motion.div>
-        )}
-
-        {/* ── Earned Wage Access ───────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.155 }}>
-          <EarnedWageWidget />
-        </motion.div>
-
-        {/* ── Shift Slots (Predictive Availability) ────────────── */}
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
-          <ShiftSlotsWidget currentLat={myLat} currentLng={myLng} />
-        </motion.div>
-
-        {/* ── Wellness System ───────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}>
-          <WellnessWidget />
-        </motion.div>
-
-        {/* ── Performance ──────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.18 }}
-          className="bg-white rounded-2xl p-4 shadow-sm"
-        >
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Performance</p>
-          <div className="space-y-3">
-            <PerformanceRow
-              label="Acceptance Rate"
-              value={acceptRate}
-              max={100}
-              display={acceptRate !== null ? `${acceptRate}%` : null}
-              noDataLabel="No offers yet"
-              good={acceptRate !== null && acceptRate >= 80}
-              warn={acceptRate !== null && acceptRate < 60}
-              trackColor={
-                acceptRate === null ? 'bg-slate-200'
-                : acceptRate >= 80 ? 'bg-green-500'
-                : acceptRate >= 60 ? 'bg-amber-400'
-                : 'bg-red-500'
-              }
-            />
-            <PerformanceRow
-              label="Cancellation Rate"
-              value={cancelRate !== null ? cancelRate : null}
-              max={100}
-              display={cancelRate !== null ? `${cancelRate}%` : null}
-              noDataLabel="No jobs yet"
-              good={cancelRate !== null && cancelRate <= 5}
-              warn={cancelRate !== null && cancelRate > 15}
-              trackColor={
-                cancelRate === null ? 'bg-slate-200'
-                : cancelRate <= 5 ? 'bg-green-500'
-                : cancelRate <= 15 ? 'bg-amber-400'
-                : 'bg-red-500'
-              }
-              invert
-            />
-            <PerformanceRow
-              label="Customer Rating"
-              value={hasRatingData ? rating : null}
-              max={5}
-              display={hasRatingData ? `${rating.toFixed(1)} / 5.0` : null}
-              noDataLabel="Not rated yet"
-              good={hasRatingData && rating >= 4.5}
-              warn={hasRatingData && rating < 3.5}
-              trackColor={
-                !hasRatingData ? 'bg-slate-200'
-                : rating >= 4.5 ? 'bg-amber-400'
-                : rating >= 4 ? 'bg-blue-500'
-                : 'bg-red-500'
-              }
-            />
-          </div>
-
-          {(acceptRate !== null && acceptRate < 70) || (cancelRate !== null && cancelRate > 20) ? (
-            <div className="mt-3 flex items-start gap-2 bg-red-50 rounded-xl px-3 py-2.5 ring-1 ring-red-100">
-              <AlertTriangle size={13} strokeWidth={2} className="text-red-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-red-700 font-medium leading-snug">
-                {acceptRate !== null && acceptRate < 70
-                  ? 'Low acceptance rate reduces job visibility. Try to accept more offers.'
-                  : 'High cancellation rate may result in account penalties.'}
-              </p>
-            </div>
-          ) : !hasOfferData && !hasJobData ? (
-            <div className="mt-3 flex items-start gap-2 bg-blue-50 rounded-xl px-3 py-2.5 ring-1 ring-blue-100">
-              <ShieldCheck size={13} strokeWidth={2} className="text-blue-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-blue-700 font-medium leading-snug">
-                Your performance stats will appear here after your first job.
-              </p>
-            </div>
-          ) : null}
-        </motion.div>
-
-        {/* ── Recent Jobs ──────────────────────────────────────── */}
-        <RecentJobsList orders={jobsData?.orders} onNav={nav} />
-
-        {/* ── Leaderboard ──────────────────────────────────────── */}
-        <LeaderboardWidget workerId={me?._id} />
-
-        {/* ── Demand Zones ─────────────────────────────────────── */}
-        {isOnline && <DemandZonesWidget />}
-
-        {/* ── Earnings Goals ───────────────────────────────────── */}
-        <GoalsWidget />
-
-        {/* ── Zone Benchmark ───────────────────────────────────── */}
-        <BenchmarkWidget />
-
-        {/* ── Worker Tools Grid ─────────────────────────────────── */}
-        <WorkerToolsGrid nav={nav} totalWallet={totalWallet} />
       </div>
 
-      {/* ── Offer Modal ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {worker.currentOffer && (
-          <OfferModal
-            offer={worker.currentOffer}
-            onAccept={onAccept}
-            onReject={onReject}
-            accepting={accepting}
-          />
-        )}
-      </AnimatePresence>
-    </div>
+      {/* ── Desktop View (Strictly lg and above) ──────────────── */}
+      <div className="hidden lg:flex min-h-screen bg-[#F8FAFC] w-full overflow-hidden text-slate-800">
+        
+        {/* Sidebar */}
+        <aside className="w-[260px] bg-white border-r border-slate-200 flex flex-col shrink-0 h-screen sticky top-0">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-8">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <Zap className="text-white fill-white" size={20} />
+              </div>
+              <div>
+                <h1 className="text-xl font-black text-blue-600 tracking-tight leading-none">Zappyone</h1>
+                <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Worker</p>
+              </div>
+            </div>
+
+            <nav className="space-y-1.5">
+              {[
+                { name: 'Dashboard', icon: Home, active: true, to: '/worker' },
+                { name: 'My Jobs', icon: Briefcase, to: '/worker/jobs' },
+                { name: 'Bookings', icon: Clock, to: '#' },
+                { name: 'Earnings', icon: BadgeIndianRupee, to: '/wallet' },
+                { name: 'Wallet', icon: Wallet, to: '/wallet' },
+                { name: 'Notifications', icon: Bell, to: '/worker/notifications', badge: 3 },
+                { name: 'Reviews', icon: Star, to: '#' },
+                { name: 'Support', icon: AlertTriangle, to: '#' },
+                { name: 'Profile', icon: Users, to: '/worker/profile' },
+                { name: 'Documents', icon: FileText, to: '#' },
+              ].map((link, idx) => (
+                <button key={idx} onClick={() => link.to !== '#' && nav(link.to)} className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors ${link.active ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  <div className="flex items-center gap-3">
+                    <link.icon size={18} strokeWidth={2} className={link.active ? 'text-white' : 'text-slate-400'} />
+                    {link.name}
+                  </div>
+                  {link.badge && (
+                    <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{link.badge}</span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="mt-auto p-6">
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-center">
+              <p className="text-xs font-bold text-slate-800 mb-3">Go Online to get more jobs</p>
+              <button 
+                onClick={toggleOnline} 
+                disabled={toggling || !canGoOnline}
+                className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 text-white shadow-lg transition-colors ${isOnline ? 'bg-red-500 shadow-red-200 hover:bg-red-600' : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'}`}
+              >
+                {toggling ? <Loader2 size={16} className="animate-spin" /> : <Wifi size={16} />}
+                {isOnline ? 'Go Offline' : 'Go Online'}
+              </button>
+            </div>
+            
+            <div className="mt-6 flex items-center justify-center gap-2 text-blue-600">
+              <div className="w-8 h-8 bg-blue-50 rounded-full flex items-center justify-center">
+                <AlertTriangle size={16} />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-bold leading-tight">Need Help?</p>
+                <p className="text-[10px] text-slate-500">24x7 Support</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="flex-1 flex flex-col h-screen overflow-y-auto">
+          
+          {/* Header */}
+          <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between shrink-0 sticky top-0 z-20">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+                Hello, {me?.name || 'Worker'} <span className="text-xl">👋</span>
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">Complete more jobs to earn more and grow with Zappyone.</p>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-slate-700">{isOnline ? 'Online' : 'Offline'}</span>
+                <button
+                  onClick={toggleOnline}
+                  disabled={toggling || !canGoOnline}
+                  className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${isOnline ? 'bg-blue-600' : 'bg-slate-300'}`}
+                >
+                  <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${isOnline ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              
+              <div className="relative">
+                <Bell size={22} className="text-slate-600" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full" />
+              </div>
+
+              <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 cursor-pointer">
+                <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                  {initials}
+                </div>
+                <span className="text-sm font-bold text-slate-800">{me?.name?.split(' ')[0]}</span>
+                <ChevronDown size={16} className="text-slate-400" />
+              </div>
+            </div>
+          </header>
+
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, staggerChildren: 0.1 }} className="p-8 max-w-[1400px] mx-auto w-full space-y-6">
+            
+            {/* 6 Stat Cards Row */}
+            <div className="grid grid-cols-6 gap-4">
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="bg-white p-4 rounded-2xl border border-slate-200/60 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] cursor-pointer hover:border-blue-300 transition-all relative overflow-hidden group"><div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-transparent group-hover:from-blue-500/5 transition-colors z-0" />
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                    <Wallet size={20} className="text-white" />
+                  </div>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Today's Earnings</p>
+                  <p className="text-2xl font-black text-slate-800 leading-none mt-1">₹{todayRs}</p>
+                  <p className="text-[10px] text-slate-400 mt-2 font-medium">{todayJobs} Jobs Completed</p>
+                </div>
+              </motion.div>
+
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="bg-white p-4 rounded-2xl border border-slate-200/60 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] cursor-pointer hover:border-blue-300 transition-all relative overflow-hidden group"><div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-transparent group-hover:from-blue-500/5 transition-colors z-0" />
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+                    <Clock size={20} className="text-blue-600" />
+                  </div>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Today's Hours</p>
+                  <p className="text-2xl font-black text-slate-800 leading-none mt-1">{onlineTimer > 0 ? `${Math.floor(onlineTimer / 3600)}h ${Math.floor((onlineTimer % 3600) / 60)}m` : '00h 00m'}</p>
+                  <p className="text-[10px] text-slate-400 mt-2 font-medium">{todayJobs} Jobs Completed</p>
+                </div>
+              </motion.div>
+
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="bg-white p-4 rounded-2xl border border-slate-200/60 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] cursor-pointer hover:border-blue-300 transition-all relative overflow-hidden group"><div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-transparent group-hover:from-blue-500/5 transition-colors z-0" />
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shrink-0">
+                    <Briefcase size={20} className="text-white" />
+                  </div>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Today's Jobs</p>
+                  <p className="text-2xl font-black text-slate-800 leading-none mt-1">{todayJobs}</p>
+                  <p className="text-[11px] text-blue-600 mt-2 font-bold cursor-pointer hover:underline">View all jobs</p>
+                </div>
+              </motion.div>
+
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="bg-white p-4 rounded-2xl border border-slate-200/60 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] cursor-pointer hover:border-blue-300 transition-all relative overflow-hidden group"><div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-transparent group-hover:from-blue-500/5 transition-colors z-0" />
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center shrink-0">
+                    <Wallet size={20} className="text-white" />
+                  </div>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Wallet Balance</p>
+                  <p className="text-2xl font-black text-slate-800 leading-none mt-1">₹{totalWallet}</p>
+                  <p className="text-[11px] text-blue-600 mt-2 font-bold cursor-pointer hover:underline" onClick={() => nav('/wallet')}>View balance</p>
+                </div>
+              </motion.div>
+
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="bg-white p-4 rounded-2xl border border-slate-200/60 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] cursor-pointer hover:border-blue-300 transition-all relative overflow-hidden group"><div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-transparent group-hover:from-blue-500/5 transition-colors z-0" />
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center shrink-0">
+                    <Star size={20} className="text-white fill-white" />
+                  </div>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Your Rating</p>
+                  <p className="text-2xl font-black text-slate-800 leading-none mt-1">{hasRatingData ? rating.toFixed(1) : '0.0'}</p>
+                  <p className="text-[10px] text-slate-400 mt-2 font-medium">{hasRatingData ? 'Based on reviews' : '0 Reviews'}</p>
+                </div>
+              </motion.div>
+
+              <motion.div whileHover={{ y: -4, scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="bg-white p-4 rounded-2xl border border-slate-200/60 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] cursor-pointer hover:border-blue-300 transition-all relative overflow-hidden group"><div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-transparent group-hover:from-blue-500/5 transition-colors z-0" />
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center shrink-0">
+                    <span className="text-white font-black text-xl">%</span>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Acceptance Rate</p>
+                  <p className="text-2xl font-black text-slate-800 leading-none mt-1">{acceptRate !== null ? `${acceptRate}%` : '0%'}</p>
+                  <p className="text-[11px] text-blue-600 mt-2 font-bold cursor-pointer hover:underline">View details</p>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* 2-Column Main Layout */}
+            <div className="grid grid-cols-12 gap-6">
+              
+              {/* LEFT COLUMN: Job Requests & Completed */}
+              <div className="col-span-7 space-y-6">
+                
+                {/* Job Requests */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                  <h3 className="text-lg font-black text-slate-800 mb-4">Job Requests</h3>
+                  
+                  {/* Tabs */}
+                  <div className="flex gap-6 border-b border-slate-200">
+                    {[
+                      { label: 'New', count: pendingCount },
+                      { label: 'Accepted', count: acceptedCount },
+                      { label: 'Ongoing', count: ongoingCount },
+                      { label: 'Completed', count: completedCount },
+                      { label: 'Cancelled', count: cancelledCount },
+                    ].map(tab => (
+                      <button
+                        key={tab.label}
+                        onClick={() => setActiveJobTab(tab.label)}
+                        className={`pb-3 text-sm font-bold transition-colors relative ${activeJobTab === tab.label ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                      >
+                        {tab.label} ({tab.count})
+                        {activeJobTab === tab.label && (
+                          <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="py-12 flex flex-col items-center justify-center min-h-[300px]">
+                    {desktopTabOrders.length === 0 ? (
+                      <div className="text-center flex flex-col items-center">
+                        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                          <FileText size={40} className="text-blue-400" />
+                        </div>
+                        <h4 className="text-lg font-bold text-slate-800">No {activeJobTab.toLowerCase()} job requests</h4>
+                        <p className="text-sm text-slate-500 mt-1 mb-6">Go online to receive new job requests</p>
+                        <button onClick={toggleOnline} disabled={toggling || !canGoOnline} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl flex items-center gap-2 transition-colors">
+                          <Wifi size={16} /> {isOnline ? 'Go Offline' : 'Go Online'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full space-y-4 flex-1 self-start">
+                         {desktopTabOrders.map(order => (
+                           <div key={order._id} className="p-4 border border-slate-200 rounded-xl hover:border-blue-300 cursor-pointer" onClick={() => nav(`/worker/jobs/${order._id}`)}>
+                             <div className="flex justify-between items-start">
+                               <div>
+                                 <p className="font-bold text-slate-800">{order.serviceName || 'Job Service'}</p>
+                                 <p className="text-sm text-slate-500 mt-1">{order.status}</p>
+                               </div>
+                               <p className="font-black text-blue-600">₹{order.price}</p>
+                             </div>
+                           </div>
+                         ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Recently Completed */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-black text-slate-800">Recently Completed</h3>
+                    <button className="text-sm font-bold text-blue-600 hover:underline">View all</button>
+                  </div>
+                  
+                  <div className="py-8 flex flex-col items-center justify-center">
+                    {completedCount === 0 ? (
+                      <div className="text-center flex flex-col items-center">
+                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                          <CheckCircle size={32} className="text-slate-400" />
+                        </div>
+                        <h4 className="text-base font-bold text-slate-800">No completed jobs yet</h4>
+                        <p className="text-xs text-slate-500 mt-1">Your completed jobs will appear here</p>
+                      </div>
+                    ) : (
+                      <div className="w-full space-y-3">
+                         {getTabOrders('Completed').slice(0, 3).map(order => (
+                           <div key={order._id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-lg cursor-pointer" onClick={() => nav(`/worker/jobs/${order._id}`)}>
+                             <p className="font-semibold text-slate-700">{order.serviceName || 'Job Completed'}</p>
+                             <p className="font-bold text-slate-900">₹{order.price}</p>
+                           </div>
+                         ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* RIGHT COLUMN: Schedule, Earnings Chart, Performance */}
+              <div className="col-span-5 space-y-6">
+                
+                {/* Today's Schedule */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-black text-slate-800">Today's Schedule</h3>
+                    <button className="text-sm font-bold text-blue-600 hover:underline">View Calendar</button>
+                  </div>
+                  
+                  <div className="py-10 flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                      <Clock size={28} className="text-blue-400" />
+                    </div>
+                    <h4 className="text-base font-bold text-slate-800">No jobs scheduled for today</h4>
+                    <p className="text-xs text-slate-500 mt-1">Jobs will appear here once scheduled</p>
+                  </div>
+                </div>
+
+                {/* Earnings Overview */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-black text-slate-800">Earnings Overview</h3>
+                    <button className="text-sm font-bold text-blue-600 hover:underline" onClick={() => nav('/wallet')}>View Details</button>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium mb-4">This Week</p>
+                  
+                  <div className="mb-6">
+                    <p className="text-3xl font-black text-slate-800 leading-none mb-2">₹{weekRs}</p>
+                    <p className="text-xs font-bold text-green-500 flex items-center gap-1">
+                      <ArrowUpRight size={14} /> 0% <span className="text-slate-400 font-normal">from last week</span>
+                    </p>
+                  </div>
+
+                  {/* Reusing chart7d data for a basic visual representation */}
+                  {hasChartData ? (
+                    <div className="relative h-32 w-full mt-4 flex items-end justify-between px-2">
+                      <div className="absolute top-0 bottom-6 left-0 right-0 border-b border-slate-100" />
+                      <div className="absolute top-1/2 bottom-6 left-0 right-0 border-b border-slate-50" />
+                      {chart7d.map((d, i) => {
+                        const barH = Math.max(Math.round((d.earningsPaise / chartMax) * 100), 10);
+                        const isToday = i === chart7d.length - 1;
+                        const rs = Math.round(d.earningsPaise / 100);
+                        const dayLabel = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][new Date(d.date + 'T00:00').getDay()];
+                        return (
+                           <div key={d.date} className="relative z-10 flex flex-col items-center flex-1">
+                              <div className="w-full flex justify-center group cursor-pointer relative" style={{ height: 100 }}>
+                                 <div className="absolute bottom-0 w-3 rounded-full transition-all duration-300 group-hover:bg-blue-500" style={{ height: `${barH}%`, background: isToday ? '#2563eb' : '#e2e8f0' }} />
+                                 <div className="absolute -top-6 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                                   ₹{rs}
+                                 </div>
+                              </div>
+                              <p className={`text-[10px] font-bold mt-3 ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>{isToday ? 'Today' : dayLabel}</p>
+                           </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="h-32 flex items-center justify-center text-sm font-bold text-slate-300">
+                      No earnings data to display
+                    </div>
+                  )}
+                </div>
+
+                {/* Performance */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-black text-slate-800">Performance</h3>
+                    <button className="text-sm font-bold text-blue-600 hover:underline">View Details</button>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="flex flex-col">
+                      <p className="text-[10px] font-bold text-slate-500 mb-2 whitespace-nowrap">Completion Rate</p>
+                      <p className="text-2xl font-black text-slate-800">{acceptRate !== null ? `${acceptRate}%` : '0%'}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">{todayJobs} Jobs</p>
+                    </div>
+                    
+                    <div className="flex flex-col border-l border-slate-100 pl-4">
+                      <p className="text-[10px] font-bold text-slate-500 mb-2 whitespace-nowrap">On-time Rate</p>
+                      <p className="text-2xl font-black text-slate-800">100%</p>
+                      <p className="text-[10px] text-slate-400 mt-1">{todayJobs} Jobs</p>
+                    </div>
+                    
+                    <div className="flex flex-col border-l border-slate-100 pl-4">
+                      <p className="text-[10px] font-bold text-slate-500 mb-2 whitespace-nowrap">Jobs Completed</p>
+                      <p className="text-2xl font-black text-slate-800">{completedJobs}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Total</p>
+                    </div>
+                    
+                    <div className="flex flex-col border-l border-slate-100 pl-4">
+                      <p className="text-[10px] font-bold text-slate-500 mb-2 whitespace-nowrap">Total Earnings</p>
+                      <p className="text-2xl font-black text-slate-800">₹{totalWallet}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">All time</p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </motion.div>
+        </main>
+        
+        {/* Render Modals in Desktop view as well! */}
+        <AnimatePresence>
+          {worker.currentOffer && (
+            <OfferModal
+              offer={worker.currentOffer}
+              onAccept={onAccept}
+              onReject={onReject}
+              accepting={accepting}
+            />
+          )}
+        </AnimatePresence>
+      </div>
+    </>
   );
+
 }
 
 /* ─── Trust Score Ring ───────────────────────────────────────── */
 
 function TrustScoreRing({ score }) {
-  const r    = 30;
+  const r = 30;
   const circ = 2 * Math.PI * r;
   const isNew = score === null;
   const displayScore = isNew ? 0 : score;
   const offset = circ * (1 - displayScore / 100);
-  const color  = isNew ? '#CBD5E1' : score >= 80 ? '#22C55E' : score >= 60 ? '#F59E0B' : '#EF4444';
+  const color = isNew ? '#CBD5E1' : score >= 80 ? '#22C55E' : score >= 60 ? '#F59E0B' : '#EF4444';
 
   return (
     <div className="relative w-20 h-20 flex items-center justify-center">
@@ -1204,12 +1298,11 @@ function PerformanceRow({ label, value, max, display, noDataLabel, good, warn, t
           ) : (
             <Minus size={11} strokeWidth={2.5} className="text-amber-400" />
           )}
-          <p className={`text-xs font-bold ${
-            noData ? 'text-slate-300'
+          <p className={`text-xs font-bold ${noData ? 'text-slate-300'
             : good ? 'text-green-600'
-            : warn ? 'text-red-600'
-            : 'text-amber-600'
-          }`}>
+              : warn ? 'text-red-600'
+                : 'text-amber-600'
+            }`}>
             {noData ? (noDataLabel ?? '—') : display}
           </p>
         </div>
@@ -1281,9 +1374,8 @@ function RecentJobsList({ orders, onNav }) {
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-extrabold text-[#0F172A]">₹{order.pricing?.total ?? '—'}</p>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                  order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'
-                }`}>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'
+                  }`}>
                   {order.status === 'completed' ? 'Completed' : order.status.replace(/_/g, ' ')}
                 </span>
               </div>
@@ -1318,8 +1410,8 @@ function LeaderboardWidget({ workerId }) {
   });
 
   const leaders = data?.leaders?.length ? data.leaders : MOCK_LEADERS;
-  const myRank  = data?.myRank?.rank  ?? 12;
-  const total   = data?.myRank?.total ?? 847;
+  const myRank = data?.myRank?.rank ?? 12;
+  const total = data?.myRank?.total ?? 847;
   const maxEarnings = Math.max(...leaders.map((l) => l.weekEarnings), 1);
 
   return (
@@ -1345,53 +1437,52 @@ function LeaderboardWidget({ workerId }) {
       <div className="divide-y divide-slate-50 px-0">
         {isLoading
           ? Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
-                <div className="w-5 h-4 bg-slate-100 rounded" />
-                <div className="flex-1 h-3 bg-slate-100 rounded" />
-                <div className="w-12 h-3 bg-slate-100 rounded" />
-              </div>
-            ))
+            <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
+              <div className="w-5 h-4 bg-slate-100 rounded" />
+              <div className="flex-1 h-3 bg-slate-100 rounded" />
+              <div className="w-12 h-3 bg-slate-100 rounded" />
+            </div>
+          ))
           : leaders.map((leader, i) => {
-              const isHighlighted = leader.isMe;
-              const barPct = Math.round((leader.weekEarnings / maxEarnings) * 100);
-              const rankColor = RANK_COLORS[leader.rank] ?? 'text-slate-400';
-              return (
-                <motion.div
-                  key={leader.rank}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.25 + i * 0.05 }}
-                  className={`flex items-center gap-3 px-4 py-3 ${
-                    isHighlighted ? 'bg-indigo-50' : ''
+            const isHighlighted = leader.isMe;
+            const barPct = Math.round((leader.weekEarnings / maxEarnings) * 100);
+            const rankColor = RANK_COLORS[leader.rank] ?? 'text-slate-400';
+            return (
+              <motion.div
+                key={leader.rank}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.25 + i * 0.05 }}
+                className={`flex items-center gap-3 px-4 py-3 ${isHighlighted ? 'bg-indigo-50' : ''
                   }`}
-                >
-                  {/* Rank */}
-                  <p className={`text-sm font-black w-5 text-center shrink-0 ${rankColor}`}>
-                    {leader.rank}
-                  </p>
+              >
+                {/* Rank */}
+                <p className={`text-sm font-black w-5 text-center shrink-0 ${rankColor}`}>
+                  {leader.rank}
+                </p>
 
-                  {/* Name + bar */}
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-bold truncate ${isHighlighted ? 'text-indigo-700' : 'text-slate-700'}`}>
-                      {leader.name}
-                    </p>
-                    <div className="w-full h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                      <motion.div
-                        className={`h-full rounded-full ${isHighlighted ? 'bg-indigo-500' : 'bg-amber-400'}`}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${barPct}%` }}
-                        transition={{ duration: 0.7, ease: 'easeOut', delay: 0.3 + i * 0.06 }}
-                      />
-                    </div>
+                {/* Name + bar */}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold truncate ${isHighlighted ? 'text-indigo-700' : 'text-slate-700'}`}>
+                    {leader.name}
+                  </p>
+                  <div className="w-full h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                    <motion.div
+                      className={`h-full rounded-full ${isHighlighted ? 'bg-indigo-500' : 'bg-amber-400'}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${barPct}%` }}
+                      transition={{ duration: 0.7, ease: 'easeOut', delay: 0.3 + i * 0.06 }}
+                    />
                   </div>
+                </div>
 
-                  {/* Earnings */}
-                  <p className={`text-xs font-extrabold shrink-0 ${isHighlighted ? 'text-indigo-600' : 'text-slate-700'}`}>
-                    ₹{leader.weekEarnings.toLocaleString('en-IN')}
-                  </p>
-                </motion.div>
-              );
-            })
+                {/* Earnings */}
+                <p className={`text-xs font-extrabold shrink-0 ${isHighlighted ? 'text-indigo-600' : 'text-slate-700'}`}>
+                  ₹{leader.weekEarnings.toLocaleString('en-IN')}
+                </p>
+              </motion.div>
+            );
+          })
         }
       </div>
 
@@ -1408,22 +1499,22 @@ function LeaderboardWidget({ workerId }) {
 /* ─── Demand Zones ───────────────────────────────────────────── */
 
 const LEVEL_META = {
-  very_high: { label: 'Very High', bg: 'bg-red-50',   ring: 'ring-red-100',   dot: 'bg-red-500',   text: 'text-red-700',   bar: 'bg-red-400'    },
-  high:      { label: 'High',      bg: 'bg-amber-50', ring: 'ring-amber-100', dot: 'bg-amber-500', text: 'text-amber-700', bar: 'bg-amber-400'  },
-  medium:    { label: 'Moderate',  bg: 'bg-blue-50',  ring: 'ring-blue-100',  dot: 'bg-blue-400',  text: 'text-blue-700',  bar: 'bg-blue-300'   },
-  low:       { label: 'Low',       bg: 'bg-slate-50', ring: 'ring-slate-100', dot: 'bg-slate-300', text: 'text-slate-500', bar: 'bg-slate-200'  },
+  very_high: { label: 'Very High', bg: 'bg-red-50', ring: 'ring-red-100', dot: 'bg-red-500', text: 'text-red-700', bar: 'bg-red-400' },
+  high: { label: 'High', bg: 'bg-amber-50', ring: 'ring-amber-100', dot: 'bg-amber-500', text: 'text-amber-700', bar: 'bg-amber-400' },
+  medium: { label: 'Moderate', bg: 'bg-blue-50', ring: 'ring-blue-100', dot: 'bg-blue-400', text: 'text-blue-700', bar: 'bg-blue-300' },
+  low: { label: 'Low', bg: 'bg-slate-50', ring: 'ring-slate-100', dot: 'bg-slate-300', text: 'text-slate-500', bar: 'bg-slate-200' },
 };
 
 const TOOLS = [
-  { to: '/worker/earnings',  icon: BarChart2,     label: 'Earnings',   sub: 'Job breakdown',       bg: 'from-indigo-50/80 to-indigo-100/80',  ring: 'ring-indigo-200/50',   iconColor: 'text-indigo-600',   iconBg: 'bg-white/60' },
-  { to: '/worker/goals',     icon: Target,        label: 'Goals',      sub: 'Daily & weekly',      bg: 'from-purple-50/80 to-purple-100/80',  ring: 'ring-purple-200/50',   iconColor: 'text-purple-600',   iconBg: 'bg-white/60' },
-  { to: '/worker/bank',      icon: Building2,     label: 'Bank & UPI', sub: 'Add accounts',        bg: 'from-blue-50/80 to-blue-100/80',      ring: 'ring-blue-200/50',     iconColor: 'text-blue-600',     iconBg: 'bg-white/60' },
-  { to: '/worker/withdraw',  icon: ArrowRightLeft,label: 'Withdraw',   sub: 'Transfer to bank',    bg: 'from-emerald-50/80 to-emerald-100/80', ring: 'ring-emerald-200/50', iconColor: 'text-emerald-600',  iconBg: 'bg-white/60' },
-  { to: '/worker/skills',    icon: Star,          label: 'Skills',     sub: 'Specialise & earn',   bg: 'from-amber-50/80 to-amber-100/80',    ring: 'ring-amber-200/50',    iconColor: 'text-amber-600',    iconBg: 'bg-white/60' },
-  { to: '/worker/training',  icon: GraduationCap, label: 'Training',   sub: 'Get certified',       bg: 'from-rose-50/80 to-rose-100/80',      ring: 'ring-rose-200/50',     iconColor: 'text-rose-600',     iconBg: 'bg-white/60' },
-  { to: '/worker/appeals',   icon: Scale,         label: 'Appeals',    sub: 'Contest ratings',     bg: 'from-orange-50/80 to-orange-100/80',  ring: 'ring-orange-200/50',   iconColor: 'text-orange-600',   iconBg: 'bg-white/60' },
-  { to: '/plans',            icon: Gem,           label: 'Go Pro',     sub: 'Lower commission',    bg: 'from-stone-50/80 to-stone-100/80',    ring: 'ring-stone-200/50',    iconColor: 'text-stone-600',    iconBg: 'bg-white/60' },
-  { to: '/wallet',           icon: Wallet,        label: 'Wallet',     sub: null,                  bg: 'from-teal-50/80 to-teal-100/80',      ring: 'ring-teal-200/50',     iconColor: 'text-teal-600',     iconBg: 'bg-white/60' },
+  { to: '/worker/earnings', icon: BarChart2, label: 'Earnings', sub: 'Job breakdown', bg: 'from-indigo-50/80 to-indigo-100/80', ring: 'ring-indigo-200/50', iconColor: 'text-indigo-600', iconBg: 'bg-white/60' },
+  { to: '/worker/goals', icon: Target, label: 'Goals', sub: 'Daily & weekly', bg: 'from-purple-50/80 to-purple-100/80', ring: 'ring-purple-200/50', iconColor: 'text-purple-600', iconBg: 'bg-white/60' },
+  { to: '/worker/bank', icon: Building2, label: 'Bank & UPI', sub: 'Add accounts', bg: 'from-blue-50/80 to-blue-100/80', ring: 'ring-blue-200/50', iconColor: 'text-blue-600', iconBg: 'bg-white/60' },
+  { to: '/worker/withdraw', icon: ArrowRightLeft, label: 'Withdraw', sub: 'Transfer to bank', bg: 'from-emerald-50/80 to-emerald-100/80', ring: 'ring-emerald-200/50', iconColor: 'text-emerald-600', iconBg: 'bg-white/60' },
+  { to: '/worker/skills', icon: Star, label: 'Skills', sub: 'Specialise & earn', bg: 'from-amber-50/80 to-amber-100/80', ring: 'ring-amber-200/50', iconColor: 'text-amber-600', iconBg: 'bg-white/60' },
+  { to: '/worker/training', icon: GraduationCap, label: 'Training', sub: 'Get certified', bg: 'from-rose-50/80 to-rose-100/80', ring: 'ring-rose-200/50', iconColor: 'text-rose-600', iconBg: 'bg-white/60' },
+  { to: '/worker/appeals', icon: Scale, label: 'Appeals', sub: 'Contest ratings', bg: 'from-orange-50/80 to-orange-100/80', ring: 'ring-orange-200/50', iconColor: 'text-orange-600', iconBg: 'bg-white/60' },
+  { to: '/plans', icon: Gem, label: 'Go Pro', sub: 'Lower commission', bg: 'from-stone-50/80 to-stone-100/80', ring: 'ring-stone-200/50', iconColor: 'text-stone-600', iconBg: 'bg-white/60' },
+  { to: '/wallet', icon: Wallet, label: 'Wallet', sub: null, bg: 'from-teal-50/80 to-teal-100/80', ring: 'ring-teal-200/50', iconColor: 'text-teal-600', iconBg: 'bg-white/60' },
 ];
 
 function WorkerToolsGrid({ nav, totalWallet }) {
@@ -1442,7 +1533,7 @@ function WorkerToolsGrid({ nav, totalWallet }) {
             >
               {/* Decorative background blur */}
               <div className={`absolute -right-4 -bottom-4 w-16 h-16 rounded-full blur-2xl opacity-40 group-hover:opacity-60 transition-opacity bg-current ${t.iconColor}`} />
-              
+
               <div className={`w-8 h-8 rounded-xl ${t.iconBg} flex items-center justify-center mb-2.5 shadow-sm ring-1 ring-black/5`}>
                 <Icon size={16} strokeWidth={2.5} className={t.iconColor} />
               </div>
@@ -1534,14 +1625,14 @@ function BenchmarkWidget() {
 
 function DemandZonesWidget() {
   const [expanded, setExpanded] = useState(false);
-  const [coords, setCoords]     = useState(null);
+  const [coords, setCoords] = useState(null);
 
   // Real GPS — watch position while component is mounted
   useEffect(() => {
     if (!navigator.geolocation) return;
     const id = navigator.geolocation.watchPosition(
       (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {},
+      () => { },
       { enableHighAccuracy: true, maximumAge: 60000 },
     );
     return () => navigator.geolocation.clearWatch(id);
@@ -1584,7 +1675,7 @@ function DemandZonesWidget() {
       className="bg-white rounded-2xl p-4 shadow-sm overflow-hidden"
     >
       <div className="flex gap-0.5 -mx-4 -mt-4 mb-4 h-1">
-        {[0,1,2,3,4,5].map((i) => (
+        {[0, 1, 2, 3, 4, 5].map((i) => (
           <motion.div key={i} className={`flex-1 ${topMeta.bar}`}
             animate={{ opacity: [0.2, 1, 0.2] }}
             transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }}
@@ -1669,7 +1760,7 @@ function DemandZonesWidget() {
 const TIER_DISPLAY_SEC = { express: 20, priority: 28, standard: 35 };
 
 function OfferModal({ offer, onAccept, onReject, accepting }) {
-  const isExpress  = offer.tier === 'express';
+  const isExpress = offer.tier === 'express';
   const isPriority = offer.tier === 'priority';
 
   // Fresh countdown from the moment the worker RECEIVES the offer.
@@ -1699,9 +1790,9 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
   }, [offer._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const progress = Math.max(0, left / Math.max(totalRef.current, 1));
-  const urgent   = left <= 6;
+  const urgent = left <= 6;
 
-  const svc     = SERVICE_ICON_MAP[offer.service] || { Icon: Wrench, bg: 'bg-slate-100', color: 'text-slate-600' };
+  const svc = SERVICE_ICON_MAP[offer.service] || { Icon: Wrench, bg: 'bg-slate-100', color: 'text-slate-600' };
   const SvcIcon = svc.Icon;
 
   /* Static map of the pickup — shown as map background.
@@ -1720,9 +1811,9 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
   const centerLat = pickLat - (shiftPx * mpp) / 111320; // move centre south
   const mapUrl = mapboxToken && pickLng && pickLat
     ? `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/` +
-      `pin-l+1d4ed8(${pickLng},${pickLat})/` +
-      `${pickLng},${centerLat},${MAP_ZOOM},0/800x500@2x` +
-      `?access_token=${mapboxToken}&attribution=false&logo=false`
+    `pin-l+1d4ed8(${pickLng},${pickLat})/` +
+    `${pickLng},${centerLat},${MAP_ZOOM},0/800x500@2x` +
+    `?access_token=${mapboxToken}&attribution=false&logo=false`
     : null;
 
   return (
@@ -1824,357 +1915,355 @@ function OfferModal({ offer, onAccept, onReject, accepting }) {
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 28, stiffness: 360 }}
-        className="relative z-10 rounded-t-[32px] mt-auto"
-        style={
-          isExpress
-            ? { background: 'linear-gradient(160deg,#1e1b4b 0%,#312e81 60%,#1e1b4b 100%)', boxShadow: '0 -20px 80px rgba(79,70,229,0.5)' }
-            : isPriority
-              ? { background: 'linear-gradient(160deg,#1c1007 0%,#3b1f02 60%,#1c1007 100%)', boxShadow: '0 -20px 80px rgba(180,83,9,0.45)' }
-              : { background: 'white', boxShadow: '0 -16px 60px rgba(0,0,0,0.25)' }
-        }
-      >
-        {/* Animated progress bar */}
-        <div className={`absolute top-0 inset-x-0 h-1.5 rounded-t-[32px] overflow-hidden ${isExpress || isPriority ? 'bg-white/10' : 'bg-slate-100'}`}>
-          <motion.div
-            className="h-full absolute left-0 top-0 rounded-full"
-            style={{
-              background: urgent
-                ? 'linear-gradient(90deg, #ef4444, #f97316)'
-                : isExpress
-                  ? 'linear-gradient(90deg, #a5b4fc, #818cf8, #c7d2fe)'
-                  : isPriority
-                    ? 'linear-gradient(90deg, #fbbf24, #f59e0b, #fcd34d)'
-                    : 'linear-gradient(90deg, #6366f1, #0ea5e9)',
-            }}
-            animate={{ width: `${Math.max(0, progress * 100)}%` }}
-            transition={{ duration: 0.25, ease: 'linear' }}
-          />
-        </div>
-
-        {/* Drag handle */}
-        <div className={`w-10 h-1 rounded-full mx-auto mt-3 mb-0 ${isExpress || isPriority ? 'bg-white/20' : 'bg-slate-200'}`} />
-
-        <div className="px-5 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
-
-          {/* Express / Priority tier header strip */}
-          {(isExpress || isPriority) && (
+          className="relative z-10 rounded-t-[32px] mt-auto"
+          style={
+            isExpress
+              ? { background: 'linear-gradient(160deg,#1e1b4b 0%,#312e81 60%,#1e1b4b 100%)', boxShadow: '0 -20px 80px rgba(79,70,229,0.5)' }
+              : isPriority
+                ? { background: 'linear-gradient(160deg,#1c1007 0%,#3b1f02 60%,#1c1007 100%)', boxShadow: '0 -20px 80px rgba(180,83,9,0.45)' }
+                : { background: 'white', boxShadow: '0 -16px 60px rgba(0,0,0,0.25)' }
+          }
+        >
+          {/* Animated progress bar */}
+          <div className={`absolute top-0 inset-x-0 h-1.5 rounded-t-[32px] overflow-hidden ${isExpress || isPriority ? 'bg-white/10' : 'bg-slate-100'}`}>
             <motion.div
-              className="flex items-center justify-between mb-4 px-3 py-2.5 rounded-2xl"
+              className="h-full absolute left-0 top-0 rounded-full"
               style={{
-                background: isExpress ? 'rgba(165,180,252,0.12)' : 'rgba(251,191,36,0.12)',
-                border: isExpress ? '1px solid rgba(165,180,252,0.25)' : '1px solid rgba(251,191,36,0.25)',
+                background: urgent
+                  ? 'linear-gradient(90deg, #ef4444, #f97316)'
+                  : isExpress
+                    ? 'linear-gradient(90deg, #a5b4fc, #818cf8, #c7d2fe)'
+                    : isPriority
+                      ? 'linear-gradient(90deg, #fbbf24, #f59e0b, #fcd34d)'
+                      : 'linear-gradient(90deg, #6366f1, #0ea5e9)',
               }}
-              animate={{ opacity: [0.85, 1, 0.85] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{isExpress ? '⚡' : '⭐'}</span>
-                <div>
-                  <p className={`text-[13px] font-black ${isExpress ? 'text-indigo-200' : 'text-amber-300'}`}>
-                    {isExpress ? 'Express Booking' : 'Priority Booking'}
-                  </p>
-                  <p className={`text-[10px] ${isExpress ? 'text-indigo-400' : 'text-amber-500'}`}>
-                    {isExpress ? 'Nearest worker · Instant match · Higher pay' : '4.5★+ workers only · Premium rate'}
-                  </p>
-                </div>
-              </div>
-              <div className={`text-[11px] font-black px-2 py-1 rounded-full ${isExpress ? 'bg-indigo-500/30 text-indigo-200' : 'bg-amber-500/30 text-amber-200'}`}>
-                {offer.tierMultiplier > 1 ? `${offer.tierMultiplier}× rate` : ''}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Service label + dismiss */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <motion.div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isExpress || isPriority ? 'bg-white/15' : svc.bg}`}
-                animate={{ rotate: [0, -5, 5, 0] }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
-                <SvcIcon size={22} strokeWidth={1.75} className={isExpress || isPriority ? 'text-white' : svc.color} />
-              </motion.div>
-              <div>
-                <p className={`font-black text-lg capitalize leading-tight ${isExpress || isPriority ? 'text-white' : 'text-slate-900'}`}>
-                  {offer.service.replace(/_/g, ' ')}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {isExpress && (
-                    <motion.span
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="flex items-center gap-1 text-[10px] font-black text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full ring-1 ring-indigo-300"
-                    >
-                      <Zap size={9} strokeWidth={2.5} />
-                      Express — Fast Accept
-                    </motion.span>
-                  )}
-                  {isPriority && (
-                    <motion.span
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ring-1 ${isPriority ? 'text-amber-200 bg-amber-500/20 ring-amber-500/30' : 'text-amber-700 bg-amber-100 ring-amber-300'}`}
-                    >
-                      <Star size={9} strokeWidth={2.5} />
-                      Priority Request
-                    </motion.span>
-                  )}
-                  {offer.surgeMultiplier > 1 && (
-                    <motion.span
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: [1, 1.08, 1], opacity: 1 }}
-                      transition={{ duration: 1.2, repeat: Infinity }}
-                      className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-300 px-2 py-0.5 rounded-full ring-1 ring-amber-400"
-                    >
-                      <Zap size={9} strokeWidth={2.5} />
-                      {offer.surgeMultiplier}× Surge
-                    </motion.span>
-                  )}
-                  {offer.boostedBy ? (
-                    <motion.span
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="flex items-center gap-1 text-[10px] font-black text-orange-300 bg-orange-500/20 px-2 py-0.5 rounded-full ring-1 ring-orange-500/30"
-                    >
-                      <Flame size={9} strokeWidth={2.5} />
-                      Customer boosted!
-                    </motion.span>
-                  ) : !isExpress && !isPriority ? (
-                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full ring-1 ring-indigo-100">
-                      Exclusive to you
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-            <motion.button
-              onClick={onReject}
-              className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${isExpress || isPriority ? 'bg-white/10' : 'bg-slate-100'}`}
-              whileTap={{ scale: 0.9 }}
-            >
-              <X size={18} strokeWidth={2.5} className={isExpress || isPriority ? 'text-white/60' : 'text-slate-500'} />
-            </motion.button>
+              animate={{ width: `${Math.max(0, progress * 100)}%` }}
+              transition={{ duration: 0.25, ease: 'linear' }}
+            />
           </div>
 
-          {/* Price */}
-          <div className="flex items-center gap-2 mb-1">
-            <motion.p
-              key={offer.price}
-              className={`font-black leading-none tabular-nums ${
-                urgent ? 'text-red-400'
-                : offer.boostedBy ? 'text-orange-400'
-                : isExpress ? 'text-indigo-100'
-                : isPriority ? 'text-amber-200'
-                : 'text-slate-900'
-              }`}
-              style={{ fontSize: 52 }}
-              animate={offer.boostedBy
-                ? { scale: [1, 1.18, 1] }
-                : urgent ? { scale: [1, 1.03, 1] } : {}}
-              transition={offer.boostedBy ? { duration: 0.5 } : { duration: 0.4, repeat: Infinity }}
-            >
-              ₹{offer.price}
-            </motion.p>
-            {offer.boostedBy ? (
+          {/* Drag handle */}
+          <div className={`w-10 h-1 rounded-full mx-auto mt-3 mb-0 ${isExpress || isPriority ? 'bg-white/20' : 'bg-slate-200'}`} />
+
+          <div className="px-5 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+
+            {/* Express / Priority tier header strip */}
+            {(isExpress || isPriority) && (
               <motion.div
-                initial={{ scale: 0, rotate: -15 }}
-                animate={{ scale: 1, rotate: 0 }}
-                className="flex flex-col items-center"
+                className="flex items-center justify-between mb-4 px-3 py-2.5 rounded-2xl"
+                style={{
+                  background: isExpress ? 'rgba(165,180,252,0.12)' : 'rgba(251,191,36,0.12)',
+                  border: isExpress ? '1px solid rgba(165,180,252,0.25)' : '1px solid rgba(251,191,36,0.25)',
+                }}
+                animate={{ opacity: [0.85, 1, 0.85] }}
+                transition={{ duration: 2, repeat: Infinity }}
               >
-                <motion.div
-                  animate={{ scale: [1, 1.15, 1], boxShadow: ['0 0 0 0 rgba(249,115,22,0.6)', '0 0 0 12px rgba(249,115,22,0)', '0 0 0 0 rgba(249,115,22,0)'] }}
-                  transition={{ duration: 1.2, repeat: Infinity }}
-                  className="flex items-center gap-1 bg-orange-500 text-white text-[10px] font-black px-2 py-1 rounded-full"
-                >
-                  <Flame size={10} strokeWidth={2.5} />
-                  +₹{offer.boostedBy} BOOST
-                </motion.div>
-                <span className={`text-[9px] font-bold mt-0.5 ${isExpress || isPriority ? 'text-orange-400' : 'text-orange-500'}`}>Customer boosted offer!</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{isExpress ? '⚡' : '⭐'}</span>
+                  <div>
+                    <p className={`text-[13px] font-black ${isExpress ? 'text-indigo-200' : 'text-amber-300'}`}>
+                      {isExpress ? 'Express Booking' : 'Priority Booking'}
+                    </p>
+                    <p className={`text-[10px] ${isExpress ? 'text-indigo-400' : 'text-amber-500'}`}>
+                      {isExpress ? 'Nearest worker · Instant match · Higher pay' : '4.5★+ workers only · Premium rate'}
+                    </p>
+                  </div>
+                </div>
+                <div className={`text-[11px] font-black px-2 py-1 rounded-full ${isExpress ? 'bg-indigo-500/30 text-indigo-200' : 'bg-amber-500/30 text-amber-200'}`}>
+                  {offer.tierMultiplier > 1 ? `${offer.tierMultiplier}× rate` : ''}
+                </div>
               </motion.div>
-            ) : (
-              <Zap size={24} strokeWidth={2.5} className={urgent ? 'text-red-400' : isExpress ? 'text-indigo-300' : isPriority ? 'text-amber-300' : 'text-blue-600'} />
             )}
-          </div>
 
-          {/* High-demand accept bonus — platform-funded, paid on completion, grows as search widens */}
-          {offer.urgencyBonusBy > 0 && (
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="flex items-center justify-center gap-1.5 mb-4 bg-emerald-500/15 text-emerald-600 text-[11px] font-black px-3 py-1.5 rounded-full self-center"
-            >
-              <Sparkles size={12} strokeWidth={2.5} />
-              +₹{offer.urgencyBonusBy} HIGH-DEMAND BONUS · paid on completion
-            </motion.div>
-          )}
-
-          {/* Rating + Verified */}
-          <div className="flex items-center gap-3 mb-5">
-            <span className={`flex items-center gap-1 text-sm font-bold ${isExpress || isPriority ? 'text-white/80' : 'text-[#0F172A]'}`}>
-              <Star size={14} strokeWidth={0} className="fill-amber-400" />
-              4.9
-            </span>
-            <span className={`flex items-center gap-1 text-sm font-bold ${isExpress ? 'text-indigo-300' : isPriority ? 'text-amber-300' : 'text-blue-600'}`}>
-              <BadgeCheck size={15} strokeWidth={2.5} />
-              Verified
-            </span>
-          </div>
-
-          {/* Route stops */}
-          <div className="mb-4">
-            {offer.etaMinutes || offer.distanceKm ? (
-              <div className="flex gap-3 items-start mb-3">
-                <div className="flex flex-col items-center pt-1 shrink-0">
-                  <div className={`w-2.5 h-2.5 rounded-full ring-2 ${isExpress || isPriority ? 'bg-white/40 ring-white/20' : 'bg-slate-400 ring-slate-200'}`} />
-                  <div className={`w-px flex-1 my-1 min-h-[20px] ${isExpress || isPriority ? 'bg-white/15' : 'bg-slate-200'}`} />
-                </div>
-                <div className={`flex-1 min-w-0 pb-3 ${isExpress || isPriority ? 'border-b border-white/10' : 'border-b border-slate-100'}`}>
-                  <p className={`font-bold text-sm ${isExpress || isPriority ? 'text-white' : 'text-[#0F172A]'}`}>
-                    {[offer.etaMinutes && `${offer.etaMinutes} min`, offer.distanceKm && `(${offer.distanceKm} km)`]
-                      .filter(Boolean).join(' ')} away
+            {/* Service label + dismiss */}
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <motion.div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isExpress || isPriority ? 'bg-white/15' : svc.bg}`}
+                  animate={{ rotate: [0, -5, 5, 0] }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                >
+                  <SvcIcon size={22} strokeWidth={1.75} className={isExpress || isPriority ? 'text-white' : svc.color} />
+                </motion.div>
+                <div>
+                  <p className={`font-black text-lg capitalize leading-tight ${isExpress || isPriority ? 'text-white' : 'text-slate-900'}`}>
+                    {offer.service.replace(/_/g, ' ')}
                   </p>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    {isExpress && (
+                      <motion.span
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="flex items-center gap-1 text-[10px] font-black text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full ring-1 ring-indigo-300"
+                      >
+                        <Zap size={9} strokeWidth={2.5} />
+                        Express — Fast Accept
+                      </motion.span>
+                    )}
+                    {isPriority && (
+                      <motion.span
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ring-1 ${isPriority ? 'text-amber-200 bg-amber-500/20 ring-amber-500/30' : 'text-amber-700 bg-amber-100 ring-amber-300'}`}
+                      >
+                        <Star size={9} strokeWidth={2.5} />
+                        Priority Request
+                      </motion.span>
+                    )}
+                    {offer.surgeMultiplier > 1 && (
+                      <motion.span
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: [1, 1.08, 1], opacity: 1 }}
+                        transition={{ duration: 1.2, repeat: Infinity }}
+                        className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-300 px-2 py-0.5 rounded-full ring-1 ring-amber-400"
+                      >
+                        <Zap size={9} strokeWidth={2.5} />
+                        {offer.surgeMultiplier}× Surge
+                      </motion.span>
+                    )}
+                    {offer.boostedBy ? (
+                      <motion.span
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="flex items-center gap-1 text-[10px] font-black text-orange-300 bg-orange-500/20 px-2 py-0.5 rounded-full ring-1 ring-orange-500/30"
+                      >
+                        <Flame size={9} strokeWidth={2.5} />
+                        Customer boosted!
+                      </motion.span>
+                    ) : !isExpress && !isPriority ? (
+                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full ring-1 ring-indigo-100">
+                        Exclusive to you
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <motion.button
+                onClick={onReject}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${isExpress || isPriority ? 'bg-white/10' : 'bg-slate-100'}`}
+                whileTap={{ scale: 0.9 }}
+              >
+                <X size={18} strokeWidth={2.5} className={isExpress || isPriority ? 'text-white/60' : 'text-slate-500'} />
+              </motion.button>
+            </div>
+
+            {/* Price */}
+            <div className="flex items-center gap-2 mb-1">
+              <motion.p
+                key={offer.price}
+                className={`font-black leading-none tabular-nums ${urgent ? 'text-red-400'
+                  : offer.boostedBy ? 'text-orange-400'
+                    : isExpress ? 'text-indigo-100'
+                      : isPriority ? 'text-amber-200'
+                        : 'text-slate-900'
+                  }`}
+                style={{ fontSize: 52 }}
+                animate={offer.boostedBy
+                  ? { scale: [1, 1.18, 1] }
+                  : urgent ? { scale: [1, 1.03, 1] } : {}}
+                transition={offer.boostedBy ? { duration: 0.5 } : { duration: 0.4, repeat: Infinity }}
+              >
+                ₹{offer.price}
+              </motion.p>
+              {offer.boostedBy ? (
+                <motion.div
+                  initial={{ scale: 0, rotate: -15 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  className="flex flex-col items-center"
+                >
+                  <motion.div
+                    animate={{ scale: [1, 1.15, 1], boxShadow: ['0 0 0 0 rgba(249,115,22,0.6)', '0 0 0 12px rgba(249,115,22,0)', '0 0 0 0 rgba(249,115,22,0)'] }}
+                    transition={{ duration: 1.2, repeat: Infinity }}
+                    className="flex items-center gap-1 bg-orange-500 text-white text-[10px] font-black px-2 py-1 rounded-full"
+                  >
+                    <Flame size={10} strokeWidth={2.5} />
+                    +₹{offer.boostedBy} BOOST
+                  </motion.div>
+                  <span className={`text-[9px] font-bold mt-0.5 ${isExpress || isPriority ? 'text-orange-400' : 'text-orange-500'}`}>Customer boosted offer!</span>
+                </motion.div>
+              ) : (
+                <Zap size={24} strokeWidth={2.5} className={urgent ? 'text-red-400' : isExpress ? 'text-indigo-300' : isPriority ? 'text-amber-300' : 'text-blue-600'} />
+              )}
+            </div>
+
+            {/* High-demand accept bonus — platform-funded, paid on completion, grows as search widens */}
+            {offer.urgencyBonusBy > 0 && (
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="flex items-center justify-center gap-1.5 mb-4 bg-emerald-500/15 text-emerald-600 text-[11px] font-black px-3 py-1.5 rounded-full self-center"
+              >
+                <Sparkles size={12} strokeWidth={2.5} />
+                +₹{offer.urgencyBonusBy} HIGH-DEMAND BONUS · paid on completion
+              </motion.div>
+            )}
+
+            {/* Rating + Verified */}
+            <div className="flex items-center gap-3 mb-5">
+              <span className={`flex items-center gap-1 text-sm font-bold ${isExpress || isPriority ? 'text-white/80' : 'text-[#0F172A]'}`}>
+                <Star size={14} strokeWidth={0} className="fill-amber-400" />
+                4.9
+              </span>
+              <span className={`flex items-center gap-1 text-sm font-bold ${isExpress ? 'text-indigo-300' : isPriority ? 'text-amber-300' : 'text-blue-600'}`}>
+                <BadgeCheck size={15} strokeWidth={2.5} />
+                Verified
+              </span>
+            </div>
+
+            {/* Route stops */}
+            <div className="mb-4">
+              {offer.etaMinutes || offer.distanceKm ? (
+                <div className="flex gap-3 items-start mb-3">
+                  <div className="flex flex-col items-center pt-1 shrink-0">
+                    <div className={`w-2.5 h-2.5 rounded-full ring-2 ${isExpress || isPriority ? 'bg-white/40 ring-white/20' : 'bg-slate-400 ring-slate-200'}`} />
+                    <div className={`w-px flex-1 my-1 min-h-[20px] ${isExpress || isPriority ? 'bg-white/15' : 'bg-slate-200'}`} />
+                  </div>
+                  <div className={`flex-1 min-w-0 pb-3 ${isExpress || isPriority ? 'border-b border-white/10' : 'border-b border-slate-100'}`}>
+                    <p className={`font-bold text-sm ${isExpress || isPriority ? 'text-white' : 'text-[#0F172A]'}`}>
+                      {[offer.etaMinutes && `${offer.etaMinutes} min`, offer.distanceKm && `(${offer.distanceKm} km)`]
+                        .filter(Boolean).join(' ')} away
+                    </p>
+                    <p className={`text-xs mt-0.5 leading-snug line-clamp-1 ${isExpress || isPriority ? 'text-white/40' : 'text-slate-500'}`}>
+                      {offer.pickupAddress}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              <div className="flex gap-3 items-start">
+                <div className={`w-2.5 h-2.5 rounded-full ring-2 mt-1 shrink-0 ${isExpress || isPriority ? 'bg-white ring-white/30' : 'bg-[#0F172A] ring-slate-300'}`} />
+                <div className="flex-1 min-w-0">
+                  <p className={`font-bold text-sm ${isExpress || isPriority ? 'text-white' : 'text-[#0F172A]'}`}>Service location</p>
                   <p className={`text-xs mt-0.5 leading-snug line-clamp-1 ${isExpress || isPriority ? 'text-white/40' : 'text-slate-500'}`}>
                     {offer.pickupAddress}
                   </p>
                 </div>
               </div>
-            ) : null}
-            <div className="flex gap-3 items-start">
-              <div className={`w-2.5 h-2.5 rounded-full ring-2 mt-1 shrink-0 ${isExpress || isPriority ? 'bg-white ring-white/30' : 'bg-[#0F172A] ring-slate-300'}`} />
-              <div className="flex-1 min-w-0">
-                <p className={`font-bold text-sm ${isExpress || isPriority ? 'text-white' : 'text-[#0F172A]'}`}>Service location</p>
-                <p className={`text-xs mt-0.5 leading-snug line-clamp-1 ${isExpress || isPriority ? 'text-white/40' : 'text-slate-500'}`}>
-                  {offer.pickupAddress}
-                </p>
-              </div>
             </div>
-          </div>
 
-          {/* ── Job Details — always visible ──────────────────────────── */}
-          {(() => {
-            const dark = isExpress || isPriority;
-            const cardBg = dark ? 'rgba(255,255,255,0.07)' : '#f8fafc';
-            const cardBorder = dark ? 'rgba(255,255,255,0.12)' : '#e2e8f0';
-            const labelCls = dark ? 'text-white/40' : 'text-slate-400';
-            const valueCls = dark ? 'text-white/90' : 'text-slate-700';
-            const hasExtra = offer.description || offer.requiredTools?.length > 0 || offer.images?.length > 0;
-            return (
-            <div className="mb-5 rounded-2xl overflow-hidden" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
-              {/* Urgency banner */}
-              {(offer.diagnosisUrgency === 'urgent' || offer.diagnosisUrgency === 'high') && (
-                <div className={`px-3 py-2 flex items-center gap-2 border-b ${
-                  offer.diagnosisUrgency === 'urgent'
-                    ? 'bg-red-500/20 border-red-500/20'
-                    : 'bg-amber-500/20 border-amber-500/20'
-                }`}>
-                  <AlertTriangle size={12} strokeWidth={2.5} className={offer.diagnosisUrgency === 'urgent' ? 'text-red-400' : 'text-amber-400'} />
-                  <span className={`text-[11px] font-black uppercase tracking-wide ${offer.diagnosisUrgency === 'urgent' ? 'text-red-300' : 'text-amber-300'}`}>
-                    {offer.diagnosisUrgency === 'urgent' ? '⚠️ Urgent — prepare for emergency service' : '⚡ High priority — customer needs fast help'}
-                  </span>
-                </div>
-              )}
-
-              <div className="p-3 space-y-2">
-                {/* Always-visible service context row */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-bold uppercase tracking-wide ${labelCls}`}>Service</span>
-                    <span className={`text-[12px] font-bold capitalize ${valueCls}`}>
-                      {offer.service?.replace(/_/g, ' ')}
-                      {(offer.vehicleType || offer.deviceBrand) ? ` · ${offer.vehicleType || offer.deviceBrand}` : ''}
-                    </span>
-                  </div>
-                  {offer.distanceKm && (
-                    <span className={`text-[11px] font-bold ${dark ? 'text-white/50' : 'text-slate-400'}`}>{offer.distanceKm} km away</span>
+            {/* ── Job Details — always visible ──────────────────────────── */}
+            {(() => {
+              const dark = isExpress || isPriority;
+              const cardBg = dark ? 'rgba(255,255,255,0.07)' : '#f8fafc';
+              const cardBorder = dark ? 'rgba(255,255,255,0.12)' : '#e2e8f0';
+              const labelCls = dark ? 'text-white/40' : 'text-slate-400';
+              const valueCls = dark ? 'text-white/90' : 'text-slate-700';
+              const hasExtra = offer.description || offer.requiredTools?.length > 0 || offer.images?.length > 0;
+              return (
+                <div className="mb-5 rounded-2xl overflow-hidden" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
+                  {/* Urgency banner */}
+                  {(offer.diagnosisUrgency === 'urgent' || offer.diagnosisUrgency === 'high') && (
+                    <div className={`px-3 py-2 flex items-center gap-2 border-b ${offer.diagnosisUrgency === 'urgent'
+                      ? 'bg-red-500/20 border-red-500/20'
+                      : 'bg-amber-500/20 border-amber-500/20'
+                      }`}>
+                      <AlertTriangle size={12} strokeWidth={2.5} className={offer.diagnosisUrgency === 'urgent' ? 'text-red-400' : 'text-amber-400'} />
+                      <span className={`text-[11px] font-black uppercase tracking-wide ${offer.diagnosisUrgency === 'urgent' ? 'text-red-300' : 'text-amber-300'}`}>
+                        {offer.diagnosisUrgency === 'urgent' ? '⚠️ Urgent — prepare for emergency service' : '⚡ High priority — customer needs fast help'}
+                      </span>
+                    </div>
                   )}
-                </div>
 
-                {/* Customer description */}
-                {offer.description ? (
-                  <div>
-                    <p className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${labelCls}`}>Customer note</p>
-                    <p className={`text-[12px] leading-relaxed line-clamp-3 ${valueCls}`}>{offer.description}</p>
-                  </div>
-                ) : !hasExtra && (
-                  <p className={`text-[11px] italic ${dark ? 'text-white/30' : 'text-slate-400'}`}>No additional details — standard service job</p>
-                )}
-
-                {/* Required tools */}
-                {offer.requiredTools?.length > 0 && (
-                  <div>
-                    <p className={`text-[10px] font-bold uppercase tracking-wide mb-1.5 ${labelCls}`}>Bring these tools</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {offer.requiredTools.map(t => (
-                        <span key={t} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 capitalize ${dark ? 'bg-blue-400/15 text-blue-300 ring-blue-400/25' : 'bg-blue-50 text-blue-700 ring-blue-100'}`}>
-                          {t.replace(/_/g, ' ')}
+                  <div className="p-3 space-y-2">
+                    {/* Always-visible service context row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold uppercase tracking-wide ${labelCls}`}>Service</span>
+                        <span className={`text-[12px] font-bold capitalize ${valueCls}`}>
+                          {offer.service?.replace(/_/g, ' ')}
+                          {(offer.vehicleType || offer.deviceBrand) ? ` · ${offer.vehicleType || offer.deviceBrand}` : ''}
                         </span>
-                      ))}
+                      </div>
+                      {offer.distanceKm && (
+                        <span className={`text-[11px] font-bold ${dark ? 'text-white/50' : 'text-slate-400'}`}>{offer.distanceKm} km away</span>
+                      )}
                     </div>
+
+                    {/* Customer description */}
+                    {offer.description ? (
+                      <div>
+                        <p className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${labelCls}`}>Customer note</p>
+                        <p className={`text-[12px] leading-relaxed line-clamp-3 ${valueCls}`}>{offer.description}</p>
+                      </div>
+                    ) : !hasExtra && (
+                      <p className={`text-[11px] italic ${dark ? 'text-white/30' : 'text-slate-400'}`}>No additional details — standard service job</p>
+                    )}
+
+                    {/* Required tools */}
+                    {offer.requiredTools?.length > 0 && (
+                      <div>
+                        <p className={`text-[10px] font-bold uppercase tracking-wide mb-1.5 ${labelCls}`}>Bring these tools</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {offer.requiredTools.map(t => (
+                            <span key={t} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ring-1 capitalize ${dark ? 'bg-blue-400/15 text-blue-300 ring-blue-400/25' : 'bg-blue-50 text-blue-700 ring-blue-100'}`}>
+                              {t.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Customer photos */}
+                    {offer.images?.length > 0 && (
+                      <div>
+                        <p className={`text-[10px] font-bold uppercase tracking-wide mb-1.5 ${labelCls}`}>Photos from customer</p>
+                        <div className="flex gap-2">
+                          {offer.images.map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt=""
+                              className="w-16 h-16 rounded-xl object-cover ring-1 ring-white/20"
+                              onError={e => { e.target.style.display = 'none'; }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+              );
+            })()}
 
-                {/* Customer photos */}
-                {offer.images?.length > 0 && (
-                  <div>
-                    <p className={`text-[10px] font-bold uppercase tracking-wide mb-1.5 ${labelCls}`}>Photos from customer</p>
-                    <div className="flex gap-2">
-                      {offer.images.map((url, i) => (
-                        <img
-                          key={i}
-                          src={url}
-                          alt=""
-                          className="w-16 h-16 rounded-xl object-cover ring-1 ring-white/20"
-                          onError={e => { e.target.style.display = 'none'; }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            );
-          })()}
+            {/* Accept button */}
+            <motion.button
+              onClick={onAccept}
+              disabled={accepting}
+              className="w-full h-[60px] text-white font-black text-lg rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 transition-transform"
+              style={
+                isExpress
+                  ? { background: 'linear-gradient(135deg,#4338ca,#6366f1,#818cf8)', boxShadow: '0 8px 32px rgba(99,102,241,0.55)' }
+                  : isPriority
+                    ? { background: 'linear-gradient(135deg,#92400e,#b45309,#d97706)', boxShadow: '0 8px 32px rgba(180,83,9,0.5)' }
+                    : { background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', boxShadow: '0 6px 20px rgba(37,99,235,0.4)' }
+              }
+              whileTap={{ scale: 0.97 }}
+              animate={
+                isExpress
+                  ? { boxShadow: ['0 8px 32px rgba(99,102,241,0.55)', '0 8px 48px rgba(99,102,241,0.8)', '0 8px 32px rgba(99,102,241,0.55)'] }
+                  : isPriority
+                    ? { boxShadow: ['0 8px 32px rgba(180,83,9,0.5)', '0 8px 48px rgba(217,119,6,0.75)', '0 8px 32px rgba(180,83,9,0.5)'] }
+                    : {}
+              }
+              transition={{ duration: 1.5, repeat: Infinity }}
+            >
+              {accepting
+                ? <Loader2 size={20} className="animate-spin" />
+                : isExpress
+                  ? <><Zap size={18} strokeWidth={2.5} /> Accept Express Job</>
+                  : isPriority
+                    ? <><Star size={18} strokeWidth={0} className="fill-white" /> Accept Priority Job</>
+                    : 'Accept'}
+            </motion.button>
 
-          {/* Accept button */}
-          <motion.button
-            onClick={onAccept}
-            disabled={accepting}
-            className="w-full h-[60px] text-white font-black text-lg rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 transition-transform"
-            style={
-              isExpress
-                ? { background: 'linear-gradient(135deg,#4338ca,#6366f1,#818cf8)', boxShadow: '0 8px 32px rgba(99,102,241,0.55)' }
-                : isPriority
-                  ? { background: 'linear-gradient(135deg,#92400e,#b45309,#d97706)', boxShadow: '0 8px 32px rgba(180,83,9,0.5)' }
-                  : { background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', boxShadow: '0 6px 20px rgba(37,99,235,0.4)' }
-            }
-            whileTap={{ scale: 0.97 }}
-            animate={
-              isExpress
-                ? { boxShadow: ['0 8px 32px rgba(99,102,241,0.55)', '0 8px 48px rgba(99,102,241,0.8)', '0 8px 32px rgba(99,102,241,0.55)'] }
-                : isPriority
-                  ? { boxShadow: ['0 8px 32px rgba(180,83,9,0.5)', '0 8px 48px rgba(217,119,6,0.75)', '0 8px 32px rgba(180,83,9,0.5)'] }
-                  : {}
-            }
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
-            {accepting
-              ? <Loader2 size={20} className="animate-spin" />
-              : isExpress
-                ? <><Zap size={18} strokeWidth={2.5} /> Accept Express Job</>
-                : isPriority
-                  ? <><Star size={18} strokeWidth={0} className="fill-white" /> Accept Priority Job</>
-                  : 'Accept'}
-          </motion.button>
-
-          {/* Decline text link */}
-          <button
-            onClick={onReject}
-            className={`w-full mt-2 py-2 text-[12px] font-semibold transition ${isExpress || isPriority ? 'text-white/35 hover:text-white/55' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            Not available right now
-          </button>
-        </div>
-      </motion.div>
+            {/* Decline text link */}
+            <button
+              onClick={onReject}
+              className={`w-full mt-2 py-2 text-[12px] font-semibold transition ${isExpress || isPriority ? 'text-white/35 hover:text-white/55' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Not available right now
+            </button>
+          </div>
+        </motion.div>
       </div>
     </motion.div>
   );

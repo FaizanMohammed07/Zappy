@@ -141,7 +141,7 @@ export default function WorkerAppealsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 md:flex md:justify-center">
-      <div className="w-full max-w-lg bg-slate-50 min-h-screen relative shadow-[0_0_40px_rgba(0,0,0,0.05)] md:border-x border-slate-200/60 pb-8">
+      <div className="w-full max-w-lg md:max-w-5xl lg:max-w-7xl bg-slate-50 min-h-screen relative shadow-[0_0_40px_rgba(0,0,0,0.05)] md:border-x border-slate-200/60 pb-8">
         
         {/* Cinematic Header */}
         <header className="relative pt-6 pb-28 overflow-hidden rounded-b-[2.5rem] shadow-sm z-10" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e3a5f 100%)' }}>
@@ -177,7 +177,7 @@ export default function WorkerAppealsPage() {
               <p className="text-sm font-semibold text-slate-400">Loading your appeals...</p>
             </div>
           ) : appeals.length === 0 ? (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-[1.5rem] border border-dashed border-slate-200 p-12 text-center shadow-sm">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-[1.5rem] border border-dashed border-slate-200 p-12 text-center shadow-sm max-w-xl mx-auto">
               <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-5">
                 <FileText size={32} className="text-slate-300" strokeWidth={1.5} />
               </div>
@@ -192,12 +192,13 @@ export default function WorkerAppealsPage() {
                 <span className="text-[11px] font-bold text-slate-500 bg-slate-200/50 px-2.5 py-1 rounded-full">{appeals.length} Total</span>
               </div>
               
-              {appeals.map((a, i) => {
-                const TypeIcon = TYPE_ICONS[a.type] || FileText;
-                return (
-                  <motion.div key={a._id} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-                    className="bg-white rounded-[1.5rem] border border-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-5 relative overflow-hidden group">
-                    
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+                {appeals.map((a, i) => {
+                  const TypeIcon = TYPE_ICONS[a.type] || FileText;
+                  return (
+                    <motion.div key={a._id} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
+                      className="h-full bg-white rounded-[1.5rem] border border-slate-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-5 relative overflow-hidden group flex flex-col">
+                      
                     <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-100 group-hover:bg-indigo-100 transition-colors" />
                     
                     <div className="pl-2">
@@ -239,6 +240,7 @@ export default function WorkerAppealsPage() {
                   </motion.div>
                 );
               })}
+              </div>
             </div>
           )}
         </div>

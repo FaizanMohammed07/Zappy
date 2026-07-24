@@ -113,7 +113,7 @@ function NotifCard({ n, onRead, nav }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
       onClick={handleTap}
-      className={`flex items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all active:scale-[0.98] ${
+      className={`h-full flex items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all active:scale-[0.98] ${
         unread ? `${cfg.bg} ring-1 ${cfg.ring}` : 'bg-white ring-1 ring-slate-100'
       }`}
     >
@@ -151,7 +151,7 @@ function DaySection({ label, items, onRead, nav }) {
   return (
     <div>
       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1 mb-2">{label}</p>
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4 items-stretch">
         <AnimatePresence>
           {items.map((n) => (
             <NotifCard key={n._id} n={n} onRead={onRead} nav={nav} />
@@ -254,7 +254,7 @@ export default function WorkerNotificationsPage() {
     <div className="min-h-screen bg-[#F9FAFB]">
       {/* header */}
       <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-100 safe-top">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-lg md:max-w-5xl lg:max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => nav('/worker')} className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 transition">
               <ArrowLeft size={17} strokeWidth={2.5} />
@@ -279,7 +279,7 @@ export default function WorkerNotificationsPage() {
         </div>
 
         {/* tab bar */}
-        <div className="max-w-lg mx-auto px-4 pb-3 flex gap-1">
+        <div className="max-w-lg md:max-w-5xl lg:max-w-7xl mx-auto px-4 pb-3 flex gap-1 overflow-x-auto hide-scrollbar">
           {TABS.map((t) => {
             const tabUnread = t.id === 'all'
               ? unread
@@ -307,7 +307,7 @@ export default function WorkerNotificationsPage() {
       </header>
 
       {/* body */}
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-5 pb-24">
+      <div className="max-w-lg md:max-w-5xl lg:max-w-7xl mx-auto px-4 py-4 space-y-5 pb-24">
         {isEmpty ? (
           <EmptyState tab={tab} />
         ) : (
