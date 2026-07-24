@@ -23,6 +23,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 // LoginPage is NOT lazy — it's the first screen most users see and needs to
 // render immediately with no loading flash.
 import LoginPage from './pages/LoginPage';
+import WorkerLoginPage from './pages/WorkerLoginPage';
 
 const HomePage            = lazy(() => import('./pages/HomePage'));
 const BookingPage         = lazy(() => import('./pages/BookingPage'));
@@ -139,10 +140,10 @@ export default function App() {
         <Route path="/faq" element={<FaqPage />} />
         <Route path="/policy/:slug" element={<PolicyPage />} />
 
-        <Route path="/login" element={token ? <RedirectByRole role={role} /> : <LoginPage role="user" />} />
+        <Route path="/login" element={token ? <RedirectByRole role={role} /> : <LoginPage />} />
         <Route
           path="/worker/login"
-          element={token ? <RedirectByRole role={role} /> : <LoginPage role="worker" />}
+          element={token ? <RedirectByRole role={role} /> : <WorkerLoginPage />}
         />
         <Route
           path={adminPath('/login')}

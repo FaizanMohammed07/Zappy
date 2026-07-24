@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Phone, ArrowRight, ChevronLeft, CheckCircle2, Loader2, Zap, Shield, Star, Smartphone, Laptop, Car, Bike, PawPrint, HeartHandshake } from 'lucide-react';
-import { useRequestOtpMutation, useLoginUserMutation, useLoginWorkerMutation, useUpdateMeMutation } from '../services/api';
+import { useRequestOtpMutation, useLoginUserMutation, useUpdateMeMutation } from '../services/api';
 import { CONSUMER_URL } from '../config/hosts';
 import ResendOtp from '../components/auth/ResendOtp';
 import { setAuth, updateProfile } from '../modules/auth/authSlice';
@@ -12,16 +12,7 @@ import toast from 'react-hot-toast';
 import SEO, { LOGIN_SCHEMA, BASE_URL } from '../components/SEO';
 import { easeSoft, springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 
-const SKILLS = [
-  'puncture','plumbing','electrical','helper','carpenter','ac_repair',
-  'screen_replacement','battery_replacement','mason','bike_wash','car_wash',
-];
-const SKILL_LABELS = {
-  puncture: 'Puncture', plumbing: 'Plumbing', electrical: 'Electrical',
-  helper: 'Helper', carpenter: 'Carpenter', ac_repair: 'AC Repair',
-  screen_replacement: 'Screen Fix', battery_replacement: 'Battery',
-  mason: 'Mason', bike_wash: 'Bike Wash', car_wash: 'Car Wash',
-};
+
 
 /* ─── Animated background orb ─────────────────────────────────────────── */
 function Orb({ x, y, size, color, delay = 0 }) {
@@ -54,13 +45,12 @@ function OtpInput({ value, onChange, onKeyDown, inputRef, filled }) {
   );
 }
 
-export default function LoginPage({ role = 'user' }) {
+export default function LoginPage() {
   const [phone, setPhone]       = useState('');
   const OTP_LEN = 6; // 2Factor plain AUTOGEN (no template) sends 6-digit SMS OTP
   const [otpDigits, setOtpDigits] = useState(Array(OTP_LEN).fill(''));
   const [name, setName]         = useState('');
   const [email, setEmail]       = useState('');
-  const [skills, setSkills]     = useState([]);
   const [step, setStep]         = useState('phone');
   const [otpMeta, setOtpMeta]   = useState({ cooldownSec: 30, resendsLeft: 3 });
   const [isNewUser, setIsNewUser] = useState(true);
@@ -68,12 +58,11 @@ export default function LoginPage({ role = 'user' }) {
   const pendingOtp = useRef(null);
   const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
   const [loginUser,  { isLoading: loggingUser }]   = useLoginUserMutation();
-  const [loginWorker, { isLoading: loggingWorker }] = useLoginWorkerMutation();
   const [updateMe,   { isLoading: savingProfile }]  = useUpdateMeMutation();
   const nav      = useNavigate();
   const loc      = useLocation();
   const dispatch = useDispatch();
-  const isLoading = loggingUser || loggingWorker;
+  const isLoading = loggingUser;
   const otpRefs   = useRef([]);
 
   const otp = otpDigits.join('');
@@ -132,7 +121,7 @@ export default function LoginPage({ role = 'user' }) {
   async function send() {
     if (!/^[0-9]{10,15}$/.test(phone)) { toast.error('Enter a valid phone number'); return; }
     try {
-      const r = await requestOtp({ phone, role }).unwrap();
+      const r = await requestOtp({ phone, role: 'user' }).unwrap();
       pendingOtp.current = r.otp || null;
       setIsNewUser(r.isNewUser ?? true);
       // Server-owned resend rules — never hardcode these client-side.
@@ -164,24 +153,21 @@ export default function LoginPage({ role = 'user' }) {
 
   async function verify() {
     try {
-      const fn = role === 'worker' ? loginWorker : loginUser;
-      const r = await fn({
+      const r = await loginUser({
         phone,
         otp,
-        ...(name.trim()   ? { name: name.trim() }     : {}),
-        ...(skills.length  ? { skills }                : {}),
+        ...(name.trim() ? { name: name.trim() } : {}),
       }).unwrap();
-      const profile = role === 'worker' ? r.worker : r.user;
-      dispatch(setAuth({ accessToken: r.accessToken, refreshToken: r.refreshToken, profile, role }));
-      // User-only: if name or email missing, collect before proceeding
-      if (role !== 'worker' && (!profile.name || !profile.email)) {
+      const profile = r.user;
+      dispatch(setAuth({ accessToken: r.accessToken, refreshToken: r.refreshToken, profile, role: 'user' }));
+      if (!profile.name || !profile.email) {
         setPendingProfile(profile);
         setName(profile.name || '');
         setEmail(profile.email || '');
         setStep('complete');
         return;
       }
-      nav(loc.state?.from || (role === 'worker' ? '/worker' : '/'), { replace: true });
+      nav(loc.state?.from || '/', { replace: true });
     } catch (err) {
       const detail = typeof err.data?.details?.[0] === 'string' ? err.data.details[0] : err.data?.error || 'Verification failed';
       toast.error(detail);
@@ -202,19 +188,14 @@ export default function LoginPage({ role = 'user' }) {
     nav(loc.state?.from || '/', { replace: true });
   }
 
-  const isWorker = role === 'worker';
 
   return (
     <>
       <SEO
-        title={isWorker ? 'Worker Login — Join Zappy & Earn Daily | Zappy India' : 'Login to Zappy — Book Home Services Instantly'}
-        description={isWorker
-          ? 'Join Zappy as a service professional. Earn ₹500–₹2000/day. Verified workers get instant job notifications and daily payments.'
-          : 'Login to Zappy with your phone number. Book verified professionals for home services instantly — puncture repair, phone repair, laptop repair and more.'}
-        canonical={isWorker ? `${BASE_URL}/worker/login` : `${BASE_URL}/login`}
-        keywords={isWorker
-          ? 'join Zappy as worker, earn money home services, service professional jobs India'
-          : 'Zappy login, book home services India, on-demand services app login'}
+        title="Login to Zappy — Book Home Services Instantly"
+        description="Login to Zappy with your phone number. Book verified professionals for home services instantly — puncture repair, phone repair, laptop repair and more."
+        canonical={`${BASE_URL}/login`}
+        keywords="Zappy login, book home services India, on-demand services app login"
         jsonLd={LOGIN_SCHEMA}
       />
       <div className="h-screen w-full flex font-sans bg-white relative overflow-hidden">
@@ -242,8 +223,7 @@ export default function LoginPage({ role = 'user' }) {
               <div className="flex flex-col flex-1 shrink-0 max-w-[50%]">
                 {/* Logo */}
                 <div className="flex items-center gap-3 mb-10 xl:mb-12">
-                  <img src="/logo.png" alt="ZappyOne Logo" className="h-10 xl:h-12 w-auto" />
-                  <span className="text-white text-[28px] xl:text-[32px] font-bold tracking-tight">Zappy<span className="text-[#f97316]">one</span></span>
+                  <img src="/logo.png" alt="Zappy Logo" className="h-10 xl:h-12 w-auto" />
                 </div>
 
                 {/* Text */}
@@ -276,8 +256,7 @@ export default function LoginPage({ role = 'user' }) {
                     <div className="bg-[#031542] px-5 pb-5 pt-1 rounded-b-[24px]">
                       <div className="flex justify-between items-center mb-5">
                         <div className="flex items-center gap-1.5">
-                          <img src="/logo.png" alt="ZappyOne Logo" className="h-4 w-auto" />
-                          <span className="text-white font-bold tracking-tight text-lg">Zappy<span className="text-[#f97316]">one</span></span>
+                          <img src="/logo.png" alt="Zappy Logo" className="h-4 w-auto" />
                         </div>
                         <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
@@ -355,12 +334,11 @@ export default function LoginPage({ role = 'user' }) {
             <div className="flex flex-col items-center mb-8">
               {/* Logo inside card (Mobile) */}
               <div className="lg:hidden flex items-center gap-2.5 mb-8">
-                <img src="/logo.png" alt="ZappyOne Logo" className="h-9 w-auto" />
-                <span className="text-[#031542] text-[32px] font-bold tracking-tight">Zappy<span className="text-[#f97316]">one</span></span>
+                <img src="/logo.png" alt="Zappy Logo" className="h-9 w-auto" />
               </div>
 
-              <h2 className="text-[28px] font-bold text-[#031542] mb-1.5 tracking-tight">{isWorker ? 'Partner Portal' : 'Welcome to ZappyOne'}</h2>
-              <p className="text-slate-500 font-medium text-[15px]">{isWorker ? 'Log in to your partner portal' : 'Log in to connect with us!'}</p>
+              <h2 className="text-[28px] font-bold text-[#031542] mb-1.5 tracking-tight">Welcome to Zappy</h2>
+              <p className="text-slate-500 font-medium text-[15px]">Log in to connect with us!</p>
             </div>
 
             <AnimatePresence mode="wait">
@@ -464,27 +442,6 @@ export default function LoginPage({ role = 'user' }) {
                           onChange={e => setName(e.target.value)}
                         />
                       </div>
-                      {isWorker && (
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Your Skills</label>
-                          <div className="flex flex-wrap gap-2">
-                            {SKILLS.map(s => {
-                              const on = skills.includes(s);
-                              return (
-                                <button
-                                  key={s}
-                                  type="button"
-                                  onClick={() => setSkills(p => on ? p.filter(x => x !== s) : [...p, s])}
-                                  className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${on ? 'bg-[#0d5cf3] text-white border-[#0d5cf3]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                                >
-                                  {on && <CheckCircle2 size={14} className="inline-block mr-1 -mt-0.5" />}
-                                  {SKILL_LABELS[s]}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
