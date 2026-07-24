@@ -15,8 +15,8 @@ import SEO, { LOGIN_SCHEMA, BASE_URL } from '../components/SEO';
 
 /* ── Skills ──────────────────────────────────────────────────────────── */
 const SKILLS = [
-  'puncture','plumbing','electrical','helper','carpenter','ac_repair',
-  'screen_replacement','battery_replacement','mason','bike_wash','car_wash',
+  'puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair',
+  'screen_replacement', 'battery_replacement', 'mason', 'bike_wash', 'car_wash',
 ];
 const SKILL_LABELS = {
   puncture: 'Puncture', plumbing: 'Plumbing', electrical: 'Electrical',
@@ -27,35 +27,35 @@ const SKILL_LABELS = {
 
 /* ── Stats for the showcase ──────────────────────────────────────────── */
 const STATS = [
-  { icon: Users,       value: '10,000+', label: 'Active Partners' },
-  { icon: Wallet,      value: '₹45K',    label: 'Avg Monthly Earnings' },
-  { icon: Star,        value: '4.8★',     label: 'Partner Rating' },
-  { icon: Clock,       value: '< 2 min',  label: 'Avg Job Assignment' },
+  { icon: Users, value: '10,000+', label: 'Active Partners' },
+  { icon: Wallet, value: '₹45K', label: 'Avg Monthly Earnings' },
+  { icon: Star, value: '4.8★', label: 'Partner Rating' },
+  { icon: Clock, value: '< 2 min', label: 'Avg Job Assignment' },
 ];
 
 const PERKS = [
-  { icon: TrendingUp,  title: 'Daily Payments',      desc: 'Get paid every day directly to your bank' },
-  { icon: Shield,      title: 'Insurance Cover',     desc: 'Free accident insurance while on duty' },
-  { icon: BadgeCheck,  title: 'Skill Certification', desc: 'Get certified and earn more per job' },
-  { icon: Wrench,      title: 'Tool Support',        desc: 'Get tool kits at subsidized rates' },
+  { icon: TrendingUp, title: 'Daily Payments', desc: 'Get paid every day directly to your bank' },
+  { icon: Shield, title: 'Insurance Cover', desc: 'Free accident insurance while on duty' },
+  { icon: BadgeCheck, title: 'Skill Certification', desc: 'Get certified and earn more per job' },
+  { icon: Wrench, title: 'Tool Support', desc: 'Get tool kits at subsidized rates' },
 ];
 
 export default function WorkerLoginPage() {
-  const [phone, setPhone]         = useState('');
+  const [phone, setPhone] = useState('');
   const OTP_LEN = 6;
   const [otpDigits, setOtpDigits] = useState(Array(OTP_LEN).fill(''));
-  const [name, setName]           = useState('');
-  const [skills, setSkills]       = useState([]);
-  const [step, setStep]           = useState('phone');
-  const [otpMeta, setOtpMeta]     = useState({ cooldownSec: 30, resendsLeft: 3 });
+  const [name, setName] = useState('');
+  const [skills, setSkills] = useState([]);
+  const [step, setStep] = useState('phone');
+  const [otpMeta, setOtpMeta] = useState({ cooldownSec: 30, resendsLeft: 3 });
   const [isNewUser, setIsNewUser] = useState(true);
   const pendingOtp = useRef(null);
-  const [requestOtp, { isLoading: sending }]      = useRequestOtpMutation();
-  const [loginWorker, { isLoading: loggingIn }]    = useLoginWorkerMutation();
-  const nav      = useNavigate();
-  const loc      = useLocation();
+  const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
+  const [loginWorker, { isLoading: loggingIn }] = useLoginWorkerMutation();
+  const nav = useNavigate();
+  const loc = useLocation();
   const dispatch = useDispatch();
-  const otpRefs  = useRef([]);
+  const otpRefs = useRef([]);
 
   const otp = otpDigits.join('');
 
@@ -134,8 +134,8 @@ export default function WorkerLoginPage() {
       const r = await loginWorker({
         phone,
         otp,
-        ...(name.trim()  ? { name: name.trim() } : {}),
-        ...(skills.length ? { skills }            : {}),
+        ...(name.trim() ? { name: name.trim() } : {}),
+        ...(skills.length ? { skills } : {}),
       }).unwrap();
       const profile = r.worker;
       dispatch(setAuth({ accessToken: r.accessToken, refreshToken: r.refreshToken, profile, role: 'worker' }));
@@ -292,8 +292,8 @@ export default function WorkerLoginPage() {
                 </h2>
                 <p className="text-white/50 lg:text-slate-500 text-[15px] font-medium">
                   {step === 'phone' ? 'Sign in to your partner dashboard'
-                   : step === 'otp' ? `Code sent to +91 ${phone}`
-                   : 'Set up your profile to start earning'}
+                    : step === 'otp' ? `Code sent to +91 ${phone}`
+                      : 'Set up your profile to start earning'}
                 </p>
               </div>
 
@@ -372,11 +372,10 @@ export default function WorkerLoginPage() {
                           value={d}
                           onChange={e => handleOtpChange(i, e.target.value)}
                           onKeyDown={e => handleOtpKey(i, e)}
-                          className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-[22px] font-black rounded-xl border outline-none transition-all ${
-                            d
-                              ? 'border-amber-500 ring-1 ring-amber-500/30 text-white lg:text-slate-900 bg-amber-500/10 lg:bg-amber-50'
-                              : 'border-white/15 lg:border-slate-300 text-white lg:text-slate-900 bg-white/5 lg:bg-white focus:border-amber-500'
-                          }`}
+                          className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-[22px] font-black rounded-xl border outline-none transition-all ${d
+                            ? 'border-amber-500 ring-1 ring-amber-500/30 text-white lg:text-slate-900 bg-amber-500/10 lg:bg-amber-50'
+                            : 'border-white/15 lg:border-slate-300 text-white lg:text-slate-900 bg-white/5 lg:bg-white focus:border-amber-500'
+                            }`}
                         />
                       ))}
                     </div>
@@ -421,11 +420,10 @@ export default function WorkerLoginPage() {
                                   key={s}
                                   type="button"
                                   onClick={() => setSkills(p => on ? p.filter(x => x !== s) : [...p, s])}
-                                  className={`px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all border ${
-                                    on
-                                      ? 'bg-amber-500 text-slate-900 border-amber-500 shadow-sm shadow-amber-500/20'
-                                      : 'bg-white/5 lg:bg-white border-white/10 lg:border-slate-200 text-white/60 lg:text-slate-600 hover:bg-white/10 lg:hover:bg-slate-50'
-                                  }`}
+                                  className={`px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all border ${on
+                                    ? 'bg-amber-500 text-slate-900 border-amber-500 shadow-sm shadow-amber-500/20'
+                                    : 'bg-white/5 lg:bg-white border-white/10 lg:border-slate-200 text-white/60 lg:text-slate-600 hover:bg-white/10 lg:hover:bg-slate-50'
+                                    }`}
                                 >
                                   {on && <CheckCircle2 size={13} className="inline-block mr-1 -mt-0.5" />}
                                   {SKILL_LABELS[s]}
