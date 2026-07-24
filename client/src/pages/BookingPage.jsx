@@ -637,9 +637,10 @@ export default function BookingPage() {
   const svcDesc = svcMeta.desc || `Book verified professionals for ${service?.replace(/_/g, ' ')} at your doorstep. Instant booking, live tracking, transparent pricing.`;
 
   /* ── Location stage ── */
+  /* ── Location stage ── */
   if (stage === 'location') {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="fixed inset-0 h-[100dvh] w-full flex flex-col overflow-hidden bg-[#F3F6FB] z-50">
         <SEO
           title={svcTitle}
           description={svcDesc}
@@ -673,7 +674,7 @@ export default function BookingPage() {
             </div>
           </div>
         </header>
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 relative">
           <LocationPicker onConfirm={onLocationConfirmed} onCancel={() => nav(-1)} serviceLabel={meta.label} service={service} />
         </div>
       </div>
@@ -683,7 +684,7 @@ export default function BookingPage() {
   // Towing destination picker (full-screen) — where to tow the vehicle to.
   if (showDestPicker) {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="fixed inset-0 h-[100dvh] w-full flex flex-col overflow-hidden bg-[#F3F6FB] z-50">
         <header className="shrink-0 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1e293b 100%)' }}>
           <div className="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
             <motion.button onClick={() => setShowDestPicker(false)} whileTap={{ scale: 0.92 }}
@@ -697,7 +698,7 @@ export default function BookingPage() {
           </div>
           <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
         </header>
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 relative">
           <LocationPicker onConfirm={onTowDestConfirmed} onCancel={() => setShowDestPicker(false)} serviceLabel="Tow destination" service={service} />
         </div>
       </div>

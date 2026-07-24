@@ -354,6 +354,7 @@ export default function LocationPicker({ onConfirm, onCancel, serviceLabel, serv
   const [showSaved,   setShowSaved]   = useState(false); // saved-places drawer open
   const [mapReady,    setMapReady]    = useState(false);
   const [sheetH,      setSheetH]      = useState(300);   // measured bottom-sheet height
+  const [sheetMinimized, setSheetMinimized] = useState(false); // interactive collapse/expand
 
   const sheetRef      = useRef(null);
   const sheetHRef     = useRef(300);                     // latest sheetH for map callbacks
@@ -998,134 +999,163 @@ export default function LocationPicker({ onConfirm, onCancel, serviceLabel, serv
         </motion.button>
 
         {/* ── Bottom sheet — overlays the bottom of the map ────────────── */}
-        <div ref={sheetRef} className="absolute bottom-0 left-0 right-0 z-30">
-          <div className="bg-white rounded-t-3xl px-5 pt-2.5 pb-5" style={{ boxShadow: '0 -8px 30px rgba(15,23,42,0.10)' }}>
+        <div ref={sheetRef} className="absolute bottom-0 left-0 right-0 z-30 max-h-[82vh] max-h-[82dvh] flex flex-col justify-end pointer-events-auto select-none">
+          <div className="bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(15,23,42,0.12)] border-t border-slate-100/80 flex flex-col max-h-[82vh] max-h-[82dvh] transition-all duration-300">
 
-          {/* Drag handle */}
-          <div className="flex justify-center pb-2.5">
-            <div className="w-10 h-1.5 rounded-full bg-slate-200" />
-          </div>
+            {/* Interactive Drag Handle — Click or swipe to collapse/expand sheet */}
+            <div
+              onClick={() => setSheetMinimized((m) => !m)}
+              className="w-full py-2.5 flex flex-col items-center justify-center cursor-pointer active:bg-slate-50 rounded-t-3xl shrink-0 touch-none"
+              aria-label={sheetMinimized ? "Expand sheet" : "Collapse sheet"}
+            >
+              <div className="w-12 h-1.5 rounded-full bg-slate-300/80 hover:bg-slate-400 transition-colors" />
+            </div>
 
-          {/* Label + edit */}
-          <div className="flex items-center justify-between mb-2.5">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#2563EB]">Service Location</p>
-            <button onClick={() => searchInputRef.current?.focus()} aria-label="Edit address"
-              className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center active:scale-95 transition">
-              <Pencil size={14} strokeWidth={2.2} className="text-[#2563EB]" />
-            </button>
-          </div>
+            {/* Scrollable sheet body — overscroll isolated so window never scrolls */}
+            <div className="px-5 pb-5 overflow-y-auto overscroll-contain touch-pan-y flex-1 min-h-0">
 
-          {/* Address row */}
-          <div className="flex items-start gap-3">
-            <div className="relative shrink-0">
-              <div className="w-11 h-11 rounded-2xl bg-[#2563EB] flex items-center justify-center shadow-sm">
-                {geocoding ? <Loader2 size={16} className="text-white animate-spin" /> : <Map size={17} strokeWidth={2.2} className="text-white" />}
+              {/* Label + edit */}
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#2563EB]">Service Location</p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setSheetMinimized((m) => !m)}
+                    className="text-[11px] font-bold text-slate-400 hover:text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-100 transition"
+                  >
+                    {sheetMinimized ? 'Expand' : 'Collapse'}
+                  </button>
+                  <button onClick={() => searchInputRef.current?.focus()} aria-label="Edit address"
+                    className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center active:scale-95 transition">
+                    <Pencil size={14} strokeWidth={2.2} className="text-[#2563EB]" />
+                  </button>
+                </div>
               </div>
-              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#2563EB] border-2 border-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              {isDragging ? (
-                <p className="text-[15px] font-bold text-slate-400 italic pt-1">Move map to pin location…</p>
-              ) : geocoding ? (
-                <p className="text-[15px] font-bold text-slate-400 flex items-center gap-1.5 pt-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" /> Looking up address…
-                </p>
-              ) : address ? (
-                <>
-                  <p className="text-[16px] font-extrabold text-slate-900 leading-snug truncate">{shortAddress || address.split(',')[0]}</p>
-                  <p className="text-[12.5px] text-slate-500 leading-snug mt-0.5 line-clamp-2">{address}</p>
-                </>
-              ) : (
-                <p className="text-[15px] font-semibold text-slate-400 pt-1">Drag the map to pin your location</p>
-              )}
-            </div>
-          </div>
 
-          {/* Precise-pin chips */}
-          <div className="flex flex-wrap gap-2 mt-3.5">
-            {NOTE_CHIPS.map((c) => {
-              const Icon = CHIP_ICONS[c.label] || MapPin;
-              const on   = activeChip === c.label;
-              return (
-                <button key={c.label} onClick={() => toggleChip(c)}
-                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold border transition-colors ${on ? 'bg-[#2563EB] border-[#2563EB] text-white' : 'bg-white border-blue-100 text-[#2563EB]'}`}>
-                  <Icon size={14} strokeWidth={2.2} /> {c.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Optional note input when a chip is active */}
-          <AnimatePresence initial={false}>
-            {activeChip && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                <input
-                  value={locNote}
-                  onChange={(e) => setLocNote(e.target.value.slice(0, 140))}
-                  placeholder={`Add ${activeChip.toLowerCase()} details — number, floor, landmark…`}
-                  className="w-full mt-2.5 rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-[13px] text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-300"
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Saved places */}
-          <button onClick={() => setShowSaved((s) => !s)}
-            className="w-full flex items-center gap-2.5 mt-3.5 rounded-xl bg-slate-50 px-4 py-3 text-left">
-            <Clock size={15} strokeWidth={2.2} className="text-slate-500 shrink-0" />
-            <span className="flex-1 text-[13.5px] font-semibold text-slate-700">Saved places{savedCount ? ` (${savedCount})` : ''}</span>
-            <ChevronDown size={17} className={`text-slate-400 transition-transform ${showSaved ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence initial={false}>
-            {showSaved && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">
-                  {savedAddresses.map((sa) => {
-                    const m = TAG_META[sa.tag] || TAG_META.other; const Icon = m.icon;
-                    return (
-                      <button key={sa._id} onClick={() => selectSaved(sa)}
-                        className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-blue-50/60 transition">
-                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${m.bg} flex items-center justify-center shrink-0`}>
-                          <Icon size={14} className="text-white" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{sa.label || sa.tag}</p>
-                          <p className="text-[13px] font-semibold text-slate-800 truncate">{sa.address}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                  {recentLocations.map((r, i) => (
-                    <button key={`recent-${i}`} onClick={() => applyPicked(r.lat, r.lng)}
-                      className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-blue-50/60 transition">
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                        <Clock size={13} className="text-slate-500" />
-                      </div>
-                      <p className="text-[13px] font-medium text-slate-700 truncate flex-1">{r.address}</p>
-                    </button>
-                  ))}
-                  {savedCount === 0 && (
-                    <p className="text-[12.5px] text-slate-400 text-center py-3">No saved places yet</p>
+              {/* Address row */}
+              <div className="flex items-start gap-3 cursor-pointer" onClick={() => sheetMinimized && setSheetMinimized(false)}>
+                <div className="relative shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#2563EB] flex items-center justify-center shadow-sm">
+                    {geocoding ? <Loader2 size={16} className="text-white animate-spin" /> : <Map size={17} strokeWidth={2.2} className="text-white" />}
+                  </div>
+                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#2563EB] border-2 border-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  {isDragging ? (
+                    <p className="text-[15px] font-bold text-slate-400 italic pt-1">Move map to pin location…</p>
+                  ) : geocoding ? (
+                    <p className="text-[15px] font-bold text-slate-400 flex items-center gap-1.5 pt-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" /> Looking up address…
+                    </p>
+                  ) : address ? (
+                    <>
+                      <p className="text-[16px] font-extrabold text-slate-900 leading-snug truncate">{shortAddress || address.split(',')[0]}</p>
+                      <p className="text-[12.5px] text-slate-500 leading-snug mt-0.5 line-clamp-2">{address}</p>
+                    </>
+                  ) : (
+                    <p className="text-[15px] font-semibold text-slate-400 pt-1">Drag the map to pin your location</p>
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
 
-          {/* Confirm CTA */}
-          <motion.button onClick={confirmLocation} disabled={!canConfirm} whileTap={canConfirm ? { scale: 0.98 } : {}}
-            className="w-full h-14 rounded-full mt-4 flex items-center justify-center gap-2 text-[15px] font-extrabold text-white transition-colors"
-            style={{ background: canConfirm ? '#2563EB' : '#CBD5E1', boxShadow: canConfirm ? '0 10px 26px rgba(37,99,235,0.4)' : 'none' }}>
-            {geocoding
-              ? <><Loader2 size={18} className="animate-spin" /> Detecting address…</>
-              : <>Confirm This Location <ArrowRight size={18} strokeWidth={2.6} /></>}
-          </motion.button>
+              {/* Expanded details — hidden when sheet is minimized */}
+              <AnimatePresence initial={false}>
+                {!sheetMinimized && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {/* Precise-pin chips */}
+                    <div className="flex flex-wrap gap-2 mt-3.5">
+                      {NOTE_CHIPS.map((c) => {
+                        const Icon = CHIP_ICONS[c.label] || MapPin;
+                        const on   = activeChip === c.label;
+                        return (
+                          <button key={c.label} onClick={() => toggleChip(c)}
+                            className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold border transition-colors ${on ? 'bg-[#2563EB] border-[#2563EB] text-white' : 'bg-white border-blue-100 text-[#2563EB]'}`}>
+                            <Icon size={14} strokeWidth={2.2} /> {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-          {/* Trust line */}
-          <div className="flex items-center justify-center gap-1.5 mt-3">
-            <Lock size={12} className="text-slate-400" />
-            <p className="text-[11.5px] font-medium text-slate-400">Your location is secure and encrypted</p>
-          </div>
+                    {/* Optional note input when a chip is active */}
+                    <AnimatePresence initial={false}>
+                      {activeChip && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                          <input
+                            value={locNote}
+                            onChange={(e) => setLocNote(e.target.value.slice(0, 140))}
+                            placeholder={`Add ${activeChip.toLowerCase()} details — number, floor, landmark…`}
+                            className="w-full mt-2.5 rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-[13px] text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-300"
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Saved places */}
+                    <button onClick={() => setShowSaved((s) => !s)}
+                      className="w-full flex items-center gap-2.5 mt-3.5 rounded-xl bg-slate-50 px-4 py-3 text-left">
+                      <Clock size={15} strokeWidth={2.2} className="text-slate-500 shrink-0" />
+                      <span className="flex-1 text-[13.5px] font-semibold text-slate-700">Saved places{savedCount ? ` (${savedCount})` : ''}</span>
+                      <ChevronDown size={17} className={`text-slate-400 transition-transform ${showSaved ? 'rotate-180' : ''}`} />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {showSaved && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                          <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                            {savedAddresses.map((sa) => {
+                              const m = TAG_META[sa.tag] || TAG_META.other; const Icon = m.icon;
+                              return (
+                                <button key={sa._id} onClick={() => selectSaved(sa)}
+                                  className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-blue-50/60 transition">
+                                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${m.bg} flex items-center justify-center shrink-0`}>
+                                    <Icon size={14} className="text-white" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{sa.label || sa.tag}</p>
+                                    <p className="text-[13px] font-semibold text-slate-800 truncate">{sa.address}</p>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                            {recentLocations.map((r, i) => (
+                              <button key={`recent-${i}`} onClick={() => applyPicked(r.lat, r.lng)}
+                                className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-blue-50/60 transition">
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                                  <Clock size={13} className="text-slate-500" />
+                                </div>
+                                <p className="text-[13px] font-medium text-slate-700 truncate flex-1">{r.address}</p>
+                              </button>
+                            ))}
+                            {savedCount === 0 && (
+                              <p className="text-[12.5px] text-slate-400 text-center py-3">No saved places yet</p>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Confirm CTA */}
+                    <motion.button onClick={confirmLocation} disabled={!canConfirm} whileTap={canConfirm ? { scale: 0.98 } : {}}
+                      className="w-full h-14 rounded-full mt-4 flex items-center justify-center gap-2 text-[15px] font-extrabold text-white transition-colors"
+                      style={{ background: canConfirm ? '#2563EB' : '#CBD5E1', boxShadow: canConfirm ? '0 10px 26px rgba(37,99,235,0.4)' : 'none' }}>
+                      {geocoding
+                        ? <><Loader2 size={18} className="animate-spin" /> Detecting address…</>
+                        : <>Confirm This Location <ArrowRight size={18} strokeWidth={2.6} /></>}
+                    </motion.button>
+
+                    {/* Trust line */}
+                    <div className="flex items-center justify-center gap-1.5 mt-3">
+                      <Lock size={12} className="text-slate-400" />
+                      <p className="text-[11.5px] font-medium text-slate-400">Your location is secure and encrypted</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+            </div>
           </div>
         </div>
       </div>
