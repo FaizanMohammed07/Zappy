@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Bell, CheckCheck, Package, CreditCard,
   Zap, MapPin, Star, Gift, ShieldCheck, AlertTriangle,
-  MessageCircle, Wallet, Trophy, Clock, ChevronRight, Sparkles,
+  Wallet, Trophy, Clock, ChevronRight, Sparkles,
+  Settings, CheckCircle2, XCircle, AlertCircle, Rocket
 } from 'lucide-react';
 import {
   useListNotificationsQuery,
@@ -17,27 +17,27 @@ import toast from 'react-hot-toast';
 
 /* ── Type → visual config ────────────────────────────────────────── */
 const TYPE_CONFIG = {
-  order_placed:         { emoji: '🎉', label: 'New Order',      grad: 'from-blue-500 to-indigo-600',   ring: 'ring-blue-100',   bg: 'bg-blue-50'   },
-  worker_assigned:      { emoji: '⚡', label: 'Worker Found',   grad: 'from-indigo-500 to-purple-600', ring: 'ring-indigo-100', bg: 'bg-indigo-50' },
-  worker_on_the_way:    { emoji: '🛵', label: 'On the Way',     grad: 'from-sky-500 to-blue-600',      ring: 'ring-sky-100',    bg: 'bg-sky-50'    },
-  worker_arriving_soon: { emoji: '📍', label: 'Almost Here',    grad: 'from-green-500 to-emerald-600', ring: 'ring-green-100',  bg: 'bg-green-50'  },
-  worker_arrived:       { emoji: '✅', label: 'Worker Arrived', grad: 'from-green-500 to-teal-600',    ring: 'ring-green-100',  bg: 'bg-green-50'  },
-  order_completed:      { emoji: '🏆', label: 'Completed',      grad: 'from-amber-500 to-orange-600',  ring: 'ring-amber-100',  bg: 'bg-amber-50'  },
-  order_cancelled:      { emoji: '❌', label: 'Cancelled',      grad: 'from-red-500 to-rose-600',      ring: 'ring-red-100',    bg: 'bg-red-50'    },
-  order_failed:         { emoji: '⚠️', label: 'Failed',         grad: 'from-red-500 to-orange-600',    ring: 'ring-red-100',    bg: 'bg-red-50'    },
-  rating_request:       { emoji: '⭐', label: 'Rate Service',   grad: 'from-amber-400 to-yellow-500',  ring: 'ring-amber-100',  bg: 'bg-amber-50'  },
-  wallet_credited:      { emoji: '💰', label: 'Money In',       grad: 'from-green-500 to-emerald-500', ring: 'ring-green-100',  bg: 'bg-green-50'  },
-  cashback_received:    { emoji: '🎁', label: 'Cashback',       grad: 'from-pink-500 to-rose-500',     ring: 'ring-pink-100',   bg: 'bg-pink-50'   },
-  referral_reward:      { emoji: '🎊', label: 'Referral Bonus', grad: 'from-purple-500 to-indigo-500', ring: 'ring-purple-100', bg: 'bg-purple-50' },
-  kyc_approved:         { emoji: '🛡️', label: 'KYC Approved',  grad: 'from-green-600 to-teal-600',    ring: 'ring-green-100',  bg: 'bg-green-50'  },
-  kyc_rejected:         { emoji: '🚫', label: 'KYC Issue',      grad: 'from-red-500 to-rose-600',      ring: 'ring-red-100',    bg: 'bg-red-50'    },
-  late_arrival_penalty: { emoji: '⏱️', label: 'Penalty',        grad: 'from-red-600 to-orange-600',    ring: 'ring-red-100',    bg: 'bg-red-50'    },
-  trip_started:         { emoji: '🚀', label: 'Trip Started',   grad: 'from-indigo-500 to-blue-600',   ring: 'ring-indigo-100', bg: 'bg-indigo-50' },
-  refund_processed:     { emoji: '💸', label: 'Refund',         grad: 'from-green-500 to-teal-500',    ring: 'ring-green-100',  bg: 'bg-green-50'  },
-  promotional:          { emoji: '🔥', label: 'Offer',          grad: 'from-orange-500 to-red-500',    ring: 'ring-orange-100', bg: 'bg-orange-50' },
-  system_alert:         { emoji: '🔔', label: 'Alert',          grad: 'from-slate-500 to-slate-700',   ring: 'ring-slate-100',  bg: 'bg-slate-50'  },
+  order_placed:         { icon: Package,      label: 'New Order',      color: 'text-[#0066FF]' },
+  worker_assigned:      { icon: Zap,          label: 'Worker Found',   color: 'text-[#0066FF]' },
+  worker_on_the_way:    { icon: Rocket,       label: 'On the Way',     color: 'text-[#0066FF]' },
+  worker_arriving_soon: { icon: MapPin,       label: 'Almost Here',    color: 'text-[#0066FF]' },
+  worker_arrived:       { icon: CheckCheck,   label: 'Worker Arrived', color: 'text-[#0066FF]' },
+  order_completed:      { icon: CheckCircle2, label: 'Completed',      color: 'text-[#0066FF]' },
+  order_cancelled:      { icon: XCircle,      label: 'Cancelled',      color: 'text-slate-500' },
+  order_failed:         { icon: AlertTriangle,label: 'Failed',         color: 'text-slate-500' },
+  rating_request:       { icon: Star,         label: 'Rate Service',   color: 'text-[#0066FF]' },
+  wallet_credited:      { icon: Wallet,       label: 'Money In',       color: 'text-[#0066FF]' },
+  cashback_received:    { icon: Gift,         label: 'Cashback',       color: 'text-[#0066FF]' },
+  referral_reward:      { icon: Trophy,       label: 'Referral Bonus', color: 'text-[#0066FF]' },
+  kyc_approved:         { icon: ShieldCheck,  label: 'KYC Approved',   color: 'text-[#0066FF]' },
+  kyc_rejected:         { icon: AlertCircle,  label: 'KYC Issue',      color: 'text-slate-500' },
+  late_arrival_penalty: { icon: Clock,        label: 'Penalty',        color: 'text-slate-500' },
+  trip_started:         { icon: Rocket,       label: 'Trip Started',   color: 'text-[#0066FF]' },
+  refund_processed:     { icon: CreditCard,   label: 'Refund',         color: 'text-[#0066FF]' },
+  promotional:          { icon: Sparkles,     label: 'Offer',          color: 'text-[#0066FF]' },
+  system_alert:         { icon: Bell,         label: 'Alert',          color: 'text-slate-500' },
 };
-const DEFAULT_CFG = { emoji: '🔔', label: 'Notification', grad: 'from-slate-500 to-slate-700', ring: 'ring-slate-100', bg: 'bg-slate-50' };
+const DEFAULT_CFG = { icon: Bell, label: 'Notification', color: 'text-[#0066FF]' };
 
 /* ── Time helpers ─────────────────────────────────────────────────── */
 function timeAgo(dateStr) {
@@ -66,185 +66,94 @@ function groupByDay(items) {
 /* ── Animated empty state ─────────────────────────────────────────── */
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-[65vh] gap-6 text-center px-8">
-      {/* Orbiting rings + bell */}
-      <div className="relative w-32 h-32 flex items-center justify-center">
-        {/* Rings */}
-        {[60, 80, 100].map((size, i) => (
-          <motion.div
-            key={size}
-            className="absolute rounded-full border border-slate-200"
-            style={{ width: size, height: size }}
-            animate={{ scale: [1, 1.08, 1], opacity: [0.5, 0.15, 0.5] }}
-            transition={{ duration: 2.4 + i * 0.6, repeat: Infinity, delay: i * 0.4 }}
-          />
-        ))}
-        {/* Center icon */}
-        <motion.div
-          className="relative z-10 w-20 h-20 rounded-3xl flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg,#f1f5f9,#e2e8f0)' }}
-          animate={{ y: [0, -6, 0] }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <Bell size={32} strokeWidth={1.5} className="text-slate-400" />
-          {/* Tiny particle dots */}
-          {[0, 60, 120, 180, 240, 300].map((deg, i) => (
-            <motion.div
-              key={deg}
-              className="absolute w-1.5 h-1.5 rounded-full bg-indigo-300"
-              style={{ top: '50%', left: '50%' }}
-              animate={{
-                x: [0, Math.cos((deg * Math.PI) / 180) * 44],
-                y: [0, Math.sin((deg * Math.PI) / 180) * 44],
-                opacity: [0, 1, 0],
-                scale: [0, 1, 0],
-              }}
-              transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.4, ease: 'easeOut' }}
-            />
-          ))}
-        </motion.div>
+    <div className="flex flex-col items-center justify-center pt-24 pb-12 gap-5 text-center px-6">
+      <div className="w-16 h-16 rounded-[20px] bg-slate-50 border border-slate-100 flex items-center justify-center">
+        <Bell size={28} strokeWidth={1.5} className="text-slate-400" />
       </div>
-
-      <div>
-        <motion.p
-          className="font-black text-[#0F172A] text-xl mb-1"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          All caught up! ✨
-        </motion.p>
-        <motion.p
-          className="text-sm text-slate-400 leading-relaxed"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          Order updates, payments, offers — everything<br />shows up here in real time.
-        </motion.p>
+      <div className="max-w-sm">
+        <p className="text-[18px] font-semibold text-slate-900 mb-2 font-['Poppins',sans-serif]">
+          You're all caught up.
+        </p>
+        <p className="text-[14px] text-slate-500 leading-relaxed font-['Poppins',sans-serif]">
+          New notifications will appear here when there are booking updates, payments, offers, or account activity.
+        </p>
       </div>
-
-      {/* Preview cards */}
-      <motion.div
-        className="w-full max-w-xs space-y-2"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35 }}
-      >
-        {[
-          { emoji: '⚡', text: 'Worker assigned — Sufiyan (4.8★)', sub: 'On the way · ETA 6 min' },
-          { emoji: '💰', text: '₹180 credited to wallet', sub: 'Cashback from your last order' },
-          { emoji: '🎉', text: 'Order placed successfully', sub: 'Puncture repair · ₹140' },
-        ].map((item, i) => (
-          <motion.div
-            key={i}
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white ring-1 ring-slate-100 text-left"
-            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.05)', opacity: 1 - i * 0.25 }}
-            animate={{ x: [4, 0] }}
-            transition={{ delay: 0.4 + i * 0.1 }}
-          >
-            <span className="text-xl shrink-0">{item.emoji}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-slate-700 truncate">{item.text}</p>
-              <p className="text-[10px] text-slate-400 truncate">{item.sub}</p>
-            </div>
-          </motion.div>
-        ))}
-        <p className="text-[10px] text-slate-300 text-center pt-1">Preview — your real notifications appear above</p>
-      </motion.div>
     </div>
   );
 }
 
 /* ── Single notification card ────────────────────────────────────── */
-function NotifCard({ n, onTap, isNew }) {
-  const cfg   = TYPE_CONFIG[n.type] || DEFAULT_CFG;
+function NotifCard({ n, onTap }) {
+  const cfg = TYPE_CONFIG[n.type] || DEFAULT_CFG;
   const unread = !n.readAt;
+  const Icon = cfg.icon;
 
   return (
-    <motion.button
+    <div
       onClick={() => onTap(n)}
-      className={`w-full text-left flex items-start gap-3 px-4 py-4 transition-colors relative ${
-        unread ? 'bg-white' : 'bg-slate-50/60'
-      }`}
-      initial={isNew ? { x: -20, opacity: 0 } : false}
-      animate={{ x: 0, opacity: 1 }}
-      whileTap={{ scale: 0.99 }}
+      className={`group relative flex items-start gap-4 p-5 rounded-[20px] transition-all duration-200 cursor-pointer 
+      ${unread 
+        ? 'bg-[#0066FF]/5 border border-[#0066FF]/20 shadow-[0_2px_12px_rgba(0,0,0,0.02)]' 
+        : 'bg-white border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:bg-slate-50/50'} 
+      hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)] hover:-translate-y-[1px]`}
     >
-      {/* Unread left-border accent */}
       {unread && (
-        <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r-full bg-gradient-to-b from-indigo-400 to-purple-500" />
+        <div className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-[#0066FF]" />
       )}
-
-      {/* Emoji icon with gradient background */}
-      <div className="relative shrink-0">
-        <div
-          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl`}
-          style={{ background: `linear-gradient(135deg,var(--tw-gradient-from),var(--tw-gradient-to))` }}
-        >
-          <div className={`w-full h-full rounded-2xl bg-gradient-to-br ${cfg.grad} flex items-center justify-center`}>
-            <span className="text-xl">{cfg.emoji}</span>
-          </div>
-        </div>
-        {unread && (
-          <motion.div
-            className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-indigo-500 rounded-full border-2 border-white"
-            animate={{ scale: [1, 1.3, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-        )}
+      
+      <div className={`mt-0.5 shrink-0 ${unread ? cfg.color : 'text-slate-400 group-hover:text-slate-500'}`}>
+        <Icon size={20} strokeWidth={unread ? 2.5 : 2} />
       </div>
 
-      {/* Text content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${cfg.bg} ${cfg.ring} ring-1 uppercase tracking-wide text-slate-600`}>
-            {cfg.label}
+      <div className="flex-1 min-w-0 font-['Poppins',sans-serif]">
+        <div className="flex justify-between items-start gap-3">
+          <p className={`text-[15px] leading-snug mb-1 ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+            {n.title}
+          </p>
+          <span className={`text-[12px] whitespace-nowrap shrink-0 ${unread ? 'font-medium text-[#0066FF]' : 'text-slate-400'}`}>
+            {timeAgo(n.createdAt)}
           </span>
         </div>
-        <p className={`text-sm leading-snug ${unread ? 'font-bold text-[#0F172A]' : 'font-medium text-slate-600'}`}>
-          {n.title}
-        </p>
+        
         {n.body && (
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-2">{n.body}</p>
+          <p className={`text-[14px] leading-relaxed ${unread ? 'text-slate-600' : 'text-slate-500'}`}>
+            {n.body}
+          </p>
         )}
-        <p className="text-[10px] text-slate-300 mt-1.5 font-medium">{timeAgo(n.createdAt)}</p>
       </div>
 
-      {/* Arrow if has deepLink */}
       {n.deepLink && (
-        <ChevronRight size={14} strokeWidth={2} className="text-slate-300 mt-1.5 shrink-0" />
+        <div className="shrink-0 flex items-center self-center pl-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <ChevronRight size={18} className="text-slate-300" />
+        </div>
       )}
-    </motion.button>
+    </div>
   );
 }
 
 /* ── Section header ───────────────────────────────────────────────── */
 function SectionLabel({ label }) {
   return (
-    <div className="px-4 pt-5 pb-2 flex items-center gap-2">
-      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-      <div className="flex-1 h-px bg-slate-100" />
-    </div>
+    <h3 className="px-1 pt-8 pb-4 text-[13px] font-semibold text-slate-400 uppercase tracking-widest font-['Poppins',sans-serif]">
+      {label}
+    </h3>
   );
 }
 
 /* ── Main page ────────────────────────────────────────────────────── */
 export default function NotificationsPage() {
   const nav = useNavigate();
-  const [filter, setFilter] = useState('all'); // 'all' | 'unread'
-
-  const { data, isLoading, isFetching, isError, refetch } = useListNotificationsQuery({ page: 1, unreadOnly: filter === 'unread' });
+  
+  const { data, isLoading, isFetching, isError, refetch } = useListNotificationsQuery({ page: 1, unreadOnly: false });
   const [markRead]   = useMarkNotificationReadMutation();
   const [markAllMut] = useMarkAllNotificationsReadMutation();
 
-  // Backend returns { items, unread } — map to what the page uses
   const notifications = data?.items || [];
   const unreadCount   = data?.unread ?? 0;
 
   async function handleMarkAll() {
     try { await markAllMut().unwrap(); toast.success('All marked as read'); }
-    catch { toast.error('Failed'); }
+    catch { toast.error('Failed to mark all as read'); }
   }
 
   async function handleTap(n) {
@@ -252,127 +161,117 @@ export default function NotificationsPage() {
     if (n.deepLink) nav(n.deepLink);
   }
 
-  const groups = groupByDay(notifications);
+  const groups = useMemo(() => groupByDay(notifications), [notifications]);
   const hasAny = notifications.length > 0;
 
   return (
     <PageTransition>
-      <div className="min-h-screen" style={{ background: 'linear-gradient(180deg,#f0f4ff 0%,#f9fafb 120px)' }}>
-
-        {/* Header */}
-        <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid rgba(0,0,0,0.05)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-3">
-            <motion.button
+      <div className="min-h-screen bg-white font-['Poppins',sans-serif]">
+        
+        {/* Header Area */}
+        <header className="w-full max-w-[960px] mx-auto px-5 md:px-8 pt-10 pb-6 md:pt-14 md:pb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-6 border-b border-slate-100">
+          <div className="flex-1">
+            <button
               onClick={() => nav(-1)}
-              className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"
-              whileTap={{ scale: 0.92 }}
+              className="mb-6 w-10 h-10 flex items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
             >
-              <ArrowLeft size={18} strokeWidth={2.5} className="text-slate-700" />
-            </motion.button>
-
-            <div className="flex-1">
-              <p className="font-black text-[#0F172A] text-base">Notifications</p>
-              {unreadCount > 0 && (
-                <p className="text-[10px] text-indigo-500 font-bold">{unreadCount} unread</p>
-              )}
-            </div>
-
-            {unreadCount > 0 && (
-              <motion.button
-                onClick={handleMarkAll}
-                className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl ring-1 ring-indigo-100"
-                whileTap={{ scale: 0.95 }}
-              >
-                <CheckCheck size={12} strokeWidth={2.5} />
-                Mark all read
-              </motion.button>
-            )}
+              <ArrowLeft size={18} />
+            </button>
+            <h1 className="text-[28px] md:text-[32px] font-bold text-slate-900 tracking-tight leading-tight mb-2">
+              Notifications
+            </h1>
+            <p className="text-[14px] md:text-[15px] text-slate-500 max-w-lg leading-relaxed">
+              Stay updated with your bookings, payments, account activity, and service updates.
+            </p>
           </div>
 
-          {/* Filter tabs */}
-          {hasAny && (
-            <div className="px-4 pb-3 flex gap-2">
-              {[['all', 'All'], ['unread', 'Unread']].map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setFilter(key)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    filter === key
-                      ? 'bg-[#0F172A] text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                >
-                  {label}
-                  {key === 'unread' && unreadCount > 0 && (
-                    <span className="ml-1.5 bg-indigo-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unreadCount}</span>
-                  )}
-                </button>
-              ))}
+          <div className="flex items-center gap-3 shrink-0">
+            {hasAny && unreadCount > 0 && (
+              <button
+                onClick={handleMarkAll}
+                className="text-[13px] font-medium text-slate-600 hover:text-[#0066FF] bg-white border border-slate-200 hover:border-blue-200 px-4 py-2.5 rounded-full transition-colors flex items-center gap-2 shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
+              >
+                <CheckCheck size={16} />
+                Mark all as read
+              </button>
+            )}
+            <Link 
+              to="/notification-prefs" 
+              className="w-[42px] h-[42px] flex items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
+            >
+              <Settings size={18} />
+            </Link>
+          </div>
+        </header>
+
+        {/* Content Area */}
+        <main className="w-full max-w-[960px] mx-auto px-5 md:px-8 py-4 pb-24">
+          
+          {isFetching && (
+            <div className="fixed top-0 left-0 right-0 h-1 z-50">
+              <div className="h-full bg-blue-500/20 w-full overflow-hidden">
+                <div className="h-full bg-[#0066FF] w-1/3 animate-[slide_1.5s_ease-in-out_infinite]" />
+              </div>
             </div>
           )}
 
-          {isFetching && <div className="h-0.5 bg-gradient-to-r from-indigo-400 to-purple-500 animate-pulse" />}
-        </header>
-
-        {/* Content */}
-        {isError ? (
-          <ErrorState onRetry={refetch} />
-        ) : isLoading ? (
-          /* Skeleton */
-          <div className="max-w-lg mx-auto px-4 pt-4 space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-start gap-3 px-4 py-4 bg-white rounded-2xl ring-1 ring-slate-100">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 animate-pulse shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-slate-100 rounded-full w-3/4 animate-pulse" />
-                  <div className="h-2.5 bg-slate-100 rounded-full w-1/2 animate-pulse" />
+          {isError ? (
+            <ErrorState onRetry={refetch} />
+          ) : isLoading ? (
+            <div className="pt-6 space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-start gap-4 p-5 bg-white border border-slate-100 rounded-[20px]">
+                  <div className="w-5 h-5 rounded-md bg-slate-100 animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-3 pt-1">
+                    <div className="flex justify-between items-center">
+                      <div className="h-4 bg-slate-100 rounded-full w-1/3 animate-pulse" />
+                      <div className="h-3 bg-slate-50 rounded-full w-12 animate-pulse" />
+                    </div>
+                    <div className="h-3.5 bg-slate-50 rounded-full w-3/4 animate-pulse" />
+                    <div className="h-3.5 bg-slate-50 rounded-full w-1/2 animate-pulse" />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : !hasAny ? (
-          <EmptyState />
-        ) : (
-          <div className="max-w-lg mx-auto">
-            {/* Today */}
-            {groups.today.length > 0 && (
-              <div>
-                <SectionLabel label="Today" />
-                <div className="mx-4 rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100 divide-y divide-slate-50" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-                  {groups.today.map((n) => (
-                    <NotifCard key={n._id} n={n} onTap={handleTap} isNew />
-                  ))}
+              ))}
+            </div>
+          ) : !hasAny ? (
+            <EmptyState />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {groups.today.length > 0 && (
+                <div className="mb-4">
+                  <SectionLabel label="Today" />
+                  <div className="flex flex-col gap-3">
+                    {groups.today.map((n) => (
+                      <NotifCard key={n._id} n={n} onTap={handleTap} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Yesterday */}
-            {groups.yesterday.length > 0 && (
-              <div>
-                <SectionLabel label="Yesterday" />
-                <div className="mx-4 rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100 divide-y divide-slate-50" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-                  {groups.yesterday.map((n) => (
-                    <NotifCard key={n._id} n={n} onTap={handleTap} />
-                  ))}
+              {groups.yesterday.length > 0 && (
+                <div className="mb-4">
+                  <SectionLabel label="Yesterday" />
+                  <div className="flex flex-col gap-3">
+                    {groups.yesterday.map((n) => (
+                      <NotifCard key={n._id} n={n} onTap={handleTap} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Earlier */}
-            {groups.earlier.length > 0 && (
-              <div>
-                <SectionLabel label="Earlier" />
-                <div className="mx-4 rounded-2xl overflow-hidden bg-white ring-1 ring-slate-100 divide-y divide-slate-50" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-                  {groups.earlier.map((n) => (
-                    <NotifCard key={n._id} n={n} onTap={handleTap} />
-                  ))}
+              {groups.earlier.length > 0 && (
+                <div className="mb-4">
+                  <SectionLabel label="Earlier" />
+                  <div className="flex flex-col gap-3">
+                    {groups.earlier.map((n) => (
+                      <NotifCard key={n._id} n={n} onTap={handleTap} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="h-20" />
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </main>
       </div>
     </PageTransition>
   );

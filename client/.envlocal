@@ -1,0 +1,25 @@
+# ─── Zappy Client — Local Development ─────────────────────────────────
+# This file is gitignored. Never commit secrets.
+
+# Admin panel secret URL slug
+VITE_ADMIN_SLUG=zappy-admin-login-x7k9m2
+
+VITE_ZI_SLUG=zappy-intelligence-x9q7w3k2
+
+# Cashfree Payment Gateway
+VITE_CASHFREE_ENV=sandbox
+
+# Google Maps (fill in your browser key)
+VITE_GOOGLE_MAPS_KEY=AIzaSyAEGF2tm4wgjZwDPS9YwMPKtU8ra3nZFw8
+
+# Mapbox — get free token at https://account.mapbox.com/access-tokens/
+VITE_MAPBOX_TOKEN=pk.eyJ1IjoiZmFpemFuOTgiLCJhIjoiY21vamhreDRyMGJwOTJzc2Zib2czMWNqYSJ9.mtBbH_-yJ3a2SywstQavHw
+
+# Firebase — push notifications
+VITE_FIREBASE_API_KEY=AIzaSyCe3GDi2dS9HxMlJugpfXRihelwO_Wy5Co
+VITE_FIREBASE_AUTH_DOMAIN=zappio-c80e2.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=zappio-c80e2
+VITE_FIREBASE_STORAGE_BUCKET=zappio-c80e2.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=807305379190
+VITE_FIREBASE_APP_ID=1:807305379190:web:d54d24d4040eed76f28e57
+VITE_FIREBASE_VAPID_KEY=BLWhu3JhEC6d90lXntAefKP8TvtPx-1N2wuqVTQd3HyCMY6I7a84sBdr_zW57Avck9pF_cvmlhEGggfcaMr1E_A

@@ -188,18 +188,18 @@ export default function OrdersListPage() {
   return (
     <PageTransition>
       <div className="min-h-screen bg-slate-50 pb-40">
-       <div className="mx-auto w-full max-w-[480px]">
+       <div className="mx-auto w-full max-w-[480px] md:max-w-[960px]">
         <PullToRefresh onRefresh={() => refetch()}>
-        <header className="px-5 pt-8 pb-2" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2rem)' }}>
+        <header className="px-5 md:px-8 pt-8 pb-2" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2rem)' }}>
           <h1 className="text-3xl font-black text-[#0F172A]">Activity</h1>
         </header>
 
         {isError ? (
           <ErrorState onRetry={refetch} />
         ) : isLoading ? (
-          <div className="px-5 pt-4"><SkeletonList count={4} Item={SkeletonOrderCard} /></div>
+          <div className="px-5 md:px-8 pt-4"><SkeletonList count={4} Item={SkeletonOrderCard} /></div>
         ) : allOrders.length === 0 ? (
-          <div className="px-5 pt-6">
+          <div className="px-5 md:px-8 pt-6">
             <h2 className="text-lg font-bold text-[#0F172A] mb-3">Upcoming</h2>
             <button onClick={() => nav('/services')} className="w-full text-left rounded-2xl ring-1 ring-slate-200 bg-white p-5 flex items-center justify-between">
               <div>
@@ -210,12 +210,12 @@ export default function OrdersListPage() {
             </button>
           </div>
         ) : (
-          <motion.div className="px-5 pt-2 space-y-6" variants={staggerContainer} initial="initial" animate="animate">
+          <motion.div className="px-5 md:px-8 pt-2 space-y-6" variants={staggerContainer} initial="initial" animate="animate">
             {/* Upcoming */}
             <section>
               <h2 className="text-lg font-bold text-[#0F172A] mb-3">Upcoming</h2>
               {upcoming.length === 0 ? (
-                <button onClick={() => nav('/services')} className="w-full text-left rounded-2xl ring-1 ring-slate-200 bg-white p-5 flex items-center justify-between">
+                <button onClick={() => nav('/services')} className="w-full text-left rounded-2xl ring-1 ring-slate-200 bg-white p-5 md:p-6 flex items-center justify-between transition-shadow hover:shadow-md">
                   <div>
                     <p className="font-bold text-[#0F172A] text-base">You have no upcoming bookings</p>
                     <p className="text-sm text-blue-600 font-semibold mt-1 flex items-center gap-1">Book a service <ArrowRight size={14} /></p>
@@ -223,7 +223,9 @@ export default function OrdersListPage() {
                   <Calendar size={34} className="text-slate-300" />
                 </button>
               ) : (
-                <div className="space-y-3">{upcoming.map((o) => <UpcomingCard key={o._id} order={o} nav={nav} />)}</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                  {upcoming.map((o) => <UpcomingCard key={o._id} order={o} nav={nav} />)}
+                </div>
               )}
             </section>
 
@@ -232,9 +234,13 @@ export default function OrdersListPage() {
               <section>
                 <h2 className="text-lg font-bold text-[#0F172A] mb-3">Past</h2>
                 <div className="space-y-4">
-                  <PastCard order={past[0]} nav={nav} onInvoice={downloadInvoice} downloadingId={downloadingId} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="col-span-1 md:col-span-2">
+                      <PastCard order={past[0]} nav={nav} onInvoice={downloadInvoice} downloadingId={downloadingId} />
+                    </div>
+                  </div>
                   {past.length > 1 && (
-                    <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm px-4">
+                    <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm px-4 md:px-6">
                       {past.slice(1).map((o) => <CompactRow key={o._id} order={o} nav={nav} />)}
                     </div>
                   )}
