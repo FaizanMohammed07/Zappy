@@ -223,6 +223,9 @@ async function requestOtp(phone, role) {
   } else if (role === 'user') {
     const u = await User.findOne({ phone }).select('_id').lean();
     isNewUser = !u;
+  } else if (role === 'event_partner' || role === 'partner') {
+    const p = await EventPartner.findOne({ phone }).select('_id').lean();
+    isNewUser = !p;
   }
 
   // devOtp is only returned in non-production so the dev UI can auto-fill.
