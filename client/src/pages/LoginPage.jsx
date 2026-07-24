@@ -13,8 +13,8 @@ import SEO, { LOGIN_SCHEMA, BASE_URL } from '../components/SEO';
 import { easeSoft, springSnap, fadeInUp, staggerContainer } from '../lib/animations';
 
 const SKILLS = [
-  'puncture', 'plumbing', 'electrical', 'helper', 'carpenter', 'ac_repair',
-  'screen_replacement', 'battery_replacement', 'mason', 'bike_wash', 'car_wash',
+  'puncture','plumbing','electrical','helper','carpenter','ac_repair',
+  'screen_replacement','battery_replacement','mason','bike_wash','car_wash',
 ];
 const SKILL_LABELS = {
   puncture: 'Puncture', plumbing: 'Plumbing', electrical: 'Electrical',
@@ -55,26 +55,26 @@ function OtpInput({ value, onChange, onKeyDown, inputRef, filled }) {
 }
 
 export default function LoginPage({ role = 'user' }) {
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone]       = useState('');
   const OTP_LEN = 6; // 2Factor plain AUTOGEN (no template) sends 6-digit SMS OTP
   const [otpDigits, setOtpDigits] = useState(Array(OTP_LEN).fill(''));
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [skills, setSkills] = useState([]);
-  const [step, setStep] = useState('phone');
-  const [otpMeta, setOtpMeta] = useState({ cooldownSec: 30, resendsLeft: 3 });
+  const [name, setName]         = useState('');
+  const [email, setEmail]       = useState('');
+  const [skills, setSkills]     = useState([]);
+  const [step, setStep]         = useState('phone');
+  const [otpMeta, setOtpMeta]   = useState({ cooldownSec: 30, resendsLeft: 3 });
   const [isNewUser, setIsNewUser] = useState(true);
   const [pendingProfile, setPendingProfile] = useState(null);
   const pendingOtp = useRef(null);
   const [requestOtp, { isLoading: sending }] = useRequestOtpMutation();
-  const [loginUser, { isLoading: loggingUser }] = useLoginUserMutation();
+  const [loginUser,  { isLoading: loggingUser }]   = useLoginUserMutation();
   const [loginWorker, { isLoading: loggingWorker }] = useLoginWorkerMutation();
-  const [updateMe, { isLoading: savingProfile }] = useUpdateMeMutation();
-  const nav = useNavigate();
-  const loc = useLocation();
+  const [updateMe,   { isLoading: savingProfile }]  = useUpdateMeMutation();
+  const nav      = useNavigate();
+  const loc      = useLocation();
   const dispatch = useDispatch();
   const isLoading = loggingUser || loggingWorker;
-  const otpRefs = useRef([]);
+  const otpRefs   = useRef([]);
 
   const otp = otpDigits.join('');
 
@@ -96,7 +96,7 @@ export default function LoginPage({ role = 'user' }) {
   // Mouse parallax for hero
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const parallaxX = useTransform(mouseX, [0, window.innerWidth || 400], [-8, 8]);
+  const parallaxX = useTransform(mouseX, [0, window.innerWidth  || 400], [-8, 8]);
   const parallaxY = useTransform(mouseY, [0, window.innerHeight || 800], [-6, 6]);
 
   function handleMouseMove(e) {
@@ -133,7 +133,6 @@ export default function LoginPage({ role = 'user' }) {
     if (!/^[0-9]{10,15}$/.test(phone)) { toast.error('Enter a valid phone number'); return; }
     try {
       const r = await requestOtp({ phone, role }).unwrap();
-
       pendingOtp.current = r.otp || null;
       setIsNewUser(r.isNewUser ?? true);
       // Server-owned resend rules — never hardcode these client-side.
@@ -169,8 +168,8 @@ export default function LoginPage({ role = 'user' }) {
       const r = await fn({
         phone,
         otp,
-        ...(name.trim() ? { name: name.trim() } : {}),
-        ...(skills.length ? { skills } : {}),
+        ...(name.trim()   ? { name: name.trim() }     : {}),
+        ...(skills.length  ? { skills }                : {}),
       }).unwrap();
       const profile = role === 'worker' ? r.worker : r.user;
       dispatch(setAuth({ accessToken: r.accessToken, refreshToken: r.refreshToken, profile, role }));
@@ -207,335 +206,335 @@ export default function LoginPage({ role = 'user' }) {
 
   return (
     <>
-      <SEO
-        title={isWorker ? 'Worker Login — Join Zappy & Earn Daily | Zappy India' : 'Login to Zappy — Book Home Services Instantly'}
-        description={isWorker
-          ? 'Join Zappy as a service professional. Earn ₹500–₹2000/day. Verified workers get instant job notifications and daily payments.'
-          : 'Login to Zappy with your phone number. Book verified professionals for home services instantly — puncture repair, phone repair, laptop repair and more.'}
-        canonical={isWorker ? `${BASE_URL}/worker/login` : `${BASE_URL}/login`}
-        keywords={isWorker
-          ? 'join Zappy as worker, earn money home services, service professional jobs India'
-          : 'Zappy login, book home services India, on-demand services app login'}
-        jsonLd={LOGIN_SCHEMA}
-      />
-      <div
-        className="min-h-screen flex flex-col overflow-hidden relative"
-        onMouseMove={handleMouseMove}
-        style={{
-          background: isWorker
-            ? 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #312e81 100%)'
-            : 'linear-gradient(135deg, #0f172a 0%, #1a237e 40%, #0d47a1 100%)'
-        }}
+    <SEO
+      title={isWorker ? 'Worker Login — Join Zappy & Earn Daily | Zappy India' : 'Login to Zappy — Book Home Services Instantly'}
+      description={isWorker
+        ? 'Join Zappy as a service professional. Earn ₹500–₹2000/day. Verified workers get instant job notifications and daily payments.'
+        : 'Login to Zappy with your phone number. Book verified professionals for home services instantly — puncture repair, phone repair, laptop repair and more.'}
+      canonical={isWorker ? `${BASE_URL}/worker/login` : `${BASE_URL}/login`}
+      keywords={isWorker
+        ? 'join Zappy as worker, earn money home services, service professional jobs India'
+        : 'Zappy login, book home services India, on-demand services app login'}
+      jsonLd={LOGIN_SCHEMA}
+    />
+    <div
+      className="min-h-screen flex flex-col overflow-hidden relative"
+      onMouseMove={handleMouseMove}
+      style={{ background: isWorker
+        ? 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #312e81 100%)'
+        : 'linear-gradient(135deg, #0f172a 0%, #1a237e 40%, #0d47a1 100%)'
+      }}
+    >
+      {/* Background orbs */}
+      <Orb x={-10} y={-5}  size={400} color={isWorker ? '#7c3aed' : '#4f46e5'} delay={0} />
+      <Orb x={70}  y={60}  size={300} color={isWorker ? '#db2777' : '#0ea5e9'} delay={2} />
+      <Orb x={50}  y={-10} size={250} color="#6366f1"  delay={4} />
+      <Orb x={-5}  y={70}  size={200} color={isWorker ? '#f59e0b' : '#06b6d4'} delay={1} />
+
+      {/* Subtle grid overlay */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+      }} />
+
+      {/* Hero section */}
+      <motion.div
+        className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-6 relative z-10"
+        style={{ x: parallaxX, y: parallaxY }}
       >
-        {/* Background orbs */}
-        <Orb x={-10} y={-5} size={400} color={isWorker ? '#7c3aed' : '#4f46e5'} delay={0} />
-        <Orb x={70} y={60} size={300} color={isWorker ? '#db2777' : '#0ea5e9'} delay={2} />
-        <Orb x={50} y={-10} size={250} color="#6366f1" delay={4} />
-        <Orb x={-5} y={70} size={200} color={isWorker ? '#f59e0b' : '#06b6d4'} delay={1} />
-
-        {/* Subtle grid overlay */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }} />
-
-        {/* Hero section */}
         <motion.div
-          className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-6 relative z-10"
-          style={{ x: parallaxX, y: parallaxY }}
+          className="flex flex-col items-center gap-4"
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
         >
-          <motion.div
-            className="flex flex-col items-center gap-4"
-            variants={staggerContainer}
-            initial="initial"
-            animate="animate"
-          >
-            {/* Logo */}
-            <motion.div variants={fadeInUp}>
-              <motion.div
-                className="w-20 h-20 rounded-[24px] flex items-center justify-center relative"
-                style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.2)' }}
-                animate={{ boxShadow: ['0 0 0 0px rgba(99,102,241,0.3)', '0 0 0 16px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)'] }}
-                transition={{ duration: 2.5, repeat: Infinity }}
-                whileHover={{ scale: 1.05 }}
-              >
-                <ZappyLogo size={48} />
-              </motion.div>
-            </motion.div>
-
-            <motion.div className="text-center" variants={fadeInUp}>
-              <h1 className="text-4xl font-black text-white tracking-tight">Zappy</h1>
-              <p className="text-white/60 text-sm font-medium mt-1">
-                {isWorker ? 'Partner Portal — Earn on your schedule' : 'Instant help, at your doorstep'}
-              </p>
-            </motion.div>
-
-            {/* Trust badges */}
-            <motion.div className="flex gap-3 mt-1" variants={fadeInUp}>
-              {[
-                { Icon: Zap, label: 'Fast', color: 'text-amber-400' },
-                { Icon: Shield, label: 'Verified', color: 'text-green-400' },
-                { Icon: Star, label: 'Trusted', color: 'text-blue-400' },
-              ].map(({ Icon, label, color }) => (
-                <div key={label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
-                  <Icon size={11} className={color} />
-                  <span className="text-white/80 text-[11px] font-semibold">{label}</span>
-                </div>
-              ))}
+          {/* Logo */}
+          <motion.div variants={fadeInUp}>
+            <motion.div
+              className="w-20 h-20 rounded-[24px] flex items-center justify-center relative"
+              style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.2)' }}
+              animate={{ boxShadow: ['0 0 0 0px rgba(99,102,241,0.3)', '0 0 0 16px rgba(99,102,241,0)', '0 0 0 0px rgba(99,102,241,0)'] }}
+              transition={{ duration: 2.5, repeat: Infinity }}
+              whileHover={{ scale: 1.05 }}
+            >
+              <ZappyLogo size={48} />
             </motion.div>
           </motion.div>
+
+          <motion.div className="text-center" variants={fadeInUp}>
+            <h1 className="text-4xl font-black text-white tracking-tight">Zappy</h1>
+            <p className="text-white/60 text-sm font-medium mt-1">
+              {isWorker ? 'Partner Portal — Earn on your schedule' : 'Instant help, at your doorstep'}
+            </p>
+          </motion.div>
+
+          {/* Trust badges */}
+          <motion.div className="flex gap-3 mt-1" variants={fadeInUp}>
+            {[
+              { Icon: Zap,    label: 'Fast',     color: 'text-amber-400' },
+              { Icon: Shield, label: 'Verified', color: 'text-green-400' },
+              { Icon: Star,   label: 'Trusted',  color: 'text-blue-400'  },
+            ].map(({ Icon, label, color }) => (
+              <div key={label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                <Icon size={11} className={color} />
+                <span className="text-white/80 text-[11px] font-semibold">{label}</span>
+              </div>
+            ))}
+          </motion.div>
         </motion.div>
+      </motion.div>
 
-        {/* Form card */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ y: 60, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 30, opacity: 0 }}
-            transition={{ duration: 0.38, ease: easeSoft }}
-            className="relative z-10"
-            style={{
-              background: 'rgba(255,255,255,0.97)',
-              borderRadius: '28px 28px 0 0',
-              boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
-            }}
-          >
-            <div className="max-w-sm mx-auto px-6 pt-7 pb-12 space-y-5">
-              {/* Drag handle */}
-              <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2" />
+      {/* Form card */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={step}
+          initial={{ y: 60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 30, opacity: 0 }}
+          transition={{ duration: 0.38, ease: easeSoft }}
+          className="relative z-10"
+          style={{
+            background: 'rgba(255,255,255,0.97)',
+            borderRadius: '28px 28px 0 0',
+            boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div className="max-w-sm mx-auto px-6 pt-7 pb-12 space-y-5">
+            {/* Drag handle */}
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2" />
 
-              {step === 'phone' ? (
-                <motion.div
-                  className="space-y-5"
-                  variants={staggerContainer}
-                  initial="initial"
-                  animate="animate"
-                >
-                  <motion.div variants={fadeInUp}>
-                    <h2 className="text-xl font-black text-slate-900">
-                      {isWorker ? 'Sign in as Partner' : 'Welcome back'}
-                    </h2>
-                    <p className="text-sm text-slate-400 mt-1 font-medium">Enter your mobile number to continue</p>
-                  </motion.div>
+            {step === 'phone' ? (
+              <motion.div
+                className="space-y-5"
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+              >
+                <motion.div variants={fadeInUp}>
+                  <h2 className="text-xl font-black text-slate-900">
+                    {isWorker ? 'Sign in as Partner' : 'Welcome back'}
+                  </h2>
+                  <p className="text-sm text-slate-400 mt-1 font-medium">Enter your mobile number to continue</p>
+                </motion.div>
 
-                  <motion.div variants={fadeInUp}>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Mobile Number</label>
-                    <div className="relative">
-                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pr-3 border-r border-slate-200">
-                        <Phone size={14} className="text-slate-400" />
-                        <span className="text-sm font-bold text-slate-600">+91</span>
-                      </div>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        className="w-full pl-[72px] pr-4 py-3.5 text-base font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
-                        placeholder="98765 43210"
-                        value={phone}
-                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
-                        onKeyDown={e => e.key === 'Enter' && send()}
-                        autoFocus
-                      />
+                <motion.div variants={fadeInUp}>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Mobile Number</label>
+                  <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pr-3 border-r border-slate-200">
+                      <Phone size={14} className="text-slate-400" />
+                      <span className="text-sm font-bold text-slate-600">+91</span>
                     </div>
-                  </motion.div>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      className="w-full pl-[72px] pr-4 py-3.5 text-base font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                      placeholder="98765 43210"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                      onKeyDown={e => e.key === 'Enter' && send()}
+                      autoFocus
+                    />
+                  </div>
+                </motion.div>
 
-                  <motion.button
-                    variants={fadeInUp}
-                    onClick={send}
-                    disabled={sending || phone.length < 10}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full py-3.5 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
-                    style={{ background: isWorker ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)', boxShadow: isWorker ? '0 8px 24px rgba(124,58,237,0.35)' : '0 8px 24px rgba(79,70,229,0.35)' }}
-                  >
-                    {sending ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                    {sending ? 'Sending OTP…' : 'Get OTP'}
-                  </motion.button>
+                <motion.button
+                  variants={fadeInUp}
+                  onClick={send}
+                  disabled={sending || phone.length < 10}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-3.5 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+                  style={{ background: isWorker ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)', boxShadow: isWorker ? '0 8px 24px rgba(124,58,237,0.35)' : '0 8px 24px rgba(79,70,229,0.35)' }}
+                >
+                  {sending ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                  {sending ? 'Sending OTP…' : 'Get OTP'}
+                </motion.button>
 
-                  {/* Each audience has its own front door, so the consumer login stays
+                {/* Each audience has its own front door, so the consumer login stays
                     clean — no worker/partner sign-in on zappyone.com (Zomato/Zepto
                     model). The worker app gets a way back to the consumer site, and
                     it must be a cross-host link: /login on rakshak.zappyone.com is
                     bounced straight back to /worker/login by the host router. */}
-                  {isWorker && (
-                    <motion.p variants={fadeInUp} className="text-center text-xs text-slate-400">
-                      Customer?{' '}
-                      <a href={CONSUMER_URL} className="text-indigo-600 font-bold hover:underline">
-                        Go to Zappy
-                      </a>
-                    </motion.p>
-                  )}
-                </motion.div>
-              ) : step === 'otp' ? (
-                <motion.div
-                  className="space-y-5"
-                  variants={staggerContainer}
-                  initial="initial"
-                  animate="animate"
-                >
-                  {/* Back button + header */}
-                  <motion.div variants={fadeInUp} className="flex items-center gap-3">
-                    <motion.button
-                      onClick={() => setStep('phone')}
-                      whileTap={{ scale: 0.92 }}
-                      className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"
-                    >
-                      <ChevronLeft size={18} strokeWidth={2.5} className="text-slate-600" />
-                    </motion.button>
-                    <div>
-                      <h2 className="text-xl font-black text-slate-900">Enter OTP</h2>
-                      <p className="text-xs text-slate-400 font-medium">Sent to +91 {phone}</p>
-
-                    </div>
-                  </motion.div>
-
-                  {/* OTP boxes */}
-                  <motion.div variants={fadeInUp}>
-                    <div className="flex justify-between gap-2" onPaste={handleOtpPaste}>
-                      {otpDigits.map((d, i) => (
-                        <OtpInput
-                          key={i}
-                          inputRef={el => otpRefs.current[i] = el}
-                          value={d}
-                          filled={!!d}
-                          onChange={e => handleOtpChange(i, e.target.value)}
-                          onKeyDown={e => handleOtpKey(i, e)}
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-
-                  {/* Resend OTP — cooldown, remaining resends and all dead-end states */}
-                  <motion.div variants={fadeInUp}>
-                    <ResendOtp
-                      phone={phone}
-                      cooldownSec={otpMeta.cooldownSec}
-                      resendsLeft={otpMeta.resendsLeft}
-                      onResent={handleResent}
-                      onStartOver={startOver}
-                    />
-                  </motion.div>
-
-                  {/* Name (new user) */}
-                  {isNewUser && (
-                    <motion.div variants={fadeInUp}>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Name</label>
-                      <input
-                        className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
-                        placeholder="e.g. Priya Sharma"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                      />
-                    </motion.div>
-                  )}
-
-                  {/* Worker skills */}
-                  {isNewUser && isWorker && (
-                    <motion.div variants={fadeInUp}>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Skills</label>
-                      <div className="flex flex-wrap gap-2">
-                        {SKILLS.map(s => {
-                          const on = skills.includes(s);
-                          return (
-                            <motion.button
-                              key={s}
-                              type="button"
-                              onClick={() => setSkills(p => on ? p.filter(x => x !== s) : [...p, s])}
-                              whileTap={{ scale: 0.92 }}
-                              animate={on ? { scale: 1 } : { scale: 1 }}
-                              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${on
-                                  ? 'bg-indigo-600 text-white ring-2 ring-indigo-600/20'
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                            >
-                              {on && <CheckCircle2 size={10} />}
-                              {SKILL_LABELS[s]}
-                            </motion.button>
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* CTA */}
+                {isWorker && (
+                  <motion.p variants={fadeInUp} className="text-center text-xs text-slate-400">
+                    Customer?{' '}
+                    <a href={CONSUMER_URL} className="text-indigo-600 font-bold hover:underline">
+                      Go to Zappy
+                    </a>
+                  </motion.p>
+                )}
+              </motion.div>
+            ) : step === 'otp' ? (
+              <motion.div
+                className="space-y-5"
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+              >
+                {/* Back button + header */}
+                <motion.div variants={fadeInUp} className="flex items-center gap-3">
                   <motion.button
-                    variants={fadeInUp}
-                    onClick={verify}
-                    disabled={isLoading || otp.length < 4}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full py-3.5 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
-                    style={{ background: isWorker ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)', boxShadow: isWorker ? '0 8px 24px rgba(124,58,237,0.35)' : '0 8px 24px rgba(79,70,229,0.35)' }}
+                    onClick={() => setStep('phone')}
+                    whileTap={{ scale: 0.92 }}
+                    className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"
                   >
-                    {isLoading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                    {isLoading ? 'Verifying…' : 'Confirm & Continue'}
+                    <ChevronLeft size={18} strokeWidth={2.5} className="text-slate-600" />
                   </motion.button>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900">Enter OTP</h2>
+                    <p className="text-xs text-slate-400 font-medium">Sent to +91 {phone}</p>
+
+                  </div>
                 </motion.div>
-              ) : step === 'complete' ? (
-                <motion.div
-                  className="space-y-5"
-                  variants={staggerContainer}
-                  initial="initial"
-                  animate="animate"
-                >
-                  <motion.div variants={fadeInUp}>
-                    <h2 className="text-xl font-black text-slate-900">One last step</h2>
-                    <p className="text-sm text-slate-400 mt-1 font-medium">Complete your profile to continue</p>
-                  </motion.div>
 
-                  {!pendingProfile?.name && (
-                    <motion.div variants={fadeInUp}>
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Name</label>
-                      <input
-                        className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
-                        placeholder="e.g. Priya Sharma"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        autoFocus
+                {/* OTP boxes */}
+                <motion.div variants={fadeInUp}>
+                  <div className="flex justify-between gap-2" onPaste={handleOtpPaste}>
+                    {otpDigits.map((d, i) => (
+                      <OtpInput
+                        key={i}
+                        inputRef={el => otpRefs.current[i] = el}
+                        value={d}
+                        filled={!!d}
+                        onChange={e => handleOtpChange(i, e.target.value)}
+                        onKeyDown={e => handleOtpKey(i, e)}
                       />
-                    </motion.div>
-                  )}
+                    ))}
+                  </div>
+                </motion.div>
 
+                {/* Resend OTP — cooldown, remaining resends and all dead-end states */}
+                <motion.div variants={fadeInUp}>
+                  <ResendOtp
+                    phone={phone}
+                    cooldownSec={otpMeta.cooldownSec}
+                    resendsLeft={otpMeta.resendsLeft}
+                    onResent={handleResent}
+                    onStartOver={startOver}
+                  />
+                </motion.div>
+
+                {/* Name (new user) */}
+                {isNewUser && (
                   <motion.div variants={fadeInUp}>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Email <span className="text-slate-300 font-medium normal-case">(for receipts)</span></label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Name</label>
                     <input
-                      type="email"
-                      inputMode="email"
                       className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && saveProfileAndContinue()}
-                      autoFocus={!!pendingProfile?.name}
+                      placeholder="e.g. Priya Sharma"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
                     />
                   </motion.div>
+                )}
 
-                  <motion.button
-                    variants={fadeInUp}
-                    onClick={saveProfileAndContinue}
-                    disabled={savingProfile || (!pendingProfile?.name && !name.trim())}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full py-3.5 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
-                    style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)', boxShadow: '0 8px 24px rgba(79,70,229,0.35)' }}
-                  >
-                    {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                    {savingProfile ? 'Saving…' : 'Continue'}
-                  </motion.button>
+                {/* Worker skills */}
+                {isNewUser && isWorker && (
+                  <motion.div variants={fadeInUp}>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Skills</label>
+                    <div className="flex flex-wrap gap-2">
+                      {SKILLS.map(s => {
+                        const on = skills.includes(s);
+                        return (
+                          <motion.button
+                            key={s}
+                            type="button"
+                            onClick={() => setSkills(p => on ? p.filter(x => x !== s) : [...p, s])}
+                            whileTap={{ scale: 0.92 }}
+                            animate={on ? { scale: 1 } : { scale: 1 }}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                              on
+                                ? 'bg-indigo-600 text-white ring-2 ring-indigo-600/20'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {on && <CheckCircle2 size={10} />}
+                            {SKILL_LABELS[s]}
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
 
-                  <motion.button
-                    variants={fadeInUp}
-                    onClick={() => nav(loc.state?.from || '/', { replace: true })}
-                    className="w-full text-center text-xs text-slate-400 hover:text-slate-600 py-1 transition-colors"
-                  >
-                    Skip for now
-                  </motion.button>
+                {/* CTA */}
+                <motion.button
+                  variants={fadeInUp}
+                  onClick={verify}
+                  disabled={isLoading || otp.length < 4}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-3.5 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+                  style={{ background: isWorker ? 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)', boxShadow: isWorker ? '0 8px 24px rgba(124,58,237,0.35)' : '0 8px 24px rgba(79,70,229,0.35)' }}
+                >
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  {isLoading ? 'Verifying…' : 'Confirm & Continue'}
+                </motion.button>
+              </motion.div>
+            ) : step === 'complete' ? (
+              <motion.div
+                className="space-y-5"
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+              >
+                <motion.div variants={fadeInUp}>
+                  <h2 className="text-xl font-black text-slate-900">One last step</h2>
+                  <p className="text-sm text-slate-400 mt-1 font-medium">Complete your profile to continue</p>
                 </motion.div>
-              ) : null}
-            </div>
-          </motion.div>
-        </AnimatePresence>
-      </div>
+
+                {!pendingProfile?.name && (
+                  <motion.div variants={fadeInUp}>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Name</label>
+                    <input
+                      className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                      placeholder="e.g. Priya Sharma"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      autoFocus
+                    />
+                  </motion.div>
+                )}
+
+                <motion.div variants={fadeInUp}>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Email <span className="text-slate-300 font-medium normal-case">(for receipts)</span></label>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    className="w-full px-4 py-3.5 text-sm font-bold text-slate-900 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && saveProfileAndContinue()}
+                    autoFocus={!!pendingProfile?.name}
+                  />
+                </motion.div>
+
+                <motion.button
+                  variants={fadeInUp}
+                  onClick={saveProfileAndContinue}
+                  disabled={savingProfile || (!pendingProfile?.name && !name.trim())}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-3.5 rounded-2xl font-black text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+                  style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%)', boxShadow: '0 8px 24px rgba(79,70,229,0.35)' }}
+                >
+                  {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                  {savingProfile ? 'Saving…' : 'Continue'}
+                </motion.button>
+
+                <motion.button
+                  variants={fadeInUp}
+                  onClick={() => nav(loc.state?.from || '/', { replace: true })}
+                  className="w-full text-center text-xs text-slate-400 hover:text-slate-600 py-1 transition-colors"
+                >
+                  Skip for now
+                </motion.button>
+              </motion.div>
+            ) : null}
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    </div>
     </>
   );
 }

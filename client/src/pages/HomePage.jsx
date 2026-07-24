@@ -925,13 +925,13 @@ export default function HomePage() {
           {/* ─── Phone Repair ────────────────────────────────────── */}
           <div className="mt-7">
             <div>
-              <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/book-phone')} />
+              <SectionHeader title="Phone Repair" badge="Android & iPhone" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
               <div className="shrink-0 w-1 md:w-2" />
-              {PHONE_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={() => nav('/book-phone')} />)}
+              {PHONE_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
               <div className="shrink-0 w-12 flex items-center justify-center">
-                <button onClick={() => nav('/book-phone')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
               </div>
             </div>
           </div>
@@ -939,13 +939,13 @@ export default function HomePage() {
           {/* ─── Laptop Services ──────────────────────────────────────── */}
           <div className="mt-7">
             <div>
-              <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/book-laptop')} />
+              <SectionHeader title="Laptop Services" badge="All Brands" badgeColor="bg-slate-100 text-slate-800" onSeeAll={() => nav('/services')} />
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 md:-mx-6 snap-x snap-mandatory">
               <div className="shrink-0 w-1 md:w-2" />
-              {LAPTOP_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={() => nav('/book-laptop')} />)}
+              {LAPTOP_TILES.map((item, i) => <ServiceImageCard key={i} item={item} nav={nav} />)}
               <div className="shrink-0 w-12 flex items-center justify-center">
-                <button onClick={() => nav('/book-laptop')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
+                <button onClick={() => nav('/services')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:scale-105"><ChevronRight size={18} strokeWidth={2.5} className="text-slate-600" /></button>
               </div>
             </div>
           </div>

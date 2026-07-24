@@ -24,54 +24,54 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 // render immediately with no loading flash.
 import LoginPage from './pages/LoginPage';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
-const BookingPage = lazy(() => import('./pages/BookingPage'));
-const OrderTrackingPage = lazy(() => import('./pages/OrderTrackingPage'));
-const OrdersListPage = lazy(() => import('./pages/OrdersListPage'));
-const TrackPage = lazy(() => import('./pages/TrackPage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
-const ChatPage = lazy(() => import('./pages/ChatPage'));
-const ServicesPage = lazy(() => import('./pages/ServicesPage'));
-const WorkerDashboard = lazy(() => import('./pages/WorkerDashboard'));
-const WorkerJobPage = lazy(() => import('./pages/WorkerJobPage'));
-const WorkerKycPage = lazy(() => import('./pages/WorkerKycPage'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const AdminLoginPage = lazy(() => import('./pages/AdminLoginPage'));
-const PlansPage = lazy(() => import('./pages/PlansPage'));
-const WalletPage = lazy(() => import('./pages/WalletPage'));
-const ReferralPage = lazy(() => import('./pages/ReferralPage'));
-const DisputesPage = lazy(() => import('./pages/DisputesPage'));
-const SupportPage = lazy(() => import('./pages/SupportPage'));
-const PaymentMethodsPage = lazy(() => import('./pages/PaymentMethodsPage'));
-const WorkerProfilePage = lazy(() => import('./pages/WorkerProfilePage'));
-const WorkerEditProfilePage = lazy(() => import('./pages/WorkerEditProfilePage'));
-const WorkerNotificationsPage = lazy(() => import('./pages/WorkerNotificationsPage'));
-const EventsHomePage = lazy(() => import('./pages/events/EventsHomePage'));
-const EventCategoryPage = lazy(() => import('./pages/events/EventCategoryPage'));
-const EventThemePage = lazy(() => import('./pages/events/EventThemePage'));
-const EventBookingPage = lazy(() => import('./pages/events/EventBookingPage'));
-const EventBookingListPage = lazy(() => import('./pages/events/EventBookingListPage'));
-const EventBookingDetailPage = lazy(() => import('./pages/events/EventBookingDetailPage'));
-const EventSavedThemesPage = lazy(() => import('./pages/events/EventSavedThemesPage'));
-const PartnerLoginPage = lazy(() => import('./pages/events/PartnerLoginPage'));
-const PartnerDashboard = lazy(() => import('./pages/events/PartnerDashboard'));
-const AdvertiserDashboard = lazy(() => import('./pages/AdvertiserDashboard'));
-const SpendingPage = lazy(() => import('./pages/SpendingPage'));
-const NotificationPrefsPage = lazy(() => import('./pages/NotificationPrefsPage'));
-const PromosHubPage = lazy(() => import('./pages/PromosHubPage'));
-const ScheduledBookingsPage = lazy(() => import('./pages/ScheduledBookingsPage'));
-const AccountSecurityPage = lazy(() => import('./pages/AccountSecurityPage'));
-const WorkerBankPage = lazy(() => import('./pages/WorkerBankPage'));
-const WorkerWithdrawPage = lazy(() => import('./pages/WorkerWithdrawPage'));
-const WorkerAppealsPage = lazy(() => import('./pages/WorkerAppealsPage'));
-const WorkerEarningsPage = lazy(() => import('./pages/WorkerEarningsPage'));
-const WorkerSkillsPage = lazy(() => import('./pages/WorkerSkillsPage'));
-const WorkerTrainingPage = lazy(() => import('./pages/WorkerTrainingPage'));
-const WorkerGoalsPage = lazy(() => import('./pages/WorkerGoalsPage'));
-const FaqPage = lazy(() => import('./pages/FaqPage'));
-const PolicyPage = lazy(() => import('./pages/PolicyPage'));
-const RewardsPage = lazy(() => import('./pages/RewardsPage'));
+const HomePage            = lazy(() => import('./pages/HomePage'));
+const BookingPage         = lazy(() => import('./pages/BookingPage'));
+const OrderTrackingPage   = lazy(() => import('./pages/OrderTrackingPage'));
+const OrdersListPage      = lazy(() => import('./pages/OrdersListPage'));
+const TrackPage           = lazy(() => import('./pages/TrackPage'));
+const ProfilePage         = lazy(() => import('./pages/ProfilePage'));
+const NotificationsPage   = lazy(() => import('./pages/NotificationsPage'));
+const ChatPage            = lazy(() => import('./pages/ChatPage'));
+const ServicesPage        = lazy(() => import('./pages/ServicesPage'));
+const WorkerDashboard     = lazy(() => import('./pages/WorkerDashboard'));
+const WorkerJobPage       = lazy(() => import('./pages/WorkerJobPage'));
+const WorkerKycPage       = lazy(() => import('./pages/WorkerKycPage'));
+const AdminDashboard      = lazy(() => import('./pages/AdminDashboard'));
+const AdminLoginPage      = lazy(() => import('./pages/AdminLoginPage'));
+const PlansPage           = lazy(() => import('./pages/PlansPage'));
+const WalletPage          = lazy(() => import('./pages/WalletPage'));
+const ReferralPage        = lazy(() => import('./pages/ReferralPage'));
+const DisputesPage        = lazy(() => import('./pages/DisputesPage'));
+const SupportPage         = lazy(() => import('./pages/SupportPage'));
+const PaymentMethodsPage  = lazy(() => import('./pages/PaymentMethodsPage'));
+const WorkerProfilePage     = lazy(() => import('./pages/WorkerProfilePage'));
+const WorkerEditProfilePage        = lazy(() => import('./pages/WorkerEditProfilePage'));
+const WorkerNotificationsPage      = lazy(() => import('./pages/WorkerNotificationsPage'));
+const EventsHomePage               = lazy(() => import('./pages/events/EventsHomePage'));
+const EventCategoryPage            = lazy(() => import('./pages/events/EventCategoryPage'));
+const EventThemePage               = lazy(() => import('./pages/events/EventThemePage'));
+const EventBookingPage             = lazy(() => import('./pages/events/EventBookingPage'));
+const EventBookingListPage         = lazy(() => import('./pages/events/EventBookingListPage'));
+const EventBookingDetailPage       = lazy(() => import('./pages/events/EventBookingDetailPage'));
+const EventSavedThemesPage         = lazy(() => import('./pages/events/EventSavedThemesPage'));
+const PartnerLoginPage             = lazy(() => import('./pages/events/PartnerLoginPage'));
+const PartnerDashboard             = lazy(() => import('./pages/events/PartnerDashboard'));
+const AdvertiserDashboard          = lazy(() => import('./pages/AdvertiserDashboard'));
+const SpendingPage                 = lazy(() => import('./pages/SpendingPage'));
+const NotificationPrefsPage        = lazy(() => import('./pages/NotificationPrefsPage'));
+const PromosHubPage                = lazy(() => import('./pages/PromosHubPage'));
+const ScheduledBookingsPage        = lazy(() => import('./pages/ScheduledBookingsPage'));
+const AccountSecurityPage          = lazy(() => import('./pages/AccountSecurityPage'));
+const WorkerBankPage               = lazy(() => import('./pages/WorkerBankPage'));
+const WorkerWithdrawPage           = lazy(() => import('./pages/WorkerWithdrawPage'));
+const WorkerAppealsPage            = lazy(() => import('./pages/WorkerAppealsPage'));
+const WorkerEarningsPage           = lazy(() => import('./pages/WorkerEarningsPage'));
+const WorkerSkillsPage             = lazy(() => import('./pages/WorkerSkillsPage'));
+const WorkerTrainingPage           = lazy(() => import('./pages/WorkerTrainingPage'));
+const WorkerGoalsPage              = lazy(() => import('./pages/WorkerGoalsPage'));
+const FaqPage                      = lazy(() => import('./pages/FaqPage'));
+const PolicyPage                   = lazy(() => import('./pages/PolicyPage'));
+const RewardsPage                  = lazy(() => import('./pages/RewardsPage'));
 
 // Minimal full-screen spinner shown while a lazy chunk loads.
 // Keeps the shell visible so there's no blank white flash on slow connections.
@@ -118,108 +118,108 @@ export default function App() {
       <RouteProgress />
       <ConnectionBanner />
       <Suspense fallback={<PageLoader />}>
-        {/* Wrong host for this visitor → redirect INSTEAD of rendering. Rendering
+      {/* Wrong host for this visitor → redirect INSTEAD of rendering. Rendering
           <Navigate> next to <Routes> mounted the wrong page for a frame first,
           firing its data fetches (and its RequireAuth bounce) before moving on.
           An external target shows the loader while the full page load runs. */}
-        {subdomainRedirect ? (
-          isExternalRedirect(subdomainRedirect)
-            ? <PageLoader />
-            : <Navigate to={subdomainRedirect} replace />
-        ) : (
-          <>
-            {/* Show notification permission banner for logged-in users with non-admin roles */}
-            {token && role !== 'admin' && <NotificationBanner />}
-            {/* Route-level boundary — a crash in one page shows the recovery screen but
+      {subdomainRedirect ? (
+        isExternalRedirect(subdomainRedirect)
+          ? <PageLoader />
+          : <Navigate to={subdomainRedirect} replace />
+      ) : (
+      <>
+      {/* Show notification permission banner for logged-in users with non-admin roles */}
+      {token && role !== 'admin' && <NotificationBanner />}
+      {/* Route-level boundary — a crash in one page shows the recovery screen but
           auto-resets when the user navigates elsewhere (keyed by path). */}
-            <ErrorBoundary key={location.pathname}>
-              <Routes location={location} key={location.pathname}>
-                {/* Public */}
-                {/* Public help content — FAQs + policy pages (admin-managed) */}
-                <Route path="/faq" element={<FaqPage />} />
-                <Route path="/policy/:slug" element={<PolicyPage />} />
+      <ErrorBoundary key={location.pathname}>
+      <Routes location={location} key={location.pathname}>
+        {/* Public */}
+        {/* Public help content — FAQs + policy pages (admin-managed) */}
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/policy/:slug" element={<PolicyPage />} />
 
-                <Route path="/login" element={token ? <RedirectByRole role={role} /> : <LoginPage role="user" />} />
-                <Route
-                  path="/worker/login"
-                  element={token ? <RedirectByRole role={role} /> : <LoginPage role="worker" />}
-                />
-                <Route
-                  path={adminPath('/login')}
-                  element={token ? <RedirectByRole role={role} /> : <AdminLoginPage />}
-                />
+        <Route path="/login" element={token ? <RedirectByRole role={role} /> : <LoginPage role="user" />} />
+        <Route
+          path="/worker/login"
+          element={token ? <RedirectByRole role={role} /> : <LoginPage role="worker" />}
+        />
+        <Route
+          path={adminPath('/login')}
+          element={token ? <RedirectByRole role={role} /> : <AdminLoginPage />}
+        />
 
-                {/* User app */}
-                <Route element={<MainLayout />}>
-                  <Route path="/" element={<HomeOrRedirect role={role} token={token} />} />
-                  <Route path="/home" element={<HomeOrRedirect role={role} token={token} />} />
-                  <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
-                  <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
-                  <Route path="/track" element={<RequireAuth role="user"><TrackPage /></RequireAuth>} />
-                  <Route path="/profile" element={<RequireAuth role="user"><ProfilePage /></RequireAuth>} />
-                  <Route path="/disputes" element={<RequireAuth role="user"><DisputesPage /></RequireAuth>} />
-                  <Route path="/support" element={<RequireAuth role="user"><SupportPage /></RequireAuth>} />
-                  <Route path="/payments" element={<RequireAuth role="user"><PaymentMethodsPage /></RequireAuth>} />
-                  <Route path="/wallet" element={<RequireAuth><WalletPage /></RequireAuth>} />
-                </Route>
+        {/* User app */}
+        <Route element={<MainLayout />}>
+          <Route path="/"       element={<HomeOrRedirect role={role} token={token} />} />
+          <Route path="/home"   element={<HomeOrRedirect role={role} token={token} />} />
+          <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
+          <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
+          <Route path="/track"  element={<RequireAuth role="user"><TrackPage /></RequireAuth>} />
+          <Route path="/profile" element={<RequireAuth role="user"><ProfilePage /></RequireAuth>} />
+          <Route path="/disputes" element={<RequireAuth role="user"><DisputesPage /></RequireAuth>} />
+          <Route path="/support" element={<RequireAuth role="user"><SupportPage /></RequireAuth>} />
+          <Route path="/payments" element={<RequireAuth role="user"><PaymentMethodsPage /></RequireAuth>} />
+          <Route path="/wallet" element={<RequireAuth><WalletPage /></RequireAuth>} />
+        </Route>
 
-                {/* Routes outside MainLayout (no bottom nav) */}
-                <Route path="/book/:service" element={<RequireAuth role="user"><BookingPage /></RequireAuth>} />
-                <Route path="/orders/:id" element={<RequireAuth role="user"><OrderTrackingPage /></RequireAuth>} />
-                <Route path="/orders/:id/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />
-                <Route path="/notifications" element={<RequireAuth role="user"><NotificationsPage /></RequireAuth>} />
-                <Route path="/referral" element={<RequireAuth role="user"><ReferralPage /></RequireAuth>} />
-                <Route path="/spending" element={<RequireAuth role="user"><SpendingPage /></RequireAuth>} />
-                <Route path="/notification-prefs" element={<RequireAuth role="user"><NotificationPrefsPage /></RequireAuth>} />
-                <Route path="/promos" element={<RequireAuth role="user"><PromosHubPage /></RequireAuth>} />
-                <Route path="/scheduled" element={<RequireAuth role="user"><ScheduledBookingsPage /></RequireAuth>} />
-                <Route path="/rewards" element={<RequireAuth role="user"><RewardsPage /></RequireAuth>} />
-                <Route path="/account-security" element={<RequireAuth role="user"><AccountSecurityPage /></RequireAuth>} />
-                <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
+        {/* Routes outside MainLayout (no bottom nav) */}
+        <Route path="/book/:service" element={<RequireAuth role="user"><BookingPage /></RequireAuth>} />
+        <Route path="/orders/:id" element={<RequireAuth role="user"><OrderTrackingPage /></RequireAuth>} />
+        <Route path="/orders/:id/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />
+        <Route path="/notifications" element={<RequireAuth role="user"><NotificationsPage /></RequireAuth>} />
+        <Route path="/referral" element={<RequireAuth role="user"><ReferralPage /></RequireAuth>} />
+        <Route path="/spending" element={<RequireAuth role="user"><SpendingPage /></RequireAuth>} />
+        <Route path="/notification-prefs" element={<RequireAuth role="user"><NotificationPrefsPage /></RequireAuth>} />
+        <Route path="/promos" element={<RequireAuth role="user"><PromosHubPage /></RequireAuth>} />
+        <Route path="/scheduled" element={<RequireAuth role="user"><ScheduledBookingsPage /></RequireAuth>} />
+        <Route path="/rewards" element={<RequireAuth role="user"><RewardsPage /></RequireAuth>} />
+        <Route path="/account-security" element={<RequireAuth role="user"><AccountSecurityPage /></RequireAuth>} />
+        <Route path="/worker-profile/:workerId" element={<RequireAuth role="user"><WorkerProfilePage /></RequireAuth>} />
 
-                {/* Plans — available to both users and workers */}
-                <Route path="/plans" element={<RequireAuth><PlansPage /></RequireAuth>} />
+        {/* Plans — available to both users and workers */}
+        <Route path="/plans"  element={<RequireAuth><PlansPage /></RequireAuth>} />
 
-                {/* Worker app */}
-                <Route path="/worker" element={<RequireAuth role="worker"><WorkerDashboard /></RequireAuth>} />
-                <Route path="/worker/jobs/:id" element={<RequireAuth role="worker"><WorkerJobPage /></RequireAuth>} />
-                <Route path="/worker/kyc" element={<RequireAuth role="worker"><WorkerKycPage /></RequireAuth>} />
-                <Route path="/worker/profile" element={<RequireAuth role="worker"><WorkerEditProfilePage /></RequireAuth>} />
-                <Route path="/worker/notifications" element={<RequireAuth role="worker"><WorkerNotificationsPage /></RequireAuth>} />
-                <Route path="/worker/bank" element={<RequireAuth role="worker"><WorkerBankPage /></RequireAuth>} />
-                <Route path="/worker/withdraw" element={<RequireAuth role="worker"><WorkerWithdrawPage /></RequireAuth>} />
-                <Route path="/worker/appeals" element={<RequireAuth role="worker"><WorkerAppealsPage /></RequireAuth>} />
-                <Route path="/worker/earnings" element={<RequireAuth role="worker"><WorkerEarningsPage /></RequireAuth>} />
-                <Route path="/worker/skills" element={<RequireAuth role="worker"><WorkerSkillsPage /></RequireAuth>} />
-                <Route path="/worker/training" element={<RequireAuth role="worker"><WorkerTrainingPage /></RequireAuth>} />
-                <Route path="/worker/goals" element={<RequireAuth role="worker"><WorkerGoalsPage /></RequireAuth>} />
+        {/* Worker app */}
+        <Route path="/worker" element={<RequireAuth role="worker"><WorkerDashboard /></RequireAuth>} />
+        <Route path="/worker/jobs/:id" element={<RequireAuth role="worker"><WorkerJobPage /></RequireAuth>} />
+        <Route path="/worker/kyc" element={<RequireAuth role="worker"><WorkerKycPage /></RequireAuth>} />
+        <Route path="/worker/profile" element={<RequireAuth role="worker"><WorkerEditProfilePage /></RequireAuth>} />
+        <Route path="/worker/notifications" element={<RequireAuth role="worker"><WorkerNotificationsPage /></RequireAuth>} />
+        <Route path="/worker/bank" element={<RequireAuth role="worker"><WorkerBankPage /></RequireAuth>} />
+        <Route path="/worker/withdraw" element={<RequireAuth role="worker"><WorkerWithdrawPage /></RequireAuth>} />
+        <Route path="/worker/appeals" element={<RequireAuth role="worker"><WorkerAppealsPage /></RequireAuth>} />
+        <Route path="/worker/earnings" element={<RequireAuth role="worker"><WorkerEarningsPage /></RequireAuth>} />
+        <Route path="/worker/skills" element={<RequireAuth role="worker"><WorkerSkillsPage /></RequireAuth>} />
+        <Route path="/worker/training" element={<RequireAuth role="worker"><WorkerTrainingPage /></RequireAuth>} />
+        <Route path="/worker/goals" element={<RequireAuth role="worker"><WorkerGoalsPage /></RequireAuth>} />
 
-                {/* Event Partner */}
-                <Route path="/partner/login" element={token ? <RedirectByRole role={role} /> : <PartnerLoginPage />} />
-                <Route path="/partner" element={<RequireAuth role="event_partner"><PartnerDashboard /></RequireAuth>} />
-                <Route path="/partner/advertise" element={<RequireAuth role="event_partner"><AdvertiserDashboard /></RequireAuth>} />
+        {/* Event Partner */}
+        <Route path="/partner/login" element={token ? <RedirectByRole role={role} /> : <PartnerLoginPage />} />
+        <Route path="/partner" element={<RequireAuth role="event_partner"><PartnerDashboard /></RequireAuth>} />
+        <Route path="/partner/advertise" element={<RequireAuth role="event_partner"><AdvertiserDashboard /></RequireAuth>} />
 
-                {/* Event Commerce */}
-                <Route path="/events" element={<RequireAuth role="user"><EventsHomePage /></RequireAuth>} />
-                <Route path="/events/browse" element={<RequireAuth role="user"><EventCategoryPage /></RequireAuth>} />
-                <Route path="/events/themes/:id" element={<RequireAuth role="user"><EventThemePage /></RequireAuth>} />
-                <Route path="/events/book/:id" element={<RequireAuth role="user"><EventBookingPage /></RequireAuth>} />
-                <Route path="/events/bookings" element={<RequireAuth role="user"><EventBookingListPage /></RequireAuth>} />
-                <Route path="/events/bookings/:id" element={<RequireAuth role="user"><EventBookingDetailPage /></RequireAuth>} />
-                <Route path="/events/saved" element={<RequireAuth role="user"><EventSavedThemesPage /></RequireAuth>} />
+        {/* Event Commerce */}
+        <Route path="/events"                    element={<RequireAuth role="user"><EventsHomePage /></RequireAuth>} />
+        <Route path="/events/browse"             element={<RequireAuth role="user"><EventCategoryPage /></RequireAuth>} />
+        <Route path="/events/themes/:id"         element={<RequireAuth role="user"><EventThemePage /></RequireAuth>} />
+        <Route path="/events/book/:id"           element={<RequireAuth role="user"><EventBookingPage /></RequireAuth>} />
+        <Route path="/events/bookings"           element={<RequireAuth role="user"><EventBookingListPage /></RequireAuth>} />
+        <Route path="/events/bookings/:id"       element={<RequireAuth role="user"><EventBookingDetailPage /></RequireAuth>} />
+        <Route path="/events/saved"              element={<RequireAuth role="user"><EventSavedThemesPage /></RequireAuth>} />
 
-                {/* Admin */}
-                <Route
-                  path={adminPath('/dashboard')}
-                  element={<RequireAuth role="admin"><AdminDashboard /></RequireAuth>}
-                />
+        {/* Admin */}
+        <Route
+          path={adminPath('/dashboard')}
+          element={<RequireAuth role="admin"><AdminDashboard /></RequireAuth>}
+        />
 
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </ErrorBoundary>
-          </>
-        )}
-      </Suspense>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      </ErrorBoundary>
+      </>
+      )}
+    </Suspense>
     </>
   );
 }
@@ -227,8 +227,8 @@ export default function App() {
 function RedirectByRole({ role }) {
   const dest = role === 'worker' ? '/worker'
     : role === 'admin' ? adminPath('/dashboard')
-      : role === 'event_partner' ? '/partner'
-        : '/';
+    : role === 'event_partner' ? '/partner'
+    : '/';
   return <Navigate to={dest} replace />;
 }
 
