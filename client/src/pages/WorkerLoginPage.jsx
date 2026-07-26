@@ -465,9 +465,9 @@ export default function WorkerLoginPage() {
                 <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center">
                   <Shield size={15} className="text-violet-600" />
                 </div>
-                Your data is safe with us.
+                Partner Support: <a href="mailto:partners@zappyone.com" className="text-indigo-600 hover:underline ml-1">partners@zappyone.com</a>
               </div>
-              <p className="text-slate-400 text-xs font-medium ml-10">We never share your information.</p>
+              <p className="text-slate-400 text-xs font-medium">Questions about onboarding? Email our partner team.</p>
             </div>
           </div>
         </div>
