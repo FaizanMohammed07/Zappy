@@ -967,7 +967,15 @@ export default function WorkerJobPage() {
               {order.deviceModel && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">Model</span>
-                  <span className="font-semibold text-slate-800">{order.deviceModel}</span>
+                  <span className="font-semibold text-slate-800">{order.deviceModel}{order.deviceSeries ? ` · ${order.deviceSeries}` : ''}</span>
+                </div>
+              )}
+              {order.partsTier && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Part Quality</span>
+                  <span className="font-bold px-2 py-0.5 rounded-lg text-xs bg-amber-50 text-amber-700">
+                    {order.partsTier}{order.partWarrantyDays ? ` · ${order.partWarrantyDays}d warranty` : ''}
+                  </span>
                 </div>
               )}
               {order.serviceMode && (

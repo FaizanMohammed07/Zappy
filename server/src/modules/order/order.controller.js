@@ -4,7 +4,7 @@ const abuseService = require('./abuse.service');
 
 async function getQuote(req, res, next) {
   try {
-    const { service, deviceBrand, deviceModel, priority, pricingModel, estimatedHours, vehicleType } = req.query;
+    const { service, deviceBrand, deviceModel, deviceSeries, partsTier, priority, pricingModel, estimatedHours, vehicleType } = req.query;
     const pickupLat = parseFloat(req.query.pickupLat);
     const pickupLng = parseFloat(req.query.pickupLng);
     const dropLat   = req.query.dropLat  != null ? parseFloat(req.query.dropLat)  : null;
@@ -20,6 +20,8 @@ async function getQuote(req, res, next) {
       priority: priority || 'normal',
       deviceBrand,
       deviceModel,
+      deviceSeries,
+      partsTier,
       pricingModel,
       vehicleType,
       estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,

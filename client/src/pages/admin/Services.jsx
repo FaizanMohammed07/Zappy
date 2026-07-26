@@ -1,20 +1,33 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, X } from 'lucide-react';
 import { useAdminGetCatalogServicesQuery, useAdminGetVerticalsQuery, useAdminUpdateVerticalMutation } from '../../services/api';
 import toast from 'react-hot-toast';
 import { TABS, CAT_MAP } from './components/services/_service-shared';
 import ServicePricingCard from './components/services/ServicePricingCard';
-import { HomeCategoryPanel, MobileCategoryPanel, ConstructionCategoryPanel, VehicleCategoryPanel } from './components/services/CategoryPanels';
+import { HomeCategoryPanel, MobileCategoryPanel, LaptopCategoryPanel, CarCategoryPanel, BikeCategoryPanel, ConstructionCategoryPanel } from './components/services/CategoryPanels';
 
 export default function Services() {
-  const [activeTab, setActiveTab] = useState('vehicle');
-  const [saving,    setSaving]    = useState(false);
-  const [search,    setSearch]    = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const catParam  = searchParams.get('cat');
+  const activeTab = TABS.some(t => t.key === catParam) ? catParam : 'car';
+  
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
 
   const { data: catalogData,  isLoading: catalogLoading  } = useAdminGetCatalogServicesQuery();
   const { data: verticalData, isLoading: verticalLoading, refetch } = useAdminGetVerticalsQuery();
   const [doUpdate] = useAdminUpdateVerticalMutation();
+
+  const handleTabChange = (key) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('cat', key);
+      return next;
+    }, { replace: true });
+    setSearch('');
+  };
 
   const allServices   = catalogData?.services  || [];
   const configs       = verticalData?.configs   || {};
@@ -41,7 +54,7 @@ export default function Services() {
 
       <div className="flex gap-2 flex-wrap">
         {TABS.map(({ key, label, Icon, color, bg, border }) => (
-          <motion.button key={key} onClick={() => { setActiveTab(key); setSearch(''); }}
+          <motion.button key={key} onClick={() => handleTabChange(key)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${activeTab === key ? `${bg} ${color} ${border} shadow-sm` : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
             whileTap={{ scale: 0.96 }}>
             <Icon size={15} />{label}
@@ -85,10 +98,12 @@ export default function Services() {
           {!isLoading && (
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Category-level pricing formula</p>
-              {activeTab === 'home'         && <HomeCategoryPanel />}
+              {['electrical', 'plumbing', 'carpentry', 'cleaning', 'appliance', 'helper', 'pet', 'home'].includes(activeTab) && <HomeCategoryPanel />}
               {activeTab === 'mobile'       && <MobileCategoryPanel config={configs.mobile}       onSave={handleVerticalSave} saving={saving} />}
+              {activeTab === 'laptop'       && <LaptopCategoryPanel config={configs.laptop}       onSave={handleVerticalSave} saving={saving} />}
+              {activeTab === 'car'          && <CarCategoryPanel config={configs.vehicle}      onSave={handleVerticalSave} saving={saving} />}
+              {activeTab === 'bike'         && <BikeCategoryPanel config={configs.bike}         onSave={handleVerticalSave} saving={saving} />}
               {activeTab === 'construction' && <ConstructionCategoryPanel config={configs.construction} onSave={handleVerticalSave} saving={saving} />}
-              {activeTab === 'vehicle'      && <VehicleCategoryPanel config={configs.vehicle}     onSave={handleVerticalSave} saving={saving} />}
             </div>
           )}
         </motion.div>
