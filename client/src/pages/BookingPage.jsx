@@ -293,7 +293,6 @@ const SERVICE_SUBCATEGORIES = {
   ],
 };
 
-const DEVICE_BRANDS = ['Apple', 'Samsung', 'OnePlus', 'Xiaomi', 'Vivo', 'Oppo', 'Others'];
 const VEHICLE_TYPES = [
   { key: 'bike',    label: 'Bike',    icon: '🏍️' },
   { key: 'scooter', label: 'Scooter', icon: '🛵' },
@@ -843,7 +842,7 @@ export default function BookingPage() {
         )}
 
         {/* Mobile Phone Repair In-Depth Diagnostic & Model Selector */}
-        {(meta.category === 'mobile' || ['screen_replacement', 'battery_replacement', 'charging_issue', 'phone_repair'].includes(service)) && (
+        {isMobile && (
           <motion.div variants={fadeInUp}>
             <PhoneDiagnosticWizard
               onSelectServiceQuote={({ deviceBrand: b, deviceModel: m, deviceSeries: s, partsTier: t, estimatedPriceRs, warrantyDays }) => {
@@ -907,28 +906,17 @@ export default function BookingPage() {
               <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center`}>
                 <Smartphone size={14} strokeWidth={2.5} className="text-white" />
               </div>
-              <p className="font-bold text-[#0F172A] text-sm">Phone Details</p>
+              <p className="font-bold text-[#0F172A] text-sm">Service Preference</p>
             </div>
-            {/* Brand picker */}
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Brand</p>
-              <div className="flex flex-wrap gap-2">
-                {DEVICE_BRANDS.map(brand => (
-                  <motion.button key={brand} onClick={() => setDeviceBrand(b => b === brand ? '' : brand)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${deviceBrand === brand ? 'text-white border-transparent' : 'bg-slate-50 text-slate-600 border-slate-150'}`}
-                    style={deviceBrand === brand ? { background: `linear-gradient(135deg, ${meta.accent}ee, ${meta.accent})` } : {}}
-                    whileTap={{ scale: 0.95 }}>
-                    {brand}
-                  </motion.button>
-                ))}
+            {/* Device summary — brand / model / part tier are chosen in the diagnostic
+                wizard above; shown here read-only so the customer can confirm. */}
+            {(deviceBrand || deviceModel || partsTier) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {deviceBrand && <span className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-150 text-xs font-bold text-slate-700">{deviceBrand}</span>}
+                {deviceModel && <span className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-150 text-xs font-semibold text-slate-600">{deviceModel}</span>}
+                {partsTier && <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-150 text-xs font-bold text-amber-700">{partsTier}</span>}
               </div>
-            </div>
-            {/* Model input */}
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Model (optional)</p>
-              <input value={deviceModel} onChange={e => setDeviceModel(e.target.value)} placeholder="e.g. iPhone 14, Galaxy S23…"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-[#111827] placeholder:text-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
-            </div>
+            )}
             {/* Service Mode */}
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">How should we help?</p>
