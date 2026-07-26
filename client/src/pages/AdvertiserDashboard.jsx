@@ -490,7 +490,7 @@ function CampaignRow({ ad, onEdit }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
         {[
           { label: 'Views',  value: impressions.toLocaleString('en-IN') },
           { label: 'Clicks', value: clicks.toLocaleString('en-IN') },
@@ -580,33 +580,36 @@ export default function AdvertiserDashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="sticky top-6 z-30 px-8 mb-8 pointer-events-none">
-        <div className="bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.06),0_0_0_1px_rgba(255,255,255,1)_inset] rounded-3xl px-6 py-4 flex items-center justify-between pointer-events-auto transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
-          <div className="flex items-center gap-4">
-            <button onClick={() => nav('/partner')} className="w-11 h-11 bg-slate-50 hover:bg-slate-100 flex items-center justify-center rounded-[14px] border border-slate-200 transition-colors mr-1 outline-none">
+      <div className="sticky top-3 sm:top-6 z-30 px-3 sm:px-8 mb-4 sm:mb-8 pointer-events-none">
+        <div className="bg-white/90 backdrop-blur-xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.06),0_0_0_1px_rgba(255,255,255,1)_inset] rounded-3xl p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 pointer-events-auto transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <button onClick={() => nav('/partner')} className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 bg-slate-50 hover:bg-slate-100 flex items-center justify-center rounded-[14px] border border-slate-200 transition-colors outline-none">
               <ArrowLeft size={18} className="text-slate-600" />
             </button>
-            <div className="relative group cursor-pointer">
+            <div className="hidden sm:block relative group cursor-pointer">
               <div className="absolute inset-0 bg-zappy-500 blur-lg opacity-40 group-hover:opacity-60 transition-opacity rounded-xl" />
               <div className="relative w-12 h-12 bg-zappy-gradient rounded-[16px] flex items-center justify-center shadow-lg ring-2 ring-white/50">
                 <Megaphone size={22} className="text-white drop-shadow-md" />
               </div>
             </div>
-            <div>
-              <p className="font-black text-transparent bg-clip-text bg-gradient-to-r from-navy-900 to-zappy-700 text-2xl tracking-tight leading-none">Zappy Ads</p>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-1">Advertiser Portal</p>
+            <div className="flex-1">
+              <p className="font-black text-transparent bg-clip-text bg-gradient-to-r from-navy-900 to-zappy-700 text-xl sm:text-2xl tracking-tight leading-none">Zappy Ads</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-1">Advertiser Portal</p>
             </div>
+            <button onClick={handleLogout} className="sm:hidden w-10 h-10 shrink-0 flex items-center justify-center bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-500 rounded-[14px] border border-slate-100 transition-colors">
+              <LogOut size={16} />
+            </button>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="hidden sm:flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-[14px] px-4 py-2.5 shadow-sm shadow-emerald-100">
               <Wallet size={16} className="text-emerald-600" />
               <span className="text-sm font-black text-emerald-700">{fmtRupees(wallet?.creditsPaise)}</span>
             </div>
-            <motion.button whileTap={{ scale: 0.96 }} onClick={() => setShowTopUp(true)} className="flex items-center gap-1.5 px-4 py-2.5 bg-zappy-gradient text-white rounded-[14px] text-sm font-bold shadow-md shadow-zappy-200 transition-all hover:opacity-90 ring-2 ring-white">
+            <motion.button whileTap={{ scale: 0.96 }} onClick={() => setShowTopUp(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-zappy-gradient text-white rounded-[14px] text-sm font-bold shadow-md shadow-zappy-200 transition-all hover:opacity-90 ring-2 ring-white">
               <Plus size={14} />Add Credits
             </motion.button>
-            <div className="w-px h-8 bg-slate-200 mx-1" />
-            <button onClick={handleLogout} className="w-11 h-11 flex items-center justify-center bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-500 rounded-[14px] border border-slate-100 transition-colors">
+            <div className="hidden sm:block w-px h-8 bg-slate-200 mx-1" />
+            <button onClick={handleLogout} className="hidden sm:flex w-11 h-11 items-center justify-center bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-500 rounded-[14px] border border-slate-100 transition-colors">
               <LogOut size={16} />
             </button>
           </div>

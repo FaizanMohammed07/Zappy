@@ -15,7 +15,7 @@ function OtpBox({ value, onChange, onKeyDown, inputRef, filled }) {
       value={value} onChange={onChange} onKeyDown={onKeyDown}
       animate={filled ? { scale: [1, 1.08, 1] } : {}}
       transition={{ duration: 0.15 }}
-      className="w-12 h-14 text-center text-xl font-black rounded-2xl border-2 outline-none bg-white text-slate-900 transition-colors"
+      className="flex-1 w-0 h-12 sm:h-14 text-center text-lg sm:text-xl font-black rounded-xl sm:rounded-2xl border-2 outline-none bg-white text-slate-900 transition-colors"
       style={{ borderColor: filled ? '#7c3aed' : '#e2e8f0', boxShadow: filled ? '0 0 0 4px rgba(124,58,237,0.12)' : 'none' }}
     />
   );
@@ -264,13 +264,12 @@ export default function PartnerLoginPage() {
                 {/* Form Inputs */}
                 <div className="mb-8">
                   {/* Phone */}
-                  <div className="flex items-center border border-slate-200 rounded-xl px-4 py-3 focus-within:border-violet-500 focus-within:ring-1 focus-within:ring-violet-500 transition-all bg-white shadow-[0_1px_2px_rgba(0,0,0,0.01)]">
-                    <Phone size={18} className="text-slate-400 mr-2.5" />
-                    <span className="text-[13px] font-bold text-slate-700 mr-2 flex items-center gap-1">+91 <ChevronLeft size={12} className="-rotate-90 text-slate-400" /></span>
-                    <div className="w-px h-5 bg-slate-200 mx-1 mr-3" />
+                  <div className="flex items-center border border-slate-200 rounded-xl px-3 sm:px-4 py-3 focus-within:border-violet-500 focus-within:ring-1 focus-within:ring-violet-500 transition-all bg-white shadow-[0_1px_2px_rgba(0,0,0,0.01)] overflow-hidden">
+                    <span className="text-[13px] font-bold text-slate-700 mr-2 flex items-center gap-1 shrink-0">+91 <ChevronLeft size={12} className="-rotate-90 text-slate-400" /></span>
+                    <div className="w-px h-5 bg-slate-200 mx-1 sm:mx-2 shrink-0" />
                     <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      placeholder="Enter your mobile number" autoFocus
-                      className="flex-1 text-[13px] font-medium text-slate-900 placeholder-slate-400 outline-none bg-transparent" />
+                      placeholder="Mobile number" autoFocus
+                      className="flex-1 w-full min-w-0 text-[13px] font-medium text-slate-900 placeholder-slate-400 outline-none bg-transparent ml-1 sm:ml-0" />
                   </div>
                 </div>
 
@@ -296,7 +295,7 @@ export default function PartnerLoginPage() {
                   <h3 className="text-lg font-bold text-slate-900 mb-1">Verify Mobile</h3>
                   <p className="text-sm text-slate-500">OTP sent to +91 {phone}</p>
                 </div>
-                <div className="flex gap-2 justify-between mb-8">
+                <div className="flex gap-1.5 sm:gap-2 justify-between mb-8">
                   {digits.map((d, i) => (
                     <OtpBox key={i} value={d} filled={!!d}
                       inputRef={el => otpRefs.current[i] = el}
