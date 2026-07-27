@@ -142,6 +142,18 @@ const workerSchema = new mongoose.Schema(
       earnedAt:   { type: Date, default: Date.now },
     }],
 
+    // Detailed service expertise, per category (#4). `skills` above stays the flat
+    // dispatch match-set (hot path); this is the rich, customer-facing breakdown the
+    // worker configures in their portal and that powers the booking worker-comparison.
+    // `skills` is kept in sync from expertise.services on update.
+    expertise: [{
+      category:        { type: String, required: true },   // 'mobile' | 'laptop' | 'car' | ...
+      brands:          { type: [String], default: [] },     // ['Apple','Samsung'] — empty = all brands
+      services:        { type: [String], default: [] },     // issue/service codes handled
+      yearsExperience: { type: Number, default: 0, min: 0, max: 60 },
+      certUrls:        { type: [String], default: [] },      // S3 keys of uploaded proof/certs
+    }],
+
     // Earnings goals (daily / weekly targets set by worker)
     goals: [{
       period:      { type: String, enum: ['daily', 'weekly'], required: true },

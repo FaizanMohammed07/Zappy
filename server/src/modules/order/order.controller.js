@@ -252,7 +252,7 @@ async function nearbyPros(req, res, next) {
     if (topIds.length === 0) return res.json({ pros: [] });
 
     const workers = await Worker.find({ _id: { $in: topIds } })
-      .select('name rating completedJobs profilePhoto avatarUrl')
+      .select('name rating completedJobs profilePhoto avatarUrl expertise')
       .lean();
     const byId = new Map(workers.map((w) => [String(w._id), w]));
 
@@ -261,13 +261,18 @@ async function nearbyPros(req, res, next) {
       .map((id, i) => {
         const w = byId.get(String(id));
         if (!w) return null;
+        // Pull the experience + specialties for THIS service from the worker's
+        // configured expertise (#4) so the customer can compare like-for-like.
+        const exp = (w.expertise || []).find((e) => (e.services || []).includes(service));
         return {
-          workerId:      String(id),
-          name:          w.name || 'Pro',
-          rating:        Number((w.rating ?? 5).toFixed(1)),
-          completedJobs: w.completedJobs || 0,
-          photo:         w.profilePhoto || w.avatarUrl || null,
-          recommended:   i === 0,
+          workerId:        String(id),
+          name:            w.name || 'Pro',
+          rating:          Number((w.rating ?? 5).toFixed(1)),
+          completedJobs:   w.completedJobs || 0,
+          photo:           w.profilePhoto || w.avatarUrl || null,
+          yearsExperience: exp?.yearsExperience || 0,
+          specialties:     exp?.brands || [],
+          recommended:     i === 0,
         };
       })
       .filter(Boolean);

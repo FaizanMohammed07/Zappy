@@ -43,6 +43,19 @@ const ALL_SKILLS = [
   { id: 'mason',                 label: 'Masonry / Construction', Icon: Layers,     color: 'text-yellow-700', bg: 'bg-yellow-50', unlockAt: null },
 ];
 
+// Device-repair skills where brand specialisation matters (#4). These map a skill
+// to a customer-facing category so the worker can declare which brands they service
+// and their experience — shown to customers during worker comparison.
+const SKILL_CATEGORY = {
+  screen_replacement: 'mobile', battery_replacement: 'mobile', charging_issue: 'mobile',
+  speaker_mic_issue: 'mobile', software_issue: 'mobile', water_damage_check: 'mobile',
+};
+const BRANDS_BY_CATEGORY = {
+  mobile: ['Apple', 'Samsung', 'OnePlus', 'Xiaomi', 'Vivo', 'Oppo', 'Realme', 'Google', 'Motorola', 'Nothing'],
+  laptop: ['Apple', 'Dell', 'HP', 'Lenovo', 'Asus', 'Acer', 'MSI'],
+};
+const CATEGORY_LABEL = { mobile: 'Phone Repair', laptop: 'Laptop Repair' };
+
 export default function WorkerSkillsPage() {
   const nav = useNavigate();
   const { data: profile, isLoading } = useGetWorkerProfileQuery();
@@ -56,6 +69,14 @@ export default function WorkerSkillsPage() {
 
   const [selected, setSelected] = useState(() => new Set(currentSkills));
   const [primary, setPrimary] = useState(primarySkill);
+  // Per-category expertise (#4): { mobile: { brands: Set, years: n } }
+  const [expertise, setExpertise] = useState(() => {
+    const seed = {};
+    (profile?.expertise ?? []).forEach(e => {
+      seed[e.category] = { brands: new Set(e.brands || []), years: e.yearsExperience || 0 };
+    });
+    return seed;
+  });
 
   function toggle(id) {
     setSelected(prev => {
@@ -66,9 +87,40 @@ export default function WorkerSkillsPage() {
     });
   }
 
+  function toggleBrand(cat, brand) {
+    setExpertise(prev => {
+      const cur = prev[cat] || { brands: new Set(), years: 0 };
+      const brands = new Set(cur.brands);
+      if (brands.has(brand)) brands.delete(brand); else brands.add(brand);
+      return { ...prev, [cat]: { ...cur, brands } };
+    });
+  }
+  function setYears(cat, years) {
+    setExpertise(prev => {
+      const cur = prev[cat] || { brands: new Set(), years: 0 };
+      return { ...prev, [cat]: { ...cur, years } };
+    });
+  }
+
+  // Categories the worker has at least one selected skill in — only these get an editor.
+  const activeCategories = [...new Set(
+    [...selected].map(id => SKILL_CATEGORY[id]).filter(Boolean)
+  )];
+
   async function save() {
     try {
-      await updateSkills({ skills: [...selected], skillPrimary: primary }).unwrap();
+      // Build the rich expertise payload from selected device skills + brand/year picks.
+      const expertisePayload = activeCategories.map(cat => ({
+        category:        cat,
+        brands:          [...(expertise[cat]?.brands ?? [])],
+        services:        [...selected].filter(id => SKILL_CATEGORY[id] === cat),
+        yearsExperience: Number(expertise[cat]?.years) || 0,
+      }));
+      await updateSkills({
+        skills: [...selected],
+        skillPrimary: primary,
+        ...(expertisePayload.length && { expertise: expertisePayload }),
+      }).unwrap();
       toast.success('Skills saved successfully!');
     } catch (err) { toast.error(err?.data?.error || 'Failed to save skills'); }
   }
@@ -210,7 +262,46 @@ export default function WorkerSkillsPage() {
                 })}
               </div>
             </div>
-            
+
+            {/* Device Expertise (#4) — brands serviced + experience, shown to customers */}
+            <AnimatePresence>
+              {activeCategories.length > 0 && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pt-2 space-y-3 pb-8">
+                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">Device Expertise</p>
+                  <p className="text-[11px] text-slate-400 px-1 -mt-1">Brands you service and your experience — customers see this when choosing a pro.</p>
+                  {activeCategories.map(cat => {
+                    const cur = expertise[cat] || { brands: new Set(), years: 0 };
+                    return (
+                      <div key={cat} className="bg-white rounded-[1.25rem] p-4 border border-slate-200 space-y-3">
+                        <p className="text-[14px] font-black text-slate-800">{CATEGORY_LABEL[cat] || cat}</p>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Brands you repair</p>
+                          <div className="flex flex-wrap gap-2">
+                            {(BRANDS_BY_CATEGORY[cat] || []).map(brand => {
+                              const on = cur.brands.has(brand);
+                              return (
+                                <button key={brand} onClick={() => toggleBrand(cat, brand)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${on ? 'bg-indigo-600 text-white border-transparent' : 'bg-slate-50 text-slate-600 border-slate-150 hover:border-indigo-300'}`}>
+                                  {brand}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Years of experience</p>
+                          <input type="number" inputMode="numeric" min={0} max={60}
+                            value={cur.years}
+                            onChange={e => setYears(cat, Math.max(0, Math.min(60, Math.floor(Number(e.target.value)) || 0)))}
+                            className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
           </div>
         )}
       </div>

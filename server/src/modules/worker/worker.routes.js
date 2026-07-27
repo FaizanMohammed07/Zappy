@@ -35,8 +35,17 @@ router.get('/orders', authenticate, requireRole('worker'), ctrl.getOrders);
 router.patch('/profile', authenticate, requireRole('worker'),
   validate(Joi.object({
     name:   Joi.string().min(2).max(100).optional(),
-    skills: Joi.array().items(Joi.string()).min(1).max(10).optional(),
+    skills: Joi.array().items(Joi.string()).min(1).max(40).optional(),
     bio:    Joi.string().max(300).allow('', null).optional(),
+    // Rich per-category expertise (#4). When provided, `skills` is derived from the
+    // union of all services so dispatch matching stays in sync automatically.
+    expertise: Joi.array().items(Joi.object({
+      category:        Joi.string().max(40).required(),
+      brands:          Joi.array().items(Joi.string().max(50)).max(60).default([]),
+      services:        Joi.array().items(Joi.string().max(60)).max(80).default([]),
+      yearsExperience: Joi.number().min(0).max(60).default(0),
+      certUrls:        Joi.array().items(Joi.string().max(300)).max(20).default([]),
+    })).max(15).optional(),
     emergencyContact: Joi.object({
       name:  Joi.string().max(100).optional(),
       phone: Joi.string().max(15).optional(),
@@ -137,8 +146,15 @@ router.patch(
   authenticate,
   requireRole('worker'),
   validate(Joi.object({
-    skills:       Joi.array().items(Joi.string().max(60)).max(15).optional(),
+    skills:       Joi.array().items(Joi.string().max(60)).max(40).optional(),
     skillPrimary: Joi.string().max(60).allow(null, '').optional(),
+    expertise: Joi.array().items(Joi.object({
+      category:        Joi.string().max(40).required(),
+      brands:          Joi.array().items(Joi.string().max(50)).max(60).default([]),
+      services:        Joi.array().items(Joi.string().max(60)).max(80).default([]),
+      yearsExperience: Joi.number().min(0).max(60).default(0),
+      certUrls:        Joi.array().items(Joi.string().max(300)).max(20).default([]),
+    })).max(15).optional(),
   }).min(1)),
   ctrl.updateSkills
 );
