@@ -1080,6 +1080,12 @@ export const api = createApi({
     adminUpdateCatalogService: b.mutation({
       query: ({ code, ...body }) => ({ url: `/catalog/admin/services/${code}`, method: 'PUT', body }),
     }),
+    adminCreateCatalogService: b.mutation({
+      query: (body) => ({ url: '/catalog/admin/services', method: 'POST', body }),
+    }),
+    adminDeleteCatalogService: b.mutation({
+      query: (code) => ({ url: `/catalog/admin/services/${code}`, method: 'DELETE' }),
+    }),
     adminServiceActiveOrderCount: b.query({
       query: (code) => `/catalog/admin/services/${code}/active-orders`,
     }),
@@ -1963,6 +1969,8 @@ export const {
   useListServicesQuery,
   useAdminGetCatalogServicesQuery,
   useAdminUpdateCatalogServiceMutation,
+  useAdminCreateCatalogServiceMutation,
+  useAdminDeleteCatalogServiceMutation,
   useAdminServiceActiveOrderCountQuery,
   useAdminGetVerticalsQuery,
   useAdminUpdateVerticalMutation,

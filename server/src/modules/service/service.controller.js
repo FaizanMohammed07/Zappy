@@ -183,6 +183,7 @@ async function adminUpdateService(req, res, next) {
       priceRangeMinRs, priceRangeMaxRs, inspectionFeeRs,
       estimatedDurationMinutes, imageUrl, coverImage, galleryImages,
       isActive, isFeatured,
+      category, subcategory, sortOrder,
     } = req.body;
 
     const update = {};
@@ -200,6 +201,12 @@ async function adminUpdateService(req, res, next) {
     if (estimatedDurationMinutes != null) update.estimatedDurationMinutes = Number(estimatedDurationMinutes);
     if (isActive                 != null) update.isActive = Boolean(isActive);
     if (isFeatured               != null) update.isFeatured = Boolean(isFeatured);
+
+    // Category reassignment (#5/#18) — lets an admin move a mis-filed service (e.g.
+    // Fuel Delivery wrongly under Pets) to the right category without a code change.
+    if (category                 != null) update.category = String(category).toLowerCase();
+    if (subcategory              != null) update.subcategory = String(subcategory);
+    if (sortOrder                != null) update.sortOrder = Number(sortOrder);
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -377,10 +384,74 @@ async function adminServiceActiveOrderCount(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function adminCreateService(req, res, next) {
+  try {
+    const {
+      code, name, category, subcategory = '',
+      shortDescription = '', description = '',
+      priceRangeMinRs, priceRangeMaxRs, inspectionFeeRs,
+      estimatedDurationMinutes = 30, requiredSkills,
+      icon = '', imageUrl = '', isActive = true, isFeatured = false, sortOrder = 0,
+    } = req.body;
+    if (!code || !name || !category) {
+      return res.status(400).json({ error: 'code, name and category are required' });
+    }
+    if (priceRangeMinRs == null || priceRangeMaxRs == null) {
+      return res.status(400).json({ error: 'priceRangeMinRs and priceRangeMaxRs are required' });
+    }
+    const codeLc = String(code).toLowerCase().trim();
+    const existing = await ServiceCatalog.findOne({ code: codeLc }).lean();
+    if (existing) return res.status(409).json({ error: 'A service with this code already exists' });
+
+    const svc = await ServiceCatalog.create({
+      code: codeLc,
+      name,
+      category: String(category).toLowerCase(),
+      subcategory: String(subcategory),
+      shortDescription, description,
+      icon, imageUrl,
+      estimatedDurationMinutes: Number(estimatedDurationMinutes) || 30,
+      priceRangeMinPaise: Math.round(Number(priceRangeMinRs) * 100),
+      priceRangeMaxPaise: Math.round(Number(priceRangeMaxRs) * 100),
+      ...(inspectionFeeRs != null && { inspectionFeePaise: Math.round(Number(inspectionFeeRs) * 100) }),
+      // Default the dispatch skill to the service code if the admin didn't specify one.
+      requiredSkills: Array.isArray(requiredSkills) && requiredSkills.length ? requiredSkills : [codeLc],
+      isActive: Boolean(isActive),
+      isFeatured: Boolean(isFeatured),
+      sortOrder: Number(sortOrder) || 0,
+    });
+    await bustCatalogCache();
+    res.status(201).json({ service: svc.toObject() });
+  } catch (err) { next(err); }
+}
+
+async function adminDeleteService(req, res, next) {
+  try {
+    const code = String(req.params.code).toLowerCase();
+    // Block only on in-flight orders — completed orders snapshot the code as a string
+    // and don't populate from the catalog, so deleting won't corrupt history.
+    const activeCount = await Order.countDocuments({
+      service: code,
+      status: { $in: ['created', 'searching', 'assigned', 'on_the_way', 'arrived', 'in_progress'] },
+    });
+    if (activeCount > 0) {
+      return res.status(409).json({
+        error: `Cannot delete: ${activeCount} active order(s) use this service. Disable it instead.`,
+        activeOrderCount: activeCount,
+      });
+    }
+    const svc = await ServiceCatalog.findOneAndDelete({ code });
+    if (!svc) return res.status(404).json({ error: 'Service not found' });
+    await bustCatalogCache();
+    res.json({ ok: true, code });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listServices, getService, listBrands, listModels, listVariants,
   getDiagnosticFlow, recordDemandEvent, getInvoice, getWorkerHeatmap,
-  adminListServices, adminUpdateService, adminListBrands, adminCreateBrand,
+  adminListServices, adminUpdateService, adminCreateService, adminDeleteService,
+  adminListBrands, adminCreateBrand,
   adminListModels, adminCreateModel, adminImportModelsBulk, adminListVariants,
   adminCreateVariant, adminGetDemandEvents, adminServiceActiveOrderCount,
 };

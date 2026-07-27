@@ -31,7 +31,9 @@ router.get('/heatmap/worker', authenticate, requireRole('worker'), ctrl.getWorke
 
 // Admin Catalog Management
 router.get('/admin/services', authenticate, requireRole('admin'), ctrl.adminListServices);
+router.post('/admin/services', authenticate, requireRole('admin'), ctrl.adminCreateService);
 router.put('/admin/services/:code', authenticate, requireRole('admin'), ctrl.adminUpdateService);
+router.delete('/admin/services/:code', authenticate, requireRole('admin'), ctrl.adminDeleteService);
 router.get('/admin/services/:code/active-orders', authenticate, requireRole('admin'), ctrl.adminServiceActiveOrderCount);
 
 // Admin Brands, Models & Bulk Import APIs

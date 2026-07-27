@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Save, Loader2, Info, ToggleLeft, ToggleRight, Tag, Image as ImageIcon, Plus, Layers, ShieldCheck, UploadCloud } from 'lucide-react';
+import { ChevronDown, Save, Loader2, Info, ToggleLeft, ToggleRight, Tag, Image as ImageIcon, Plus, Layers, ShieldCheck, UploadCloud, Trash2 } from 'lucide-react';
 import {
   useAdminUpdateCatalogServiceMutation,
+  useAdminDeleteCatalogServiceMutation,
   useAdminServiceActiveOrderCountQuery,
   useAdminGetModelsQuery,
   useAdminGetVariantsQuery,
@@ -12,6 +13,13 @@ import {
 import toast from 'react-hot-toast';
 import { SvcIcon, NumInput, FieldRow, rupees, paise } from './_service-shared';
 
+// Categories an admin can assign a service to. Keep in sync with the tabs on the
+// customer/worker side; changing this reassigns where the service is listed (#5/#18).
+const CATEGORY_OPTIONS = [
+  'mobile', 'laptop', 'car', 'bike', 'home', 'helper', 'pet', 'event',
+  'beauty', 'ac', 'construction', 'other',
+];
+
 export default function ServicePricingCard({ svc, accent, gradFrom, gradTo, tabColor }) {
   const [open, setOpen] = useState(false);
   const [showVariants, setShowVariants] = useState(false);
@@ -20,6 +28,7 @@ export default function ServicePricingCard({ svc, accent, gradFrom, gradTo, tabC
 
   const [form, setForm] = useState({
     name:             svc.name,
+    category:         svc.category || 'other',
     shortDescription: svc.shortDescription || '',
     description:      svc.description || '',
     imageUrl:         svc.imageUrl || '',
@@ -40,6 +49,7 @@ export default function ServicePricingCard({ svc, accent, gradFrom, gradTo, tabC
   const [warrantyDays, setWarrantyDays]   = useState(30);
 
   const [updateSvc, { isLoading: saving }]             = useAdminUpdateCatalogServiceMutation();
+  const [deleteSvc, { isLoading: deleting }]          = useAdminDeleteCatalogServiceMutation();
   const [createVariant, { isLoading: savingVariant }] = useAdminCreateVariantMutation();
   const [presignUpload]                                = usePresignUploadMutation();
 
@@ -53,6 +63,7 @@ export default function ServicePricingCard({ svc, accent, gradFrom, gradTo, tabC
   useEffect(() => {
     setForm({
       name:             svc.name,
+      category:         svc.category || 'other',
       shortDescription: svc.shortDescription || '',
       description:      svc.description || '',
       imageUrl:         svc.imageUrl || '',
@@ -102,6 +113,7 @@ export default function ServicePricingCard({ svc, accent, gradFrom, gradTo, tabC
       await updateSvc({
         code: svc.code,
         name: form.name,
+        category: form.category,
         shortDescription: form.shortDescription,
         description: form.description,
         imageUrl: form.imageUrl,
@@ -115,6 +127,17 @@ export default function ServicePricingCard({ svc, accent, gradFrom, gradTo, tabC
       toast.success(`${svc.name} saved`);
       setOpen(false);
     } catch { toast.error('Save failed'); }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`Delete "${svc.name}" permanently? This cannot be undone. (In-flight orders will block deletion — disable instead.)`)) return;
+    try {
+      await deleteSvc(svc.code).unwrap();
+      toast.success(`${svc.name} deleted`);
+      setOpen(false);
+    } catch (err) {
+      toast.error(err?.data?.error || 'Delete failed');
+    }
   }
 
   async function handleAddVariant(e) {
@@ -186,6 +209,12 @@ export default function ServicePricingCard({ svc, accent, gradFrom, gradTo, tabC
                 <FieldRow label="Display Name">
                   <input value={form.name} onChange={f('name')}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-indigo-400" />
+                </FieldRow>
+                <FieldRow label="Category" hint="Where this service is listed across the apps">
+                  <select value={form.category} onChange={f('category')}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-indigo-400 bg-white capitalize">
+                    {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </FieldRow>
                 <FieldRow label="Service Image" hint="Upload service photo or banner">
                   <div className="flex items-center gap-2 mt-0.5">
@@ -410,6 +439,15 @@ export default function ServicePricingCard({ svc, accent, gradFrom, gradTo, tabC
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition disabled:opacity-50"
+                      title="Delete this service"
+                    >
+                      {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete
+                    </button>
                     <button type="button" onClick={() => setOpen(false)} className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition">Cancel</button>
                     <motion.button
                       type="button"
