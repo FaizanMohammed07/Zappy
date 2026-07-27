@@ -234,9 +234,9 @@ export default function OrderTrackingPage() {
       const res = await fetch(`${API_BASE}/api/orders/${id}/call`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
-      const r = await res.json();
-      if (r.proxyNumber) window.location.href = `tel:${r.proxyNumber}`;
-      else toast.error('Call service unavailable');
+      const r = await res.json().catch(() => ({}));
+      if (res.ok && r.proxyNumber) { window.location.href = `tel:${r.proxyNumber}`; return; }
+      toast.error(r.error || 'Calling is available once a pro is assigned');
     } catch { toast.error('Could not start call'); }
   }
 
