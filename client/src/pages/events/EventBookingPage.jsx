@@ -326,10 +326,23 @@ export default function EventBookingPage() {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 shadow-inner">
-                  <button onClick={() => set('guestCount', Math.max(1, form.guestCount - 1))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-slate-100 text-slate-600 shadow-sm transition-all active:scale-95"><Minus size={18} /></button>
-                  <span className="font-black text-xl text-slate-900 w-8 text-center">{form.guestCount}</span>
-                  <button onClick={() => set('guestCount', form.guestCount + 1)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-slate-100 text-slate-600 shadow-sm transition-all active:scale-95"><Plus size={18} /></button>
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 shadow-inner">
+                  <button onClick={() => set('guestCount', Math.max(1, (Number(form.guestCount) || 1) - 1))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-slate-100 text-slate-600 shadow-sm transition-all active:scale-95" aria-label="Fewer guests"><Minus size={18} /></button>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={5000}
+                    value={form.guestCount}
+                    onChange={e => set('guestCount', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value)) || 0))}
+                    onBlur={e => {
+                      const n = Math.floor(Number(e.target.value)) || 1;
+                      set('guestCount', Math.min(5000, Math.max(1, n)));
+                    }}
+                    className="font-black text-xl text-slate-900 w-16 text-center bg-transparent outline-none focus:ring-2 focus:ring-rose-400/30 rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    aria-label="Total guests"
+                  />
+                  <button onClick={() => set('guestCount', Math.min(5000, (Number(form.guestCount) || 0) + 1))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-slate-100 text-slate-600 shadow-sm transition-all active:scale-95" aria-label="More guests"><Plus size={18} /></button>
                 </div>
               </div>
 
