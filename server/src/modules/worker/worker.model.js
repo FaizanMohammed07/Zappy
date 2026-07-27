@@ -5,6 +5,9 @@ const workerSchema = new mongoose.Schema(
     phone: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true, trim: true },
     email: { type: String, lowercase: true, sparse: true },
+    // Worker-chosen login ID (#2) — approved workers can sign in with
+    // username / email / phone + password instead of an OTP every time.
+    username: { type: String, unique: true, sparse: true, lowercase: true, trim: true, minlength: 3, maxlength: 30 },
     passwordHash: { type: String, select: false },
 
     // Work attributes

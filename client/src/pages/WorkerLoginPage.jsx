@@ -6,7 +6,8 @@ import {
   Phone, ArrowRight, ChevronLeft, CheckCircle2, Loader2, Shield,
   Zap, Star, Wallet, TrendingUp, Clock, BadgeCheck, Wrench, Users
 } from 'lucide-react';
-import { useRequestOtpMutation, useLoginWorkerMutation } from '../services/api';
+import { useRequestOtpMutation, useLoginWorkerMutation,
+  useLoginWorkerPasswordMutation, useForgotWorkerPasswordMutation, useResetWorkerPasswordMutation } from '../services/api';
 import ResendOtp from '../components/auth/ResendOtp';
 import { setAuth } from '../modules/auth/authSlice';
 import { ZappyLogo } from '../components/common/ZappyLogo';
@@ -52,6 +53,17 @@ export default function WorkerLoginPage() {
   const pendingOtp = useRef(null);
   const [requestOtp, { isLoading: sending }]      = useRequestOtpMutation();
   const [loginWorker, { isLoading: loggingIn }]    = useLoginWorkerMutation();
+
+  // Credential login (#2): password path + forgot/reset
+  const [loginMode, setLoginMode]   = useState('otp'); // 'otp' | 'password'
+  const [identifier, setIdentifier] = useState('');    // Worker ID / email / phone
+  const [password, setPassword]     = useState('');
+  const [resetOtp, setResetOtp]     = useState('');
+  const [newPass, setNewPass]       = useState('');
+  const [maskedPhone, setMaskedPhone] = useState('');
+  const [loginWorkerPassword, { isLoading: pwLoggingIn }] = useLoginWorkerPasswordMutation();
+  const [forgotWorkerPassword, { isLoading: forgotSending }] = useForgotWorkerPasswordMutation();
+  const [resetWorkerPassword, { isLoading: resetting }]      = useResetWorkerPasswordMutation();
   const nav      = useNavigate();
   const loc      = useLocation();
   const dispatch = useDispatch();
@@ -143,6 +155,42 @@ export default function WorkerLoginPage() {
     } catch (err) {
       const detail = typeof err.data?.details?.[0] === 'string' ? err.data.details[0] : err.data?.error || 'Verification failed';
       toast.error(detail);
+    }
+  }
+
+  // ── Credential login (#2) ──────────────────────────────────────────────────
+  async function loginWithPassword() {
+    if (!identifier.trim() || !password) { toast.error('Enter your Worker ID and password'); return; }
+    try {
+      const r = await loginWorkerPassword({ identifier: identifier.trim(), password }).unwrap();
+      dispatch(setAuth({ accessToken: r.accessToken, refreshToken: r.refreshToken, profile: r.worker, role: 'worker' }));
+      nav(loc.state?.from || '/worker', { replace: true });
+    } catch (err) {
+      toast.error(err.data?.error || 'Invalid credentials');
+    }
+  }
+
+  async function sendForgot() {
+    if (!identifier.trim()) { toast.error('Enter your Worker ID, email or phone'); return; }
+    try {
+      const r = await forgotWorkerPassword({ identifier: identifier.trim() }).unwrap();
+      setMaskedPhone(r.maskedPhone || '');
+      setStep('reset');
+      toast.success(r.maskedPhone ? `OTP sent to ${r.maskedPhone}` : 'If the account exists, an OTP was sent');
+    } catch (err) {
+      toast.error(err.data?.error || 'Could not send reset OTP');
+    }
+  }
+
+  async function doReset() {
+    if (!/^[0-9]{10,15}$/.test(phone)) { toast.error('Enter the phone number on your account'); return; }
+    if (newPass.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+    try {
+      await resetWorkerPassword({ phone, otp: resetOtp, newPassword: newPass }).unwrap();
+      toast.success('Password reset — sign in with your new password');
+      setPassword(''); setNewPass(''); setResetOtp(''); setLoginMode('password'); setStep('phone');
+    } catch (err) {
+      toast.error(err.data?.error || 'Reset failed');
     }
   }
 
@@ -288,11 +336,14 @@ export default function WorkerLoginPage() {
 
               <div className="mb-8">
                 <h2 className="text-[26px] font-black text-white lg:text-slate-900 tracking-tight mb-1">
-                  {step === 'phone' ? 'Partner Login' : step === 'otp' ? 'Verify OTP' : 'Almost there'}
+                  {step === 'phone' ? 'Partner Login' : step === 'otp' ? 'Verify OTP'
+                   : step === 'forgot' || step === 'reset' ? 'Reset Password' : 'Almost there'}
                 </h2>
                 <p className="text-white/50 lg:text-slate-500 text-[15px] font-medium">
                   {step === 'phone' ? 'Sign in to your partner dashboard'
                    : step === 'otp' ? `Code sent to +91 ${phone}`
+                   : step === 'forgot' ? 'We’ll text a reset code to your number'
+                   : step === 'reset' ? 'Enter the code and your new password'
                    : 'Set up your profile to start earning'}
                 </p>
               </div>
@@ -308,35 +359,90 @@ export default function WorkerLoginPage() {
                     transition={{ duration: 0.3 }}
                     className="w-full"
                   >
-                    <div className="mb-6">
-                      <label className="block text-[11px] font-bold text-white/40 lg:text-slate-500 uppercase tracking-widest mb-2.5">
-                        Mobile Number
-                      </label>
-                      <div className="flex rounded-xl overflow-hidden border transition-all bg-white/5 lg:bg-white border-white/10 lg:border-slate-300 focus-within:border-amber-500 lg:focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500">
-                        <div className="flex items-center justify-center px-4 border-r border-white/10 lg:border-slate-200 text-white/70 lg:text-slate-600 font-semibold text-sm gap-1">
-                          <span className="text-lg leading-none">🇮🇳</span> +91
-                        </div>
-                        <input
-                          type="tel"
-                          inputMode="numeric"
-                          className="w-full py-[15px] px-4 outline-none text-white lg:text-slate-900 font-medium placeholder-white/30 lg:placeholder-slate-400 bg-transparent text-[15px]"
-                          placeholder="Enter your phone number"
-                          value={phone}
-                          onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
-                          onKeyDown={e => e.key === 'Enter' && send()}
-                          autoFocus
-                        />
-                      </div>
+                    {/* Mode toggle: OTP vs Password (#2) */}
+                    <div className="flex gap-1 mb-5 p-1 rounded-xl bg-white/5 lg:bg-slate-100">
+                      {[['otp', 'OTP'], ['password', 'Password']].map(([m, label]) => (
+                        <button key={m} onClick={() => setLoginMode(m)}
+                          className={`flex-1 py-2 rounded-lg text-[13px] font-bold transition-all ${loginMode === m ? 'bg-amber-400 text-slate-900 shadow' : 'text-white/50 lg:text-slate-500 hover:text-white/80 lg:hover:text-slate-700'}`}>
+                          {label}
+                        </button>
+                      ))}
                     </div>
 
-                    <button
-                      onClick={send}
-                      disabled={sending || phone.length < 10}
-                      className="w-full py-[14px] rounded-xl font-bold text-[16px] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-slate-900 bg-amber-400 hover:bg-amber-500 shadow-[0_4px_20px_rgba(251,191,36,0.3)]"
-                    >
-                      {sending ? <Loader2 size={18} className="animate-spin" /> : null}
-                      Continue
-                    </button>
+                    {loginMode === 'otp' ? (
+                      <>
+                        <div className="mb-6">
+                          <label className="block text-[11px] font-bold text-white/40 lg:text-slate-500 uppercase tracking-widest mb-2.5">
+                            Mobile Number
+                          </label>
+                          <div className="flex rounded-xl overflow-hidden border transition-all bg-white/5 lg:bg-white border-white/10 lg:border-slate-300 focus-within:border-amber-500 lg:focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500">
+                            <div className="flex items-center justify-center px-4 border-r border-white/10 lg:border-slate-200 text-white/70 lg:text-slate-600 font-semibold text-sm gap-1">
+                              <span className="text-lg leading-none">🇮🇳</span> +91
+                            </div>
+                            <input
+                              type="tel"
+                              inputMode="numeric"
+                              className="w-full py-[15px] px-4 outline-none text-white lg:text-slate-900 font-medium placeholder-white/30 lg:placeholder-slate-400 bg-transparent text-[15px]"
+                              placeholder="Enter your phone number"
+                              value={phone}
+                              onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                              onKeyDown={e => e.key === 'Enter' && send()}
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={send}
+                          disabled={sending || phone.length < 10}
+                          className="w-full py-[14px] rounded-xl font-bold text-[16px] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-slate-900 bg-amber-400 hover:bg-amber-500 shadow-[0_4px_20px_rgba(251,191,36,0.3)]"
+                        >
+                          {sending ? <Loader2 size={18} className="animate-spin" /> : null}
+                          Continue
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="mb-4">
+                          <label className="block text-[11px] font-bold text-white/40 lg:text-slate-500 uppercase tracking-widest mb-2.5">
+                            Worker ID / Email / Phone
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full py-[15px] px-4 rounded-xl outline-none text-white lg:text-slate-900 font-medium placeholder-white/30 lg:placeholder-slate-400 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-[15px]"
+                            placeholder="Your Worker ID, email or phone"
+                            value={identifier}
+                            onChange={e => setIdentifier(e.target.value)}
+                            autoFocus
+                          />
+                        </div>
+                        <div className="mb-3">
+                          <label className="block text-[11px] font-bold text-white/40 lg:text-slate-500 uppercase tracking-widest mb-2.5">
+                            Password
+                          </label>
+                          <input
+                            type="password"
+                            className="w-full py-[15px] px-4 rounded-xl outline-none text-white lg:text-slate-900 font-medium placeholder-white/30 lg:placeholder-slate-400 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-[15px]"
+                            placeholder="Enter your password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && loginWithPassword()}
+                          />
+                        </div>
+                        <button
+                          onClick={loginWithPassword}
+                          disabled={pwLoggingIn || !identifier.trim() || !password}
+                          className="w-full py-[14px] rounded-xl font-bold text-[16px] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-slate-900 bg-amber-400 hover:bg-amber-500 shadow-[0_4px_20px_rgba(251,191,36,0.3)]"
+                        >
+                          {pwLoggingIn ? <Loader2 size={18} className="animate-spin" /> : null}
+                          Sign in
+                        </button>
+                        <button onClick={() => setStep('forgot')}
+                          className="w-full text-center mt-3 text-[12px] font-semibold text-amber-400/80 hover:text-amber-400">
+                          Forgot password?
+                        </button>
+                      </>
+                    )}
 
                     {/* Trust badges */}
                     <div className="flex items-center justify-center gap-4 mt-6 text-white/30 lg:text-slate-400">
@@ -348,6 +454,55 @@ export default function WorkerLoginPage() {
                         <Zap size={12} /> Instant Verification
                       </div>
                     </div>
+                  </motion.div>
+
+                ) : step === 'forgot' ? (
+                  /* ── FORGOT PASSWORD STEP (#2) ── */
+                  <motion.div key="forgot" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="w-full">
+                    <p className="text-[13px] text-white/50 lg:text-slate-500 mb-5">Enter your Worker ID, email or phone and we'll send a reset OTP to your registered number.</p>
+                    <div className="mb-4">
+                      <label className="block text-[11px] font-bold text-white/40 lg:text-slate-500 uppercase tracking-widest mb-2.5">Worker ID / Email / Phone</label>
+                      <input type="text" value={identifier} onChange={e => setIdentifier(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendForgot()} autoFocus
+                        placeholder="Your Worker ID, email or phone"
+                        className="w-full py-[15px] px-4 rounded-xl outline-none text-white lg:text-slate-900 font-medium placeholder-white/30 lg:placeholder-slate-400 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-[15px]" />
+                    </div>
+                    <button onClick={sendForgot} disabled={forgotSending || !identifier.trim()}
+                      className="w-full py-[14px] rounded-xl font-bold text-[16px] transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-slate-900 bg-amber-400 hover:bg-amber-500 shadow-[0_4px_20px_rgba(251,191,36,0.3)]">
+                      {forgotSending ? <Loader2 size={18} className="animate-spin" /> : null} Send reset OTP
+                    </button>
+                    <button onClick={() => { setLoginMode('password'); setStep('phone'); }}
+                      className="w-full text-center mt-3 text-[12px] font-semibold text-white/50 lg:text-slate-500 hover:text-white/80 lg:hover:text-slate-700">Back to sign in</button>
+                  </motion.div>
+
+                ) : step === 'reset' ? (
+                  /* ── RESET PASSWORD STEP (#2) ── */
+                  <motion.div key="reset" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="w-full">
+                    <p className="text-[13px] text-white/50 lg:text-slate-500 mb-5">{maskedPhone ? `OTP sent to ${maskedPhone}. ` : ''}Enter your phone, the OTP and a new password.</p>
+                    <div className="mb-3">
+                      <label className="block text-[11px] font-bold text-white/40 lg:text-slate-500 uppercase tracking-widest mb-2.5">Account phone</label>
+                      <input type="tel" inputMode="numeric" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                        placeholder="Phone on your account"
+                        className="w-full py-[15px] px-4 rounded-xl outline-none text-white lg:text-slate-900 font-medium placeholder-white/30 lg:placeholder-slate-400 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-[15px]" />
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-[11px] font-bold text-white/40 lg:text-slate-500 uppercase tracking-widest mb-2.5">OTP</label>
+                      <input type="text" inputMode="numeric" value={resetOtp} onChange={e => setResetOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="6-digit code"
+                        className="w-full py-[15px] px-4 rounded-xl outline-none text-white lg:text-slate-900 font-medium placeholder-white/30 lg:placeholder-slate-400 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-[15px]" />
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-[11px] font-bold text-white/40 lg:text-slate-500 uppercase tracking-widest mb-2.5">New password</label>
+                      <input type="password" value={newPass} onChange={e => setNewPass(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && doReset()} placeholder="At least 8 characters"
+                        className="w-full py-[15px] px-4 rounded-xl outline-none text-white lg:text-slate-900 font-medium placeholder-white/30 lg:placeholder-slate-400 bg-white/5 lg:bg-white border border-white/10 lg:border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-[15px]" />
+                    </div>
+                    <button onClick={doReset} disabled={resetting || !phone || !resetOtp || newPass.length < 8}
+                      className="w-full py-[14px] rounded-xl font-bold text-[16px] transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-slate-900 bg-amber-400 hover:bg-amber-500 shadow-[0_4px_20px_rgba(251,191,36,0.3)]">
+                      {resetting ? <Loader2 size={18} className="animate-spin" /> : null} Reset password
+                    </button>
+                    <button onClick={() => { setLoginMode('password'); setStep('phone'); }}
+                      className="w-full text-center mt-3 text-[12px] font-semibold text-white/50 lg:text-slate-500 hover:text-white/80 lg:hover:text-slate-700">Back to sign in</button>
                   </motion.div>
 
                 ) : step === 'otp' ? (

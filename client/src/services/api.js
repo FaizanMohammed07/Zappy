@@ -130,6 +130,22 @@ export const api = createApi({
     loginWorker: b.mutation({
       query: (body) => ({ url: '/auth/worker/login', method: 'POST', body }),
     }),
+    // Worker credential login (#2)
+    loginWorkerPassword: b.mutation({
+      query: (body) => ({ url: '/auth/worker/login-password', method: 'POST', body }),
+    }),
+    setWorkerCredentials: b.mutation({
+      query: (body) => ({ url: '/auth/worker/set-credentials', method: 'POST', body }),
+    }),
+    forgotWorkerPassword: b.mutation({
+      query: (body) => ({ url: '/auth/worker/forgot-password', method: 'POST', body }),
+    }),
+    resetWorkerPassword: b.mutation({
+      query: (body) => ({ url: '/auth/worker/reset-password', method: 'POST', body }),
+    }),
+    changeWorkerPassword: b.mutation({
+      query: (body) => ({ url: '/auth/worker/change-password', method: 'POST', body }),
+    }),
     loginAdmin: b.mutation({
       query: (body) => ({ url: '/auth/admin/login', method: 'POST', body }),
     }),
@@ -1701,6 +1717,11 @@ export const {
   useResendOtpMutation,
   useLoginUserMutation,
   useLoginWorkerMutation,
+  useLoginWorkerPasswordMutation,
+  useSetWorkerCredentialsMutation,
+  useForgotWorkerPasswordMutation,
+  useResetWorkerPasswordMutation,
+  useChangeWorkerPasswordMutation,
   useLoginAdminMutation,
   useLogoutMutation,
   useRevokeAllSessionsMutation,
