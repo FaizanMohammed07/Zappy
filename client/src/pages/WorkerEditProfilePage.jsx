@@ -155,7 +155,7 @@ export default function WorkerEditProfilePage() {
         </button>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 pt-5 space-y-5">
+      <div className="max-w-lg lg:max-w-2xl mx-auto px-4 pt-5 space-y-5">
 
         {/* Avatar placeholder + stats */}
         <div className="bg-white rounded-2xl p-4 flex items-center gap-4 shadow-sm">
