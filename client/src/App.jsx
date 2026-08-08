@@ -7,6 +7,7 @@ import { useDisconnectOnLogout } from './hooks/useSocket';
 import { useFCM } from './hooks/useFCM.jsx';
 import useTelemetry from './hooks/useTelemetry';
 import { prefetchMainTabs, onIdle } from './lib/routePrefetch';
+import { prefetchServiceCatalog } from './hooks/useServiceCatalog';
 import { adminPath } from './config/admin';
 import { getSubdomainRedirect, isExternalRedirect } from './config/hosts';
 import { RequireAuth } from './components/common/RequireAuth';
@@ -34,6 +35,9 @@ const ProfilePage         = lazy(() => import('./pages/ProfilePage'));
 const NotificationsPage   = lazy(() => import('./pages/NotificationsPage'));
 const ChatPage            = lazy(() => import('./pages/ChatPage'));
 const ServicesPage        = lazy(() => import('./pages/ServicesPage'));
+const CategoryCatalogPage = lazy(() => import('./pages/CategoryCatalogPage'));
+const ServiceDetailPage   = lazy(() => import('./pages/ServiceDetailPage'));
+const BrandSelectPage     = lazy(() => import('./pages/BrandSelectPage'));
 const WorkerDashboard     = lazy(() => import('./pages/WorkerDashboard'));
 const WorkerJobPage       = lazy(() => import('./pages/WorkerJobPage'));
 const WorkerKycPage       = lazy(() => import('./pages/WorkerKycPage'));
@@ -109,7 +113,12 @@ export default function App() {
   // tapping Home/Bookings/Track/Profile/Book is instant (no chunk-load spinner).
   useEffect(() => {
     if (!token) return;
-    onIdle(prefetchMainTabs);
+    onIdle(() => {
+      prefetchMainTabs();
+      // The catalog response is shared by every catalog surface, so warming it
+      // once here makes the first tap on a Home category tile render instantly.
+      prefetchServiceCatalog();
+    });
   }, [token]);
 
   return (
@@ -155,6 +164,9 @@ export default function App() {
           <Route path="/"       element={<HomeOrRedirect role={role} token={token} />} />
           <Route path="/home"   element={<HomeOrRedirect role={role} token={token} />} />
           <Route path="/services" element={<RequireAuth role="user"><ServicesPage /></RequireAuth>} />
+          {/* One catalog experience per vertical — Car Services, Phone Repair,
+              Plumbing… all render from ServiceCatalogView via category config. */}
+          <Route path="/services/:category" element={<RequireAuth role="user"><CategoryCatalogPage /></RequireAuth>} />
           <Route path="/orders" element={<RequireAuth role="user"><OrdersListPage /></RequireAuth>} />
           <Route path="/track"  element={<RequireAuth role="user"><TrackPage /></RequireAuth>} />
           <Route path="/profile" element={<RequireAuth role="user"><ProfilePage /></RequireAuth>} />
@@ -165,6 +177,12 @@ export default function App() {
         </Route>
 
         {/* Routes outside MainLayout (no bottom nav) */}
+        {/* Detail sits outside MainLayout: it owns a sticky Book Now bar, so the
+            bottom nav would double up on the same screen edge. */}
+        <Route path="/service/:code" element={<RequireAuth role="user"><ServiceDetailPage /></RequireAuth>} />
+        {/* Brand/model step for verticals with a Brand catalog (phone, laptop,
+            car, bike). Redirects straight to /book when there's nothing to pick. */}
+        <Route path="/service/:code/brand" element={<RequireAuth role="user"><BrandSelectPage /></RequireAuth>} />
         <Route path="/book/:service" element={<RequireAuth role="user"><BookingPage /></RequireAuth>} />
         <Route path="/orders/:id" element={<RequireAuth role="user"><OrderTrackingPage /></RequireAuth>} />
         <Route path="/orders/:id/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />

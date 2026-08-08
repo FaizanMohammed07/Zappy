@@ -406,9 +406,11 @@ export default function BookingPage() {
   const [noWorkersModal,   setNoWorkersModal]   = useState(false);
   const [priceChangedModal, setPriceChangedModal] = useState(null); // { quotedTotal, freshTotal, pendingBody }
 
-  // Mobile-specific state
-  const [deviceBrand,   setDeviceBrand]   = useState('');
-  const [deviceModel,   setDeviceModel]   = useState('');
+  // Device / vehicle identity. Seeded from `/book/:service?brand=&model=`, which
+  // is how the service detail page hands over the brand the customer picked —
+  // the mobile diagnostic wizard below can still overwrite both.
+  const [deviceBrand,   setDeviceBrand]   = useState(() => searchParams.get('brand') || '');
+  const [deviceModel,   setDeviceModel]   = useState(() => searchParams.get('model') || '');
   const [deviceSeries,  setDeviceSeries]  = useState('');
   const [partsTier,     setPartsTier]     = useState(''); // OEM | Premium | Compatible | Budget (from wizard)
   const [serviceMode,   setServiceMode]   = useState('doorstep'); // doorstep | pickup
@@ -575,9 +577,12 @@ export default function BookingPage() {
       tipAmount: tipAmount > 0 ? tipAmount : undefined,
       // Worker-choice: if the customer picked a specific pro, dispatch offers them first.
       ...(preferredWorkerId && { preferredWorkerId }),
-      // Mobile extras
-      ...(isMobile && deviceBrand && { deviceBrand }),
-      ...(isMobile && deviceModel && { deviceModel }),
+      // Brand/model apply to every vertical that has a brand catalog (phones,
+      // laptops, cars, bikes) — the order schema and its Joi validator both
+      // take them unconditionally, and pricing looks up parts by brand+model.
+      ...(deviceBrand && { deviceBrand }),
+      ...(deviceModel && { deviceModel }),
+      // Series and parts tier only come from the mobile diagnostic wizard.
       ...(isMobile && deviceSeries && { deviceSeries }),
       ...(isMobile && partsTier && { partsTier }),
       ...(isMobile && { serviceMode }),
@@ -932,6 +937,28 @@ export default function BookingPage() {
                   </motion.button>
                 ))}
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Brand/model carried over from the service detail page ──────
+            Mobile already shows this inside its own card above. */}
+        {!isMobile && (deviceBrand || deviceModel) && (
+          <motion.div className="rounded-2xl bg-white ring-1 ring-slate-100 p-4" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }} variants={fadeInUp}>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              {isVehicle ? 'Your vehicle' : 'Your device'}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {deviceBrand && (
+                <span className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-150 text-xs font-bold text-slate-700 capitalize">
+                  {deviceBrand.replace(/-/g, ' ')}
+                </span>
+              )}
+              {deviceModel && (
+                <span className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-150 text-xs font-semibold text-slate-600 capitalize">
+                  {deviceModel.replace(/-/g, ' ')}
+                </span>
+              )}
             </div>
           </motion.div>
         )}

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import { categoryMap } from '../../constants/categoryMap';
+import { normalizeCategoryKey } from '../../constants/catalogCategories';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 /**
@@ -18,11 +19,12 @@ export default function CharacterServiceGrid() {
   const isMobile = useIsMobile();
 
   const handleServiceClick = (svc) => {
-    // Open the catalog pre-filtered to this category (via its catalogKey) rather
-    // than text-searching the label — a label search lands on the "All" tab and
-    // shows unrelated services. 'More' opens the full catalog unfiltered.
-    if (svc.id === 'more' || !svc.catalogKey) nav('/services');
-    else nav(`/services?category=${encodeURIComponent(svc.catalogKey)}`);
+    // Open that vertical's own catalog page (its own hero, filters and offers)
+    // rather than the all-services grid. `normalizeCategoryKey` maps the tile's
+    // catalogKey onto the canonical route key, so `smart_device` → `/services/smart`.
+    // 'More' opens the full catalog unfiltered.
+    const key = svc.id === 'more' ? null : normalizeCategoryKey(svc.catalogKey);
+    nav(key ? `/services/${key}` : '/services');
   };
 
   return (
