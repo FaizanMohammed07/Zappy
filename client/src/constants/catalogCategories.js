@@ -116,7 +116,9 @@ export const CAR_ILLUSTRATION_RULES = [
   [kw('dent', 'denting'),                             'dent'],
   [kw('paint'),                                       'paint'],
   [kw('windshield', 'windscreen', 'glass'),           'windshield'],
-  [kw('headlight', 'head lamp', 'light'),             'headlight'],
+  // Not bare 'light' — it matches "taillight", "lighting", and any prose that
+  // happens to mention lights.
+  [kw('headlight', 'head lamp', 'head light'),        'headlight'],
   [kw('brake'),                                       'brake'],
   [kw('suspension', 'shock', 'strut'),                'suspension'],
   [kw('oil change', 'engine oil', 'lubric'),          'oil'],
@@ -166,6 +168,10 @@ const CONFIG = {
     illustration: 'periodic-service',
     illustrationRules: CAR_ILLUSTRATION_RULES,
     searchPlaceholder: 'What service are you looking for?',
+    // Bento mosaic: mixed tile sizes, illustration + label only. Flip this on
+    // for any vertical whose art is strong enough to carry a tile on its own
+    // (the automotive set is). Everything else uses the denser 'compact' card.
+    cardStyle: 'mosaic',
     banner: {
       eyebrow: 'Doorstep, not the workshop',
       title: 'Car care that\ncomes to your address',
@@ -544,6 +550,7 @@ export const CATALOG_CATEGORIES = [
     illustration: conf.illustration || 'tools',
     illustrationRules: conf.illustrationRules || GENERIC_ILLUSTRATION_RULES,
     searchPlaceholder: conf.searchPlaceholder || 'What service are you looking for?',
+    cardStyle: conf.cardStyle || 'compact',
     banner: conf.banner || null,
     facets: conf.facets || [POPULAR, QUICK, BUDGET],
   };

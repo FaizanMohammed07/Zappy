@@ -40,7 +40,26 @@ export function ServiceCardSkeleton() {
   );
 }
 
-export function ServiceGridSkeleton({ count = 6 }) {
+export function ServiceGridSkeleton({ count = 6, mosaic = false }) {
+  // Mosaic placeholders mirror the tile rhythm — two double-width leads, then
+  // quarter-width tiles — so the grid doesn't reshuffle when data lands.
+  if (mosaic) {
+    return (
+      <div className="grid grid-cols-4 gap-2.5 sm:gap-3 lg:grid-cols-6" aria-hidden>
+        {Array.from({ length: Math.max(count, 8) }).map((_, i) => (
+          <div
+            key={i}
+            className={
+              i < 4
+                ? 'skeleton col-span-2 h-[188px] rounded-[20px] sm:h-[212px]'
+                : 'skeleton col-span-1 h-[136px] rounded-[20px] sm:h-[152px]'
+            }
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div
       className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"

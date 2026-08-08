@@ -14,25 +14,33 @@
  * checklist) — nothing is invented.
  */
 
-/** All the searchable text of a service, lowercased, for keyword matching. */
-export function haystack(service) {
-  return [
-    service.code,
-    service.name,
-    service.subcategory,
-    service.shortDescription,
-    service.description,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+/**
+ * The text a keyword rule is matched against.
+ *
+ * `identity` — code, name and subcategory: what the service *is*.
+ * `full`     — plus both descriptions: what it happens to mention.
+ *
+ * The split matters because descriptions are prose and match far too eagerly.
+ * "Car Wash" describes itself as including "interior vacuuming", which made a
+ * naive full-text match classify it as an interior-cleaning job. Callers that
+ * need precision (illustration routing) match on identity first; callers that
+ * want reach (filter facets, search) use the full text.
+ */
+export function haystack(service, scope = 'full') {
+  const parts = [service.code, service.name, service.subcategory];
+  if (scope !== 'identity') parts.push(service.shortDescription, service.description);
+  return parts.filter(Boolean).join(' ').toLowerCase();
 }
 
-/** Facet matcher: true when any of `words` appears in the service's text. */
+/**
+ * Keyword matcher: true when any of `words` appears in the service's text.
+ * The returned function takes an optional `scope` (see `haystack`); omitting it
+ * matches the full text, which is what facets want.
+ */
 export function kw(...words) {
   const needles = words.map((w) => w.toLowerCase());
-  return (service) => {
-    const h = haystack(service);
+  return (service, scope) => {
+    const h = haystack(service, scope);
     return needles.some((w) => h.includes(w));
   };
 }

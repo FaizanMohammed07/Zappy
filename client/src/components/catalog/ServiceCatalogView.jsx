@@ -8,6 +8,7 @@ import CatalogHeader from './CatalogHeader';
 import FacetRail from './FacetRail';
 import FeaturedBanner from './FeaturedBanner';
 import ServiceCard from './ServiceCard';
+import ServiceTile from './ServiceTile';
 import CategoryStrip from './CategoryStrip';
 import { BannerSkeleton, FacetRailSkeleton, ServiceGridSkeleton } from './CatalogSkeletons';
 import useServiceCatalog from '../../hooks/useServiceCatalog';
@@ -37,6 +38,11 @@ import { searchServices } from '../../lib/serviceSearch';
 
 const PAGE_SIZE = 12;
 
+// Mosaic rhythm: the first few services lead as double-width tiles, the rest
+// fill in as quarter-width ones. Four gives two full lead rows on mobile before
+// the grid breaks into the smaller tiles.
+const LEAD_TILES = 4;
+
 const gridContainer = {
   initial: {},
   animate: { transition: { staggerChildren: 0.03, delayChildren: 0.02 } },
@@ -49,6 +55,7 @@ export default function ServiceCatalogView({ categoryKey = null }) {
   const { favorites, count: savedCount } = useFavorites();
 
   const category = useMemo(() => getCategoryConfig(categoryKey), [categoryKey]);
+  const mosaic = category.cardStyle === 'mosaic';
 
   const [query, setQuery] = useState(() => searchParams.get('q') || '');
   const [facetKey, setFacetKey] = useState(() => searchParams.get('f') || 'all');
@@ -242,7 +249,7 @@ export default function ServiceCatalogView({ categoryKey = null }) {
               </div>
             )}
 
-            {loading && <ServiceGridSkeleton count={6} />}
+            {loading && <ServiceGridSkeleton count={6} mosaic={mosaic} />}
 
             {isEmpty && (
               <motion.div
@@ -287,23 +294,37 @@ export default function ServiceCatalogView({ categoryKey = null }) {
                 initial="initial"
                 animate="animate"
                 aria-live="polite"
-                className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                className={
+                  mosaic
+                    ? 'grid grid-cols-4 gap-2.5 sm:gap-3 lg:grid-cols-6'
+                    : 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'
+                }
               >
-                {shown.map((service) => (
-                  <ServiceCard
-                    key={service.code}
-                    service={service}
-                    category={category}
-                    promo={promoMap[service.code]}
-                  />
-                ))}
+                {shown.map((service, i) =>
+                  mosaic ? (
+                    <ServiceTile
+                      key={service.code}
+                      service={service}
+                      category={category}
+                      promo={promoMap[service.code]}
+                      size={i < LEAD_TILES ? 'large' : 'small'}
+                    />
+                  ) : (
+                    <ServiceCard
+                      key={service.code}
+                      service={service}
+                      category={category}
+                      promo={promoMap[service.code]}
+                    />
+                  ),
+                )}
               </motion.div>
             )}
 
             {/* Reveals the next page as it approaches the viewport. */}
             {visible < list.length && (
               <div ref={sentinelRef} className="mt-4">
-                <ServiceGridSkeleton count={2} />
+                <ServiceGridSkeleton count={mosaic ? 4 : 2} mosaic={mosaic} />
               </div>
             )}
           </section>

@@ -850,11 +850,18 @@ const DRAWINGS = {
 export function illustrationFor(service, category) {
   if (!service) return category?.illustration || 'tools';
   const rules = category?.illustrationRules || GENERIC_ILLUSTRATION_RULES;
-  for (const [match, key] of rules) {
-    if (match(service) && DRAWINGS[key]) return key;
-  }
-  for (const [match, key] of GENERIC_ILLUSTRATION_RULES) {
-    if (match(service) && DRAWINGS[key]) return key;
+
+  // Identity first (code/name/subcategory), then the full text including
+  // descriptions. Without the two passes a service picks up a drawing for
+  // something its description merely mentions — "Car Wash" listing "interior
+  // vacuuming" would render as an interior-cleaning job.
+  for (const scope of ['identity', 'full']) {
+    for (const [match, key] of rules) {
+      if (match(service, scope) && DRAWINGS[key]) return key;
+    }
+    for (const [match, key] of GENERIC_ILLUSTRATION_RULES) {
+      if (match(service, scope) && DRAWINGS[key]) return key;
+    }
   }
   return DRAWINGS[category?.illustration] ? category.illustration : 'tools';
 }
